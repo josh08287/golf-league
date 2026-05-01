@@ -1,0 +1,166 @@
+# Build results
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# User-specific files
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build results
+[Dd]ebugPublic/
+[Rr]elease/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]uild/
+
+# Visual Studio files
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Scaffolding
+GeneratedFiles/
+
+# StyleCop
+StyleCopReport.xml
+
+# Files built by Visual Studio
+*_i.c
+*_p.c
+*_i.h
+*.ilk
+*.meta
+*.obj
+*.iobj
+*.pch
+*.pdb
+*.ipdb
+*.pgc
+*.pgd
+*.rsp
+*.resources
+*.resx
+*.tlb
+*.tlh
+*.tmp
+*.tmp_proj
+*_wpftmp.csproj
+*.log
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# Chutzpah Test files
+_Chutzpah*
+
+# Visual C++ files
+*.ipdb
+*.pgc
+*.pgd
+*.pch
+*.pdb
+*.idb
+*.obj
+*.lib
+*.exp
+*.vsix
+*.app
+*.appx
+*.appmanifest
+
+# NuGet
+*.nupkg
+*.snupkg
+# NuGet Packages
+*.packages
+packages/
+# Package files
+*.dll
+*.dll.mdb
+*.pdb
+
+# Azure Functions
+src/GolfLeague.Functions/bin/
+src/GolfLeague.Functions/obj/
+src/GolfLeague.Functions/publish/
+
+# Mobile/Flutter
+mobile/.dart_tool/
+mobile/.flutter-plugins-dependencies
+mobile/build/
+mobile/coverage/
+mobile/doc/api/
+mobile/ios/Flutter/.last_build_id
+mobile/android/app/debug/
+mobile/android/app/profile/
+mobile/android/app/release/
+mobile/android/.gradle/
+mobile/android/app/build/
+mobile/android/build/
+mobile/android/.idea/
+mobile/*.iml
+
+# Web/Vite
+web/node_modules/
+web/dist/
+web/.vite/
+web/build/
+
+# Test results
+[Tt]est[Rr]esult/
+[Bb]uild[Ll]og.*
+
+# Subdirectory artifacts
+**/bin/
+**/obj/
+**/publish/
+
+# Rider
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# Mac OS
+.DS_Store

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus2"
+    },
+    "environmentName": {
+      "value": "prod"
+    },
+    "appName": {
+      "value": "golf-league"
+    },
+    "entraExternalTenantId": {
+      "value": "8299a09c-bf4e-4d14-aa8c-13afa3c58965"
+    },
+    "entraClientId": {
+      "value": "39dca729-4792-4830-8b72-5441fbe31c2b"
+    }
+  }
+}

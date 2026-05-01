@@ -1,0 +1,12 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "ENTRA_TENANT_ID": "",
+    "ENTRA_CLIENT_ID": "",
+    "BLOB_STORAGE_ACCOUNT": "",
+    "SQLITE_BLOB_CONTAINER": "golf-league-db",
+    "SQLITE_BLOB_NAME": "golf-league.db"
+  }
+}
