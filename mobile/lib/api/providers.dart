@@ -28,9 +28,11 @@ final roundsProvider = FutureProvider<List<Round>>((ref) async {
   final dio = ref.watch(apiClientProvider);
   final response = await dio.get<dynamic>('/rounds', queryParameters: {
     'page': 1,
-    'pageSize': 5,
+    'pageSize': 20,
   });
-  return _extractList(response.data, Round.fromJson);
+  final rounds = _extractList(response.data, Round.fromJson);
+  rounds.sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+  return rounds;
 });
 
 final roundDetailProvider = FutureProvider.family<Round, int>((ref, roundId) async {

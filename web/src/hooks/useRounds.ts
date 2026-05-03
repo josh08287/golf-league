@@ -29,7 +29,11 @@ export function useRounds(page = 1) {
         '/rounds',
         { params: { page, pageSize: 20 } },
       );
-      return response.data;
+      const result = response.data;
+      result.data = [...result.data].sort(
+        (a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime(),
+      );
+      return result;
     },
   });
 }
