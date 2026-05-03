@@ -10,6 +10,8 @@ public class Round
     public int CourseId { get; set; }
     public DateOnly RoundDate { get; set; }
     public RoundStatus Status { get; set; } = RoundStatus.Scheduled;
+    public RoundType RoundType { get; set; } = RoundType.NineHole;
+    public NineHoleSide NineHoleSide { get; set; } = NineHoleSide.Front;
     public string? Notes { get; set; }
 
     public Season Season { get; set; } = null!;

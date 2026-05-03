@@ -11,6 +11,8 @@ export interface CreateRoundPayload {
   seasonId?: number | string;
   playerIds?: number[];
   notes?: string;
+  roundType?: 'NineHole' | 'EighteenHole';
+  nineHoleSide?: 'Front' | 'Back';
 }
 
 export interface HoleScoreInput {

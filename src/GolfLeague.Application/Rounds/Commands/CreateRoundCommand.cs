@@ -5,6 +5,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using MediatR;
+using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
@@ -17,7 +18,9 @@ public sealed record CreateRoundCommand(
     DateOnly RoundDate,
     string? Notes,
     List<CreateRoundParticipantInput> Participants,
-    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    string UserId,
+    RoundType RoundType = RoundType.NineHole,
+    NineHoleSide NineHoleSide = NineHoleSide.Front) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
 
 public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundCommand, Result<RoundDto>>
 {
@@ -58,6 +61,8 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
             CourseId = request.CourseId,
             RoundDate = request.RoundDate,
             Status = RoundStatus.Scheduled,
+            RoundType = request.RoundType,
+            NineHoleSide = request.NineHoleSide,
             Notes = request.Notes
         };
 
@@ -70,7 +75,7 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
             var currentHandicap = await _handicapRepository.GetCurrentAsync(input.PlayerId, cancellationToken);
             var handicapIndex = currentHandicap?.HandicapIndex ?? 0.0;
-            var courseHandicap = StablefordScoringService.CourseHandicap(handicapIndex, course.SlopeRating);
+            var courseHandicap = CourseHandicap(handicapIndex, course.SlopeRating, request.RoundType);
 
             var participant = new RoundParticipant
             {
@@ -93,6 +98,8 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
             course.Name,
             round.RoundDate,
             round.Status,
+            round.RoundType,
+            round.NineHoleSide,
             request.Participants.Count);
 
         return Result<RoundDto>.Ok(dto);

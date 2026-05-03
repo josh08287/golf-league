@@ -5,6 +5,7 @@ using GolfLeague.Infrastructure;
 using GolfLeague.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -18,12 +19,6 @@ var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(workerApp =>
     {
         workerApp.UseMiddleware<AuthMiddleware>();
-    }, options =>
-    {
-        options.ConfigureSerializer = serializerOptions =>
-        {
-            serializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
-        };
     })
     .ConfigureServices((context, services) =>
     {
@@ -62,6 +57,11 @@ var host = new HostBuilder()
 
             options.AddPolicy("Authenticated", policy =>
                 policy.RequireAuthenticatedUser());
+        });
+
+        services.Configure<JsonOptions>(o =>
+        {
+            o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
         });
 
         services.AddInfrastructure(config);

@@ -31,6 +31,8 @@ public sealed class GetRoundQueryHandler : IRequestHandler<GetRoundQuery, Result
             round.Course?.Name ?? string.Empty,
             round.RoundDate,
             round.Status,
+            round.RoundType,
+            round.NineHoleSide,
             round.Participants.Count);
 
         return Result<RoundDto>.Ok(dto);

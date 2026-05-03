@@ -15,6 +15,8 @@ const schema = z.object({
   scheduledDate: z.string().min(1, 'Date is required'),
   courseId: z.string().min(1, 'Course is required'),
   flightId: z.string().min(1, 'Flight is required'),
+  roundType: z.enum(['NineHole', 'EighteenHole']).default('NineHole'),
+  nineHoleSide: z.enum(['Front', 'Back']).default('Front'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -79,6 +81,8 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
       courseId: Number(values.courseId),
       flightId: Number(values.flightId),
       playerIds: Array.from(selectedPlayerIds),
+      roundType: values.roundType,
+      nineHoleSide: values.roundType === 'NineHole' ? values.nineHoleSide : undefined,
     });
     onSuccess();
   }
@@ -110,6 +114,24 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
           ))}
         </select>
       </FormField>
+
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Round Type" error={errors.roundType}>
+          <select {...register('roundType')} className={selectClass}>
+            <option value="NineHole">9 Holes</option>
+            <option value="EighteenHole">18 Holes</option>
+          </select>
+        </FormField>
+
+        {watch('roundType') === 'NineHole' && (
+          <FormField label="Nine" error={errors.nineHoleSide}>
+            <select {...register('nineHoleSide')} className={selectClass}>
+              <option value="Front">Front 9</option>
+              <option value="Back">Back 9</option>
+            </select>
+          </FormField>
+        )}
+      </div>
 
       {selectedFlightId && (
         <div>

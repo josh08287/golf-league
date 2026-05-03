@@ -1,9 +1,14 @@
+using GolfLeague.Domain.Enums;
+
 namespace GolfLeague.Domain.Services;
 
 public static class StablefordScoringService
 {
-    public static int CourseHandicap(double handicapIndex, int slopeRating)
-        => (int)Math.Round(handicapIndex * slopeRating / 113.0, MidpointRounding.AwayFromZero);
+    public static int CourseHandicap(double handicapIndex, int slopeRating, RoundType roundType = RoundType.EighteenHole)
+    {
+        var fullCourseHandicap = (int)Math.Round(handicapIndex * slopeRating / 113.0, MidpointRounding.AwayFromZero);
+        return roundType == RoundType.NineHole ? (int)Math.Round(fullCourseHandicap / 2.0, MidpointRounding.AwayFromZero) : fullCourseHandicap;
+    }
 
     public static int StrokesOnHole(int courseHandicap, int strokeIndex)
         => (int)Math.Floor(courseHandicap / 18.0) + (strokeIndex <= courseHandicap % 18 ? 1 : 0);

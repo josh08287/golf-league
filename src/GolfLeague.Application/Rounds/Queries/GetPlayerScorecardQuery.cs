@@ -86,10 +86,13 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
             holeScoreDtos.Sum(h => h.Par),
             front.Sum(h => h.GrossStrokes),
             back.Sum(h => h.GrossStrokes),
+            holeScoreDtos.Sum(h => h.GrossStrokes),
             front.Sum(h => h.NetStrokes),
             back.Sum(h => h.NetStrokes),
+            holeScoreDtos.Sum(h => h.NetStrokes),
             front.Sum(h => h.StablefordPoints),
-            back.Sum(h => h.StablefordPoints));
+            back.Sum(h => h.StablefordPoints),
+            holeScoreDtos.Sum(h => h.StablefordPoints));
 
         return Result<ScorecardDto>.Ok(dto);
     }

@@ -13,7 +13,10 @@ public sealed record ScorecardDto(
     int TotalPar,
     int FrontNineGross,
     int BackNineGross,
+    int TotalGross,
     int FrontNineNet,
     int BackNineNet,
+    int TotalNet,
     int FrontNinePoints,
-    int BackNinePoints);
+    int BackNinePoints,
+    int TotalPoints);

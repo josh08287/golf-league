@@ -5,6 +5,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using MediatR;
+using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
@@ -59,26 +60,51 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
 
         foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && p.TotalGrossStrokes.HasValue))
         {
-            var differentials = await _handicapRepository.GetLast20DifferentialsAsync(participant.PlayerId, cancellationToken);
+            double newDiff;
 
-            var newDiff = StablefordScoringService.ScoreDifferential(
-                participant.TotalGrossStrokes!.Value,
-                course.CourseRating,
-                course.SlopeRating);
-
-            var allDifferentials = differentials.Append(newDiff);
-            var newIndex = HandicapCalculationService.CalculateNewIndex(allDifferentials);
-
-            var updatedHandicap = new Handicap
+            if (round.RoundType == RoundType.NineHole)
             {
-                PlayerId = participant.PlayerId,
-                HandicapIndex = newIndex,
-                EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                Source = HandicapSource.Calculated,
-                Notes = $"Calculated after round {round.Id} on {round.RoundDate}"
-            };
+                // For 9-hole rounds, calculate 9-hole differential and store it
+                // The differential will be combined with another 9-hole round later
+                newDiff = NineHoleScoreDifferential(
+                    participant.TotalGrossStrokes!.Value,
+                    course.CourseRating,
+                    course.SlopeRating);
+            }
+            else
+            {
+                // For 18-hole rounds, calculate standard differential
+                newDiff = ScoreDifferential(
+                    participant.TotalGrossStrokes!.Value,
+                    course.CourseRating,
+                    course.SlopeRating);
+            }
 
-            await _handicapRepository.AddAsync(updatedHandicap, cancellationToken);
+            // Store the differential for handicap calculation
+            await _handicapRepository.AddDifferentialAsync(
+                participant.PlayerId,
+                newDiff,
+                round.RoundDate,
+                cancellationToken);
+
+            // For 18-hole rounds, recalculate handicap immediately
+            // For 9-hole rounds, wait until we have combined differentials
+            if (round.RoundType == RoundType.EighteenHole)
+            {
+                var differentials = await _handicapRepository.GetLast20DifferentialsAsync(participant.PlayerId, cancellationToken);
+                var newIndex = HandicapCalculationService.CalculateNewIndex(differentials);
+
+                var updatedHandicap = new Handicap
+                {
+                    PlayerId = participant.PlayerId,
+                    HandicapIndex = newIndex,
+                    EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Source = HandicapSource.Calculated,
+                    Notes = $"Calculated after round {round.Id} on {round.RoundDate}"
+                };
+
+                await _handicapRepository.AddAsync(updatedHandicap, cancellationToken);
+            }
         }
 
         var dto = new RoundDto(
@@ -90,6 +116,8 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             course.Name,
             round.RoundDate,
             round.Status,
+            round.RoundType,
+            round.NineHoleSide,
             round.Participants.Count);
 
         return Result<RoundDto>.Ok(dto);

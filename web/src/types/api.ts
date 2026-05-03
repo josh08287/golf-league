@@ -60,6 +60,8 @@ export interface Standing {
 }
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'Finalized' | 'Cancelled';
+export type RoundType = 'NineHole' | 'EighteenHole';
+export type NineHoleSide = 'NotApplicable' | 'Front' | 'Back';
 
 export interface Round {
   id: number;
@@ -69,6 +71,8 @@ export interface Round {
   flightName: string;
   scheduledDate: string;
   status: RoundStatus;
+  roundType: RoundType;
+  nineHoleSide: NineHoleSide;
   seasonId: number;
   participantCount: number;
 }

@@ -1,5 +1,6 @@
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
@@ -71,7 +72,16 @@ public sealed class RoundFunctions
             seasonId = activeSeasonId.Value;
         }
 
-        var command = new CreateRoundCommand(seasonId, body.FlightId, body.CourseId, body.ResolvedDate, body.Notes, participants, userId);
+        var command = new CreateRoundCommand(
+            seasonId,
+            body.FlightId,
+            body.CourseId,
+            body.ResolvedDate,
+            body.Notes,
+            participants,
+            userId,
+            body.ResolvedRoundType,
+            body.ResolvedNineHoleSide);
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/rounds/{result.Value?.Id}");
     }
@@ -191,13 +201,26 @@ public sealed class RoundFunctions
     private sealed record CreateRoundRequest(
         int? SeasonId, int FlightId, int CourseId,
         string? ScheduledDate, string? RoundDate,
-        string? Notes, List<int>? PlayerIds)
+        string? Notes, List<int>? PlayerIds,
+        string? RoundType, string? NineHoleSide)
     {
         public DateOnly ResolvedDate => ScheduledDate is not null
             ? DateOnly.Parse(ScheduledDate)
             : RoundDate is not null
                 ? DateOnly.Parse(RoundDate)
                 : DateOnly.FromDateTime(DateTime.UtcNow);
+
+        public RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
+        {
+            "eighteenhole" or "18" or "18hole" => RoundType.EighteenHole,
+            _ => RoundType.NineHole
+        };
+
+        public NineHoleSide ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
+        {
+            "back" or "back9" or "backnine" => NineHoleSide.Back,
+            _ => NineHoleSide.Front
+        };
     }
 
     private sealed record HoleScoreInputDto(int HoleNumber, int? GrossStrokes, int? GrossScore)

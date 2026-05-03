@@ -11,4 +11,6 @@ public sealed record RoundDto(
     string CourseName,
     DateOnly ScheduledDate,
     RoundStatus Status,
+    RoundType RoundType,
+    NineHoleSide NineHoleSide,
     int ParticipantCount);

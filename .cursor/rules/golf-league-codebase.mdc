@@ -37,6 +37,14 @@ alwaysApply: true
 
 - **`master`** branch (not `main`): `deploy-api.yml` (`src/**`, `tests/**`) publishes Function App; `deploy-web.yml` (`web/**`) deploys Static Web App from `web/dist`.
 
+## Definition of done
+
+After **any** code change, the task is not complete until:
+1. The solution builds locally without errors: `dotnet build GolfLeague.sln`
+2. All tests pass locally: `dotnet test GolfLeague.sln`
+
+Do not mark a task done or ask the user to deploy until both commands succeed.
+
 ## When editing
 
 - New endpoints: add Azure Function in `GolfLeague.Functions/Functions/`, wire MediatR handler in `GolfLeague.Application`, repository in Infrastructure if needed.

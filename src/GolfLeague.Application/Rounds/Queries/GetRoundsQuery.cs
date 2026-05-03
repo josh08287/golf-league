@@ -37,6 +37,8 @@ public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Resu
             r.Course?.Name ?? string.Empty,
             r.RoundDate,
             r.Status,
+            r.RoundType,
+            r.NineHoleSide,
             r.Participants.Count
         )).ToList();
 

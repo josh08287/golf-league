@@ -58,6 +58,26 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (course is null || player is null)
             return Result<ScorecardDto>.Fail("Course or player data could not be loaded.");
 
+        // Filter holes based on round type and nine-hole side
+        var relevantHoles = round.RoundType == RoundType.NineHole
+            ? round.NineHoleSide == NineHoleSide.Back
+                ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
+                : courseHoles.Where(h => h.HoleNumber <= 9).ToList()
+            : courseHoles.ToList();
+
+        var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
+
+        // Validate that submitted holes match expected holes for this round type
+        var submittedHoleNumbers = request.HoleScores.Select(h => h.HoleNumber).ToHashSet();
+        var expectedHoleCount = round.RoundType == RoundType.NineHole ? 9 : 18;
+
+        if (submittedHoleNumbers.Count != expectedHoleCount)
+            return Result<ScorecardDto>.Fail($"Expected {expectedHoleCount} holes for this {round.RoundType} round on the {round.NineHoleSide}, but received {submittedHoleNumbers.Count}.");
+
+        var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
+        if (invalidHoles.Any())
+            return Result<ScorecardDto>.Fail($"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
+
         var holeScoreEntities = new List<HoleScore>();
 
         foreach (var input in request.HoleScores)
@@ -101,26 +121,6 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             await _roundRepository.UpdateAsync(round, cancellationToken);
         }
 
-        // --- HANDICAP RECALCULATION FOR 9-HOLE ROUNDS ---
-        // After every 2 rounds, combine two 9-hole rounds for handicap calculation
-        var playerRounds = await _roundRepository.GetParticipantsAsyncByPlayer(request.PlayerId, cancellationToken);
-        var nineHoleRounds = playerRounds
-            .Where(rp => rp.HoleScores.Count == 9)
-            .OrderBy(rp => rp.Round.RoundDate)
-            .ToList();
-        if (nineHoleRounds.Count >= 2 && nineHoleRounds.Count % 2 == 0)
-        {
-            var lastTwo = nineHoleRounds.TakeLast(2).ToList();
-            var gross1 = lastTwo[0].HoleScores.Sum(h => h.GrossStrokes);
-            var gross2 = lastTwo[1].HoleScores.Sum(h => h.GrossStrokes);
-            var diff1 = StablefordScoringService.NineHoleScoreDifferential(gross1, course.CourseRating, course.SlopeRating);
-            var diff2 = StablefordScoringService.NineHoleScoreDifferential(gross2, course.CourseRating, course.SlopeRating);
-            var combinedDiff = HandicapCalculationService.CombineNineHoleDifferentials(diff1, diff2);
-            // Save combinedDiff as a new differential for handicap calculation
-            await _handicapRepository.AddDifferentialAsync(request.PlayerId, combinedDiff, round.RoundDate, cancellationToken);
-        }
-        // --- END HANDICAP RECALCULATION ---
-
         var holeScoreDtos = holeScoreEntities
             .OrderBy(h => h.HoleNumber)
             .Select(h => new HoleScoreDto(
@@ -148,6 +148,16 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             participant.TotalStablefordPoints,
             participant.IsWithdrawn);
 
+        // Calculate front/back nine summaries for 18-hole rounds
+        var frontNinePar = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.Par);
+        var backNinePar = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.Par);
+        var frontNineGross = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.GrossStrokes);
+        var backNineGross = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.GrossStrokes);
+        var frontNineNet = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.NetStrokes);
+        var backNineNet = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.NetStrokes);
+        var frontNinePoints = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.StablefordPoints);
+        var backNinePoints = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.StablefordPoints);
+
         var scorecard = new ScorecardDto(
             round.Id,
             round.RoundDate,
@@ -156,15 +166,18 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             course.SlopeRating,
             participantDto,
             holeScoreDtos,
+            frontNinePar,
+            backNinePar,
             holeScoreDtos.Sum(h => h.Par),
-            0, // No back nine for 9-hole rounds
-            holeScoreDtos.Sum(h => h.Par),
+            frontNineGross,
+            backNineGross,
             holeScoreDtos.Sum(h => h.GrossStrokes),
-            0,
+            frontNineNet,
+            backNineNet,
             holeScoreDtos.Sum(h => h.NetStrokes),
-            0,
-            holeScoreDtos.Sum(h => h.StablefordPoints),
-            0);
+            frontNinePoints,
+            backNinePoints,
+            holeScoreDtos.Sum(h => h.StablefordPoints));
 
         return Result<ScorecardDto>.Ok(scorecard);
     }
