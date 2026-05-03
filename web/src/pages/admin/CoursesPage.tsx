@@ -213,6 +213,16 @@ export function CoursesPage() {
           onCancel={() => setAddOpen(false)}
         />
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Course"
+        description={`Permanently delete ${deleteTarget?.name}? This will remove all associated rounds and cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
