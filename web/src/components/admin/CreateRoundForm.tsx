@@ -61,6 +61,8 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
   useEffect(() => {
     if (flightPlayers.length > 0) {
       setSelectedPlayerIds(new Set(flightPlayers.map((p) => p.id)));
+    } else {
+      setSelectedPlayerIds(new Set());
     }
   }, [selectedFlightIdsArray.join(',')]);
 
@@ -117,12 +119,14 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
     onSuccess();
   }
 
-  // Initialize with all flights selected
-  useState(() => {
+  // Initialize with all flights selected when flights load
+  useEffect(() => {
     if (flights.length > 0 && selectedFlightIds.size === 0) {
-      selectAllFlights();
+      const allIds = new Set(flights.map((f) => f.id));
+      setSelectedFlightIds(allIds);
+      setValue('flightIds', Array.from(allIds).map(String), { shouldValidate: true });
     }
-  });
+  }, [flights.length]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

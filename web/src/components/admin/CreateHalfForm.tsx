@@ -393,7 +393,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
           variant="primary"
           disabled={isSubmitting || createHalf.isPending || selectedFlightIds.size === 0}
         >
-          Create {generatedSchedule.length * selectedFlightIds.size} Rounds
+          Create {generatedSchedule.length} Round{generatedSchedule.length === 1 ? '' : 's'}
         </Button>
       </div>
     </form>

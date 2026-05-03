@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { roundKeys } from '@/hooks/useRounds';
-import type { CreateRoundPayload } from './useRoundMutations';
+import type { CreateRoundPayload } from '@/hooks/admin/useRoundMutations';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -79,21 +79,20 @@ export function useCreateHalf() {
       const schedules = generateRoundDates(payload);
 
       // Create rounds sequentially to avoid overwhelming the API
+      // Each round includes all selected flights - backend auto-populates participants
       const results = [];
       for (const schedule of schedules) {
-        for (const flightId of payload.flightIds) {
-          const roundPayload: CreateRoundPayload = {
-            scheduledDate: schedule.scheduledDate,
-            courseId: payload.courseId,
-            flightId,
-            roundType: payload.roundType,
-            nineHoleSide: schedule.nineHoleSide,
-            // Players will be auto-selected by the backend based on flight
-          };
+        const roundPayload: CreateRoundPayload = {
+          scheduledDate: schedule.scheduledDate,
+          courseId: payload.courseId,
+          flightIds: payload.flightIds, // All flights in one round
+          roundType: payload.roundType,
+          nineHoleSide: schedule.nineHoleSide,
+          // Players will be auto-selected by the backend based on flights
+        };
 
-          const result = await apiClient.post('/rounds', roundPayload);
-          results.push(result.data);
-        }
+        const result = await apiClient.post('/rounds', roundPayload);
+        results.push(result.data);
       }
 
       return results;
