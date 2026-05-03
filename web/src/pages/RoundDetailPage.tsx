@@ -17,10 +17,12 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { normalizeRoundStatus } from '@/lib/enumUtils';
 import type { HoleScore, RoundStatus, Scorecard } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
-  switch (status) {
+  const normalized = normalizeRoundStatus(status);
+  switch (normalized) {
     case 'Finalized':  return 'green' as const;
     case 'InProgress': return 'amber' as const;
     case 'PendingFinalization': return 'amber' as const;

@@ -9,21 +9,21 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ArrowLeft, Save } from 'lucide-react';
 import { api } from '../../lib/api';
+import { normalizeRoundType, normalizeNineHoleSide, isRoundFinalized } from '../../lib/enumUtils';
 import type { CourseDetail, Participant } from '../../types/api';
 
 const ALL_HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
 function getHolesForRound(roundType: string | number, nineHoleSide: string | number): number[] {
-  // Handle both PascalCase (type definitions) and camelCase (JSON serialization)
-  // Also handle when values come as numbers (enum indices)
-  const normalizedType = String(roundType ?? '').toLowerCase();
-  if (normalizedType === 'ninehole') {
-    const normalizedSide = String(nineHoleSide ?? '').toLowerCase();
-    return normalizedSide === 'back'
+  const normalizedType = normalizeRoundType(roundType);
+  const normalizedSide = normalizeNineHoleSide(nineHoleSide);
+  
+  if (normalizedType === 'NineHole') {
+    return normalizedSide === 'Back'
       ? Array.from({ length: 9 }, (_, i) => i + 10) // holes 10-18
       : Array.from({ length: 9 }, (_, i) => i + 1);  // holes 1-9 (default front)
   }
-  return ALL_HOLES; // 18 holes
+  return ALL_HOLES; // 18 holes (EighteenHole or unknown)
 }
 
 function computeStablefordPoints(gross: number, par: number, handicapStrokes: number): number {
@@ -227,7 +227,7 @@ export function ScoreEntryPage() {
     return <ErrorMessage message="Round not found." />;
   }
 
-  const isFinalized = round.status === 'Finalized';
+  const isFinalized = isRoundFinalized(round.status);
   const holes = getHolesForRound(round.roundType, round.nineHoleSide);
 
   const strokeIndexes: Record<number, number> = {};

@@ -5,6 +5,7 @@ import { useRounds } from '@/hooks/useRounds';
 import { Spinner } from '@/components/ui/Spinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { isRoundInProgress, isRoundScheduled, isRoundFinalized } from '@/lib/enumUtils';
 
 interface StatCardProps {
   label: string;
@@ -65,10 +66,10 @@ export function AdminDashboardPage() {
   const players = playersPage?.data ?? [];
   const rounds = roundsPage?.data ?? [];
 
-  const activeRounds = rounds.filter((r) => r.status === 'InProgress').length;
-  const upcomingRounds = rounds.filter((r) => r.status === 'Scheduled').length;
+  const activeRounds = rounds.filter((r) => isRoundInProgress(r.status)).length;
+  const upcomingRounds = rounds.filter((r) => isRoundScheduled(r.status)).length;
   const lastFinalized = rounds
-    .filter((r) => r.status === 'Finalized')
+    .filter((r) => isRoundFinalized(r.status))
     .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate))[0];
 
   return (

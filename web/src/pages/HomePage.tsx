@@ -14,10 +14,12 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { formatShortDate } from '@/lib/utils';
+import { normalizeRoundStatus } from '@/lib/enumUtils';
 import type { RoundStatus } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
-  switch (status) {
+  const normalized = normalizeRoundStatus(status);
+  switch (normalized) {
     case 'Finalized': return 'green' as const;
     case 'InProgress': return 'amber' as const;
     case 'Scheduled': return 'blue' as const;

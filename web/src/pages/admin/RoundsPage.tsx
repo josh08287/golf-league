@@ -13,17 +13,19 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
 import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
-import type { Round } from '../../types/api';
+import { normalizeRoundStatus, isRoundFinalized, isRoundInProgress } from '../../lib/enumUtils';
+import type { Round, RoundStatus } from '../../types/api';
 
 function RoundStatusBadge({ status }: { status: Round['status'] }) {
-  const variantMap: Record<Round['status'], 'neutral' | 'warning' | 'success' | 'info'> = {
+  const normalizedStatus = normalizeRoundStatus(status);
+  const variantMap: Record<RoundStatus, 'neutral' | 'warning' | 'success' | 'info'> = {
     Scheduled: 'info',
     InProgress: 'warning',
     PendingFinalization: 'warning',
     Finalized: 'success',
     Cancelled: 'neutral',
   };
-  return <Badge variant={variantMap[status]}>{status}</Badge>;
+  return <Badge variant={variantMap[normalizedStatus]}>{normalizedStatus}</Badge>;
 }
 
 export function RoundsPage() {
@@ -86,9 +88,9 @@ export function RoundsPage() {
             size="sm"
             onClick={() => navigate(`/admin/rounds/${r.id}/scores`)}
           >
-            {r.status === 'Finalized' ? 'View Scorecard' : 'Enter Scores'}
+            {isRoundFinalized(r.status) ? 'View Scorecard' : 'Enter Scores'}
           </Button>
-          {r.status === 'InProgress' && (
+          {isRoundInProgress(r.status) && (
             <Button
               variant="ghost"
               size="sm"
@@ -98,7 +100,7 @@ export function RoundsPage() {
               Finalize
             </Button>
           )}
-          {r.status !== 'Finalized' && (
+          {!isRoundFinalized(r.status) && (
             <Button
               variant="ghost"
               size="sm"
