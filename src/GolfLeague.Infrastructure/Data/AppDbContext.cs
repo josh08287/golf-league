@@ -156,6 +156,16 @@ public sealed class AppDbContext : BlobSyncedDbContext
                       v => v.ToString(),
                       v => Enum.Parse<RoundStatus>(v))
                   .HasMaxLength(30);
+            entity.Property(e => e.RoundType)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<RoundType>(v))
+                  .HasMaxLength(20);
+            entity.Property(e => e.NineHoleSide)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<NineHoleSide>(v))
+                  .HasMaxLength(20);
             entity.Property(e => e.Notes).HasMaxLength(1000);
             entity.HasOne(e => e.Season)
                   .WithMany(s => s.Rounds)
