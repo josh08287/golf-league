@@ -1,0 +1,39 @@
+name: Deploy API
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/**'
+      - 'tests/**'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Test
+        run: dotnet test tests/GolfLeague.Functions.Tests/GolfLeague.Functions.Tests.csproj --configuration Release --no-build || dotnet test tests/GolfLeague.Functions.Tests/GolfLeague.Functions.Tests.csproj --configuration Release
+
+      - name: Publish
+        run: |
+          dotnet publish src/GolfLeague.Functions/GolfLeague.Functions.csproj \
+            --configuration Release \
+            --output ./api-publish
+
+      - name: Zip publish output
+        run: zip -r api.zip ./api-publish
+
+      - name: Deploy to Azure Function App
+        uses: Azure/functions-action@v1
+        with:
+          app-name: golf-league-fn-g5vkqe
+          package: api.zip
+          publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
