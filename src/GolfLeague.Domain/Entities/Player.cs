@@ -10,7 +10,10 @@ public class Player
     public bool IsActive { get; set; } = true;
 
     public string FullName => $"{FirstName} {LastName}";
-    public string Initials => $"{FirstName[..1]}{LastName[..1]}".ToUpperInvariant();
+    public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();
+
+    private static string GetFirstChar(string name) =>
+        string.IsNullOrEmpty(name) ? "" : name[..1];
 
     public ICollection<FlightMembership> FlightMemberships { get; set; } = [];
     public ICollection<Handicap> Handicaps { get; set; } = [];
