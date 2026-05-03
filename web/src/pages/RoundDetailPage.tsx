@@ -23,6 +23,7 @@ function statusVariant(status: RoundStatus) {
   switch (status) {
     case 'Finalized':  return 'green' as const;
     case 'InProgress': return 'amber' as const;
+    case 'PendingFinalization': return 'amber' as const;
     case 'Scheduled':  return 'blue' as const;
     case 'Cancelled':  return 'neutral' as const;
   }

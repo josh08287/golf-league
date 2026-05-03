@@ -59,7 +59,7 @@ export interface Standing {
   currentHandicapIndex: number;
 }
 
-export type RoundStatus = 'Scheduled' | 'InProgress' | 'Finalized' | 'Cancelled';
+export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
 export type RoundType = 'NineHole' | 'EighteenHole';
 export type NineHoleSide = 'NotApplicable' | 'Front' | 'Back';
 

@@ -18,6 +18,7 @@ function RoundStatusBadge({ status }: { status: Round['status'] }) {
   const variantMap: Record<Round['status'], 'neutral' | 'warning' | 'success' | 'info'> = {
     Scheduled: 'info',
     InProgress: 'warning',
+    PendingFinalization: 'warning',
     Finalized: 'success',
     Cancelled: 'neutral',
   };
