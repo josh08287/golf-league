@@ -11,7 +11,16 @@ import { ArrowLeft, Save } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { CourseDetail, Participant } from '../../types/api';
 
-const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
+const ALL_HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
+
+function getHolesForRound(roundType: string, nineHoleSide: string): number[] {
+  if (roundType === 'NineHole') {
+    return nineHoleSide === 'Back'
+      ? Array.from({ length: 9 }, (_, i) => i + 10) // holes 10-18
+      : Array.from({ length: 9 }, (_, i) => i + 1);  // holes 1-9
+  }
+  return ALL_HOLES; // 18 holes
+}
 
 function computeStablefordPoints(gross: number, par: number, handicapStrokes: number): number {
   return Math.max(0, par + 2 - (gross - handicapStrokes));
@@ -71,10 +80,11 @@ interface StablefordRowProps {
   courseHandicap: number;
   strokeIndexes: Record<number, number>;
   pars: Record<number, number>;
+  holes: number[];
 }
 
-function StablefordRow({ scores, courseHandicap, strokeIndexes, pars }: StablefordRowProps) {
-  const points = HOLES.map((h) => {
+function StablefordRow({ scores, courseHandicap, strokeIndexes, pars, holes }: StablefordRowProps) {
+  const points = holes.map((h) => {
     const gross = scores[h];
     if (gross === '' || gross === undefined) return null;
     const si = strokeIndexes[h] ?? h;
@@ -90,7 +100,7 @@ function StablefordRow({ scores, courseHandicap, strokeIndexes, pars }: Stablefo
       <td className="sticky left-0 z-10 bg-green-50 px-3 py-1.5 text-xs font-medium text-[#1B5E20]">
         Stableford
       </td>
-      {HOLES.map((h, i) => (
+      {holes.map((h, i) => (
         <td key={h} className="px-1 py-1.5 text-center text-xs font-semibold text-[#1B5E20]">
           {points[i] ?? '—'}
         </td>
@@ -170,7 +180,7 @@ export function ScoreEntryPage() {
 
   async function handleSubmitAll() {
     for (const p of participants) {
-      for (const h of HOLES) {
+      for (const h of holes) {
         const v = scores[String(p.playerId)]?.[h];
         if (v === '' || v === undefined) {
           setSubmitError(`Missing score for ${p.playerName} on hole ${h}.`);
@@ -186,7 +196,7 @@ export function ScoreEntryPage() {
       for (const p of participants) {
         await submitScores.mutateAsync({
           playerId: p.playerId,
-          scores: HOLES.map((h) => ({
+          scores: holes.map((h) => ({
             holeNumber: h,
             grossScore: scores[String(p.playerId)][h] as number,
           })),
@@ -214,6 +224,7 @@ export function ScoreEntryPage() {
   }
 
   const isFinalized = round.status === 'Finalized';
+  const holes = getHolesForRound(round.roundType, round.nineHoleSide);
 
   const strokeIndexes: Record<number, number> = {};
   const pars: Record<number, number> = {};
@@ -258,7 +269,7 @@ export function ScoreEntryPage() {
               <th className="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Player
               </th>
-              {HOLES.map((h) => (
+              {holes.map((h) => (
                 <th key={h} className="px-1 py-3 text-center text-xs font-semibold text-gray-500">
                   {h}
                 </th>
@@ -270,13 +281,13 @@ export function ScoreEntryPage() {
               <td className="sticky left-0 z-10 bg-gray-50/50 px-3 py-1.5 text-xs font-medium text-gray-400">
                 Par
               </td>
-              {HOLES.map((h) => (
+              {holes.map((h) => (
                 <td key={h} className="px-1 py-1.5 text-center text-xs text-gray-400">
                   {pars[h] ?? 4}
                 </td>
               ))}
               <td className="px-3 py-1.5 text-center text-xs text-gray-400">
-                {HOLES.reduce((sum, h) => sum + (pars[h] ?? 4), 0)}
+                {holes.reduce((sum, h) => sum + (pars[h] ?? 4), 0)}
               </td>
             </tr>
           </thead>
@@ -284,7 +295,7 @@ export function ScoreEntryPage() {
           <tbody className="divide-y divide-gray-100">
             {participants.map((participant, pi) => {
               const playerScores = scores[String(participant.playerId)] ?? {};
-              const grossTotal = HOLES.reduce<number>((sum, h) => {
+              const grossTotal = holes.reduce<number>((sum, h) => {
                 const v = playerScores[h];
                 return sum + (typeof v === 'number' ? v : 0);
               }, 0);
@@ -297,14 +308,14 @@ export function ScoreEntryPage() {
                       <div className="font-medium text-gray-900">{participant.playerName}</div>
                       <div className="text-xs text-gray-400">HCP {participant.handicapAtTime}</div>
                     </td>
-                    {HOLES.map((h, hi) => (
+                    {holes.map((h, hi) => (
                       <td key={h} className="px-1 py-2">
                         <ScoreCell
                           value={playerScores[h] ?? ''}
                           readonly={isFinalized}
-                          onChange={(v) => handleScoreChange(String(participant.playerId), h, v)}
-                          onKeyDown={(e) => handleKeyDown(e, pi, hi)}
-                          inputRef={(el) => {
+                          onChange={(v: number | '') => handleScoreChange(String(participant.playerId), h, v)}
+                          onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleKeyDown(e, pi, hi)}
+                          inputRef={(el: HTMLInputElement | null) => {
                             if (!cellRefs.current[pi]) cellRefs.current[pi] = [];
                             cellRefs.current[pi][hi] = el;
                           }}
@@ -322,6 +333,7 @@ export function ScoreEntryPage() {
                     courseHandicap={courseHandicap}
                     strokeIndexes={strokeIndexes}
                     pars={pars}
+                    holes={holes}
                   />
                 </>
               );
@@ -333,7 +345,7 @@ export function ScoreEntryPage() {
       {!isFinalized && (
         <div className="flex items-center justify-end gap-3">
           <p className="text-sm text-gray-500">
-            Auto-saved to local draft. Submit when all 18 holes are complete.
+            Auto-saved to local draft. Submit when all {holes.length} holes are complete.
           </p>
           <Button variant="primary" onClick={handleSubmitAll} disabled={submitting}>
             <Save className="mr-1.5 h-4 w-4" />
