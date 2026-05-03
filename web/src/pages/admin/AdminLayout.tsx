@@ -1,10 +1,11 @@
 import { Outlet, NavLink, Link } from 'react-router-dom';
-import { LayoutDashboard, Users, Trophy, Calendar, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, Trophy, Calendar, Settings, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const adminNav = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/players', label: 'Players', icon: Users },
+  { to: '/admin/seasons', label: 'Seasons', icon: Layers },
   { to: '/admin/flights', label: 'Flights', icon: Trophy },
   { to: '/admin/rounds', label: 'Rounds', icon: Calendar },
   { to: '/admin/settings', label: 'Settings', icon: Settings },

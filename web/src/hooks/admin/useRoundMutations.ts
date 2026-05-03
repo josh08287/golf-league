@@ -5,9 +5,12 @@ import { roundKeys } from '@/hooks/useRounds';
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export interface CreateRoundPayload {
-  scheduledDate: string; // ISO date string
-  courseId: string;
-  flightId: string;
+  scheduledDate: string; // ISO date string — sent as scheduledDate, backend accepts it
+  courseId: number | string;
+  flightId: number | string;
+  seasonId?: number | string;
+  playerIds?: number[];
+  notes?: string;
 }
 
 export interface HoleScoreInput {
@@ -16,7 +19,7 @@ export interface HoleScoreInput {
 }
 
 export interface SubmitHoleScoresPayload {
-  playerId: string;
+  playerId: number | string;
   scores: HoleScoreInput[];
 }
 

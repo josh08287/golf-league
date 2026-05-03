@@ -6,9 +6,11 @@ using GolfLeague.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 var host = new HostBuilder()
@@ -44,15 +46,12 @@ var host = new HostBuilder()
         {
             options.AddPolicy("AdminOnly", policy =>
                 policy.RequireAuthenticatedUser()
-                      .RequireClaim("extension_Role", "admin"));
+                      .RequireRole("admin"));
 
             options.AddPolicy("ScorerOrAdmin", policy =>
                 policy.RequireAuthenticatedUser()
                       .RequireAssertion(ctx =>
-                      {
-                          var role = ctx.User.FindFirst("extension_Role")?.Value;
-                          return role == "scorer" || role == "admin";
-                      }));
+                          ctx.User.IsInRole("admin") || ctx.User.IsInRole("scorer")));
 
             options.AddPolicy("Authenticated", policy =>
                 policy.RequireAuthenticatedUser());
@@ -82,8 +81,72 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     var blobName = config["SQLITE_BLOB_NAME"] ?? "golf-league.db";
     var localDbPath = Path.Combine(Path.GetTempPath(), "golf-league", blobName);
 
-    await BlobSyncedDbContext.DownloadIfNeededAsync(containerClient, localDbPath, blobName);
+    try
+    {
+        await BlobSyncedDbContext.DownloadIfNeededAsync(containerClient, localDbPath, blobName);
 
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await dbContext.Database.EnsureCreatedAsync();
+        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // EnsureCreatedAsync is a no-op if the DB file already exists (SQLite).
+        // Run the model's DDL script with CREATE TABLE IF NOT EXISTS so tables
+        // added after the initial deploy are created without touching existing data.
+        await EnsureAllTablesExistAsync(dbContext);
+
+        // Seed a default active season if none exists so flights can be created.
+        await SeedActiveSeasonAsync(dbContext);
+
+        // Upload the schema-updated DB back to blob storage.
+        await BlobSyncedDbContext.UploadAsync(containerClient, localDbPath, blobName);
+    }
+    catch (Exception ex)
+    {
+        var logger = host.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Database initialization failed; the host will still start but requests may fail.");
+    }
+}
+
+static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
+{
+    var hasActiveSeason = dbContext.Seasons.Any(s => s.IsActive);
+    if (hasActiveSeason) return;
+
+    var year = DateTime.UtcNow.Year;
+    dbContext.Seasons.Add(new GolfLeague.Domain.Entities.Season
+    {
+        Name = $"{year} Season",
+        Year = year,
+        StartDate = new DateOnly(year, 1, 1),
+        EndDate = new DateOnly(year, 12, 31),
+        IsActive = true,
+    });
+    await dbContext.SaveChangesAsync();
+}
+
+static async Task EnsureAllTablesExistAsync(AppDbContext dbContext)
+{
+    // Generate the full CREATE TABLE script from the EF Core model, then
+    // re-execute each statement as CREATE TABLE IF NOT EXISTS so tables added
+    // after the initial deploy are created without touching existing data.
+    var script = dbContext.Database.GenerateCreateScript();
+
+    foreach (var statement in script.Split(';', StringSplitOptions.RemoveEmptyEntries))
+    {
+        var sql = statement.Trim();
+        if (string.IsNullOrWhiteSpace(sql)) continue;
+
+        if (sql.StartsWith("CREATE TABLE", StringComparison.OrdinalIgnoreCase) &&
+            !sql.Contains("IF NOT EXISTS", StringComparison.OrdinalIgnoreCase))
+        {
+            sql = sql.Replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", StringComparison.OrdinalIgnoreCase);
+        }
+
+        try
+        {
+            await dbContext.Database.ExecuteSqlRawAsync(sql);
+        }
+        catch
+        {
+            // Ignore errors for statements that can't be made idempotent (e.g. indexes).
+        }
+    }
 }

@@ -4,7 +4,6 @@ import type {
   Round,
   Scorecard,
   PagedResponse,
-  ApiResponse,
 } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
@@ -39,9 +38,7 @@ export function useRound(id: string) {
   return useQuery({
     queryKey: roundKeys.detail(id),
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Round>>(
-        `/rounds/${id}`,
-      );
+      const response = await apiClient.get<Round>(`/rounds/${id}`);
       return response.data;
     },
     enabled: Boolean(id),
@@ -52,7 +49,7 @@ export function useScorecard(roundId: string, playerId: string) {
   return useQuery({
     queryKey: roundKeys.scorecard(roundId, playerId),
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Scorecard>>(
+      const response = await apiClient.get<Scorecard>(
         `/rounds/${roundId}/scorecards/${playerId}`,
       );
       return response.data;

@@ -2,9 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type {
   Player,
-  Handicap,
+  HandicapHistoryEntry,
   PagedResponse,
-  ApiResponse,
 } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
@@ -37,9 +36,7 @@ export function usePlayer(id: string) {
   return useQuery({
     queryKey: playerKeys.detail(id),
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Player>>(
-        `/players/${id}`,
-      );
+      const response = await apiClient.get<Player>(`/players/${id}`);
       return response.data;
     },
     enabled: Boolean(id),
@@ -50,7 +47,7 @@ export function useHandicapHistory(playerId: string) {
   return useQuery({
     queryKey: playerKeys.handicapHistory(playerId),
     queryFn: async () => {
-      const response = await apiClient.get<PagedResponse<Handicap>>(
+      const response = await apiClient.get<HandicapHistoryEntry[]>(
         `/players/${playerId}/handicap-history`,
       );
       return response.data;

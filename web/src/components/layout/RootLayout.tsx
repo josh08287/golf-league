@@ -34,8 +34,9 @@ export function RootLayout() {
       const claims: Record<string, unknown> =
         idTokenClaims ?? (account.idToken ? decodeTokenPayload(account.idToken) : {});
 
-      const role = (claims['extension_Role'] as string | undefined) ?? 'player';
-      const playerId = (claims['extension_PlayerId'] as string | undefined) ?? null;
+      const rolesArr = claims['roles'] as string[] | undefined;
+      const role = rolesArr?.[0] ?? 'player';
+      const playerId = (claims['oid'] as string | undefined) ?? null;
 
       setUser({
         name: account.name ?? account.username,

@@ -9,7 +9,6 @@ public sealed record RoundDto(
     string FlightName,
     int CourseId,
     string CourseName,
-    DateOnly RoundDate,
+    DateOnly ScheduledDate,
     RoundStatus Status,
-    string? Notes,
-    List<ParticipantDto> Participants);
+    int ParticipantCount);

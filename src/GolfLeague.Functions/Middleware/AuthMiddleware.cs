@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using Microsoft.Azure.Functions.Worker.Middleware;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Functions.Middleware;
 
+[ExcludeFromCodeCoverage]
 public sealed class AuthMiddleware : IFunctionsWorkerMiddleware
 {
     private readonly ILogger<AuthMiddleware> _logger;

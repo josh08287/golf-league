@@ -27,18 +27,7 @@ public sealed class GetPlayerQueryHandler : IRequestHandler<GetPlayerQuery, Resu
             return Result<PlayerDto>.Fail($"Player with ID {request.Id} not found.");
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-
-        var dto = new PlayerDto(
-            player.Id,
-            player.FirstName,
-            player.LastName,
-            player.FullName,
-            player.Initials,
-            player.Email,
-            player.EntraObjectId,
-            player.IsActive,
-            currentHandicap?.HandicapIndex);
-
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex);
         return Result<PlayerDto>.Ok(dto);
     }
 }

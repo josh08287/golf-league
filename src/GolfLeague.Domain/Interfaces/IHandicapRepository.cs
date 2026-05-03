@@ -8,4 +8,5 @@ public interface IHandicapRepository
     Task<IReadOnlyList<Handicap>> GetHistoryAsync(int playerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<double>> GetLast20DifferentialsAsync(int playerId, CancellationToken cancellationToken = default);
     Task AddAsync(Handicap handicap, CancellationToken cancellationToken = default);
+    Task AddDifferentialAsync(int playerId, double differential, DateOnly date, CancellationToken cancellationToken = default);
 }

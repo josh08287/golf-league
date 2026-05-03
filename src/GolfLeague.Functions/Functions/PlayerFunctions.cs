@@ -1,21 +1,23 @@
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
+using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using System.Text.Json;
 
 namespace GolfLeague.Functions.Functions;
 
 public sealed class PlayerFunctions
 {
     private readonly IMediator _mediator;
+    private readonly IPlayerRepository _playerRepository;
 
-    public PlayerFunctions(IMediator mediator)
+    public PlayerFunctions(IMediator mediator, IPlayerRepository playerRepository)
     {
         _mediator = mediator;
+        _playerRepository = playerRepository;
     }
 
     [Function("GetPlayers")]
@@ -32,11 +34,14 @@ public sealed class PlayerFunctions
 
     [Function("GetPlayer")]
     public async Task<IActionResult> GetPlayer(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id:int}")] HttpRequest req,
-        int id,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}")] HttpRequest req,
+        string id,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetPlayerQuery(id), cancellationToken);
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var result = await _mediator.Send(new GetPlayerQuery(playerId), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -48,22 +53,18 @@ public sealed class PlayerFunctions
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
-        var body = await JsonSerializer.DeserializeAsync<CreatePlayerRequest>(
-            req.Body,
-            JsonSerializerOptions.Web,
-            cancellationToken);
+        var body = await req.TryDeserializeAsync<CreatePlayerRequest>(cancellationToken);
 
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
+        var nameParts = body.Name.Split(' ', 2, StringSplitOptions.TrimEntries);
+        var firstName = nameParts[0];
+        var lastName = nameParts.Length > 1 ? nameParts[1] : string.Empty;
+        var entraObjectId = body.EntraObjectId ?? Guid.NewGuid().ToString();
+
         var userId = req.GetUserId() ?? "unknown";
-        var command = new CreatePlayerCommand(
-            body.FirstName,
-            body.LastName,
-            body.Email,
-            body.EntraObjectId,
-            body.InitialHandicapIndex,
-            userId);
+        var command = new CreatePlayerCommand(firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId);
 
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/players/{result.Value?.Id}");
@@ -71,89 +72,168 @@ public sealed class PlayerFunctions
 
     [Function("UpdatePlayer")]
     public async Task<IActionResult> UpdatePlayer(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id:int}")] HttpRequest req,
-        int id,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}")] HttpRequest req,
+        string id,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
-        var body = await JsonSerializer.DeserializeAsync<UpdatePlayerRequest>(
-            req.Body,
-            JsonSerializerOptions.Web,
-            cancellationToken);
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<UpdatePlayerRequest>(cancellationToken);
 
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-        var command = new UpdatePlayerCommand(id, body.FirstName, body.LastName, body.Email, userId);
+        var result = await _mediator.Send(new UpdatePlayerCommand(playerId, body.FirstName, body.LastName, body.Email, userId), cancellationToken);
+        return result.ToOkResult();
+    }
 
-        var result = await _mediator.Send(command, cancellationToken);
+    [Function("PatchPlayer")]
+    public async Task<IActionResult> PatchPlayer(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "patch", Route = "v1/players/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<PatchPlayerRequest>(cancellationToken);
+
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var playerEntity = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
+        if (playerEntity is null)
+            return new NotFoundObjectResult(new { error = $"Player with ID {playerId} not found." });
+
+        string firstName = playerEntity.FirstName;
+        string lastName = playerEntity.LastName;
+        string email = playerEntity.Email;
+
+        if (!string.IsNullOrWhiteSpace(body.Name))
+        {
+            var parts = body.Name.Split(' ', 2);
+            firstName = parts[0];
+            lastName = parts.Length > 1 ? parts[1] : string.Empty;
+        }
+
+        if (!string.IsNullOrWhiteSpace(body.Email))
+            email = body.Email;
+
+        if (body.FlightId is not null)
+        {
+            int? flightId = body.FlightId == "" ? null : int.TryParse(body.FlightId, out var fid) ? fid : null;
+            await _playerRepository.AssignToFlightAsync(playerId, flightId, cancellationToken);
+        }
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new UpdatePlayerCommand(playerId, firstName, lastName, email, userId), cancellationToken);
         return result.ToOkResult();
     }
 
     [Function("DeactivatePlayer")]
     public async Task<IActionResult> DeactivatePlayer(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/players/{id:int}")] HttpRequest req,
-        int id,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/players/{id}")] HttpRequest req,
+        string id,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
         var userId = req.GetUserId() ?? "unknown";
-        var result = await _mediator.Send(new DeactivatePlayerCommand(id, userId), cancellationToken);
+        var result = await _mediator.Send(new DeactivatePlayerCommand(playerId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("DeactivatePlayerPost")]
+    public async Task<IActionResult> DeactivatePlayerPost(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/deactivate")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeactivatePlayerCommand(playerId, userId), cancellationToken);
         return result.ToOkResult();
     }
 
     [Function("GetHandicapHistory")]
     public async Task<IActionResult> GetHandicapHistory(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id:int}/handicap-history")] HttpRequest req,
-        int id,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}/handicap-history")] HttpRequest req,
+        string id,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetHandicapHistoryQuery(id), cancellationToken);
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var result = await _mediator.Send(new GetHandicapHistoryQuery(playerId), cancellationToken);
         return result.ToOkResult();
     }
 
-    [Function("SetHandicap")]
-    public async Task<IActionResult> SetHandicap(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id:int}/handicap")] HttpRequest req,
-        int id,
+    [Function("SetHandicapPost")]
+    public async Task<IActionResult> SetHandicapPost(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/handicap")] HttpRequest req,
+        string id,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
-        var body = await JsonSerializer.DeserializeAsync<SetHandicapRequest>(
-            req.Body,
-            JsonSerializerOptions.Web,
-            cancellationToken);
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<SetHandicapRequest>(cancellationToken);
 
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-        var command = new SetHandicapCommand(id, body.HandicapIndex, body.Notes, userId);
-
-        var result = await _mediator.Send(command, cancellationToken);
+        var result = await _mediator.Send(new SetHandicapCommand(playerId, body.ResolvedIndex, body.Notes, userId), cancellationToken);
         return result.ToOkResult();
     }
 
-    private sealed record CreatePlayerRequest(
-        string FirstName,
-        string LastName,
-        string Email,
-        string EntraObjectId,
-        double InitialHandicapIndex);
+    [Function("SetHandicap")]
+    public async Task<IActionResult> SetHandicap(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/handicap")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
 
-    private sealed record UpdatePlayerRequest(
-        string FirstName,
-        string LastName,
-        string Email);
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
 
-    private sealed record SetHandicapRequest(
-        double HandicapIndex,
-        string? Notes);
+        var body = await req.TryDeserializeAsync<SetHandicapRequest>(cancellationToken);
+
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetHandicapCommand(playerId, body.ResolvedIndex, body.Notes, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId);
+    private sealed record UpdatePlayerRequest(string FirstName, string LastName, string Email);
+    private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId);
+    private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)
+    {
+        public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;
+    }
 }

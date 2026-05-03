@@ -50,10 +50,10 @@ function StandingsRow({ standing, highlight }: StandingsRowProps) {
           to={`/players/${standing.playerId}`}
           className="font-medium text-primary-900 hover:underline"
         >
-          {standing.playerName}
+          {standing.playerFullName}
         </Link>
       </TableCell>
-      <TableCell className="text-center">{standing.currentHandicap.toFixed(1)}</TableCell>
+      <TableCell className="text-center">{standing.currentHandicapIndex.toFixed(1)}</TableCell>
       <TableCell className="text-center">{standing.roundsPlayed}</TableCell>
       <TableCell className="text-center font-semibold">{standing.totalPoints}</TableCell>
       <TableCell className="text-center">{standing.averagePoints.toFixed(1)}</TableCell>
@@ -76,9 +76,8 @@ export function FlightLeaderboardPage() {
   const flight = useFlight(flightId ?? '');
   const standings = useFlightStandings(flightId ?? '', seasonId);
 
-  const title = flight.data?.data.name
-    ? `${flight.data.data.name} Leaderboard`
-    : 'Flight Leaderboard';
+  const flightData = flight.data;
+  const title = flightData?.name ? `${flightData.name} Leaderboard` : 'Flight Leaderboard';
 
   return (
     <div className="space-y-6">
@@ -92,8 +91,8 @@ export function FlightLeaderboardPage() {
         <PageHeader
           title={title}
           description={
-            flight.data?.data
-              ? `Handicap ${flight.data.data.minHandicap} – ${flight.data.data.maxHandicap} · ${flight.data.data.playerCount} players`
+            flightData
+              ? `Handicap ${flightData.minHandicap} – ${flightData.maxHandicap} · ${flightData.playerCount} players`
               : undefined
           }
         />
@@ -106,7 +105,7 @@ export function FlightLeaderboardPage() {
 
       {standings.data && (
         <>
-          {standings.data.data.length === 0 ? (
+          {standings.data.length === 0 ? (
             <p className="text-gray-500 text-sm">
               No standings available.{' '}
               {!seasonId && 'Provide a seasonId query parameter to filter by season.'}
@@ -125,7 +124,7 @@ export function FlightLeaderboardPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {standings.data.data.map((standing) => (
+                  {standings.data.map((standing) => (
                     <StandingsRow
                       key={standing.playerId}
                       standing={standing}

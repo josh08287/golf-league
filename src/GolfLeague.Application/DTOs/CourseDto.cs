@@ -1,7 +1,14 @@
 namespace GolfLeague.Application.DTOs;
 
+public sealed record CourseHoleDto(
+    int HoleNumber,
+    int Par,
+    int StrokeIndex);
+
 public sealed record CourseDto(
     int Id,
     string Name,
-    double CourseRating,
-    int SlopeRating);
+    double Rating,
+    int Slope,
+    int HoleCount,
+    List<CourseHoleDto> HoleDetails);

@@ -5,7 +5,7 @@ import { useRounds } from '../../hooks/useRounds';
 import { useFinalizeRound } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Table } from '../../components/ui/Table';
+import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
@@ -13,8 +13,6 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
 import type { Round } from '../../types/api';
-
-// ── Status badge helper ────────────────────────────────────────────────────
 
 function RoundStatusBadge({ status }: { status: Round['status'] }) {
   const variantMap: Record<Round['status'], 'neutral' | 'warning' | 'success' | 'info'> = {
@@ -26,16 +24,15 @@ function RoundStatusBadge({ status }: { status: Round['status'] }) {
   return <Badge variant={variantMap[status]}>{status}</Badge>;
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
 export function RoundsPage() {
   const navigate = useNavigate();
-  const { data: rounds, isLoading, error } = useRounds();
+  const { data: roundsPage, isLoading, error } = useRounds();
+  const rounds = roundsPage?.data ?? [];
 
   const [createOpen, setCreateOpen] = useState(false);
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
 
-  const finalize = useFinalizeRound(finalizeTarget?.id ?? '');
+  const finalize = useFinalizeRound(String(finalizeTarget?.id ?? ''));
 
   async function handleFinalize() {
     if (!finalizeTarget) return;
@@ -59,7 +56,7 @@ export function RoundsPage() {
     {
       key: 'date',
       header: 'Date',
-      render: (r: Round) => new Date(r.date).toLocaleDateString(),
+      render: (r: Round) => new Date(r.scheduledDate).toLocaleDateString(),
     },
     { key: 'course', header: 'Course', render: (r: Round) => r.courseName ?? '—' },
     { key: 'flight', header: 'Flight', render: (r: Round) => r.flightName ?? '—' },
@@ -105,15 +102,14 @@ export function RoundsPage() {
       </PageHeader>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <Table
+        <DataTable
           columns={columns}
-          data={rounds ?? []}
-          rowKey={(r) => r.id}
+          data={rounds}
+          rowKey={(r) => String(r.id)}
           emptyMessage="No rounds yet."
         />
       </div>
 
-      {/* Create Round Modal */}
       <Modal open={createOpen} title="Create Round" onClose={() => setCreateOpen(false)}>
         <CreateRoundForm
           onSuccess={() => setCreateOpen(false)}
@@ -121,11 +117,10 @@ export function RoundsPage() {
         />
       </Modal>
 
-      {/* Finalize Confirmation */}
       <ConfirmDialog
         open={!!finalizeTarget}
         title="Finalize Round"
-        description={`Finalize the round on ${finalizeTarget ? new Date(finalizeTarget.date).toLocaleDateString() : ''}? This will lock scores and recalculate standings.`}
+        description={`Finalize the round on ${finalizeTarget ? new Date(finalizeTarget.scheduledDate).toLocaleDateString() : ''}? This will lock scores and recalculate standings.`}
         confirmLabel="Finalize"
         onConfirm={handleFinalize}
         onCancel={() => setFinalizeTarget(null)}

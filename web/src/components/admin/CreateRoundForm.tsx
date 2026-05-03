@@ -10,7 +10,7 @@ import { FormField, inputClass, selectClass } from './FormField';
 import type { Course } from '../../types/api';
 
 const schema = z.object({
-  date: z.string().min(1, 'Date is required'),
+  scheduledDate: z.string().min(1, 'Date is required'),
   courseId: z.string().min(1, 'Course is required'),
   flightId: z.string().min(1, 'Flight is required'),
 });
@@ -24,11 +24,13 @@ interface CreateRoundFormProps {
 
 export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
   const createRound = useCreateRound();
-  const { data: flights } = useFlights();
-  const { data: courses } = useQuery<Course[]>({
+  const { data: flightsPage } = useFlights();
+  const flights = flightsPage?.data ?? [];
+  const { data: coursesPage } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
     queryFn: () => api.get('/courses').then((r) => r.data),
   });
+  const courses = coursesPage?.data ?? [];
 
   const {
     register,
@@ -37,20 +39,24 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
   } = useForm<FormValues>({ resolver: zodResolver(schema) });
 
   async function onSubmit(values: FormValues) {
-    await createRound.mutateAsync(values);
+    await createRound.mutateAsync({
+      scheduledDate: values.scheduledDate,
+      courseId: Number(values.courseId),
+      flightId: Number(values.flightId),
+    });
     onSuccess();
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <FormField label="Date" error={errors.date} required>
-        <input {...register('date')} type="date" className={inputClass} />
+      <FormField label="Date" error={errors.scheduledDate} required>
+        <input {...register('scheduledDate')} type="date" className={inputClass} />
       </FormField>
 
       <FormField label="Course" error={errors.courseId} required>
         <select {...register('courseId')} className={selectClass}>
           <option value="">— Select course —</option>
-          {(courses ?? []).map((c) => (
+          {courses.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>

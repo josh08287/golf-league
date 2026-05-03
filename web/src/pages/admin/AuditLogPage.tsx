@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { Table } from '../../components/ui/Table';
+import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
@@ -125,7 +125,7 @@ export function AuditLogPage() {
       {!isLoading && !error && (
         <>
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-            <Table
+            <DataTable
               columns={columns}
               data={data?.items ?? []}
               rowKey={(e) => e.id}

@@ -57,8 +57,6 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         round.Status = RoundStatus.Finalized;
         await _roundRepository.UpdateAsync(round, cancellationToken);
 
-        var participantDtos = new List<ParticipantDto>();
-
         foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && p.TotalGrossStrokes.HasValue))
         {
             var differentials = await _handicapRepository.GetLast20DifferentialsAsync(participant.PlayerId, cancellationToken);
@@ -81,21 +79,6 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             };
 
             await _handicapRepository.AddAsync(updatedHandicap, cancellationToken);
-
-            var player = await _playerRepository.GetByIdAsync(participant.PlayerId, cancellationToken);
-
-            participantDtos.Add(new ParticipantDto(
-                participant.Id,
-                participant.RoundId,
-                participant.PlayerId,
-                player?.FullName ?? string.Empty,
-                player?.Initials ?? string.Empty,
-                participant.HandicapIndex,
-                participant.CourseHandicap,
-                participant.TotalGrossStrokes,
-                participant.TotalNetStrokes,
-                participant.TotalStablefordPoints,
-                participant.IsWithdrawn));
         }
 
         var dto = new RoundDto(
@@ -107,8 +90,7 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             course.Name,
             round.RoundDate,
             round.Status,
-            round.Notes,
-            participantDtos);
+            round.Participants.Count);
 
         return Result<RoundDto>.Ok(dto);
     }

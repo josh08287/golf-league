@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -38,17 +39,7 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
         await _playerRepository.UpdateAsync(player, cancellationToken);
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-
-        var dto = new PlayerDto(
-            player.Id,
-            player.FirstName,
-            player.LastName,
-            player.FullName,
-            player.Initials,
-            player.Email,
-            player.EntraObjectId,
-            player.IsActive,
-            currentHandicap?.HandicapIndex);
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex);
 
         return Result<PlayerDto>.Ok(dto);
     }

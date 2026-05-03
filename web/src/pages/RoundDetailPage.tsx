@@ -24,6 +24,7 @@ function statusVariant(status: RoundStatus) {
     case 'Finalized':  return 'green' as const;
     case 'InProgress': return 'amber' as const;
     case 'Scheduled':  return 'blue' as const;
+    case 'Cancelled':  return 'neutral' as const;
   }
 }
 
@@ -161,15 +162,15 @@ export function RoundDetailPage() {
         <ErrorMessage message="Could not load round details. Please try again." />
       )}
 
-      {round.data?.data && (
+      {round.data && (
         <PageHeader
-          title={round.data.data.courseName}
-          description={formatDate(round.data.data.scheduledDate)}
+          title={round.data.courseName}
+          description={formatDate(round.data.scheduledDate)}
         >
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-500">{round.data.data.flightName}</span>
-            <Badge variant={statusVariant(round.data.data.status)}>
-              {round.data.data.status}
+            <span className="text-sm text-gray-500">{round.data.flightName}</span>
+            <Badge variant={statusVariant(round.data.status)}>
+              {round.data.status}
             </Badge>
           </div>
         </PageHeader>
@@ -196,7 +197,7 @@ export function RoundDetailPage() {
               {scorecards.data.data.map((sc) => (
                 <Accordion.Item
                   key={sc.playerId}
-                  value={sc.playerId}
+                  value={String(sc.playerId)}
                   className="rounded-lg border border-gray-200 bg-white overflow-hidden"
                 >
                   <Accordion.Header>

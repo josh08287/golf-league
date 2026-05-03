@@ -4,7 +4,7 @@ import { Plus } from 'lucide-react';
 import { usePlayers } from '../../hooks/usePlayers';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Table } from '../../components/ui/Table';
+import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
@@ -16,12 +16,13 @@ import type { Player } from '../../types/api';
 
 export function PlayersPage() {
   const navigate = useNavigate();
-  const { data: players, isLoading, error } = usePlayers();
+  const { data: playersPage, isLoading, error } = usePlayers();
+  const players = playersPage?.data ?? [];
 
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Player | null>(null);
 
-  const deactivate = useDeactivatePlayer(deactivateTarget?.id ?? '');
+  const deactivate = useDeactivatePlayer(String(deactivateTarget?.id ?? ''));
 
   async function handleDeactivate() {
     if (!deactivateTarget) return;
@@ -50,7 +51,7 @@ export function PlayersPage() {
           className="font-medium text-[#1B5E20] hover:underline"
           onClick={() => navigate(`/admin/players/${p.id}`)}
         >
-          {p.firstName} {p.lastName}
+          {p.fullName}
         </button>
       ),
     },
@@ -58,7 +59,7 @@ export function PlayersPage() {
     {
       key: 'handicap',
       header: 'Handicap',
-      render: (p: Player) => p.handicapIndex?.toFixed(1) ?? '—',
+      render: (p: Player) => p.currentHandicap?.toFixed(1) ?? '—',
     },
     {
       key: 'flight',
@@ -117,15 +118,14 @@ export function PlayersPage() {
       </PageHeader>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
-        <Table
+        <DataTable
           columns={columns}
-          data={players ?? []}
-          rowKey={(p) => p.id}
+          data={players}
+          rowKey={(p) => String(p.id)}
           emptyMessage="No players found."
         />
       </div>
 
-      {/* Add Player Modal */}
       <Modal open={addOpen} title="Add Player" onClose={() => setAddOpen(false)}>
         <AddPlayerForm
           onSuccess={() => setAddOpen(false)}
@@ -133,11 +133,10 @@ export function PlayersPage() {
         />
       </Modal>
 
-      {/* Deactivate Confirmation */}
       <ConfirmDialog
         open={!!deactivateTarget}
         title="Deactivate Player"
-        description={`Are you sure you want to deactivate ${deactivateTarget?.firstName} ${deactivateTarget?.lastName}? They will no longer appear in active rounds.`}
+        description={`Are you sure you want to deactivate ${deactivateTarget?.fullName}? They will no longer appear in active rounds.`}
         confirmLabel="Deactivate"
         destructive
         onConfirm={handleDeactivate}

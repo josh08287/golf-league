@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { usePlayers } from '../../hooks/usePlayers';
-import { useUpdatePlayer } from '../../hooks/admin/usePlayerMutations';
-import { Button } from '../ui/Button';
+import { useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../../lib/api';
+import { usePlayers, playerKeys } from '../../hooks/usePlayers';
 import { Spinner } from '../ui/Spinner';
 import type { Flight, Player } from '../../types/api';
 
@@ -10,95 +10,70 @@ interface FlightPlayerAssignmentProps {
 }
 
 export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps) {
-  const { data: players, isLoading } = usePlayers();
-  const updatePlayer = useUpdatePlayer('');
+  const qc = useQueryClient();
+  const { data: playersPage, isLoading } = usePlayers();
+  const players = playersPage?.data ?? [];
 
-  // Track which player is being dragged
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  // Track drag-over flight
-  const [overFlightId, setOverFlightId] = useState<string | null>(null);
+  const [draggingId, setDraggingId] = useState<number | null>(null);
+  const [overFlightId, setOverFlightId] = useState<number | 'unassigned' | null>(null);
 
   if (isLoading) return <Spinner />;
 
-  function playersInFlight(flightId: string | null) {
-    return (players ?? []).filter((p) =>
+  function playersInFlight(flightId: number | null) {
+    return players.filter((p) =>
       flightId === null ? !p.flightId : p.flightId === flightId
     );
   }
 
-  function handleDrop(targetFlightId: string | null) {
+  async function handleDropToFlight(flightId: number | null) {
     if (!draggingId) return;
-    const player = players?.find((p) => p.id === draggingId);
-    if (!player) return;
-    if (player.flightId === targetFlightId) return;
+    const player = players.find((p) => p.id === draggingId);
+    if (!player || player.flightId === flightId) return;
 
-    // useUpdatePlayer needs playerId; we create a targeted hook inline via the mutation fn
-    updatePlayer.mutate({} as never); // placeholder — see note below
-
-    // Since useUpdatePlayer(id) binds to a static id, we call api directly via the hook
-    // The real call is wired below via the dedicated helper
-    void assignPlayerToFlight(draggingId, targetFlightId);
     setDraggingId(null);
     setOverFlightId(null);
+
+    await apiClient.patch(`/players/${draggingId}`, {
+      flightId: flightId === null ? null : String(flightId),
+    });
+    await qc.invalidateQueries({ queryKey: playerKeys.all });
   }
 
-  // We need per-player update calls; extract a tiny helper component to scope the hook
-  // (hooks can't be called conditionally). FlightPlayerCard handles its own mutation.
   return (
     <div className="grid gap-4 lg:grid-cols-3">
-      {/* Unassigned column */}
       <FlightColumn
         label="Unassigned"
-        flightId={null}
         players={playersInFlight(null)}
         draggingId={draggingId}
-        isOver={overFlightId === '__unassigned__'}
-        onDragStart={setDraggingId}
-        onDragOver={() => setOverFlightId('__unassigned__')}
-        onDrop={() => handleDropToFlight(null)}
+        isOver={overFlightId === 'unassigned'}
+        onDragStart={(id) => setDraggingId(id)}
+        onDragOver={() => setOverFlightId('unassigned')}
+        onDrop={() => void handleDropToFlight(null)}
         onDragLeave={() => setOverFlightId(null)}
       />
-
-      {flights.map((flight) => (
+      {flights.map((f) => (
         <FlightColumn
-          key={flight.id}
-          label={flight.name}
-          flightId={flight.id}
-          players={playersInFlight(flight.id)}
+          key={f.id}
+          label={f.name}
+          players={playersInFlight(f.id)}
           draggingId={draggingId}
-          isOver={overFlightId === flight.id}
-          onDragStart={setDraggingId}
-          onDragOver={() => setOverFlightId(flight.id)}
-          onDrop={() => handleDropToFlight(flight.id)}
+          isOver={overFlightId === f.id}
+          onDragStart={(id) => setDraggingId(id)}
+          onDragOver={() => setOverFlightId(f.id)}
+          onDrop={() => void handleDropToFlight(f.id)}
           onDragLeave={() => setOverFlightId(null)}
         />
       ))}
     </div>
   );
-
-  function handleDropToFlight(flightId: string | null) {
-    handleDrop(flightId);
-  }
 }
-
-// ── Per-player assignment (scoped hook) ────────────────────────────────────
-
-function assignPlayerToFlight(playerId: string, flightId: string | null): Promise<void> {
-  // Import lazily to avoid circular — call api directly
-  return import('../../lib/api').then(({ api }) =>
-    api.patch(`/players/${playerId}`, { flightId }).then(() => undefined)
-  );
-}
-
-// ── Flight Column ──────────────────────────────────────────────────────────
 
 interface FlightColumnProps {
   label: string;
-  flightId: string | null;
   players: Player[];
-  draggingId: string | null;
+  draggingId: number | null;
   isOver: boolean;
-  onDragStart: (id: string) => void;
+  onDragStart: (id: number) => void;
   onDragOver: () => void;
   onDrop: () => void;
   onDragLeave: () => void;
@@ -144,8 +119,8 @@ function FlightColumn({
               draggingId === p.id ? 'opacity-40' : 'opacity-100',
             ].join(' ')}
           >
-            {p.firstName} {p.lastName}
-            <span className="ml-2 text-xs text-gray-400">({p.handicapIndex?.toFixed(1) ?? '—'})</span>
+            {p.fullName}
+            <span className="ml-2 text-xs text-gray-400">({p.currentHandicap?.toFixed(1) ?? '—'})</span>
           </li>
         ))}
       </ul>

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Users } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useFlights } from '../../hooks/useFlights';
@@ -150,8 +150,10 @@ function FlightCard({ flight, playerCount }: FlightCardProps) {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export function FlightsPage() {
-  const { data: flights, isLoading, error } = useFlights();
-  const { data: players } = usePlayers();
+  const { data: flightsPage, isLoading, error } = useFlights();
+  const flights = flightsPage?.data ?? [];
+  const { data: playersPage } = usePlayers();
+  const players = playersPage?.data ?? [];
   const [createOpen, setCreateOpen] = useState(false);
 
   if (isLoading) {
@@ -166,8 +168,8 @@ export function FlightsPage() {
     return <ErrorMessage message="Failed to load flights." />;
   }
 
-  function playerCountForFlight(flightId: string) {
-    return (players ?? []).filter((p) => p.flightId === flightId).length;
+  function playerCountForFlight(flightId: number) {
+    return players.filter((p) => p.flightId === flightId).length;
   }
 
   return (
@@ -179,18 +181,16 @@ export function FlightsPage() {
         </Button>
       </PageHeader>
 
-      {/* Flight cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {(flights ?? []).map((f) => (
+        {flights.map((f) => (
           <FlightCard key={f.id} flight={f} playerCount={playerCountForFlight(f.id)} />
         ))}
-        {(flights ?? []).length === 0 && (
+        {flights.length === 0 && (
           <p className="text-sm text-gray-500">No flights created yet.</p>
         )}
       </div>
 
-      {/* Player assignment */}
-      {(flights ?? []).length > 0 && (
+      {flights.length > 0 && (
         <div>
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
             Player Flight Assignment
@@ -198,7 +198,7 @@ export function FlightsPage() {
           <p className="mb-4 text-sm text-gray-500">
             Drag players between columns to reassign them to a flight.
           </p>
-          <FlightPlayerAssignment flights={flights ?? []} />
+          <FlightPlayerAssignment flights={flights} />
         </div>
       )}
 

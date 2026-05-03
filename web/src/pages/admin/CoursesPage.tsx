@@ -8,20 +8,19 @@ import { api } from '../../lib/api';
 import { useCreateCourse } from '../../hooks/admin/useCourseMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
-import { Card } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { CourseHolesEditor } from '../../components/admin/CourseHolesEditor';
-import type { Course } from '../../types/api';
+import type { Course, CourseDetail } from '../../types/api';
 
 // ── Schema ─────────────────────────────────────────────────────────────────
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  courseRating: z.number({ invalid_type_error: 'Required' }).min(60).max(80),
-  slopeRating: z.number({ invalid_type_error: 'Required' }).int().min(55).max(155),
+  rating: z.number({ invalid_type_error: 'Required' }).min(60).max(80),
+  slope: z.number({ invalid_type_error: 'Required' }).int().min(55).max(155),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -54,17 +53,17 @@ function AddCourseForm({ onSuccess, onCancel }: AddCourseFormProps) {
       </FormField>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Course Rating" error={errors.courseRating} required hint="e.g. 71.3">
+        <FormField label="Course Rating" error={errors.rating} required hint="e.g. 71.3">
           <input
-            {...register('courseRating', { valueAsNumber: true })}
+            {...register('rating', { valueAsNumber: true })}
             type="number"
             step="0.1"
             className={inputClass}
           />
         </FormField>
-        <FormField label="Slope Rating" error={errors.slopeRating} required hint="55–155">
+        <FormField label="Slope Rating" error={errors.slope} required hint="55–155">
           <input
-            {...register('slopeRating', { valueAsNumber: true })}
+            {...register('slope', { valueAsNumber: true })}
             type="number"
             className={inputClass}
           />
@@ -96,7 +95,7 @@ interface CourseRowProps {
 function CourseRow({ course }: CourseRowProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const { data: detail, isLoading } = useQuery<Course>({
+  const { data: detail, isLoading } = useQuery<CourseDetail>({
     queryKey: ['course', course.id],
     queryFn: () => api.get(`/courses/${course.id}`).then((r) => r.data),
     enabled: expanded,
@@ -117,7 +116,7 @@ function CourseRow({ course }: CourseRowProps) {
         <div>
           <h3 className="font-semibold text-gray-900">{course.name}</h3>
           <p className="text-xs text-gray-500">
-            Rating: {course.courseRating} &nbsp;|&nbsp; Slope: {course.slopeRating}
+            Rating: {course.rating} &nbsp;|&nbsp; Slope: {course.slope}
           </p>
         </div>
         <div className="text-gray-400">
@@ -132,8 +131,8 @@ function CourseRow({ course }: CourseRowProps) {
             <Spinner />
           ) : (
             <CourseHolesEditor
-              courseId={course.id}
-              initialHoles={detail?.holes ?? []}
+              courseId={String(course.id)}
+              initialHoles={detail?.holeDetails ?? []}
             />
           )}
         </div>
@@ -147,10 +146,11 @@ function CourseRow({ course }: CourseRowProps) {
 export function CoursesPage() {
   const [addOpen, setAddOpen] = useState(false);
 
-  const { data: courses, isLoading, error } = useQuery<Course[]>({
+  const { data: coursesPage, isLoading, error } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
     queryFn: () => api.get('/courses').then((r) => r.data),
   });
+  const courses = coursesPage?.data ?? [];
 
   if (isLoading) {
     return (
@@ -174,10 +174,10 @@ export function CoursesPage() {
       </PageHeader>
 
       <div className="space-y-3">
-        {(courses ?? []).map((c) => (
+        {courses.map((c) => (
           <CourseRow key={c.id} course={c} />
         ))}
-        {(courses ?? []).length === 0 && (
+        {courses.length === 0 && (
           <p className="text-sm text-gray-500">No courses yet.</p>
         )}
       </div>

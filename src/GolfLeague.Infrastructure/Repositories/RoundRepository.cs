@@ -23,6 +23,14 @@ public sealed class RoundRepository : IRoundRepository
                 .ThenInclude(rp => rp.Player)
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Flight)
+            .Include(r => r.Participants)
+            .OrderByDescending(r => r.RoundDate)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)
@@ -30,6 +38,15 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Participants)
             .Where(r => r.SeasonId == seasonId)
             .OrderByDescending(r => r.RoundDate)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.RoundParticipants
+            .Include(rp => rp.Player)
+            .Include(rp => rp.HoleScores)
+            .Where(rp => rp.RoundId == roundId)
+            .OrderBy(rp => rp.Player.LastName)
+            .ThenBy(rp => rp.Player.FirstName)
             .ToListAsync(cancellationToken);
 
     public async Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default)
@@ -74,4 +91,12 @@ public sealed class RoundRepository : IRoundRepository
         await _context.HoleScores.AddRangeAsync(holeScores, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default)
+        => await _context.RoundParticipants
+            .Include(rp => rp.Round)
+            .Include(rp => rp.HoleScores)
+            .Where(rp => rp.PlayerId == playerId)
+            .OrderBy(rp => rp.Round.RoundDate)
+            .ToListAsync(cancellationToken);
 }

@@ -21,6 +21,7 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task<IReadOnlyList<Course>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.Courses
+            .Include(c => c.Holes)
             .OrderBy(c => c.Name)
             .ToListAsync(cancellationToken);
 
@@ -29,4 +30,22 @@ public sealed class CourseRepository : ICourseRepository
             .Where(h => h.CourseId == courseId)
             .OrderBy(h => h.HoleNumber)
             .ToListAsync(cancellationToken);
+
+    public async Task AddAsync(Course course, CancellationToken cancellationToken = default)
+    {
+        await _context.Courses.AddAsync(course, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateHolesAsync(int courseId, IEnumerable<CourseHole> holes, CancellationToken cancellationToken = default)
+    {
+        var existing = await _context.CourseHoles
+            .Where(h => h.CourseId == courseId)
+            .ToListAsync(cancellationToken);
+
+        _context.CourseHoles.RemoveRange(existing);
+
+        await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

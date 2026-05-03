@@ -21,15 +21,18 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IHandicapRepository _handicapRepository;
 
     public SubmitHoleScoresCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
-        IPlayerRepository playerRepository)
+        IPlayerRepository playerRepository,
+        IHandicapRepository handicapRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
+        _handicapRepository = handicapRepository;
     }
 
     public async Task<Result<ScorecardDto>> Handle(SubmitHoleScoresCommand request, CancellationToken cancellationToken)
@@ -98,6 +101,26 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             await _roundRepository.UpdateAsync(round, cancellationToken);
         }
 
+        // --- HANDICAP RECALCULATION FOR 9-HOLE ROUNDS ---
+        // After every 2 rounds, combine two 9-hole rounds for handicap calculation
+        var playerRounds = await _roundRepository.GetParticipantsAsyncByPlayer(request.PlayerId, cancellationToken);
+        var nineHoleRounds = playerRounds
+            .Where(rp => rp.HoleScores.Count == 9)
+            .OrderBy(rp => rp.Round.RoundDate)
+            .ToList();
+        if (nineHoleRounds.Count >= 2 && nineHoleRounds.Count % 2 == 0)
+        {
+            var lastTwo = nineHoleRounds.TakeLast(2).ToList();
+            var gross1 = lastTwo[0].HoleScores.Sum(h => h.GrossStrokes);
+            var gross2 = lastTwo[1].HoleScores.Sum(h => h.GrossStrokes);
+            var diff1 = StablefordScoringService.NineHoleScoreDifferential(gross1, course.CourseRating, course.SlopeRating);
+            var diff2 = StablefordScoringService.NineHoleScoreDifferential(gross2, course.CourseRating, course.SlopeRating);
+            var combinedDiff = HandicapCalculationService.CombineNineHoleDifferentials(diff1, diff2);
+            // Save combinedDiff as a new differential for handicap calculation
+            await _handicapRepository.AddDifferentialAsync(request.PlayerId, combinedDiff, round.RoundDate, cancellationToken);
+        }
+        // --- END HANDICAP RECALCULATION ---
+
         var holeScoreDtos = holeScoreEntities
             .OrderBy(h => h.HoleNumber)
             .Select(h => new HoleScoreDto(
@@ -125,9 +148,6 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             participant.TotalStablefordPoints,
             participant.IsWithdrawn);
 
-        var frontNine = holeScoreDtos.Where(h => h.HoleNumber <= 9).ToList();
-        var backNine = holeScoreDtos.Where(h => h.HoleNumber > 9).ToList();
-
         var scorecard = new ScorecardDto(
             round.Id,
             round.RoundDate,
@@ -136,15 +156,15 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             course.SlopeRating,
             participantDto,
             holeScoreDtos,
-            frontNine.Sum(h => h.Par),
-            backNine.Sum(h => h.Par),
             holeScoreDtos.Sum(h => h.Par),
-            frontNine.Sum(h => h.GrossStrokes),
-            backNine.Sum(h => h.GrossStrokes),
-            frontNine.Sum(h => h.NetStrokes),
-            backNine.Sum(h => h.NetStrokes),
-            frontNine.Sum(h => h.StablefordPoints),
-            backNine.Sum(h => h.StablefordPoints));
+            0, // No back nine for 9-hole rounds
+            holeScoreDtos.Sum(h => h.Par),
+            holeScoreDtos.Sum(h => h.GrossStrokes),
+            0,
+            holeScoreDtos.Sum(h => h.NetStrokes),
+            0,
+            holeScoreDtos.Sum(h => h.StablefordPoints),
+            0);
 
         return Result<ScorecardDto>.Ok(scorecard);
     }

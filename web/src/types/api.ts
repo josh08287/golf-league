@@ -20,71 +20,67 @@ export interface PagedResponse<T> {
 // ── Domain DTOs ───────────────────────────────────────────────────────────────
 
 export interface Player {
-  id: string;
-  name: string;
+  id: number;
+  fullName: string;
   email: string;
-  currentHandicap: number;
-  flightId: string | null;
-  flightName: string | null;
   isActive: boolean;
-  createdAt: string;
+  currentHandicap: number | null;
+  flightId: number | null;
+  flightName: string | null;
 }
 
-export interface Handicap {
-  id: string;
-  playerId: string;
+export interface HandicapHistoryEntry {
+  id: number;
+  playerId: number;
   handicapIndex: number;
   effectiveDate: string;
-  calculatedAt: string;
+  source: 'Manual' | 'Calculated' | 'Initial';
+  notes: string | null;
 }
 
 export interface Flight {
-  id: string;
+  id: number;
   name: string;
-  seasonId: string;
-  minHandicap: number;
-  maxHandicap: number;
+  seasonId: number;
+  minHandicap: number | null;
+  maxHandicap: number | null;
+  displayOrder: number;
   playerCount: number;
-  createdAt: string;
 }
 
 export interface Standing {
   position: number;
-  playerId: string;
-  playerName: string;
-  flightId: string;
-  flightName: string;
-  currentHandicap: number;
+  playerId: number;
+  playerFullName: string;
+  playerInitials: string;
   roundsPlayed: number;
   totalPoints: number;
   averagePoints: number;
+  currentHandicapIndex: number;
 }
 
-export type RoundStatus = 'Scheduled' | 'InProgress' | 'Finalized';
+export type RoundStatus = 'Scheduled' | 'InProgress' | 'Finalized' | 'Cancelled';
 
 export interface Round {
-  id: string;
-  courseId: string;
+  id: number;
+  courseId: number;
   courseName: string;
-  flightId: string;
+  flightId: number;
   flightName: string;
   scheduledDate: string;
   status: RoundStatus;
-  seasonId: string;
+  seasonId: number;
   participantCount: number;
-  createdAt: string;
 }
 
 export interface Participant {
-  id: string;
-  roundId: string;
-  playerId: string;
+  id: number;
+  roundId: number;
+  playerId: number;
   playerName: string;
   handicapAtTime: number;
-  grossScore: number | null;
-  netScore: number | null;
-  points: number | null;
-  didNotFinish: boolean;
+  courseHandicap: number;
+  isWithdrawn: boolean;
 }
 
 export interface HoleScore {
@@ -96,8 +92,8 @@ export interface HoleScore {
 }
 
 export interface Scorecard {
-  roundId: string;
-  playerId: string;
+  roundId: number;
+  playerId: number;
   playerName: string;
   courseName: string;
   scheduledDate: string;
@@ -108,21 +104,30 @@ export interface Scorecard {
   holes: HoleScore[];
 }
 
-export interface Course {
-  id: string;
-  name: string;
+export interface CourseHole {
+  holeNumber: number;
   par: number;
-  holes: number;
+  strokeIndex: number;
+}
+
+export interface Course {
+  id: number;
+  name: string;
   rating: number;
   slope: number;
-  address: string | null;
-  createdAt: string;
+  holeCount: number;
+}
+
+export interface CourseDetail extends Course {
+  holeDetails: CourseHole[];
 }
 
 export interface Season {
-  id: string;
+  id: number;
   name: string;
+  year: number;
   startDate: string;
   endDate: string;
   isActive: boolean;
+  bestNRounds: number | null;
 }

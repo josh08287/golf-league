@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useRound } from '../../hooks/useRounds';
 import { useSubmitHoleScores } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -7,43 +8,26 @@ import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ArrowLeft, Save } from 'lucide-react';
-import type { Participant, Round } from '../../types/api';
-
-// ── Constants ──────────────────────────────────────────────────────────────
+import { api } from '../../lib/api';
+import type { Participant } from '../../types/api';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
-// ── Stableford calculation ─────────────────────────────────────────────────
-
-function computeStablefordPoints(
-  gross: number,
-  par: number,
-  handicapStrokes: number
-): number {
+function computeStablefordPoints(gross: number, par: number, handicapStrokes: number): number {
   return Math.max(0, par + 2 - (gross - handicapStrokes));
 }
 
-// ── Handicap strokes per hole ──────────────────────────────────────────────
-// Distributes the player's course handicap across holes via stroke index
-
-function handicapStrokesForHole(
-  playerCourseHandicap: number,
-  strokeIndex: number
-): number {
+function handicapStrokesForHole(playerCourseHandicap: number, strokeIndex: number): number {
   const baseStrokes = Math.floor(playerCourseHandicap / 18);
   const extra = playerCourseHandicap % 18;
   return baseStrokes + (strokeIndex <= extra ? 1 : 0);
 }
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-type ScoreGrid = Record<string, Record<number, number | ''>>; // playerId -> hole -> score
+type ScoreGrid = Record<string, Record<number, number | ''>>;
 
 function buildDraftKey(roundId: string) {
   return `score_draft_${roundId}`;
 }
-
-// ── Score Cell ─────────────────────────────────────────────────────────────
 
 interface ScoreCellProps {
   value: number | '';
@@ -82,13 +66,11 @@ function ScoreCell({ value, onChange, onKeyDown, inputRef, readonly }: ScoreCell
   );
 }
 
-// ── Stableford Points Row ──────────────────────────────────────────────────
-
 interface StablefordRowProps {
   scores: Record<number, number | ''>;
   courseHandicap: number;
-  strokeIndexes: Record<number, number>; // hole -> strokeIndex
-  pars: Record<number, number>; // hole -> par
+  strokeIndexes: Record<number, number>;
+  pars: Record<number, number>;
 }
 
 function StablefordRow({ scores, courseHandicap, strokeIndexes, pars }: StablefordRowProps) {
@@ -118,13 +100,19 @@ function StablefordRow({ scores, courseHandicap, strokeIndexes, pars }: Stablefo
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
 export function ScoreEntryPage() {
   const { id: roundId = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: round, isLoading, error } = useRound(roundId);
+
+  const { data: participantsData, isLoading: participantsLoading } = useQuery<Participant[]>({
+    queryKey: ['rounds', roundId, 'participants'],
+    queryFn: () => api.get(`/rounds/${roundId}/participants`).then((r) => r.data),
+    enabled: Boolean(roundId),
+  });
+  const participants = participantsData ?? [];
+
   const submitScores = useSubmitHoleScores(roundId);
 
   const [scores, setScores] = useState<ScoreGrid>({});
@@ -132,10 +120,8 @@ export function ScoreEntryPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // Cell refs for tab navigation: [playerIndex][holeIndex]
   const cellRefs = useRef<Array<Array<HTMLInputElement | null>>>([]);
 
-  // Restore draft from localStorage
   useEffect(() => {
     const raw = localStorage.getItem(buildDraftKey(roundId));
     if (raw) {
@@ -147,32 +133,26 @@ export function ScoreEntryPage() {
     }
   }, [roundId]);
 
-  // Auto-save draft on every change
   useEffect(() => {
     if (Object.keys(scores).length > 0) {
       localStorage.setItem(buildDraftKey(roundId), JSON.stringify(scores));
     }
   }, [scores, roundId]);
 
-  const handleScoreChange = useCallback(
-    (playerId: string, hole: number, value: number | '') => {
-      setScores((prev) => ({
-        ...prev,
-        [playerId]: { ...(prev[playerId] ?? {}), [hole]: value },
-      }));
-    },
-    []
-  );
+  const handleScoreChange = useCallback((playerId: string, hole: number, value: number | '') => {
+    setScores((prev) => ({
+      ...prev,
+      [playerId]: { ...(prev[playerId] ?? {}), [hole]: value },
+    }));
+  }, []);
 
   function handleKeyDown(
     e: React.KeyboardEvent<HTMLInputElement>,
     playerIdx: number,
-    holeIdx: number,
-    participants: Participant[]
+    holeIdx: number
   ) {
     if (e.key === 'Tab') {
       e.preventDefault();
-      // Advance: next hole, or wrap to first hole of next player
       const nextHole = holeIdx + 1;
       if (nextHole < 18) {
         cellRefs.current[playerIdx]?.[nextHole]?.focus();
@@ -182,15 +162,12 @@ export function ScoreEntryPage() {
     }
   }
 
-  async function handleSubmitAll(participants: Participant[]) {
-    // Validate all 18 holes for every participant
+  async function handleSubmitAll() {
     for (const p of participants) {
       for (const h of HOLES) {
-        const v = scores[p.playerId]?.[h];
+        const v = scores[String(p.playerId)]?.[h];
         if (v === '' || v === undefined) {
-          setSubmitError(
-            `Missing score for ${p.firstName} ${p.lastName} on hole ${h}.`
-          );
+          setSubmitError(`Missing score for ${p.playerName} on hole ${h}.`);
           return;
         }
       }
@@ -205,11 +182,10 @@ export function ScoreEntryPage() {
           playerId: p.playerId,
           scores: HOLES.map((h) => ({
             holeNumber: h,
-            grossScore: scores[p.playerId][h] as number,
+            grossScore: scores[String(p.playerId)][h] as number,
           })),
         });
       }
-      // Clear draft after successful submit
       localStorage.removeItem(buildDraftKey(roundId));
       setSubmitSuccess(true);
     } catch {
@@ -219,9 +195,7 @@ export function ScoreEntryPage() {
     }
   }
 
-  // ── Render ───────────────────────────────────────────────────────────────
-
-  if (isLoading) {
+  if (isLoading || participantsLoading) {
     return (
       <div className="flex h-64 items-center justify-center">
         <Spinner />
@@ -233,18 +207,12 @@ export function ScoreEntryPage() {
     return <ErrorMessage message="Round not found." />;
   }
 
-  const participants: Participant[] = round.participants ?? [];
   const isFinalized = round.status === 'Finalized';
 
-  // Build lookup maps from course hole data
+  // Hole data not available without a separate course holes endpoint — use defaults
   const strokeIndexes: Record<number, number> = {};
   const pars: Record<number, number> = {};
-  (round.courseHoles ?? []).forEach((h) => {
-    strokeIndexes[h.holeNumber] = h.strokeIndex;
-    pars[h.holeNumber] = h.par;
-  });
 
-  // Pre-initialize cellRefs array dimensions
   cellRefs.current = participants.map((_, pi) => cellRefs.current[pi] ?? []);
 
   return (
@@ -258,7 +226,7 @@ export function ScoreEntryPage() {
         </button>
         <PageHeader
           title="Score Entry"
-          subtitle={`${round.courseName} — ${new Date(round.date).toLocaleDateString()}`}
+          subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()}`}
         />
       </div>
 
@@ -274,29 +242,21 @@ export function ScoreEntryPage() {
         </div>
       )}
 
-      {/* Spreadsheet grid */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full border-collapse text-sm">
-          {/* Header: hole numbers */}
           <thead>
             <tr className="border-b border-gray-200 bg-gray-50">
               <th className="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
                 Player
               </th>
               {HOLES.map((h) => (
-                <th
-                  key={h}
-                  className="px-1 py-3 text-center text-xs font-semibold text-gray-500"
-                >
+                <th key={h} className="px-1 py-3 text-center text-xs font-semibold text-gray-500">
                   {h}
                 </th>
               ))}
-              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">
-                Total
-              </th>
+              <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">Total</th>
             </tr>
 
-            {/* Par row */}
             <tr className="border-b border-gray-100 bg-gray-50/50">
               <td className="sticky left-0 z-10 bg-gray-50/50 px-3 py-1.5 text-xs font-medium text-gray-400">
                 Par
@@ -314,33 +274,29 @@ export function ScoreEntryPage() {
 
           <tbody className="divide-y divide-gray-100">
             {participants.map((participant, pi) => {
-              const playerScores = scores[participant.playerId] ?? {};
+              const playerScores = scores[String(participant.playerId)] ?? {};
               const grossTotal = HOLES.reduce<number>((sum, h) => {
                 const v = playerScores[h];
                 return sum + (typeof v === 'number' ? v : 0);
               }, 0);
+              const courseHandicap = Math.round(
+                (participant.handicapAtTime * 113) / 113
+              );
 
               return (
                 <>
-                  {/* Score row */}
                   <tr key={`${participant.playerId}-scores`} className="hover:bg-gray-50/50">
                     <td className="sticky left-0 z-10 bg-white px-3 py-2">
-                      <div className="font-medium text-gray-900">
-                        {participant.firstName} {participant.lastName}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        HCP {participant.courseHandicap ?? '—'}
-                      </div>
+                      <div className="font-medium text-gray-900">{participant.playerName}</div>
+                      <div className="text-xs text-gray-400">HCP {participant.handicapAtTime}</div>
                     </td>
                     {HOLES.map((h, hi) => (
                       <td key={h} className="px-1 py-2">
                         <ScoreCell
                           value={playerScores[h] ?? ''}
                           readonly={isFinalized}
-                          onChange={(v) =>
-                            handleScoreChange(participant.playerId, h, v)
-                          }
-                          onKeyDown={(e) => handleKeyDown(e, pi, hi, participants)}
+                          onChange={(v) => handleScoreChange(String(participant.playerId), h, v)}
+                          onKeyDown={(e) => handleKeyDown(e, pi, hi)}
                           inputRef={(el) => {
                             if (!cellRefs.current[pi]) cellRefs.current[pi] = [];
                             cellRefs.current[pi][hi] = el;
@@ -353,11 +309,10 @@ export function ScoreEntryPage() {
                     </td>
                   </tr>
 
-                  {/* Stableford row */}
                   <StablefordRow
                     key={`${participant.playerId}-stableford`}
                     scores={playerScores}
-                    courseHandicap={participant.courseHandicap ?? 0}
+                    courseHandicap={courseHandicap}
                     strokeIndexes={strokeIndexes}
                     pars={pars}
                   />
@@ -368,17 +323,12 @@ export function ScoreEntryPage() {
         </table>
       </div>
 
-      {/* Submit button */}
       {!isFinalized && (
         <div className="flex items-center justify-end gap-3">
           <p className="text-sm text-gray-500">
             Auto-saved to local draft. Submit when all 18 holes are complete.
           </p>
-          <Button
-            variant="primary"
-            onClick={() => handleSubmitAll(participants)}
-            disabled={submitting}
-          >
+          <Button variant="primary" onClick={handleSubmitAll} disabled={submitting}>
             <Save className="mr-1.5 h-4 w-4" />
             {submitting ? 'Submitting…' : 'Submit All Scores'}
           </Button>

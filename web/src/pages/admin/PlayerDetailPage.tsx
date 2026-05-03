@@ -13,7 +13,7 @@ import {
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
-import { Table } from '../../components/ui/Table';
+import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
@@ -21,26 +21,18 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import type { HandicapHistoryEntry } from '../../types/api';
 
-// ── Schemas ────────────────────────────────────────────────────────────────
-
 const editSchema = z.object({
-  firstName: z.string().min(1, 'Required'),
-  lastName: z.string().min(1, 'Required'),
+  name: z.string().min(1, 'Required'),
   email: z.string().email('Valid email required'),
 });
 
 const handicapSchema = z.object({
-  newIndex: z
-    .number({ invalid_type_error: 'Enter a number' })
-    .min(-10)
-    .max(54),
+  newIndex: z.number({ invalid_type_error: 'Enter a number' }).min(-10).max(54),
   notes: z.string().optional(),
 });
 
 type EditValues = z.infer<typeof editSchema>;
 type HandicapValues = z.infer<typeof handicapSchema>;
-
-// ── Edit Form ──────────────────────────────────────────────────────────────
 
 interface EditFormProps {
   playerId: string;
@@ -65,14 +57,9 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="First Name" error={errors.firstName} required>
-          <input {...register('firstName')} className={inputClass} />
-        </FormField>
-        <FormField label="Last Name" error={errors.lastName} required>
-          <input {...register('lastName')} className={inputClass} />
-        </FormField>
-      </div>
+      <FormField label="Full Name" error={errors.name} required>
+        <input {...register('name')} className={inputClass} />
+      </FormField>
       <FormField label="Email" error={errors.email} required>
         <input {...register('email')} type="email" className={inputClass} />
       </FormField>
@@ -94,8 +81,6 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
     </form>
   );
 }
-
-// ── Handicap Override Form ─────────────────────────────────────────────────
 
 interface HandicapFormProps {
   playerId: string;
@@ -155,16 +140,15 @@ function HandicapOverrideForm({ playerId, currentIndex }: HandicapFormProps) {
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
 export function PlayerDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
 
   const { data: player, isLoading, error } = usePlayer(id);
-  const { data: history } = useHandicapHistory(id);
-  const deactivate = useDeactivatePlayer(id);
 
+  const { data: history = [] } = useHandicapHistory(id);
+
+  const deactivate = useDeactivatePlayer(id);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
 
   async function handleDeactivate() {
@@ -189,12 +173,12 @@ export function PlayerDetailPage() {
     {
       key: 'date',
       header: 'Date',
-      render: (h: HandicapHistoryEntry) => new Date(h.date).toLocaleDateString(),
+      render: (h: HandicapHistoryEntry) => new Date(h.effectiveDate).toLocaleDateString(),
     },
     {
       key: 'index',
       header: 'Index',
-      render: (h: HandicapHistoryEntry) => h.index.toFixed(1),
+      render: (h: HandicapHistoryEntry) => h.handicapIndex.toFixed(1),
     },
     {
       key: 'source',
@@ -226,7 +210,7 @@ export function PlayerDetailPage() {
           <ArrowLeft className="h-5 w-5" />
         </button>
         <PageHeader
-          title={`${player.firstName} ${player.lastName}`}
+          title={player.fullName}
           subtitle={
             <Badge variant={player.isActive ? 'success' : 'neutral'}>
               {player.isActive ? 'Active' : 'Inactive'}
@@ -236,51 +220,40 @@ export function PlayerDetailPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Edit form */}
         <Card className="p-6">
           <h2 className="mb-4 text-base font-semibold text-gray-900">Player Info</h2>
           <EditPlayerForm
             playerId={id}
-            defaultValues={{
-              firstName: player.firstName,
-              lastName: player.lastName,
-              email: player.email,
-            }}
+            defaultValues={{ name: player.fullName, email: player.email }}
           />
         </Card>
 
-        {/* Handicap override */}
         <Card className="p-6">
           <h2 className="mb-1 text-base font-semibold text-gray-900">Manual Handicap Override</h2>
           <p className="mb-4 text-sm text-gray-500">
-            Current index: <strong>{player.handicapIndex?.toFixed(1) ?? '—'}</strong>
+            Current index: <strong>{player.currentHandicap?.toFixed(1) ?? '—'}</strong>
           </p>
-          <HandicapOverrideForm playerId={id} currentIndex={player.handicapIndex ?? 18} />
+          <HandicapOverrideForm playerId={id} currentIndex={player.currentHandicap ?? 18} />
         </Card>
       </div>
 
-      {/* Handicap history */}
       <Card className="p-6">
         <h2 className="mb-4 text-base font-semibold text-gray-900">Handicap History</h2>
-        <Table
+        <DataTable
           columns={handicapColumns}
-          data={history ?? []}
-          rowKey={(h) => `${h.date}-${h.index}`}
+          data={history}
+          rowKey={(h) => `${h.effectiveDate}-${h.handicapIndex}`}
           emptyMessage="No handicap history yet."
         />
       </Card>
 
-      {/* Danger zone */}
       {player.isActive && (
         <Card className="border-red-200 p-6">
           <h2 className="mb-1 text-base font-semibold text-red-700">Danger Zone</h2>
           <p className="mb-4 text-sm text-gray-500">
             Deactivating a player removes them from future rounds and standings calculations.
           </p>
-          <Button
-            variant="destructive"
-            onClick={() => setConfirmDeactivate(true)}
-          >
+          <Button variant="destructive" onClick={() => setConfirmDeactivate(true)}>
             Deactivate Player
           </Button>
         </Card>
@@ -289,7 +262,7 @@ export function PlayerDetailPage() {
       <ConfirmDialog
         open={confirmDeactivate}
         title="Deactivate Player"
-        description={`Deactivate ${player.firstName} ${player.lastName}? This action can be reversed by support.`}
+        description={`Deactivate ${player.fullName}? This action can be reversed by support.`}
         confirmLabel="Deactivate"
         destructive
         onConfirm={handleDeactivate}

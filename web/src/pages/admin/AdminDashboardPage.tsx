@@ -1,22 +1,10 @@
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
 import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight } from 'lucide-react';
-import { apiClient } from '@/lib/api';
+import { usePlayers } from '@/hooks/usePlayers';
+import { useRounds } from '@/hooks/useRounds';
 import { Spinner } from '@/components/ui/Spinner';
-import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
-
-// ── Types ──────────────────────────────────────────────────────────────────
-
-interface DashboardStats {
-  totalPlayers: number;
-  activeRounds: number;
-  upcomingRounds: number;
-  lastFinalizedRoundDate: string | null;
-}
-
-// ── Sub-components ─────────────────────────────────────────────────────────
 
 interface StatCardProps {
   label: string;
@@ -60,13 +48,11 @@ function QuickLink({ to, label, description, icon }: QuickLinkProps) {
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
 export function AdminDashboardPage() {
-  const { data: stats, isLoading, error } = useQuery<DashboardStats>({
-    queryKey: ['admin-dashboard-stats'],
-    queryFn: () => apiClient.get('/admin/dashboard').then((r) => r.data),
-  });
+  const { data: playersPage, isLoading: playersLoading } = usePlayers();
+  const { data: roundsPage, isLoading: roundsLoading } = useRounds();
+
+  const isLoading = playersLoading || roundsLoading;
 
   if (isLoading) {
     return (
@@ -76,47 +62,46 @@ export function AdminDashboardPage() {
     );
   }
 
-  if (error || !stats) {
-    return <ErrorMessage message="Failed to load dashboard stats." />;
-  }
+  const players = playersPage?.data ?? [];
+  const rounds = roundsPage?.data ?? [];
 
-  const lastFinalized = stats.lastFinalizedRoundDate
-    ? new Date(stats.lastFinalizedRoundDate).toLocaleDateString()
-    : 'None';
+  const activeRounds = rounds.filter((r) => r.status === 'InProgress').length;
+  const upcomingRounds = rounds.filter((r) => r.status === 'Scheduled').length;
+  const lastFinalized = rounds
+    .filter((r) => r.status === 'Finalized')
+    .sort((a, b) => b.scheduledDate.localeCompare(a.scheduledDate))[0];
 
   return (
     <div className="space-y-8">
       <PageHeader title="Dashboard" subtitle="Golf League Admin" />
 
-      {/* Summary cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Total Players"
-          value={stats.totalPlayers}
+          value={playersPage?.meta.totalCount ?? players.length}
           icon={<Users className="h-6 w-6 text-blue-600" />}
           colorClass="bg-blue-50"
         />
         <StatCard
           label="Active Rounds"
-          value={stats.activeRounds}
+          value={activeRounds}
           icon={<Clock className="h-6 w-6 text-amber-600" />}
           colorClass="bg-amber-50"
         />
         <StatCard
           label="Upcoming Rounds"
-          value={stats.upcomingRounds}
+          value={upcomingRounds}
           icon={<CalendarDays className="h-6 w-6 text-purple-600" />}
           colorClass="bg-purple-50"
         />
         <StatCard
           label="Last Finalized"
-          value={lastFinalized}
+          value={lastFinalized ? new Date(lastFinalized.scheduledDate).toLocaleDateString() : 'None'}
           icon={<CheckCircle className="h-6 w-6 text-green-700" />}
           colorClass="bg-green-50"
         />
       </div>
 
-      {/* Quick links */}
       <div>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
           Quick Actions

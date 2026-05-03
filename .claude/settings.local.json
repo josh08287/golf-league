@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Bash(dotnet build *)",
-      "Bash(dotnet nuget search *)"
+      "Bash(dotnet nuget search *)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(npm run *)",
+      "Bash(grep -v \"obj\\\\\\\\\")",
+      "Bash(dotnet publish *)",
+      "Bash(az functionapp *)",
+      "Bash(where func *)",
+      "Bash(func azure *)",
+      "PowerShell(Get-Command *)",
+      "Bash(dotnet list *)",
+      "Bash(powershell *)",
+      "Bash(dotnet-ilspycmd /c/Users/JoshBlaine/.nuget/packages/mediatr/12.5.0/lib/net6.0/MediatR.dll)",
+      "Bash(dotnet test *)",
+      "Bash(python3 *)",
+      "Read(//c/Users/JoshBlaine/.nuget/packages/microsoft.azure.functions.worker.core/2.0.0/lib/net8.0/**)",
+      "Bash(dotnet run *)"
     ]
   }
 }

@@ -6,4 +6,5 @@ public sealed record FlightDto(
     string Name,
     double? MinHandicap,
     double? MaxHandicap,
-    int DisplayOrder);
+    int DisplayOrder,
+    int PlayerCount = 0);

@@ -25,6 +25,7 @@ import {
   CoursesPage,
   AuditLogPage,
   SettingsPage,
+  SeasonsPage,
 } from '../pages/admin';
 
 /**
@@ -40,6 +41,7 @@ export const adminRoutes = (
       <Route path="rounds" element={<RoundsPage />} />
       <Route path="rounds/:id/scores" element={<ScoreEntryPage />} />
       <Route path="courses" element={<CoursesPage />} />
+      <Route path="seasons" element={<SeasonsPage />} />
       <Route path="audit-log" element={<AuditLogPage />} />
       <Route path="settings" element={<SettingsPage />} />
     </Route>

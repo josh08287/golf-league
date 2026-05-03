@@ -27,6 +27,9 @@ export function PlayerProfilePage() {
   const player = usePlayer(playerId ?? '');
   const handicapHistory = useHandicapHistory(playerId ?? '');
 
+  const playerData = player.data;
+  const history = handicapHistory.data ?? [];
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
@@ -41,19 +44,19 @@ export function PlayerProfilePage() {
         <ErrorMessage message="Could not load player profile. Please try again." />
       )}
 
-      {player.data?.data && (
+      {playerData && (
         <>
           <PageHeader
-            title={player.data.data.name}
-            description={player.data.data.flightName ?? undefined}
+            title={playerData.fullName}
+            description={playerData.flightName ?? undefined}
           >
-            <Badge variant={player.data.data.isActive ? 'green' : 'secondary'}>
-              {player.data.data.isActive ? 'Active' : 'Inactive'}
+            <Badge variant={playerData.isActive ? 'green' : 'secondary'}>
+              {playerData.isActive ? 'Active' : 'Inactive'}
             </Badge>
           </PageHeader>
 
           {/* Stats cards */}
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500">
@@ -62,7 +65,7 @@ export function PlayerProfilePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-primary-900">
-                  {player.data.data.currentHandicap.toFixed(1)}
+                  {playerData.currentHandicap?.toFixed(1) ?? '—'}
                 </p>
               </CardContent>
             </Card>
@@ -75,20 +78,7 @@ export function PlayerProfilePage() {
               </CardHeader>
               <CardContent>
                 <p className="text-lg font-semibold text-gray-900">
-                  {player.data.data.flightName ?? '—'}
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-gray-500">
-                  Member Since
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-lg font-semibold text-gray-900">
-                  {formatShortDate(player.data.data.createdAt)}
+                  {playerData.flightName ?? '—'}
                 </p>
               </CardContent>
             </Card>
@@ -107,39 +97,32 @@ export function PlayerProfilePage() {
           <ErrorMessage message="Could not load handicap history." />
         )}
 
-        {handicapHistory.data && (
-          <>
-            {handicapHistory.data.data.length === 0 ? (
-              <p className="text-gray-500 text-sm">
-                No handicap history recorded yet.
-              </p>
-            ) : (
-              <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead>Effective Date</TableHead>
-                      <TableHead>Calculated At</TableHead>
-                      <TableHead className="text-right">Handicap Index</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {handicapHistory.data.data.map((h) => (
-                      <TableRow key={h.id}>
-                        <TableCell>{formatShortDate(h.effectiveDate)}</TableCell>
-                        <TableCell className="text-gray-500">
-                          {formatShortDate(h.calculatedAt)}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">
-                          {h.handicapIndex.toFixed(1)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </>
+        {history.length > 0 && (
+          <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-gray-50">
+                  <TableHead>Date</TableHead>
+                  <TableHead>Source</TableHead>
+                  <TableHead className="text-right">Handicap Index</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {history.map((h, i) => (
+                  <TableRow key={`${h.effectiveDate}-${i}`}>
+                    <TableCell>{formatShortDate(h.effectiveDate)}</TableCell>
+                    <TableCell className="text-gray-500">{h.source}</TableCell>
+                    <TableCell className="text-right font-semibold">
+                      {h.handicapIndex.toFixed(1)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+        {!handicapHistory.isPending && history.length === 0 && (
+          <p className="text-gray-500 text-sm">No handicap history recorded yet.</p>
         )}
       </section>
     </div>

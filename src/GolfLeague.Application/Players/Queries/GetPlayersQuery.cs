@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -34,19 +35,27 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         foreach (var player in paged)
         {
             var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-            dtos.Add(new PlayerDto(
-                player.Id,
-                player.FirstName,
-                player.LastName,
-                player.FullName,
-                player.Initials,
-                player.Email,
-                player.EntraObjectId,
-                player.IsActive,
-                currentHandicap?.HandicapIndex));
+            dtos.Add(ToDto(player, currentHandicap?.HandicapIndex));
         }
 
         var result = new PagedResult<PlayerDto>(dtos, request.Page, request.PageSize, totalCount);
         return Result<PagedResult<PlayerDto>>.Ok(result);
+    }
+
+    internal static PlayerDto ToDto(Player player, double? currentHandicap)
+    {
+        var activeMembership = player.FlightMemberships
+            .Where(fm => fm.Season.IsActive)
+            .OrderByDescending(fm => fm.JoinedAt)
+            .FirstOrDefault();
+
+        return new PlayerDto(
+            player.Id,
+            player.FullName,
+            player.Email,
+            player.IsActive,
+            currentHandicap,
+            activeMembership?.FlightId,
+            activeMembership?.Flight.Name);
     }
 }

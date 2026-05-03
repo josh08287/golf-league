@@ -20,6 +20,25 @@ public sealed class FlightRepository : IFlightRepository
             .Include(f => f.Season)
             .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
+    public async Task<IReadOnlyList<Flight>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _context.Flights
+            .Include(f => f.Season)
+            .Include(f => f.Memberships)
+            .OrderBy(f => f.DisplayOrder)
+            .ToListAsync(cancellationToken);
+
+    public async Task AddAsync(Flight flight, CancellationToken cancellationToken = default)
+    {
+        await _context.Flights.AddAsync(flight, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default)
+        => await _context.Seasons
+            .Where(s => s.IsActive)
+            .Select(s => (int?)s.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.Flights
             .Where(f => f.SeasonId == seasonId)

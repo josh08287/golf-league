@@ -57,4 +57,18 @@ public sealed class HandicapRepository : IHandicapRepository
         await _context.Handicaps.AddAsync(handicap, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task AddDifferentialAsync(int playerId, double differential, DateOnly date, CancellationToken cancellationToken = default)
+    {
+        var handicap = new Handicap
+        {
+            PlayerId = playerId,
+            HandicapIndex = differential,
+            EffectiveDate = date,
+            Source = GolfLeague.Domain.Enums.HandicapSource.Calculated,
+            Notes = "Auto-calculated from 9-hole rounds"
+        };
+        await _context.Handicaps.AddAsync(handicap, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

@@ -66,7 +66,7 @@ export function useSetHandicap(playerId: string) {
   return useMutation({
     mutationFn: (payload: SetHandicapPayload) =>
       apiClient
-        .post(`/players/${playerId}/handicap`, payload)
+        .post(`/players/${playerId}/handicap`, { newIndex: payload.newIndex, notes: payload.notes })
         .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: playerKeys.detail(playerId) });

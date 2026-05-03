@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Application.Behaviors;
 
@@ -9,10 +10,12 @@ public sealed class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
     where TRequest : notnull
 {
     private readonly IAuditRepository _auditRepository;
+    private readonly ILogger<AuditBehavior<TRequest, TResponse>> _logger;
 
-    public AuditBehavior(IAuditRepository auditRepository)
+    public AuditBehavior(IAuditRepository auditRepository, ILogger<AuditBehavior<TRequest, TResponse>> logger)
     {
         _auditRepository = auditRepository;
+        _logger = logger;
     }
 
     public async Task<TResponse> Handle(
@@ -28,16 +31,23 @@ public sealed class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
 
             if (succeeded)
             {
-                var auditLog = new AuditLog
+                try
                 {
-                    Action = typeof(TRequest).Name,
-                    EntityType = ResolveEntityType(typeof(TRequest).Name),
-                    EntityId = ResolveEntityId(request),
-                    UserId = auditable.UserId,
-                    Timestamp = DateTime.UtcNow
-                };
+                    var auditLog = new AuditLog
+                    {
+                        Action = typeof(TRequest).Name,
+                        EntityType = ResolveEntityType(typeof(TRequest).Name),
+                        EntityId = ResolveEntityId(request),
+                        UserId = auditable.UserId,
+                        Timestamp = DateTime.UtcNow
+                    };
 
-                await _auditRepository.AddAsync(auditLog, cancellationToken);
+                    await _auditRepository.AddAsync(auditLog, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to write audit log for {Action}; the operation itself succeeded.", typeof(TRequest).Name);
+                }
             }
         }
 

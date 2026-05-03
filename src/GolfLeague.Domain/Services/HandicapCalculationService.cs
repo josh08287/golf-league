@@ -6,6 +6,10 @@ public static class HandicapCalculationService
     private const int BestDifferentialsToUse = 8;
     private const double WhsMultiplier = 0.96;
 
+    // Combine two 9-hole differentials into one 18-hole differential
+    public static double CombineNineHoleDifferentials(double diff1, double diff2)
+        => Math.Round((diff1 + diff2) / 2, 2);
+
     public static double CalculateNewIndex(IEnumerable<double> last20Differentials)
     {
         var differentials = last20Differentials.ToList();

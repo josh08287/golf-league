@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Flight, Standing, ApiResponse, PagedResponse } from '@/types/api';
+import type { Flight, Standing, PagedResponse } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 export const flightKeys = {
@@ -29,9 +29,7 @@ export function useFlight(id: string) {
   return useQuery({
     queryKey: flightKeys.detail(id),
     queryFn: async () => {
-      const response = await apiClient.get<ApiResponse<Flight>>(
-        `/flights/${id}`,
-      );
+      const response = await apiClient.get<Flight>(`/flights/${id}`);
       return response.data;
     },
     enabled: Boolean(id),
@@ -42,7 +40,7 @@ export function useFlightStandings(flightId: string, seasonId: string) {
   return useQuery({
     queryKey: flightKeys.standings(flightId, seasonId),
     queryFn: async () => {
-      const response = await apiClient.get<PagedResponse<Standing>>(
+      const response = await apiClient.get<Standing[]>(
         `/flights/${flightId}/standings`,
         { params: { seasonId } },
       );

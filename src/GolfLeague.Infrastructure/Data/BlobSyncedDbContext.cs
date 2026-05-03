@@ -9,6 +9,10 @@ public abstract class BlobSyncedDbContext : DbContext
     private readonly string _localFilePath;
     private readonly string _blobName;
 
+    // Process-wide lock: only one upload at a time, preventing concurrent
+    // requests from racing each other or opening the file mid-write.
+    private static readonly SemaphoreSlim _uploadLock = new(1, 1);
+
     protected BlobSyncedDbContext(
         DbContextOptions options,
         BlobContainerClient containerClient,
@@ -51,24 +55,52 @@ public abstract class BlobSyncedDbContext : DbContext
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         var result = await base.SaveChangesAsync(cancellationToken);
-        await UploadToBlobAsync(cancellationToken);
+        // SQLite releases its write lock once SaveChanges returns, so it is
+        // safe to copy and upload the file at this point.
+        await UploadToBlobAsync(_containerClient, _localFilePath, _blobName, cancellationToken);
         return result;
     }
 
     public override int SaveChanges()
     {
         var result = base.SaveChanges();
-        UploadToBlobAsync(CancellationToken.None).GetAwaiter().GetResult();
+        UploadToBlobAsync(_containerClient, _localFilePath, _blobName, CancellationToken.None)
+            .GetAwaiter().GetResult();
         return result;
     }
 
-    private async Task UploadToBlobAsync(CancellationToken cancellationToken)
+    public static Task UploadAsync(
+        BlobContainerClient containerClient,
+        string localFilePath,
+        string blobName,
+        CancellationToken cancellationToken = default)
+        => UploadToBlobAsync(containerClient, localFilePath, blobName, cancellationToken);
+
+    private static async Task UploadToBlobAsync(
+        BlobContainerClient containerClient,
+        string localFilePath,
+        string blobName,
+        CancellationToken cancellationToken)
     {
-        if (!File.Exists(_localFilePath))
+        if (!File.Exists(localFilePath))
             return;
 
-        var blobClient = _containerClient.GetBlobClient(_blobName);
-        await using var stream = File.OpenRead(_localFilePath);
-        await blobClient.UploadAsync(stream, overwrite: true, cancellationToken: cancellationToken);
+        await _uploadLock.WaitAsync(cancellationToken);
+        var tempPath = localFilePath + ".upload-tmp";
+        try
+        {
+            // Copy to a temp file so we hold no lock on the live DB during upload.
+            File.Copy(localFilePath, tempPath, overwrite: true);
+
+            var blobClient = containerClient.GetBlobClient(blobName);
+            await using var stream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.None);
+            await blobClient.UploadAsync(stream, overwrite: true, cancellationToken: cancellationToken);
+        }
+        finally
+        {
+            _uploadLock.Release();
+            if (File.Exists(tempPath))
+                File.Delete(tempPath);
+        }
     }
 }

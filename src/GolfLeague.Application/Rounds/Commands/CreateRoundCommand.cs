@@ -63,13 +63,10 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
         await _roundRepository.AddAsync(round, cancellationToken);
 
-        var participantDtos = new List<ParticipantDto>();
-
         foreach (var input in request.Participants)
         {
             var player = await _playerRepository.GetByIdAsync(input.PlayerId, cancellationToken);
-            if (player is null)
-                continue;
+            if (player is null) continue;
 
             var currentHandicap = await _handicapRepository.GetCurrentAsync(input.PlayerId, cancellationToken);
             var handicapIndex = currentHandicap?.HandicapIndex ?? 0.0;
@@ -85,19 +82,6 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
             };
 
             await _roundRepository.AddParticipantAsync(participant, cancellationToken);
-
-            participantDtos.Add(new ParticipantDto(
-                participant.Id,
-                participant.RoundId,
-                participant.PlayerId,
-                player.FullName,
-                player.Initials,
-                participant.HandicapIndex,
-                participant.CourseHandicap,
-                null,
-                null,
-                null,
-                false));
         }
 
         var dto = new RoundDto(
@@ -109,8 +93,7 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
             course.Name,
             round.RoundDate,
             round.Status,
-            round.Notes,
-            participantDtos);
+            request.Participants.Count);
 
         return Result<RoundDto>.Ok(dto);
     }

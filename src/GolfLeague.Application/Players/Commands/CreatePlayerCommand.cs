@@ -57,14 +57,12 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
 
         var dto = new PlayerDto(
             player.Id,
-            player.FirstName,
-            player.LastName,
             player.FullName,
-            player.Initials,
             player.Email,
-            player.EntraObjectId,
             player.IsActive,
-            request.InitialHandicapIndex);
+            request.InitialHandicapIndex,
+            null,
+            null);
 
         return Result<PlayerDto>.Ok(dto);
     }

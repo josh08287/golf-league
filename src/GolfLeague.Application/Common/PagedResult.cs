@@ -1,20 +1,28 @@
 namespace GolfLeague.Application.Common;
 
-public sealed class PagedResult<T>
+public sealed class PageMeta
 {
-    public List<T> Items { get; }
     public int Page { get; }
     public int PageSize { get; }
     public int TotalCount { get; }
-    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
-    public bool HasNextPage => Page < TotalPages;
-    public bool HasPreviousPage => Page > 1;
 
-    public PagedResult(List<T> items, int page, int pageSize, int totalCount)
+    public PageMeta(int page, int pageSize, int totalCount)
     {
-        Items = items;
         Page = page;
         PageSize = pageSize;
         TotalCount = totalCount;
+    }
+}
+
+public sealed class PagedResult<T>
+{
+    public List<T> Data { get; }
+    public PageMeta Meta { get; }
+    public List<string> Errors { get; } = [];
+
+    public PagedResult(List<T> data, int page, int pageSize, int totalCount)
+    {
+        Data = data;
+        Meta = new PageMeta(page, pageSize, totalCount);
     }
 }

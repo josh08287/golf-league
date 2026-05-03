@@ -5,12 +5,15 @@ namespace GolfLeague.Domain.Interfaces;
 public interface IRoundRepository
 {
     Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsync(int roundId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
     Task AddAsync(Round round, CancellationToken cancellationToken = default);
     Task UpdateAsync(Round round, CancellationToken cancellationToken = default);
     Task AddParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
     Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
     Task AddHoleScoresAsync(IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default);
 }
