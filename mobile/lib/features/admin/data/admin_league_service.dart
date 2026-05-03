@@ -37,7 +37,7 @@ class AdminLeagueService {
         'name': name,
         'email': email,
         'initialHandicap': initialHandicap,
-        if (flightId != null) 'flightId': flightId,
+        'flightId': ?flightId,
       },
     );
   }
@@ -51,9 +51,9 @@ class AdminLeagueService {
     await _dio.patch<Map<String, dynamic>>(
       '/players/$id',
       data: {
-        if (name != null) 'name': name,
-        if (email != null) 'email': email,
-        if (flightId != null) 'flightId': flightId,
+        'name': ?name,
+        'email': ?email,
+        'flightId': ?flightId,
       },
     );
   }
@@ -73,7 +73,7 @@ class AdminLeagueService {
   }) async {
     await _dio.post<Map<String, dynamic>>(
       '/players/$id/handicap',
-      data: {'newIndex': newIndex, if (notes != null) 'notes': notes},
+      data: {'newIndex': newIndex, 'notes': ?notes},
     );
   }
 
@@ -102,9 +102,9 @@ class AdminLeagueService {
       data: {
         'name': name,
         'displayOrder': displayOrder,
-        if (minHandicap != null) 'minHandicap': minHandicap,
-        if (maxHandicap != null) 'maxHandicap': maxHandicap,
-        if (seasonId != null) 'seasonId': seasonId,
+        'minHandicap': ?minHandicap,
+        'maxHandicap': ?maxHandicap,
+        'seasonId': ?seasonId,
       },
     );
   }
@@ -134,12 +134,12 @@ class AdminLeagueService {
     await _dio.post<Map<String, dynamic>>(
       '/rounds',
       data: {
-        if (seasonId != null) 'seasonId': seasonId,
+        'seasonId': ?seasonId,
         'flightId': flightId,
         'courseId': courseId,
         'scheduledDate': scheduledDate,
         'playerIds': playerIds,
-        if (notes != null) 'notes': notes,
+        'notes': ?notes,
       },
     );
   }
@@ -229,7 +229,7 @@ class AdminLeagueService {
         'year': year,
         'startDate': startDate,
         'endDate': endDate,
-        if (bestNRounds != null) 'bestNRounds': bestNRounds,
+        'bestNRounds': ?bestNRounds,
       },
     );
   }

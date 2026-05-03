@@ -261,7 +261,7 @@ class _SkeletonCardState extends State<_SkeletonCard>
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: _animation,
-      builder: (_, __) => Container(
+      builder: (_, _) => Container(
         height: widget.height,
         decoration: BoxDecoration(
           color: Colors.grey.withOpacity(_animation.value),

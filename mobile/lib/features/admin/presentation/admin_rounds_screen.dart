@@ -213,7 +213,7 @@ class _CreateRoundDialogState extends ConsumerState<_CreateRoundDialog> {
             ),
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Course'),
-              value: _courseId.isEmpty ? null : _courseId,
+              initialValue: _courseId.isEmpty ? null : _courseId,
               items: _courses
                   .map(
                     (c) => DropdownMenuItem(
@@ -226,7 +226,7 @@ class _CreateRoundDialogState extends ConsumerState<_CreateRoundDialog> {
             ),
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Flight'),
-              value: _flightId.isEmpty ? null : _flightId,
+              initialValue: _flightId.isEmpty ? null : _flightId,
               items: _flights
                   .map(
                     (f) => DropdownMenuItem(

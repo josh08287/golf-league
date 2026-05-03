@@ -149,7 +149,7 @@ class _AdminFlightsScreenState extends ConsumerState<AdminFlightsScreen> {
                                   SizedBox(
                                     width: 160,
                                     child: DropdownButtonFormField<String>(
-                                      value: choice.isEmpty ? '' : choice,
+                                      initialValue: choice.isEmpty ? '' : choice,
                                       items: [
                                         const DropdownMenuItem(
                                           value: '',

@@ -102,7 +102,7 @@ class _ProfileContent extends ConsumerWidget {
             height: 120,
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (_, _) => const SizedBox.shrink(),
           data: (history) => history.length >= 2
               ? _HandicapChart(history: history)
               : const SizedBox.shrink(),

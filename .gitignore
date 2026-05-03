@@ -166,3 +166,4 @@ web/build/
 .DS_Store
 /tests/GolfLeague.Functions.Tests/TestResults
 /golf-league-fn-g5vkqe.PublishSettings
+*.stackdump

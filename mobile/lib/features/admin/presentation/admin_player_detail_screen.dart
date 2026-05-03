@@ -121,7 +121,7 @@ class _AdminPlayerDetailScreenState extends ConsumerState<AdminPlayerDetailScree
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             decoration: const InputDecoration(labelText: 'Flight'),
-            value: _flightChoice.isEmpty ? '' : _flightChoice,
+            initialValue: _flightChoice.isEmpty ? '' : _flightChoice,
             items: [
               const DropdownMenuItem(value: '', child: Text('Unassigned')),
               ..._flights.map(

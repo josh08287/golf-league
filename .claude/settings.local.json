@@ -32,7 +32,27 @@
       "Bash(git -C /c/projects/golf-league add web/src/components/admin/CreateRoundForm.tsx)",
       "Bash(git -C /c/projects/golf-league commit -m \"Add player selection to CreateRoundForm, default all flight players selected\")",
       "Bash(git -C /c/projects/golf-league add web/src/pages/admin/ScoreEntryPage.tsx)",
-      "Bash(git -C /c/projects/golf-league commit -m \"Load course hole data in ScoreEntryPage for correct par and stroke index\")"
+      "Bash(git -C /c/projects/golf-league commit -m \"Load course hole data in ScoreEntryPage for correct par and stroke index\")",
+      "Bash(flutter pub *)",
+      "Bash(flutter build *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter --version)",
+      "Bash(python -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('package:', d['client'][0]['client_info']['android_client_info']['package_name']\\)\")",
+      "Bash(flutter devices *)",
+      "Bash(flutter run *)",
+      "Bash(flutter clean *)",
+      "Bash(where flutter *)",
+      "Bash(xargs grep *)",
+      "Bash(adb logcat *)",
+      "Bash(adb devices *)",
+      "Bash(flutter logs *)",
+      "Bash(unzip -l build/app/outputs/flutter-apk/app-debug.apk)",
+      "Bash(xargs cat *)",
+      "Bash(unzip -l /c/projects/golf-league/mobile/build/app/outputs/flutter-apk/app-release.apk)",
+      "Bash(unzip -l /c/projects/golf-league/mobile/build/app/outputs/flutter-apk/app-debug.apk)",
+      "Bash(unzip -l /c/projects/golf-league/mobile/build/app/outputs/apk/release/app-release.apk)",
+      "Bash(./gradlew app:tasks --all)",
+      "Bash(xargs ls *)"
     ]
   }
 }

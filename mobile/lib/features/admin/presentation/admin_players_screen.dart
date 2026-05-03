@@ -64,7 +64,7 @@ class _AdminPlayersScreenState extends ConsumerState<AdminPlayersScreen> {
             }
             return ListView.separated(
               itemCount: rows.length,
-              separatorBuilder: (_, __) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final p = rows[i];
                 final id = (p['id'] as num).toInt();
@@ -143,7 +143,7 @@ class _AddPlayerDialogState extends ConsumerState<_AddPlayerDialog> {
             ),
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Flight'),
-              value: _flightChoice.isEmpty ? '' : _flightChoice,
+              initialValue: _flightChoice.isEmpty ? '' : _flightChoice,
               items: [
                 const DropdownMenuItem(value: '', child: Text('Unassigned')),
                 ..._flights.map(
