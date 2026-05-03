@@ -63,7 +63,7 @@ jobs:
             --output ./api-publish
 
       - name: Zip publish output
-        run: zip -r api.zip ./api-publish
+        run: cd api-publish && zip -r ../api.zip .
 
       - name: Deploy to Azure Function App
         uses: Azure/functions-action@v1
