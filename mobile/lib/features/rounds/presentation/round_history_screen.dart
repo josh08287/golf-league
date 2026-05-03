@@ -11,12 +11,12 @@ class RoundHistoryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final roundsAsync = ref.watch(roundsProvider);
+    final roundsAsync = ref.watch(roundsListProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Rounds')),
       body: RefreshIndicator(
-        onRefresh: () async => ref.invalidate(roundsProvider),
+        onRefresh: () async => ref.invalidate(roundsListProvider),
         child: roundsAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(child: Text('Error: $e')),

@@ -23,16 +23,16 @@ class ScorecardTable extends StatelessWidget {
     final back = holes.where((h) => h.holeNumber >= 10).toList()
       ..sort((a, b) => a.holeNumber.compareTo(b.holeNumber));
 
-    int _sum(List<HoleScore> hs, int? Function(HoleScore) fn) =>
+    int sum(List<HoleScore> hs, int? Function(HoleScore) fn) =>
         hs.fold(0, (s, h) => s + (fn(h) ?? 0));
 
-    final frontGross = _sum(front, (h) => h.grossStrokes);
-    final frontNet = _sum(front, (h) => h.netStrokes);
-    final frontPts = _sum(front, (h) => h.stablefordPoints);
+    final frontGross = sum(front, (h) => h.grossStrokes);
+    final frontNet = sum(front, (h) => h.netStrokes);
+    final frontPts = sum(front, (h) => h.stablefordPoints);
 
-    final backGross = _sum(back, (h) => h.grossStrokes);
-    final backNet = _sum(back, (h) => h.netStrokes);
-    final backPts = _sum(back, (h) => h.stablefordPoints);
+    final backGross = sum(back, (h) => h.grossStrokes);
+    final backNet = sum(back, (h) => h.netStrokes);
+    final backPts = sum(back, (h) => h.stablefordPoints);
 
     const colWidths = <double>[
       36, // Hole
@@ -75,7 +75,7 @@ class ScorecardTable extends StatelessWidget {
           ),
         );
 
-    Widget holeRow(HoleScore h, bool shaded) {
+    TableRow holeRow(HoleScore h, bool shaded) {
       final bg = shaded ? theme.colorScheme.surfaceContainerHighest : null;
       return TableRow(
         decoration:
@@ -100,7 +100,7 @@ class ScorecardTable extends StatelessWidget {
       );
     }
 
-    Widget subtotalRow(
+    TableRow subtotalRow(
       String label,
       int gross,
       int net,

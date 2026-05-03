@@ -1,12 +1,18 @@
+import 'dart:async';
+
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/database/app_database.dart';
 import '../../../core/utils/stableford_calculator.dart';
+import '../../leaderboard/presentation/providers.dart' show appDatabaseProvider;
 import '../../rounds/domain/models.dart' as rounds_models;
 import '../../rounds/presentation/widgets/scorecard_table.dart';
 import '../domain/models.dart';
+import '../../../core/network/dio_client.dart' show tokenServiceProvider;
 import 'providers.dart';
 
 class ScoreEntryScreen extends ConsumerStatefulWidget {
@@ -31,6 +37,20 @@ class _ScoreEntryScreenState extends ConsumerState<ScoreEntryScreen> {
 
   void _setScore(int holeNumber, int score) {
     setState(() => _grossScores[holeNumber] = score);
+  }
+
+  Future<void> _saveHole(int holeNumber, int grossStrokes) async {
+    final db = ref.read(appDatabaseProvider);
+    final playerId = ref.read(tokenServiceProvider).getPlayerId() ?? 0;
+    await db.insertPendingScore(
+      PendingSyncScoresCompanion(
+        roundId: Value(widget.roundId),
+        playerId: Value(playerId),
+        holeNumber: Value(holeNumber),
+        grossStrokes: Value(grossStrokes),
+        createdAt: Value(DateTime.now()),
+      ),
+    );
   }
 
   void _nextPage() {
@@ -87,15 +107,11 @@ class _ScoreEntryScreenState extends ConsumerState<ScoreEntryScreen> {
                         onScoreChanged: (s) =>
                             _setScore(hole.holeNumber, s),
                         onNext: () {
-                          ref
-                              .read(scoreEntryNotifierProvider(widget.roundId)
-                                  .notifier)
-                              .saveHole(
-                                roundId: widget.roundId,
-                                holeNumber: hole.holeNumber,
-                                grossStrokes: _grossScores[hole.holeNumber] ??
-                                    hole.par + hole.strokesReceived + 2,
-                              );
+                          unawaited(_saveHole(
+                            hole.holeNumber,
+                            _grossScores[hole.holeNumber] ??
+                                hole.par + hole.strokesReceived + 2,
+                          ));
                           _nextPage();
                         },
                         onBack: i > 0 ? _previousPage : null,
@@ -107,10 +123,7 @@ class _ScoreEntryScreenState extends ConsumerState<ScoreEntryScreen> {
                         grossScores: _grossScores,
                         onBack: _previousPage,
                         onSubmit: () async {
-                          await ref
-                              .read(scoreEntryNotifierProvider(widget.roundId)
-                                  .notifier)
-                              .submitAll(widget.roundId);
+                          await ref.read(syncServiceProvider).syncNow();
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(

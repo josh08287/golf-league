@@ -96,8 +96,8 @@ class SyncService {
         await Future<void>.delayed(_backoffSchedule[attempt]);
 
         // Abort retry if device went offline.
-        final result = await Connectivity().checkConnectivity();
-        if (result == ConnectivityResult.none) {
+        final results = await Connectivity().checkConnectivity();
+        if (results.every((r) => r == ConnectivityResult.none)) {
           debugPrint('SyncService: went offline during retry; aborting.');
           return;
         }

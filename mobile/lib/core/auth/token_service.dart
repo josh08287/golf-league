@@ -43,7 +43,7 @@ class TokenService {
       ),
     );
 
-    if (result == null) {
+    if (result.accessToken == null) {
       throw Exception('Login was cancelled or failed.');
     }
 
@@ -62,6 +62,9 @@ class TokenService {
   Future<String?> getAccessToken() async {
     return _authBox.get(_accessTokenKey) as String?;
   }
+
+  /// Sync check used by UI (token stored in Hive after login).
+  bool get hasAccessToken => _authBox.get(_accessTokenKey) != null;
 
   Future<String> refresh() async {
     final refreshToken = await _secureStorage.read(key: _refreshTokenKey);
@@ -83,7 +86,7 @@ class TokenService {
       ),
     );
 
-    if (result == null || result.accessToken == null) {
+    if (result.accessToken == null) {
       throw Exception('Token refresh failed. Please log in again.');
     }
 

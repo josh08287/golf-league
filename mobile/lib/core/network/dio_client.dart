@@ -1,16 +1,14 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import '../auth/token_service.dart';
 import '../config.dart';
 import 'auth_interceptor.dart';
 
-part 'dio_client.g.dart';
+final tokenServiceProvider = Provider<TokenService>((ref) => TokenService());
 
-@riverpod
-Dio dioClient(DioClientRef ref) {
+final dioClientProvider = Provider<Dio>((ref) {
   final tokenService = ref.watch(tokenServiceProvider);
 
   final dio = Dio(
@@ -29,8 +27,6 @@ Dio dioClient(DioClientRef ref) {
     AuthInterceptor(
       tokenService: tokenService,
       onLogout: () {
-        // Invalidate the tokenService provider so the app re-evaluates
-        // auth state on next navigation attempt.
         ref.invalidate(tokenServiceProvider);
       },
     ),
@@ -47,9 +43,4 @@ Dio dioClient(DioClientRef ref) {
   }
 
   return dio;
-}
-
-@riverpod
-TokenService tokenService(TokenServiceRef ref) {
-  return TokenService();
-}
+});

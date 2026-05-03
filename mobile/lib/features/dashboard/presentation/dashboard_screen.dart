@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../leaderboard/presentation/providers.dart' show connectivityProvider;
 import '../domain/models.dart';
 import 'providers.dart';
 

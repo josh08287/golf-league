@@ -1,7 +1,10 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/auth_tick.dart';
+import '../../../core/network/dio_client.dart';
 import '../domain/models.dart';
 import 'providers.dart';
 
@@ -13,10 +16,61 @@ class PlayerProfileScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(playerProfileProvider(playerId));
+    ref.watch(authTickProvider);
+    final ts = ref.watch(tokenServiceProvider);
+    final resolvedId = playerId ?? ts.getPlayerId();
+
+    if (resolvedId == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Profile')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Sign in with your league account to view your profile '
+                  'and statistics.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 20),
+                FilledButton(
+                  onPressed: () async {
+                    await ref.read(tokenServiceProvider).login();
+                    bumpAuthTick(ref);
+                  },
+                  child: const Text('Sign in'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    final profileAsync = ref.watch(playerProfileProvider(resolvedId));
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Profile')),
+      appBar: AppBar(
+        title: const Text('Profile'),
+        actions: [
+          if (ts.getRoles().contains('admin'))
+            IconButton(
+              tooltip: 'League admin',
+              icon: const Icon(Icons.admin_panel_settings_outlined),
+              onPressed: () => context.push('/admin'),
+            ),
+          if (ts.hasAccessToken)
+            TextButton(
+              onPressed: () async {
+                await ref.read(tokenServiceProvider).logout();
+                bumpAuthTick(ref);
+              },
+              child: const Text('Sign out'),
+            ),
+        ],
+      ),
       body: profileAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('Error: $e')),

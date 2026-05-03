@@ -2,8 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import 'core/auth/token_service.dart';
+import 'core/network/dio_client.dart';
 import 'core/theme/app_theme.dart';
+import 'features/admin/presentation/admin_audit_screen.dart';
+import 'features/admin/presentation/admin_courses_screen.dart';
+import 'features/admin/presentation/admin_dashboard_screen.dart';
+import 'features/admin/presentation/admin_flights_screen.dart';
+import 'features/admin/presentation/admin_player_detail_screen.dart';
+import 'features/admin/presentation/admin_players_screen.dart';
+import 'features/admin/presentation/admin_rounds_screen.dart';
+import 'features/admin/presentation/admin_seasons_screen.dart';
+import 'features/admin/presentation/admin_settings_screen.dart';
 import 'features/dashboard/presentation/dashboard_screen.dart';
 import 'features/leaderboard/presentation/flight_leaderboard_screen.dart';
 import 'features/leaderboard/presentation/flight_list_screen.dart';
@@ -91,6 +100,54 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => ScoreEntryScreen(
           roundId: int.parse(state.pathParameters['roundId']!),
         ),
+      ),
+      // League admin — flat routes (full-screen stacks like web admin).
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin',
+        builder: (context, state) => const AdminDashboardScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/players',
+        builder: (context, state) => const AdminPlayersScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/players/:playerId',
+        builder: (context, state) => AdminPlayerDetailScreen(
+          playerId: int.parse(state.pathParameters['playerId']!),
+        ),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/flights',
+        builder: (context, state) => const AdminFlightsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/rounds',
+        builder: (context, state) => const AdminRoundsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/courses',
+        builder: (context, state) => const AdminCoursesScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/seasons',
+        builder: (context, state) => const AdminSeasonsScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/audit-log',
+        builder: (context, state) => const AdminAuditScreen(),
+      ),
+      GoRoute(
+        parentNavigatorKey: _rootNavigatorKey,
+        path: '/admin/settings',
+        builder: (context, state) => const AdminSettingsScreen(),
       ),
     ],
   );

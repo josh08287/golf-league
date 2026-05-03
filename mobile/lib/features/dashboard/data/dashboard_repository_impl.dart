@@ -1,6 +1,7 @@
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 
+import '../../../core/api/golf_api_helpers.dart';
 import '../domain/dashboard_repository.dart';
 import '../domain/models.dart';
 import '../../leaderboard/domain/models.dart';
@@ -20,10 +21,9 @@ class DashboardRepositoryImpl implements DashboardRepository {
     // Fetch flights.
     late List<Flight> flights;
     try {
-      final flightsResponse =
-          await dio.get<Map<String, dynamic>>('/seasons/current/flights');
-      final rawFlights = _extractList(flightsResponse.data);
-      flights = rawFlights.map((e) => Flight.fromJson(e)).toList();
+      final flightsResponse = await dio.get<Map<String, dynamic>>('/flights');
+      final rawFlights = extractDataList(flightsResponse.data);
+      flights = rawFlights.map(Flight.fromJson).toList();
     } catch (_) {
       flights = [];
     }
@@ -40,10 +40,11 @@ class DashboardRepositoryImpl implements DashboardRepository {
         '/rounds',
         queryParameters: {'page': 1, 'pageSize': 1},
       );
-      final rawRounds = _extractList(roundsResponse.data);
+      final rawRounds = extractDataList(roundsResponse.data);
       if (rawRounds.isNotEmpty) {
         final r = rawRounds.first;
-        final playedDateRaw = r['playedDate'] as String?;
+        final playedDateRaw =
+            r['scheduledDate'] as String? ?? r['playedDate'] as String?;
         if (playedDateRaw != null) {
           latestRound = LatestRoundSummary(
             roundId: (r['id'] as num).toInt(),
@@ -65,9 +66,18 @@ class DashboardRepositoryImpl implements DashboardRepository {
 
   Future<FlightSummary> _buildFlightSummary(Flight flight) async {
     try {
-      final response = await dio
-          .get<Map<String, dynamic>>('/flights/${flight.id}/standings');
-      final rawList = _extractList(response.data);
+      final seasonId = await fetchActiveSeasonId(dio);
+      if (seasonId == null) {
+        return FlightSummary(
+          flightId: flight.id,
+          flightName: flight.name,
+        );
+      }
+      final response = await dio.get<Map<String, dynamic>>(
+        '/flights/${flight.id}/standings',
+        queryParameters: {'seasonId': seasonId},
+      );
+      final rawList = extractDataList(response.data);
 
       final topThree = rawList
           .take(3)
@@ -79,14 +89,18 @@ class DashboardRepositoryImpl implements DashboardRepository {
               rank: entry.key + 1,
               playerId:
                   (entry.value['playerId'] as num?)?.toInt() ?? 0,
-              playerName:
-                  entry.value['playerName'] as String? ?? '',
+              playerName: entry.value['playerFullName'] as String? ??
+                  entry.value['playerName'] as String? ??
+                  '',
               totalPoints:
-                  (entry.value['totalStablefordPoints'] as num?)
+                  (entry.value['totalPoints'] as num?)?.toInt() ??
+                      (entry.value['totalStablefordPoints'] as num?)
                           ?.toInt() ??
                       0,
               handicap:
-                  (entry.value['currentHandicap'] as num?)
+                  (entry.value['currentHandicapIndex'] as num?)
+                          ?.toDouble() ??
+                      (entry.value['currentHandicap'] as num?)
                           ?.toDouble() ??
                       0.0,
             ),
@@ -111,16 +125,8 @@ class DashboardRepositoryImpl implements DashboardRepository {
   // ---------------------------------------------------------------------------
 
   Future<bool> _checkConnectivity() async {
-    final result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return results.any((r) => r != ConnectivityResult.none);
   }
 
-  List<Map<String, dynamic>> _extractList(
-    Map<String, dynamic>? responseData,
-  ) {
-    if (responseData == null) return [];
-    final data = responseData['data'];
-    if (data is List) return data.cast<Map<String, dynamic>>();
-    return [];
-  }
 }

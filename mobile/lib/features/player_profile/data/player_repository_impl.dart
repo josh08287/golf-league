@@ -40,8 +40,8 @@ class PlayerRepositoryImpl implements PlayerRepository {
   // ---------------------------------------------------------------------------
 
   Future<bool> _checkConnectivity() async {
-    final result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return results.any((r) => r != ConnectivityResult.none);
   }
 
   List<Map<String, dynamic>> _extractList(

@@ -2,6 +2,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:drift/drift.dart' show Value;
 
+import '../../../core/api/golf_api_helpers.dart';
 import '../../../core/database/app_database.dart';
 import '../domain/leaderboard_repository.dart';
 import '../domain/models.dart';
@@ -21,11 +22,9 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
 
     if (isOnline) {
       try {
-        final response =
-            await dio.get<Map<String, dynamic>>('/seasons/current/flights');
-        final rawList = _extractList(response.data);
-        final flights =
-            rawList.map((e) => Flight.fromJson(e)).toList();
+        final response = await dio.get<Map<String, dynamic>>('/flights');
+        final rawList = extractDataList(response.data);
+        final flights = rawList.map(Flight.fromJson).toList();
 
         // Cache the result.
         await db.upsertFlights(
@@ -66,11 +65,16 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
 
     if (isOnline) {
       try {
-        final response = await dio
-            .get<Map<String, dynamic>>('/flights/$flightId/standings');
-        final rawList = _extractList(response.data);
-        final entries =
-            rawList.map((e) => LeaderboardEntry.fromJson(e)).toList();
+        final seasonId = await fetchActiveSeasonId(dio);
+        if (seasonId == null) {
+          return _leaderboardFromCache(db, flightId);
+        }
+        final response = await dio.get<Map<String, dynamic>>(
+          '/flights/$flightId/standings',
+          queryParameters: {'seasonId': seasonId},
+        );
+        final rawList = extractDataList(response.data);
+        final entries = rawList.map(_standingToEntry).toList();
 
         await db.replaceLeaderboardForFlight(
           flightId,
@@ -97,6 +101,13 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
       }
     }
 
+    return _leaderboardFromCache(db, flightId);
+  }
+
+  Future<List<LeaderboardEntry>> _leaderboardFromCache(
+    AppDatabase db,
+    int flightId,
+  ) async {
     final cached = await db.getLeaderboardForFlight(flightId);
     return cached
         .map(
@@ -118,18 +129,30 @@ class LeaderboardRepositoryImpl implements LeaderboardRepository {
   // ---------------------------------------------------------------------------
 
   Future<bool> _checkConnectivity() async {
-    final result = await Connectivity().checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await Connectivity().checkConnectivity();
+    return results.any((r) => r != ConnectivityResult.none);
   }
+}
 
-  List<Map<String, dynamic>> _extractList(
-    Map<String, dynamic>? responseData,
-  ) {
-    if (responseData == null) return [];
-    final data = responseData['data'];
-    if (data is List) {
-      return data.cast<Map<String, dynamic>>();
-    }
-    return [];
-  }
+LeaderboardEntry _standingToEntry(Map<String, dynamic> e) {
+  return LeaderboardEntry(
+    playerId: (e['playerId'] as num).toInt(),
+    playerName: e['playerFullName'] as String? ??
+        e['playerName'] as String? ??
+        '',
+    totalStablefordPoints: (e['totalPoints'] as num?)?.toInt() ??
+        (e['totalStablefordPoints'] as num?)?.toInt() ??
+        0,
+    roundsPlayed: (e['roundsPlayed'] as num?)?.toInt() ?? 0,
+    currentRank: (e['position'] as num?)?.toInt() ??
+        (e['currentRank'] as num?)?.toInt() ??
+        0,
+    previousRank: null,
+    currentHandicap:
+        (e['currentHandicapIndex'] as num?)?.toDouble() ??
+            (e['currentHandicap'] as num?)?.toDouble() ??
+            0,
+    averagePoints: (e['averagePoints'] as num?)?.toDouble(),
+    lastRoundPoints: null,
+  );
 }

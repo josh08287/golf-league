@@ -98,9 +98,12 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 ## 6. Mobile app (`mobile/`)
 
 - **API base**: `lib/core/config.dart` (`apiBaseUrl`, Entra `authority`, `clientId`, `redirectUri`, OIDC `scopes`).
-- **HTTP**: `lib/core/network/dio_client.dart`, `auth_interceptor.dart`; tokens via `lib/core/auth/token_service.dart`.
+- **HTTP**: `lib/core/network/dio_client.dart` (`tokenServiceProvider`, `dioClientProvider`), `auth_interceptor.dart`; tokens via `lib/core/auth/token_service.dart`.
+- **Auth UI refresh**: `lib/core/auth/auth_tick.dart` (`authTickProvider`, `bumpAuthTick`) — watch this after login/logout so admin gate and profile update.
 - **Offline**: Drift DB `lib/core/database/app_database.dart`; score sync `features/score_entry/data/sync_service.dart`.
-- **Features**: `features/dashboard`, `leaderboard`, `rounds`, `player_profile`, `score_entry` — each with `data/`, `domain/`, `presentation/` where applicable.
+- **Public features**: `features/dashboard`, `leaderboard`, `rounds`, `player_profile`, `score_entry` — each with `data/`, `domain/`, `presentation/` where applicable.
+- **League admin (web parity)**: `features/admin/` — `data/admin_league_service.dart` (HTTP), screens under `presentation/`; GoRouter paths `/admin`, `/admin/players`, `/admin/players/:id`, `/admin/flights`, `/admin/rounds`, `/admin/courses`, `/admin/seasons`, `/admin/audit-log`, `/admin/settings`. Profile tab: Sign in, Sign out, admin shortcut when JWT has `admin` role.
+- **Riverpod**: Hand-written `Provider` / `FutureProvider` / `NotifierProvider` (no `riverpod_generator` in this repo — avoids SDK `meta` pin conflicts). Feature `providers.dart` files import `dio_client.dart` for shared clients.
 - **Stableford**: `lib/core/utils/stableford_calculator.dart` (+ tests in `test/core/utils/`).
 
 ---
@@ -121,5 +124,5 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 | Change DB schema | `GolfLeague.Infrastructure/Data/AppDbContext.cs` + entity under `GolfLeague.Domain/Entities/` |
 | Change blob/sync behavior | `BlobSyncedDbContext.cs`, `Program.cs` startup |
 | Web API consumer | `web/src/lib/api.ts`, then hooks/pages |
-| Mobile API consumer | `mobile/lib/core/config.dart`, repository impl under `features/*/data/` |
+| Mobile API consumer | `mobile/lib/core/config.dart`, repository impl under `features/*/data/`; admin bulk calls `features/admin/data/admin_league_service.dart` |
 | Authorization rules | `Program.cs` policies + `HttpRequestExtensions.RequireRole` in each function |

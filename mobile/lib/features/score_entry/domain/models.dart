@@ -27,8 +27,6 @@ class ScoreSubmission with _$ScoreSubmission {
 
   factory ScoreSubmission.fromJson(Map<String, dynamic> json) =>
       _$ScoreSubmissionFromJson(json);
-
-  Map<String, dynamic> toJson() => _$ScoreSubmissionToJson(this);
 }
 
 @freezed
@@ -40,6 +38,4 @@ class HoleSubmission with _$HoleSubmission {
 
   factory HoleSubmission.fromJson(Map<String, dynamic> json) =>
       _$HoleSubmissionFromJson(json);
-
-  Map<String, dynamic> toJson() => _$HoleSubmissionToJson(this);
 }

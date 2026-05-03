@@ -12,7 +12,6 @@ dependencies:
     sdk: flutter
   # State management
   flutter_riverpod: ^3.3.1
-  riverpod_annotation: ^4.0.2
   # Navigation
   go_router: ^17.2.2
   # HTTP
@@ -38,6 +37,7 @@ dependencies:
   fl_chart: ^1.2.0
   # Connectivity
   connectivity_plus: ^7.1.1
+  intl: ^0.20.2
   # JWT decode
   dart_jsonwebtoken: ^3.4.1
 
@@ -46,9 +46,8 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   build_runner: ^2.15.0
-  riverpod_generator: ^4.0.3
   freezed: ^3.2.5
-  json_serializable: ^6.13.2
+  json_serializable: ^6.7.1
   drift_dev: ^2.32.1
   mocktail: ^1.0.4
 
