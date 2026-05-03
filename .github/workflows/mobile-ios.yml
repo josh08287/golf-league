@@ -30,10 +30,6 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Install CocoaPods dependencies
-        working-directory: mobile/ios
-        run: pod install --repo-update
-
       - name: Analyze
         working-directory: mobile
         run: flutter analyze --fatal-infos
