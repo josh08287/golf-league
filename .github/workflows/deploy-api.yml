@@ -20,7 +20,41 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Test
-        run: dotnet test tests/GolfLeague.Functions.Tests/GolfLeague.Functions.Tests.csproj --configuration Release --no-build || dotnet test tests/GolfLeague.Functions.Tests/GolfLeague.Functions.Tests.csproj --configuration Release
+        run: |
+          dotnet test tests/GolfLeague.Functions.Tests/GolfLeague.Functions.Tests.csproj \
+            --configuration Release \
+            --settings tests/GolfLeague.Functions.Tests/coverlet.runsettings \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./test-results \
+            --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: Test Results
+          path: test-results/*.trx
+          reporter: dotnet-trx
+
+      - name: Generate coverage report
+        run: |
+          dotnet tool install --global dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:"test-results/**/coverage.cobertura.xml" \
+            -targetdir:"coverage-report" \
+            -reporttypes:"HtmlInline_AzurePipelines;Cobertura;MarkdownSummaryGithub"
+
+      - name: Publish coverage summary
+        if: always()
+        run: cat coverage-report/SummaryGithub.md >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report
+          path: coverage-report/
+          retention-days: 30
 
       - name: Publish
         run: |
