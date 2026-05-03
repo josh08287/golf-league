@@ -25,7 +25,7 @@ public class CreateRoundCommandHandlerTests
         var flightRepo = new Mock<IFlightRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 99, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin");
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 99, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -45,7 +45,7 @@ public class CreateRoundCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 99, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin");
+        var cmd = new CreateRoundCommand(1, 99, new List<int> { 99 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -65,13 +65,16 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership> { 
+            new FlightMembership { FlightId = 1, PlayerId = 1, Player = player } 
+        });
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", [new(1)], "admin");
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -93,12 +96,15 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership> { 
+            new FlightMembership { FlightId = 1, PlayerId = 99 } 
+        });
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Player?)null);
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [new(99)], "admin");
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -117,11 +123,12 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership>());
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin",
             RoundType.NineHole, NineHoleSide.Front);
 
         var result = await handler.Handle(cmd, default);
@@ -145,11 +152,12 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership>());
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin",
             RoundType.NineHole, NineHoleSide.Back);
 
         var result = await handler.Handle(cmd, default);
@@ -170,11 +178,12 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership>());
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, "admin",
             RoundType.EighteenHole, NineHoleSide.NotApplicable);
 
         var result = await handler.Handle(cmd, default);
@@ -195,6 +204,9 @@ public class CreateRoundCommandHandlerTests
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var flightRepo = new Mock<IFlightRepository>();
         flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership> { 
+            new FlightMembership { FlightId = 1, PlayerId = 1, Player = player } 
+        });
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
@@ -204,7 +216,7 @@ public class CreateRoundCommandHandlerTests
         var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
 
         // 9-hole round should have ~9 course handicap (half of 18)
-        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", [new(1)], "admin",
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", "admin",
             RoundType.NineHole, NineHoleSide.Front);
 
         var result = await handler.Handle(cmd, default);

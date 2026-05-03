@@ -170,7 +170,7 @@ export function ScoreEntryPage() {
     if (e.key === 'Tab') {
       e.preventDefault();
       const nextHole = holeIdx + 1;
-      if (nextHole < 18) {
+      if (nextHole < holes.length) {
         cellRefs.current[playerIdx]?.[nextHole]?.focus();
       } else if (playerIdx + 1 < participants.length) {
         cellRefs.current[playerIdx + 1]?.[0]?.focus();

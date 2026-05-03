@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, CalendarDays } from 'lucide-react';
 import { useRounds } from '../../hooks/useRounds';
 import { useFinalizeRound, useDeleteRound } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -12,6 +12,7 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
+import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
 import type { Round } from '../../types/api';
 
 function RoundStatusBadge({ status }: { status: Round['status'] }) {
@@ -31,6 +32,7 @@ export function RoundsPage() {
   const rounds = roundsPage?.data ?? [];
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createHalfOpen, setCreateHalfOpen] = useState(false);
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Round | null>(null);
 
@@ -114,10 +116,16 @@ export function RoundsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Rounds">
-        <Button variant="primary" onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          Create Round
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setCreateHalfOpen(true)}>
+            <CalendarDays className="mr-1 h-4 w-4" />
+            Create Half
+          </Button>
+          <Button variant="primary" onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            Create Round
+          </Button>
+        </div>
       </PageHeader>
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
@@ -133,6 +141,13 @@ export function RoundsPage() {
         <CreateRoundForm
           onSuccess={() => setCreateOpen(false)}
           onCancel={() => setCreateOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={createHalfOpen} title="Create Half Season" onClose={() => setCreateHalfOpen(false)}>
+        <CreateHalfForm
+          onSuccess={() => setCreateHalfOpen(false)}
+          onCancel={() => setCreateHalfOpen(false)}
         />
       </Modal>
 

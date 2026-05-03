@@ -195,7 +195,12 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(p => p.RoundParticipants)
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Flight)
+                  .WithMany()
+                  .HasForeignKey(e => e.FlightId)
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
+            entity.HasIndex(e => new { e.RoundId, e.FlightId });
         });
     }
 

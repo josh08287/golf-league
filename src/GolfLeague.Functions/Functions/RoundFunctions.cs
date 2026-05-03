@@ -61,7 +61,6 @@ public sealed class RoundFunctions
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-        var participants = (body.PlayerIds ?? []).Select(pid => new CreateRoundParticipantInput(pid)).ToList();
 
         int seasonId = body.SeasonId ?? 0;
         if (seasonId == 0)
@@ -72,13 +71,17 @@ public sealed class RoundFunctions
             seasonId = activeSeasonId.Value;
         }
 
+        // Support both single flight (backwards compat) and multiple flights
+        var flightIds = body.FlightIds?.Count > 0 ? body.FlightIds : 
+                        new List<int> { body.FlightId };
+
         var command = new CreateRoundCommand(
             seasonId,
             body.FlightId,
+            flightIds,
             body.CourseId,
             body.ResolvedDate,
             body.Notes,
-            participants,
             userId,
             body.ResolvedRoundType,
             body.ResolvedNineHoleSide);
@@ -199,7 +202,7 @@ public sealed class RoundFunctions
     }
 
     private sealed record CreateRoundRequest(
-        int? SeasonId, int FlightId, int CourseId,
+        int? SeasonId, int FlightId, List<int>? FlightIds, int CourseId,
         string? ScheduledDate, string? RoundDate,
         string? Notes, List<int>? PlayerIds,
         string? RoundType, string? NineHoleSide)

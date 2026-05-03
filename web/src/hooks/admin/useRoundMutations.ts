@@ -7,7 +7,8 @@ import { roundKeys } from '@/hooks/useRounds';
 export interface CreateRoundPayload {
   scheduledDate: string; // ISO date string — sent as scheduledDate, backend accepts it
   courseId: number | string;
-  flightId: number | string;
+  flightId?: number | string; // Legacy single flight
+  flightIds?: number[]; // Multiple flights
   seasonId?: number | string;
   playerIds?: number[];
   notes?: string;

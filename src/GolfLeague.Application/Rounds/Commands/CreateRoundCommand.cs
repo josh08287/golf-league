@@ -9,15 +9,13 @@ using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
-public sealed record CreateRoundParticipantInput(int PlayerId);
-
 public sealed record CreateRoundCommand(
     int SeasonId,
-    int FlightId,
+    int? FlightId, // Optional - kept for backwards compatibility
+    List<int> FlightIds, // Multiple flights for multi-flight rounds
     int CourseId,
     DateOnly RoundDate,
     string? Notes,
-    List<CreateRoundParticipantInput> Participants,
     string UserId,
     RoundType RoundType = RoundType.NineHole,
     NineHoleSide NineHoleSide = NineHoleSide.Front) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
@@ -50,14 +48,28 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {request.CourseId} not found.");
 
-        var flight = await _flightRepository.GetByIdAsync(request.FlightId, cancellationToken);
-        if (flight is null)
-            return Result<RoundDto>.Fail($"Flight with ID {request.FlightId} not found.");
+        // Validate all flights exist
+        var flightIds = request.FlightIds.Count > 0 ? request.FlightIds : 
+                        request.FlightId.HasValue ? new List<int> { request.FlightId.Value } : 
+                        new List<int>();
+        
+        if (flightIds.Count == 0)
+            return Result<RoundDto>.Fail("At least one flight is required.");
 
+        var flights = new List<Flight>();
+        foreach (var flightId in flightIds)
+        {
+            var flight = await _flightRepository.GetByIdAsync(flightId, cancellationToken);
+            if (flight is null)
+                return Result<RoundDto>.Fail($"Flight with ID {flightId} not found.");
+            flights.Add(flight);
+        }
+
+        // Create round - no single flight association (or use first for backwards compatibility)
         var round = new Round
         {
             SeasonId = request.SeasonId,
-            FlightId = request.FlightId,
+            FlightId = request.FlightId ?? flightIds.First(), // Backwards compatibility
             CourseId = request.CourseId,
             RoundDate = request.RoundDate,
             Status = RoundStatus.Scheduled,
@@ -68,39 +80,47 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
         await _roundRepository.AddAsync(round, cancellationToken);
 
-        foreach (var input in request.Participants)
+        // Add all players from all flights as participants
+        var totalParticipants = 0;
+        foreach (var flight in flights)
         {
-            var player = await _playerRepository.GetByIdAsync(input.PlayerId, cancellationToken);
-            if (player is null) continue;
-
-            var currentHandicap = await _handicapRepository.GetCurrentAsync(input.PlayerId, cancellationToken);
-            var handicapIndex = currentHandicap?.HandicapIndex ?? 0.0;
-            var courseHandicap = CourseHandicap(handicapIndex, course.SlopeRating, request.RoundType);
-
-            var participant = new RoundParticipant
+            var memberships = await _flightRepository.GetMembershipsAsync(flight.Id, cancellationToken);
+            foreach (var membership in memberships)
             {
-                RoundId = round.Id,
-                PlayerId = input.PlayerId,
-                HandicapIndex = handicapIndex,
-                CourseHandicap = courseHandicap,
-                IsWithdrawn = false
-            };
+                var player = await _playerRepository.GetByIdAsync(membership.PlayerId, cancellationToken);
+                if (player is null || !player.IsActive) continue;
 
-            await _roundRepository.AddParticipantAsync(participant, cancellationToken);
+                var currentHandicap = await _handicapRepository.GetCurrentAsync(membership.PlayerId, cancellationToken);
+                var handicapIndex = currentHandicap?.HandicapIndex ?? 0.0;
+                var courseHandicap = CourseHandicap(handicapIndex, course.SlopeRating, request.RoundType);
+
+                var participant = new RoundParticipant
+                {
+                    RoundId = round.Id,
+                    PlayerId = membership.PlayerId,
+                    FlightId = flight.Id, // Track flight at time of round creation
+                    HandicapIndex = handicapIndex,
+                    CourseHandicap = courseHandicap,
+                    IsWithdrawn = false
+                };
+
+                await _roundRepository.AddParticipantAsync(participant, cancellationToken);
+                totalParticipants++;
+            }
         }
 
         var dto = new RoundDto(
             round.Id,
             round.SeasonId,
             round.FlightId,
-            flight.Name,
+            flights.Count == 1 ? flights[0].Name : $"{flights.Count} Flights",
             round.CourseId,
             course.Name,
             round.RoundDate,
             round.Status,
             round.RoundType,
             round.NineHoleSide,
-            request.Participants.Count);
+            totalParticipants);
 
         return Result<RoundDto>.Ok(dto);
     }

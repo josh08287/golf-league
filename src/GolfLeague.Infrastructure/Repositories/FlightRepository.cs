@@ -55,6 +55,14 @@ public sealed class FlightRepository : IFlightRepository
             .OrderBy(f => f.DisplayOrder)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<FlightMembership>> GetMembershipsAsync(
+        int flightId,
+        CancellationToken cancellationToken = default)
+        => await _context.FlightMemberships
+            .Where(fm => fm.FlightId == flightId)
+            .Include(fm => fm.Player)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(
         int flightId,
         int seasonId,

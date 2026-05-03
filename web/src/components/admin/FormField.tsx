@@ -27,3 +27,6 @@ export const inputClass =
 
 export const selectClass =
   'w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50';
+
+export const checkboxClass =
+  'h-4 w-4 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]';
