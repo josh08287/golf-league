@@ -94,10 +94,8 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // EnsureCreatedAsync is a no-op if the DB file already exists (SQLite).
-        // Run the model's DDL script with CREATE TABLE IF NOT EXISTS so tables
-        // added after the initial deploy are created without touching existing data.
-        await EnsureAllTablesExistAsync(dbContext);
+        // Apply any pending EF migrations (schema changes)
+        await dbContext.Database.MigrateAsync();
 
         // Seed a default active season if none exists so flights can be created.
         await SeedActiveSeasonAsync(dbContext);
@@ -127,33 +125,4 @@ static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
         IsActive = true,
     });
     await dbContext.SaveChangesAsync();
-}
-
-static async Task EnsureAllTablesExistAsync(AppDbContext dbContext)
-{
-    // Generate the full CREATE TABLE script from the EF Core model, then
-    // re-execute each statement as CREATE TABLE IF NOT EXISTS so tables added
-    // after the initial deploy are created without touching existing data.
-    var script = dbContext.Database.GenerateCreateScript();
-
-    foreach (var statement in script.Split(';', StringSplitOptions.RemoveEmptyEntries))
-    {
-        var sql = statement.Trim();
-        if (string.IsNullOrWhiteSpace(sql)) continue;
-
-        if (sql.StartsWith("CREATE TABLE", StringComparison.OrdinalIgnoreCase) &&
-            !sql.Contains("IF NOT EXISTS", StringComparison.OrdinalIgnoreCase))
-        {
-            sql = sql.Replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", StringComparison.OrdinalIgnoreCase);
-        }
-
-        try
-        {
-            await dbContext.Database.ExecuteSqlRawAsync(sql);
-        }
-        catch
-        {
-            // Ignore errors for statements that can't be made idempotent (e.g. indexes).
-        }
-    }
 }
