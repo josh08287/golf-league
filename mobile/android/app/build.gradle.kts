@@ -1,64 +1,49 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
-    id("com.google.gms.google-services")
+    id("kotlin-android")
+    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.golfleague.app"
-    compileSdk = 36
-    ndkVersion = "28.2.13676358"
-
-    defaultConfig {
-        applicationId = "com.golfleague.app"
-        minSdk = 24
-        targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.golfleague.app"
-    }
-
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("${System.getProperty("user.home")}/.android/debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
-        }
-    }
-
-    buildTypes {
-        getByName("release") {
-            signingConfig = signingConfigs.getByName("debug")
-            isMinifyEnabled = false
-            isShrinkResources = false
-        }
-        getByName("profile") {
-            signingConfig = signingConfigs.getByName("debug")
-        }
-    }
+    namespace = "com.golfleague.golf_league"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = "27.0.12077973"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
     }
 
-}
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_17.toString()
+    }
 
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+    defaultConfig {
+        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
+        applicationId = "com.golfleague.golf_league"
+        // You can update the following values to match your application needs.
+        // For more information, see: https://flutter.dev/to/review-gradle-config.
+        minSdk = flutter.minSdkVersion
+        targetSdk = 34
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            // TODO: Add your own signing config for the release build.
+            // Signing with the debug keys for now, so `flutter run --release` works.
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 }
 
-dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
+flutter {
+    source = "../.."
 }
 
-// Flutter tool looks for APKs in outputs/flutter-apk/ but AGP 9+ no longer
-// copies them there automatically. This task mirrors the APK after assembly.
+// AGP 9+ no longer copies APKs to flutter-apk/ automatically; do it manually.
 afterEvaluate {
     listOf("Debug", "Release", "Profile").forEach { buildType ->
         val assembleName = "assemble$buildType"
@@ -69,9 +54,7 @@ afterEvaluate {
                 include("*.apk")
                 rename { "app-${buildType.lowercase()}.apk" }
             }
-            tasks.named(assembleName) {
-                finalizedBy(copyTask)
-            }
+            tasks.named(assembleName) { finalizedBy(copyTask) }
         }
     }
 }
