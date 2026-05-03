@@ -18,7 +18,7 @@ public sealed class AdminFunctions
 
     [Function("GetAuditLog")]
     public async Task<IActionResult> GetAuditLog(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "admin/audit-log")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/audit-log")] HttpRequest req,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");
