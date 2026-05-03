@@ -78,6 +78,9 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (invalidHoles.Any())
             return Result<ScorecardDto>.Fail($"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
 
+        // Clear existing scores before adding new ones (supports updates)
+        await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
+
         var holeScoreEntities = new List<HoleScore>();
 
         foreach (var input in request.HoleScores)
