@@ -12,11 +12,18 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using System.Text.Json;
 
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(workerApp =>
     {
         workerApp.UseMiddleware<AuthMiddleware>();
+    }, options =>
+    {
+        options.ConfigureSerializer = serializerOptions =>
+        {
+            serializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        };
     })
     .ConfigureServices((context, services) =>
     {
