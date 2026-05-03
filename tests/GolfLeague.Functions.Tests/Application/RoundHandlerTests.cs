@@ -226,6 +226,82 @@ public class CreateRoundCommandHandlerTests
         roundRepo.Verify(r => r.AddParticipantAsync(It.Is<RoundParticipant>(p =>
             p.CourseHandicap == 9), default), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_WithMultipleFlights_CreatesRoundWithAllParticipants()
+    {
+        var course = MakeCourse();
+        var flight1 = MakeFlight();
+        var flight2 = new Flight { Id = 2, Name = "B Flight", SeasonId = 1, MinHandicap = 10, MaxHandicap = 18 };
+        var player1 = new Player { Id = 1, FirstName = "A", LastName = "One", IsActive = true };
+        var player2 = new Player { Id = 2, FirstName = "B", LastName = "Two", IsActive = true };
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight1);
+        flightRepo.Setup(r => r.GetByIdAsync(2, default)).ReturnsAsync(flight2);
+        flightRepo.Setup(r => r.GetMembershipsAsync(1, default)).ReturnsAsync(new List<FlightMembership> { 
+            new FlightMembership { FlightId = 1, PlayerId = 1, Player = player1 } 
+        });
+        flightRepo.Setup(r => r.GetMembershipsAsync(2, default)).ReturnsAsync(new List<FlightMembership> { 
+            new FlightMembership { FlightId = 2, PlayerId = 2, Player = player2 } 
+        });
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player1);
+        playerRepo.Setup(r => r.GetByIdAsync(2, default)).ReturnsAsync(player2);
+        var handicapRepo = new Mock<IHandicapRepository>();
+        handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
+        handicapRepo.Setup(r => r.GetCurrentAsync(2, default)).ReturnsAsync(new Handicap { HandicapIndex = 15.0 });
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+
+        // Create round with 2 flights
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1, 2 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", "admin",
+            RoundType.NineHole, NineHoleSide.Front);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.ParticipantCount.Should().Be(2);
+        result.Value.FlightName.Should().Be("2 Flights");
+        
+        // Verify round was created with first flight for backwards compatibility
+        roundRepo.Verify(r => r.AddAsync(It.Is<Round>(round => round.FlightId == 1), default), Times.Once);
+        
+        // Verify participants from both flights were added with correct FlightIds
+        roundRepo.Verify(r => r.AddParticipantAsync(It.Is<RoundParticipant>(p =>
+            p.PlayerId == 1 && p.FlightId == 1), default), Times.Once);
+        roundRepo.Verify(r => r.AddParticipantAsync(It.Is<RoundParticipant>(p =>
+            p.PlayerId == 2 && p.FlightId == 2), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_WithMultipleFlights_WhenOneFlightNotFound_ReturnsFail()
+    {
+        var course = MakeCourse();
+        var flight1 = MakeFlight();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight1);
+        flightRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Flight?)null);
+        var playerRepo = new Mock<IPlayerRepository>();
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+
+        var cmd = new CreateRoundCommand(1, 1, new List<int> { 1, 99 }, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", "admin",
+            RoundType.NineHole, NineHoleSide.Front);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Flight with ID 99 not found");
+    }
 }
 
 public class FinalizeRoundCommandHandlerTests

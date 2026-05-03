@@ -126,7 +126,8 @@ export function CreateRoundForm({ onSuccess, onCancel }: CreateRoundFormProps) {
       setSelectedFlightIds(allIds);
       setValue('flightIds', Array.from(allIds).map(String), { shouldValidate: true });
     }
-  }, [flights.length]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flights, selectedFlightIds.size]);
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
