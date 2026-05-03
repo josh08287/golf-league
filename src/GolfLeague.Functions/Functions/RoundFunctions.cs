@@ -73,7 +73,8 @@ public sealed class RoundFunctions
 
         // Support both single flight (backwards compat) and multiple flights
         var flightIds = body.FlightIds?.Count > 0 ? body.FlightIds : 
-                        new List<int> { body.FlightId };
+                        body.FlightId.HasValue ? new List<int> { body.FlightId.Value } : 
+                        new List<int>();
 
         var command = new CreateRoundCommand(
             seasonId,
@@ -202,7 +203,7 @@ public sealed class RoundFunctions
     }
 
     private sealed record CreateRoundRequest(
-        int? SeasonId, int FlightId, List<int>? FlightIds, int CourseId,
+        int? SeasonId, int? FlightId, List<int>? FlightIds, int CourseId,
         string? ScheduledDate, string? RoundDate,
         string? Notes, List<int>? PlayerIds,
         string? RoundType, string? NineHoleSide)
