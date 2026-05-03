@@ -9,7 +9,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ArrowLeft, Save } from 'lucide-react';
 import { api } from '../../lib/api';
-import type { Participant } from '../../types/api';
+import type { CourseDetail, Participant } from '../../types/api';
 
 const HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
@@ -113,6 +113,12 @@ export function ScoreEntryPage() {
   });
   const participants = participantsData ?? [];
 
+  const { data: courseDetail } = useQuery<CourseDetail>({
+    queryKey: ['course', round?.courseId],
+    queryFn: () => api.get(`/courses/${round!.courseId}`).then((r) => r.data),
+    enabled: Boolean(round?.courseId),
+  });
+
   const submitScores = useSubmitHoleScores(roundId);
 
   const [scores, setScores] = useState<ScoreGrid>({});
@@ -209,9 +215,12 @@ export function ScoreEntryPage() {
 
   const isFinalized = round.status === 'Finalized';
 
-  // Hole data not available without a separate course holes endpoint — use defaults
   const strokeIndexes: Record<number, number> = {};
   const pars: Record<number, number> = {};
+  for (const hole of courseDetail?.holeDetails ?? []) {
+    pars[hole.holeNumber] = hole.par;
+    strokeIndexes[hole.holeNumber] = hole.strokeIndex;
+  }
 
   cellRefs.current = participants.map((_, pi) => cellRefs.current[pi] ?? []);
 
