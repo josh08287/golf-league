@@ -11,6 +11,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
 
     steps:
       - uses: actions/checkout@v4
@@ -26,20 +29,22 @@ jobs:
             --settings tests/GolfLeague.Functions.Tests/coverlet.runsettings \
             --collect:"XPlat Code Coverage" \
             --results-directory ./test-results \
-            --logger "trx;LogFileName=test-results.trx"
+            --logger "trx;LogFileName=results.trx"
 
       - name: Publish test results
         uses: dorny/test-reporter@v1
         if: always()
         with:
           name: Test Results
-          path: test-results/*.trx
+          path: test-results/results.trx
           reporter: dotnet-trx
+
+      - name: Install ReportGenerator
+        run: dotnet tool install --global dotnet-reportgenerator-globaltool
 
       - name: Generate coverage report
         run: |
-          dotnet tool install --global dotnet-reportgenerator-globaltool
-          reportgenerator \
+          ~/.dotnet/tools/reportgenerator \
             -reports:"test-results/**/coverage.cobertura.xml" \
             -targetdir:"coverage-report" \
             -reporttypes:"HtmlInline_AzurePipelines;Cobertura;MarkdownSummaryGithub"
