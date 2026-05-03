@@ -40,4 +40,17 @@ public sealed class SeasonRepository : ISeasonRepository
 
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Season?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        => await _context.Seasons.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+    public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var season = await _context.Seasons.FindAsync([id], cancellationToken);
+        if (season is not null)
+        {
+            _context.Seasons.Remove(season);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

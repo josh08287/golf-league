@@ -35,3 +35,12 @@ export function useSetActiveSeason() {
     onSuccess: () => qc.invalidateQueries({ queryKey: seasonKeys.all }),
   });
 }
+
+export function useDeleteSeason() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (seasonId: string) =>
+      apiClient.delete(`/seasons/${seasonId}`).then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: seasonKeys.all }),
+  });
+}

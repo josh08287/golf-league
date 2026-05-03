@@ -141,4 +141,40 @@ public class SeasonFunctionsTests
 
         result.Should().BeOfType<OkObjectResult>();
     }
+
+    [Fact]
+    public async Task DeleteSeason_WhenNotAuthenticated_ReturnsUnauthorized()
+    {
+        var mediator = new Mock<IMediator>();
+        var sut = new SeasonFunctions(mediator.Object);
+
+        var result = await sut.DeleteSeason(MakeRequest(), "1", CancellationToken.None);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task DeleteSeason_WhenInvalidId_ReturnsBadRequest()
+    {
+        var mediator = new Mock<IMediator>();
+        var sut = new SeasonFunctions(mediator.Object);
+
+        var result = await sut.DeleteSeason(MakeRequest(role: "admin"), "abc", CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task DeleteSeason_WhenValid_ReturnsOk()
+    {
+        var mediator = new Mock<IMediator>();
+        mediator.Setup(m => m.Send(It.IsAny<DeleteSeasonCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var sut = new SeasonFunctions(mediator.Object);
+
+        var result = await sut.DeleteSeason(MakeRequest(role: "admin"), "1", CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
 }

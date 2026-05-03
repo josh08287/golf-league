@@ -134,4 +134,40 @@ public class FlightFunctionsTests
 
         result.Should().BeOfType<OkObjectResult>();
     }
+
+    [Fact]
+    public async Task DeleteFlight_WhenNotAuthenticated_ReturnsUnauthorized()
+    {
+        var mediator = new Mock<IMediator>();
+        var sut = new FlightFunctions(mediator.Object);
+
+        var result = await sut.DeleteFlight(MakeRequest(), "1", CancellationToken.None);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task DeleteFlight_WhenInvalidId_ReturnsBadRequest()
+    {
+        var mediator = new Mock<IMediator>();
+        var sut = new FlightFunctions(mediator.Object);
+
+        var result = await sut.DeleteFlight(MakeRequest(role: "admin"), "abc", CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task DeleteFlight_WhenValid_ReturnsOk()
+    {
+        var mediator = new Mock<IMediator>();
+        mediator.Setup(m => m.Send(It.IsAny<DeleteFlightCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var sut = new FlightFunctions(mediator.Object);
+
+        var result = await sut.DeleteFlight(MakeRequest(role: "admin"), "1", CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
 }

@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, CheckCircle } from 'lucide-react';
-import { useSeasons, useCreateSeason, useSetActiveSeason } from '../../hooks/useSeasons';
+import { Plus, CheckCircle, Trash2 } from 'lucide-react';
+import { useSeasons, useCreateSeason, useSetActiveSeason, useDeleteSeason } from '../../hooks/useSeasons';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -79,8 +79,16 @@ function CreateSeasonForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
 export function SeasonsPage() {
   const { data: seasons, isLoading, error } = useSeasons();
   const setActive = useSetActiveSeason();
+  const deleteSeason = useDeleteSeason();
   const [createOpen, setCreateOpen] = useState(false);
   const [activateTarget, setActivateTarget] = useState<Season | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Season | null>(null);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deleteSeason.mutateAsync(String(deleteTarget.id));
+    setDeleteTarget(null);
+  }
 
   if (isLoading) {
     return <div className="flex h-64 items-center justify-center"><Spinner /></div>;
@@ -115,16 +123,27 @@ export function SeasonsPage() {
                   {s.bestNRounds != null && ` · Best ${s.bestNRounds} rounds`}
                 </p>
               </div>
-              {!s.isActive && (
+              <div className="flex items-center gap-2">
+                {!s.isActive && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setActivateTarget(s)}
+                  >
+                    <CheckCircle className="mr-1 h-3.5 w-3.5" />
+                    Set Active
+                  </Button>
+                )}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setActivateTarget(s)}
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => setDeleteTarget(s)}
+                  title="Delete season"
                 >
-                  <CheckCircle className="mr-1 h-3.5 w-3.5" />
-                  Set Active
+                  <Trash2 className="h-4 w-4" />
                 </Button>
-              )}
+              </div>
             </div>
           </Card>
         ))}
@@ -151,6 +170,16 @@ export function SeasonsPage() {
           setActivateTarget(null);
         }}
         onCancel={() => setActivateTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Season"
+        description={`Permanently delete ${deleteTarget?.name}? This will remove all associated rounds and cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

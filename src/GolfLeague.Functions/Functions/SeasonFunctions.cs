@@ -67,6 +67,23 @@ public sealed class SeasonFunctions
         return result.ToOkResult();
     }
 
+    [Function("DeleteSeason")]
+    public async Task<IActionResult> DeleteSeason(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/seasons/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var seasonId))
+            return new BadRequestObjectResult(new { error = "Invalid season ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteSeasonCommand(seasonId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateSeasonRequest(
         string Name,
         int Year,

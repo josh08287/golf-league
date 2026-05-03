@@ -520,4 +520,43 @@ public class PlayerFunctionsTests
 
         result.Should().BeOfType<OkObjectResult>();
     }
+
+    [Fact]
+    public async Task DeletePlayer_WhenNotAuthenticated_ReturnsUnauthorized()
+    {
+        var mediator = new Mock<IMediator>();
+        var playerRepo = new Mock<IPlayerRepository>();
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+
+        var result = await sut.DeletePlayer(MakeRequest(), "1", CancellationToken.None);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task DeletePlayer_WhenInvalidId_ReturnsBadRequest()
+    {
+        var mediator = new Mock<IMediator>();
+        var playerRepo = new Mock<IPlayerRepository>();
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+
+        var result = await sut.DeletePlayer(MakeRequest(role: "admin"), "abc", CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task DeletePlayer_WhenValid_ReturnsOk()
+    {
+        var mediator = new Mock<IMediator>();
+        mediator.Setup(m => m.Send(It.IsAny<DeletePlayerCommand>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var playerRepo = new Mock<IPlayerRepository>();
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+
+        var result = await sut.DeletePlayer(MakeRequest(role: "admin"), "1", CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+    }
 }

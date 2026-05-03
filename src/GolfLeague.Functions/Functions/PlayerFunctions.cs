@@ -163,7 +163,7 @@ public sealed class PlayerFunctions
 
     [Function("DeletePlayer")]
     public async Task<IActionResult> DeletePlayer(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/delete")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/players/{id}")] HttpRequest req,
         string id,
         CancellationToken cancellationToken)
     {

@@ -3,16 +3,18 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Users } from 'lucide-react';
+import { Plus, Users, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useFlights } from '../../hooks/useFlights';
 import { usePlayers } from '../../hooks/usePlayers';
+import { useDeleteFlight } from '../../hooks/admin/useFlightMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { FlightPlayerAssignment } from '../../components/admin/FlightPlayerAssignment';
 import type { Flight } from '../../types/api';
@@ -121,13 +123,14 @@ function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
 interface FlightCardProps {
   flight: Flight;
   playerCount: number;
+  onDelete: (flight: Flight) => void;
 }
 
-function FlightCard({ flight, playerCount }: FlightCardProps) {
+function FlightCard({ flight, playerCount, onDelete }: FlightCardProps) {
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between">
-        <div>
+        <div className="flex-1">
           <h3 className="font-semibold text-gray-900">{flight.name}</h3>
           {(flight.minHandicap != null || flight.maxHandicap != null) && (
             <p className="mt-0.5 text-xs text-gray-500">
@@ -138,9 +141,23 @@ function FlightCard({ flight, playerCount }: FlightCardProps) {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
-          <Users className="h-3.5 w-3.5" />
-          {playerCount}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
+            <Users className="h-3.5 w-3.5" />
+            {playerCount}
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(flight);
+            }}
+            title="Delete flight"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </Card>
@@ -155,6 +172,15 @@ export function FlightsPage() {
   const { data: playersPage } = usePlayers();
   const players = playersPage?.data ?? [];
   const [createOpen, setCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Flight | null>(null);
+
+  const deleteFlight = useDeleteFlight();
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deleteFlight.mutateAsync(String(deleteTarget.id));
+    setDeleteTarget(null);
+  }
 
   if (isLoading) {
     return (
@@ -183,7 +209,7 @@ export function FlightsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {flights.map((f) => (
-          <FlightCard key={f.id} flight={f} playerCount={playerCountForFlight(f.id)} />
+          <FlightCard key={f.id} flight={f} playerCount={playerCountForFlight(f.id)} onDelete={setDeleteTarget} />
         ))}
         {flights.length === 0 && (
           <p className="text-sm text-gray-500">No flights created yet.</p>
@@ -209,6 +235,16 @@ export function FlightsPage() {
           onCancel={() => setCreateOpen(false)}
         />
       </Modal>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Flight"
+        description={`Permanently delete ${deleteTarget?.name}? This will unassign all players from this flight and cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

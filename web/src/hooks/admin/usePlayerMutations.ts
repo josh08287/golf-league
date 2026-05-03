@@ -65,7 +65,7 @@ export function useDeletePlayer() {
 
   return useMutation({
     mutationFn: (playerId: string) =>
-      apiClient.post(`/players/${playerId}/delete`).then((r) => r.data),
+      apiClient.delete(`/players/${playerId}`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: playerKeys.all });
     },

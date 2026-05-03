@@ -2,6 +2,8 @@
 
 **Version 1.2 | April 2026**
 
+> **Implementation (this repo):** The running API uses **SQLite** with the database file stored in **Azure Blob Storage**, not Azure SQL. HTTP routes, env vars, CI branch, and file layout are summarized in [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md). Sections below that reference Azure SQL describe an earlier or alternate target architecture.
+
 ---
 
 ## Table of Contents

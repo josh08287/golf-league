@@ -1,0 +1,44 @@
+---
+description: Golf League monorepo map — read before changing backend, web, or mobile
+alwaysApply: true
+---
+
+# Golf League — implementation facts
+
+**Do not treat `ARCHITECTURE.md` as the live data layer:** that file is a product plan. **Production uses SQLite** (EF Core) with the DB file **synced to Azure Blob Storage** — not Azure SQL. Infra and `Program.cs` match SQLite + blob.
+
+## Layout
+
+| Area | Path | Stack |
+|------|------|--------|
+| API | `src/GolfLeague.Functions` | .NET 9 isolated worker Azure Functions, MediatR |
+| Domain / use cases | `src/GolfLeague.Domain`, `src/GolfLeague.Application` | CQRS commands/queries, DTOs, `Result`, audit pipeline |
+| Persistence | `src/GolfLeague.Infrastructure` | EF Core SQLite, repositories, `BlobSyncedDbContext` |
+| Web | `web/` | React + Vite + TypeScript, TanStack Query, Axios (`src/lib/api.ts`), MSAL |
+| Mobile | `mobile/lib/` | Flutter; Dio, Riverpod, Drift (`core/database/`), config in `core/config.dart` |
+| IaC | `infra/` | Bicep; storage + Functions + Key Vault; SQLite blob settings |
+| Tests | `tests/GolfLeague.Functions.Tests` | API/function tests |
+
+## HTTP API
+
+- `host.json` sets `routePrefix`: **`api`**. Triggers use `Route = "v1/..."` → full path **`/api/v1/...`**.
+- Health: **`GET /api/health`** (`HealthFunctions.cs`).
+- Auth: JWT Bearer (Entra External ID). `ENTRA_TENANT_ID`, `ENTRA_CLIENT_ID`. `AuthMiddleware` populates `HttpContext.User` for each request.
+- Authorization in handlers via `HttpRequestExtensions.RequireRole("admin")` or `("scorer","admin")`. ASP.NET policies `AdminOnly`, `ScorerOrAdmin`, `Authenticated` exist in `Program.cs`.
+- Web client default base URL: **`/api/v1`** (relative); prod may set `VITE_API_BASE_URL` to absolute API host.
+
+## SQLite + blob
+
+- Config: `BLOB_STORAGE_ACCOUNT`, `SQLITE_BLOB_CONTAINER`, `SQLITE_BLOB_NAME`. Managed identity (`DefaultAzureCredential`) for storage.
+- Local copy under `%TEMP%/golf-league/<blobName>`. Startup: download if blob newer → ensure tables (`EnsureAllTablesExistAsync`) → seed active season if missing → upload.
+- Every `SaveChanges` on `BlobSyncedDbContext` uploads DB to blob (serialized with a process-wide lock).
+
+## GitHub Actions
+
+- **`master`** branch (not `main`): `deploy-api.yml` (`src/**`, `tests/**`) publishes Function App; `deploy-web.yml` (`web/**`) deploys Static Web App from `web/dist`.
+
+## When editing
+
+- New endpoints: add Azure Function in `GolfLeague.Functions/Functions/`, wire MediatR handler in `GolfLeague.Application`, repository in Infrastructure if needed.
+- Web API calls: `web/src/lib/api.ts` + hooks under `web/src/hooks/` / `web/src/hooks/admin/`.
+- For domain scoring rules, check `mobile/lib/core/utils/stableford_calculator.dart` and Domain/Application DTOs before duplicating logic.
