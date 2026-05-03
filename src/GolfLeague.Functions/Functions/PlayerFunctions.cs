@@ -67,6 +67,12 @@ public sealed class PlayerFunctions
         var command = new CreatePlayerCommand(firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId);
 
         var result = await _mediator.Send(command, cancellationToken);
+        if (!result.IsSuccess)
+            return result.ToOkResult();
+
+        if (body.FlightId is not null && int.TryParse(body.FlightId, out var flightId))
+            await _playerRepository.AssignToFlightAsync(result.Value!.Id, flightId, cancellationToken);
+
         return result.ToCreatedResult($"/api/v1/players/{result.Value?.Id}");
     }
 
@@ -229,7 +235,7 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
-    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId);
+    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId, string? FlightId);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string Email);
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)

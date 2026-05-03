@@ -279,9 +279,7 @@ export function ScoreEntryPage() {
                 const v = playerScores[h];
                 return sum + (typeof v === 'number' ? v : 0);
               }, 0);
-              const courseHandicap = Math.round(
-                (participant.handicapAtTime * 113) / 113
-              );
+              const courseHandicap = participant.courseHandicap;
 
               return (
                 <>

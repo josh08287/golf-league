@@ -1,6 +1,7 @@
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useFlightStandings, useFlight } from '@/hooks/useFlights';
+import { useSeasons } from '@/hooks/useSeasons';
 import {
   Table,
   TableBody,
@@ -71,7 +72,9 @@ function podiumVariant(position: number): PodiumVariant | null {
 export function FlightLeaderboardPage() {
   const { flightId } = useParams<{ flightId: string }>();
   const [searchParams] = useSearchParams();
-  const seasonId = searchParams.get('seasonId') ?? '';
+  const { data: seasons } = useSeasons();
+  const activeSeason = seasons?.find((s) => s.isActive);
+  const seasonId = searchParams.get('seasonId') ?? String(activeSeason?.id ?? '');
 
   const flight = useFlight(flightId ?? '');
   const standings = useFlightStandings(flightId ?? '', seasonId);

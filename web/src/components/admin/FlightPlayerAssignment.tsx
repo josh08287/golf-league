@@ -34,7 +34,7 @@ export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps)
     setOverFlightId(null);
 
     await apiClient.patch(`/players/${draggingId}`, {
-      flightId: flightId === null ? null : String(flightId),
+      flightId: flightId === null ? '' : String(flightId),
     });
     await qc.invalidateQueries({ queryKey: playerKeys.all });
   }
