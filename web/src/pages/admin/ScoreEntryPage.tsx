@@ -13,11 +13,12 @@ import type { CourseDetail, Participant } from '../../types/api';
 
 const ALL_HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
 
-function getHolesForRound(roundType: string, nineHoleSide: string): number[] {
+function getHolesForRound(roundType: string | number, nineHoleSide: string | number): number[] {
   // Handle both PascalCase (type definitions) and camelCase (JSON serialization)
-  const normalizedType = roundType?.toLowerCase();
+  // Also handle when values come as numbers (enum indices)
+  const normalizedType = String(roundType ?? '').toLowerCase();
   if (normalizedType === 'ninehole') {
-    const normalizedSide = nineHoleSide?.toLowerCase();
+    const normalizedSide = String(nineHoleSide ?? '').toLowerCase();
     return normalizedSide === 'back'
       ? Array.from({ length: 9 }, (_, i) => i + 10) // holes 10-18
       : Array.from({ length: 9 }, (_, i) => i + 1);  // holes 1-9 (default front)
