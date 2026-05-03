@@ -105,6 +105,115 @@ public class CreateRoundCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         roundRepo.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), default), Times.Never);
     }
+
+    [Fact]
+    public async Task Handle_CreatesNineHoleFrontRound_WithCorrectDefaults()
+    {
+        var course = MakeCourse();
+        var flight = MakeFlight();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        var playerRepo = new Mock<IPlayerRepository>();
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+            RoundType.NineHole, NineHoleSide.Front);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.RoundType.Should().Be(RoundType.NineHole);
+        result.Value.NineHoleSide.Should().Be(NineHoleSide.Front);
+        roundRepo.Verify(r => r.AddAsync(It.Is<Round>(round =>
+            round.RoundType == RoundType.NineHole &&
+            round.NineHoleSide == NineHoleSide.Front), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_CreatesNineHoleBackRound_WithCorrectProperties()
+    {
+        var course = MakeCourse();
+        var flight = MakeFlight();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        var playerRepo = new Mock<IPlayerRepository>();
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+            RoundType.NineHole, NineHoleSide.Back);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.RoundType.Should().Be(RoundType.NineHole);
+        result.Value.NineHoleSide.Should().Be(NineHoleSide.Back);
+    }
+
+    [Fact]
+    public async Task Handle_CreatesEighteenHoleRound_WithCorrectProperties()
+    {
+        var course = MakeCourse();
+        var flight = MakeFlight();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        var playerRepo = new Mock<IPlayerRepository>();
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), null, [], "admin",
+            RoundType.EighteenHole, NineHoleSide.NotApplicable);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.RoundType.Should().Be(RoundType.EighteenHole);
+    }
+
+    [Fact]
+    public async Task Handle_NineHoleRound_CalculatesHalfCourseHandicap()
+    {
+        var course = MakeCourse();
+        var flight = MakeFlight();
+        var player = new Player { Id = 1, FirstName = "J", LastName = "D" };
+
+        var roundRepo = new Mock<IRoundRepository>();
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(flight);
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
+        var handicapRepo = new Mock<IHandicapRepository>();
+        // Handicap 18 on slope 113 = 18 course handicap for 18 holes
+        handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 18.0 });
+
+        var handler = new CreateRoundCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object, flightRepo.Object);
+
+        // 9-hole round should have ~9 course handicap (half of 18)
+        var cmd = new CreateRoundCommand(1, 1, 1, DateOnly.FromDateTime(DateTime.UtcNow), "test", [new(1)], "admin",
+            RoundType.NineHole, NineHoleSide.Front);
+
+        var result = await handler.Handle(cmd, default);
+
+        result.IsSuccess.Should().BeTrue();
+        // 18 * 113 / 113 = 18, rounded to 18 for 18 holes, half for 9 holes = 9
+        roundRepo.Verify(r => r.AddParticipantAsync(It.Is<RoundParticipant>(p =>
+            p.CourseHandicap == 9), default), Times.Once);
+    }
 }
 
 public class FinalizeRoundCommandHandlerTests
@@ -212,6 +321,8 @@ public class FinalizeRoundCommandHandlerTests
             HoleScores = []
         };
         var round = MakeInProgressRound();
+        round.RoundType = RoundType.EighteenHole;
+        round.NineHoleSide = NineHoleSide.NotApplicable;
         round.Participants = [participant];
 
         var roundRepo = new Mock<IRoundRepository>();
@@ -255,6 +366,71 @@ public class FinalizeRoundCommandHandlerTests
         await handler.Handle(new FinalizeRoundCommand(1, "admin"), default);
 
         handicapRepo.Verify(r => r.AddAsync(It.IsAny<Handicap>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_NineHoleRound_StoresNineHoleDifferential_DoesNotUpdateHandicap()
+    {
+        var participant = new RoundParticipant
+        {
+            Id = 1, PlayerId = 1, IsWithdrawn = false, TotalGrossStrokes = 40,
+            HoleScores = []
+        };
+        var round = MakeInProgressRound();
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
+        round.Participants = [participant];
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(new Course { Id = 1, Name = "C", CourseRating = 72.0, SlopeRating = 113 });
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(new Flight { Id = 1, Name = "F" });
+        var handicapRepo = new Mock<IHandicapRepository>();
+        var playerRepo = new Mock<IPlayerRepository>();
+
+        var handler = new FinalizeRoundCommandHandler(roundRepo.Object, courseRepo.Object, handicapRepo.Object, playerRepo.Object, flightRepo.Object);
+
+        var result = await handler.Handle(new FinalizeRoundCommand(1, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        // For 9-hole rounds, we store the differential but don't update handicap
+        handicapRepo.Verify(r => r.AddDifferentialAsync(1, It.IsAny<double>(), It.IsAny<DateOnly>(), default), Times.Once);
+        handicapRepo.Verify(r => r.AddAsync(It.IsAny<Handicap>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_EighteenHoleRound_StoresDifferential_AndUpdatesHandicap()
+    {
+        var participant = new RoundParticipant
+        {
+            Id = 1, PlayerId = 1, IsWithdrawn = false, TotalGrossStrokes = 85,
+            HoleScores = []
+        };
+        var round = MakeInProgressRound();
+        round.RoundType = RoundType.EighteenHole;
+        round.NineHoleSide = NineHoleSide.NotApplicable;
+        round.Participants = [participant];
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(new Course { Id = 1, Name = "C", CourseRating = 72.0, SlopeRating = 113 });
+        var flightRepo = new Mock<IFlightRepository>();
+        flightRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(new Flight { Id = 1, Name = "F" });
+        var handicapRepo = new Mock<IHandicapRepository>();
+        handicapRepo.Setup(r => r.GetLast20DifferentialsAsync(1, default)).ReturnsAsync(new List<double> { 10.0, 12.0 });
+        var playerRepo = new Mock<IPlayerRepository>();
+
+        var handler = new FinalizeRoundCommandHandler(roundRepo.Object, courseRepo.Object, handicapRepo.Object, playerRepo.Object, flightRepo.Object);
+
+        var result = await handler.Handle(new FinalizeRoundCommand(1, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        // For 18-hole rounds, we store the differential AND update handicap
+        handicapRepo.Verify(r => r.AddDifferentialAsync(1, It.IsAny<double>(), It.IsAny<DateOnly>(), default), Times.Once);
+        handicapRepo.Verify(r => r.AddAsync(It.IsAny<Handicap>(), default), Times.Once);
     }
 }
 

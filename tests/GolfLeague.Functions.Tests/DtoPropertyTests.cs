@@ -97,7 +97,7 @@ public class DtoPropertyTests
     [Fact]
     public void RoundDto_AllPropertiesAccessible()
     {
-        var dto = new RoundDto(1, 2, 3, "A Flight", 4, "Course A", new DateOnly(2026, 5, 1), RoundStatus.Scheduled, 8);
+        var dto = new RoundDto(1, 2, 3, "A Flight", 4, "Course A", new DateOnly(2026, 5, 1), RoundStatus.Scheduled, RoundType.NineHole, NineHoleSide.Front, 8);
         dto.Id.Should().Be(1);
         dto.SeasonId.Should().Be(2);
         dto.FlightId.Should().Be(3);
@@ -114,7 +114,7 @@ public class DtoPropertyTests
     {
         var participant = new ParticipantDto(1, 1, 1, "John Doe", "JD", 10.0, 9, 85, 76, 35, false);
         var dto = new ScorecardDto(1, new DateOnly(2026, 5, 1), "Course A", 72.0, 113,
-            participant, [], 36, 36, 72, 40, 40, 36, 36, 18, 18);
+            participant, [], 36, 36, 72, 40, 40, 80, 36, 36, 72, 18, 18, 36);
         dto.RoundId.Should().Be(1);
         dto.RoundDate.Should().Be(new DateOnly(2026, 5, 1));
         dto.CourseName.Should().Be("Course A");

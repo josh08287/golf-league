@@ -21,7 +21,7 @@ namespace GolfLeague.Tests;
 public class RoundFunctionsTests
 {
     private static RoundDto MakeRoundDto(int id = 1) =>
-        new(id, 1, 1, "A Flight", 1, "Course A", DateOnly.FromDateTime(DateTime.UtcNow), RoundStatus.Scheduled, 0);
+        new(id, 1, 1, "A Flight", 1, "Course A", DateOnly.FromDateTime(DateTime.UtcNow), RoundStatus.Scheduled, RoundType.NineHole, NineHoleSide.Front, 0);
 
     private static HttpRequest MakeRequest(string? body = null, string? role = null, string? query = null)
     {
@@ -248,7 +248,7 @@ public class RoundFunctionsTests
         var mediator = new Mock<IMediator>();
         var scorecardDto = new ScorecardDto(1, DateOnly.FromDateTime(DateTime.UtcNow), "Course A", 72.0, 113,
             new ParticipantDto(1, 1, 1, "John Doe", "JD", 10.0, 10, null, null, null, false),
-            [], 36, 36, 72, 36, 36, 34, 34, 10, 10);
+            [], 36, 36, 72, 36, 36, 72, 34, 34, 68, 10, 10, 20);
 
         mediator.Setup(m => m.Send(It.IsAny<GetPlayerScorecardQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ScorecardDto>.Ok(scorecardDto));
@@ -279,7 +279,7 @@ public class RoundFunctionsTests
         var mediator = new Mock<IMediator>();
         var scorecardDto = new ScorecardDto(1, DateOnly.FromDateTime(DateTime.UtcNow), "Course A", 72.0, 113,
             new ParticipantDto(1, 1, 1, "John Doe", "JD", 10.0, 10, null, null, null, false),
-            [], 36, 36, 72, 36, 36, 34, 34, 10, 10);
+            [], 36, 36, 72, 36, 36, 72, 34, 34, 68, 10, 10, 20);
 
         mediator.Setup(m => m.Send(It.IsAny<GetPlayerScorecardQuery>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ScorecardDto>.Ok(scorecardDto));
@@ -393,7 +393,7 @@ public class RoundFunctionsTests
         var mediator = new Mock<IMediator>();
         var scorecardDto = new ScorecardDto(1, DateOnly.FromDateTime(DateTime.UtcNow), "Course A", 72.0, 113,
             new ParticipantDto(1, 1, 1, "John Doe", "JD", 10.0, 10, null, null, null, false),
-            [], 36, 36, 72, 36, 36, 34, 34, 10, 10);
+            [], 36, 36, 72, 36, 36, 72, 34, 34, 68, 10, 10, 20);
 
         mediator.Setup(m => m.Send(It.IsAny<SubmitHoleScoresCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ScorecardDto>.Ok(scorecardDto));
@@ -413,7 +413,7 @@ public class RoundFunctionsTests
         var mediator = new Mock<IMediator>();
         var scorecardDto = new ScorecardDto(1, DateOnly.FromDateTime(DateTime.UtcNow), "Course A", 72.0, 113,
             new ParticipantDto(1, 1, 1, "John Doe", "JD", 10.0, 10, null, null, null, false),
-            [], 36, 36, 72, 36, 36, 34, 34, 10, 10);
+            [], 36, 36, 72, 36, 36, 72, 34, 34, 68, 10, 10, 20);
 
         mediator.Setup(m => m.Send(It.IsAny<SubmitHoleScoresCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<ScorecardDto>.Ok(scorecardDto));

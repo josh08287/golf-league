@@ -210,16 +210,16 @@ public sealed class RoundFunctions
                 ? DateOnly.Parse(RoundDate)
                 : DateOnly.FromDateTime(DateTime.UtcNow);
 
-        public RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
+        public Domain.Enums.RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
         {
-            "eighteenhole" or "18" or "18hole" => RoundType.EighteenHole,
-            _ => RoundType.NineHole
+            "eighteenhole" or "18" or "18hole" => Domain.Enums.RoundType.EighteenHole,
+            _ => Domain.Enums.RoundType.NineHole
         };
 
-        public NineHoleSide ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
+        public Domain.Enums.NineHoleSide ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
         {
-            "back" or "back9" or "backnine" => NineHoleSide.Back,
-            _ => NineHoleSide.Front
+            "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
+            _ => Domain.Enums.NineHoleSide.Front
         };
     }
 

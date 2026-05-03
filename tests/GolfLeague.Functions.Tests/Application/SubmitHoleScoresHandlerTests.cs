@@ -134,27 +134,32 @@ public class SubmitHoleScoresCommandHandlerTests
     public async Task Handle_WhenHoleNotFound_ReturnsFail()
     {
         var round = MakeScheduledRound();
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
         var participant = MakeParticipant();
         var player = MakePlayer();
         var course = MakeCourse();
+        // Only provide holes 1-8, missing hole 9
+        var holes = Enumerable.Range(1, 8).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
 
         var roundRepo = new Mock<IRoundRepository>();
         roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
         roundRepo.Setup(r => r.GetParticipantAsync(1, 1, default)).ReturnsAsync(participant);
         var courseRepo = new Mock<ICourseRepository>();
-        courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(new List<CourseHole>());
+        courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(holes);
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
-        var scores = new List<HoleScoreInput> { new(1, 5) };
+        // Submit holes 1-9, but hole 9 doesn't exist
+        var scores = Enumerable.Range(1, 9).Select(h => new HoleScoreInput(h, 5)).ToList();
 
         var result = await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Hole 1 not found");
+        result.Error.Should().Contain("Invalid hole numbers");
     }
 
     [Fact]
@@ -191,12 +196,14 @@ public class SubmitHoleScoresCommandHandlerTests
     public async Task Handle_CapsGrossScoreAtMaxGross()
     {
         var round = MakeScheduledRound();
+        round.RoundType = RoundType.EighteenHole;
+        round.NineHoleSide = NineHoleSide.NotApplicable;
         var participant = MakeParticipant();
         participant.CourseHandicap = 18; // gets 1 stroke on every hole
         var player = MakePlayer();
         var course = MakeCourse();
-        // Single hole: par 4, SI 1 => with CH=18 strokes on hole=1, maxGross=4+2+1=7
-        var holes = new List<CourseHole> { new() { HoleNumber = 1, Par = 4, StrokeIndex = 1 } };
+        // 18 holes, with hole 1 having par 4, SI 1
+        var holes = Enumerable.Range(1, 18).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
 
         var roundRepo = new Mock<IRoundRepository>();
         roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
@@ -216,25 +223,28 @@ public class SubmitHoleScoresCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
-        // Submit gross=10, should be capped at 7
-        var scores = new List<HoleScoreInput> { new(1, 10) };
+        // Submit 10 on hole 1, should be capped at 7 (par 4 + 2 + 1 stroke)
+        var scores = Enumerable.Range(1, 18).Select(h => new HoleScoreInput(h, h == 1 ? 10 : 4)).ToList();
 
         await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
 
         capturedScores.Should().NotBeNull();
-        capturedScores![0].GrossStrokes.Should().Be(7);
-        capturedScores[0].IsMaxScore.Should().BeTrue();
+        var hole1Score = capturedScores!.First(h => h.HoleNumber == 1);
+        hole1Score.GrossStrokes.Should().Be(7);
+        hole1Score.IsMaxScore.Should().BeTrue();
     }
 
     [Fact]
     public async Task Handle_ScoresNotCapped_WhenBelowMax()
     {
         var round = MakeScheduledRound();
+        round.RoundType = RoundType.EighteenHole;
+        round.NineHoleSide = NineHoleSide.NotApplicable;
         var participant = MakeParticipant();
         participant.CourseHandicap = 0;
         var player = MakePlayer();
         var course = MakeCourse();
-        var holes = new List<CourseHole> { new() { HoleNumber = 1, Par = 4, StrokeIndex = 1 } };
+        var holes = Enumerable.Range(1, 18).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
 
         var roundRepo = new Mock<IRoundRepository>();
         roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
@@ -254,12 +264,13 @@ public class SubmitHoleScoresCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
-        var scores = new List<HoleScoreInput> { new(1, 5) };
+        var scores = Enumerable.Range(1, 18).Select(h => new HoleScoreInput(h, h == 1 ? 5 : 4)).ToList();
 
         await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
 
-        capturedScores![0].GrossStrokes.Should().Be(5);
-        capturedScores[0].IsMaxScore.Should().BeFalse();
+        var hole1Score = capturedScores!.First(h => h.HoleNumber == 1);
+        hole1Score.GrossStrokes.Should().Be(5);
+        hole1Score.IsMaxScore.Should().BeFalse();
     }
 
     [Fact]
@@ -267,10 +278,12 @@ public class SubmitHoleScoresCommandHandlerTests
     {
         var round = MakeScheduledRound();
         round.Status = RoundStatus.Scheduled;
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
         var participant = MakeParticipant();
         var player = MakePlayer();
         var course = MakeCourse();
-        var holes = new List<CourseHole> { new() { HoleNumber = 1, Par = 4, StrokeIndex = 1 } };
+        var holes = MakeHoles(); // 9 holes
 
         var roundRepo = new Mock<IRoundRepository>();
         roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
@@ -284,41 +297,27 @@ public class SubmitHoleScoresCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
-        await handler.Handle(new SubmitHoleScoresCommand(1, 1, [new(1, 4)], "admin"), default);
+        var scores = holes.Select(h => new HoleScoreInput(h.HoleNumber, 4)).ToList();
+        await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
 
         roundRepo.Verify(r => r.UpdateAsync(It.Is<Round>(r => r.Status == RoundStatus.InProgress), default), Times.Once);
     }
 
     [Fact]
-    public async Task Handle_With9HoleRoundsPair_CombinesDifferentialsForHandicap()
+    public async Task Handle_NineHoleFrontRound_WithInvalidHoles_ReturnsFail()
     {
         var round = MakeScheduledRound();
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
         var participant = MakeParticipant();
         var player = MakePlayer();
         var course = MakeCourse();
-        var holes = MakeHoles(); // 9 holes
-
-        // Simulate 2 existing 9-hole rounds — count is even, so combining is triggered
-        var prevHoleScores = Enumerable.Range(1, 9).Select(h => new HoleScore { HoleNumber = h, GrossStrokes = 40 }).ToList();
-        var prevParticipant1 = new RoundParticipant
-        {
-            Id = 2, PlayerId = 1,
-            Round = new Round { RoundDate = new DateOnly(2026, 4, 1) },
-            HoleScores = prevHoleScores
-        };
-        var prevParticipant2 = new RoundParticipant
-        {
-            Id = 3, PlayerId = 1,
-            Round = new Round { RoundDate = new DateOnly(2026, 4, 8) },
-            HoleScores = Enumerable.Range(1, 9).Select(h => new HoleScore { HoleNumber = h, GrossStrokes = 42 }).ToList()
-        };
+        // Only back nine holes (10-18)
+        var holes = Enumerable.Range(10, 9).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
 
         var roundRepo = new Mock<IRoundRepository>();
         roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
         roundRepo.Setup(r => r.GetParticipantAsync(1, 1, default)).ReturnsAsync(participant);
-        roundRepo.Setup(r => r.GetParticipantsAsyncByPlayer(1, default))
-            .ReturnsAsync(new List<RoundParticipant> { prevParticipant1, prevParticipant2 });
-
         var courseRepo = new Mock<ICourseRepository>();
         courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(holes);
         courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
@@ -327,11 +326,105 @@ public class SubmitHoleScoresCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
-        var scores = holes.Select(h => new HoleScoreInput(h.HoleNumber, 40)).ToList();
+        // Submit front nine holes (1-9) for a back nine round - should fail
+        var scores = Enumerable.Range(1, 9).Select(h => new HoleScoreInput(h, 5)).ToList();
 
-        await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
+        var result = await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
 
-        // After 2 nine-hole rounds (count is even), combined differential should be saved
-        handicapRepo.Verify(r => r.AddDifferentialAsync(1, It.IsAny<double>(), It.IsAny<DateOnly>(), default), Times.Once);
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Invalid hole numbers");
+    }
+
+    [Fact]
+    public async Task Handle_NineHoleRound_WithWrongHoleCount_ReturnsFail()
+    {
+        var round = MakeScheduledRound();
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
+        var participant = MakeParticipant();
+        var player = MakePlayer();
+        var course = MakeCourse();
+        var holes = MakeHoles();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
+        roundRepo.Setup(r => r.GetParticipantAsync(1, 1, default)).ReturnsAsync(participant);
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(holes);
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
+        // Submit only 5 holes for a 9-hole round - should fail
+        var scores = Enumerable.Range(1, 5).Select(h => new HoleScoreInput(h, 5)).ToList();
+
+        var result = await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Expected 9 holes");
+    }
+
+    [Fact]
+    public async Task Handle_EighteenHoleRound_WithWrongHoleCount_ReturnsFail()
+    {
+        var round = MakeScheduledRound();
+        round.RoundType = RoundType.EighteenHole;
+        round.NineHoleSide = NineHoleSide.NotApplicable;
+        var participant = MakeParticipant();
+        var player = MakePlayer();
+        var course = MakeCourse();
+        var holes = Enumerable.Range(1, 18).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
+        roundRepo.Setup(r => r.GetParticipantAsync(1, 1, default)).ReturnsAsync(participant);
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(holes);
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
+        // Submit only 9 holes for an 18-hole round - should fail
+        var scores = Enumerable.Range(1, 9).Select(h => new HoleScoreInput(h, 5)).ToList();
+
+        var result = await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Expected 18 holes");
+    }
+
+    [Fact]
+    public async Task Handle_NineHoleFrontRound_WithValidHoles_Succeeds()
+    {
+        var round = MakeScheduledRound();
+        round.RoundType = RoundType.NineHole;
+        round.NineHoleSide = NineHoleSide.Front;
+        var participant = MakeParticipant();
+        var player = MakePlayer();
+        var course = MakeCourse();
+        // Front nine holes (1-9)
+        var holes = Enumerable.Range(1, 9).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList();
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(round);
+        roundRepo.Setup(r => r.GetParticipantAsync(1, 1, default)).ReturnsAsync(participant);
+        var courseRepo = new Mock<ICourseRepository>();
+        courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(holes);
+        courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
+        var handicapRepo = new Mock<IHandicapRepository>();
+
+        var handler = new SubmitHoleScoresCommandHandler(roundRepo.Object, courseRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var scores = Enumerable.Range(1, 9).Select(h => new HoleScoreInput(h, 5)).ToList();
+
+        var result = await handler.Handle(new SubmitHoleScoresCommand(1, 1, scores, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        roundRepo.Verify(r => r.AddHoleScoresAsync(It.Is<IEnumerable<HoleScore>>(h => h.Count() == 9), default), Times.Once);
     }
 }
