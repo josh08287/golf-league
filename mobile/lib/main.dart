@@ -7,7 +7,11 @@ import 'app.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  try {
+    await Firebase.initializeApp();
+  } catch (_) {
+    // Firebase unavailable — push notifications won't work but app continues.
+  }
   await Hive.initFlutter();
   await Hive.openBox<dynamic>('auth');
   await Hive.openBox<dynamic>('prefs');

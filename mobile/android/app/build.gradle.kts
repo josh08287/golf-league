@@ -1,26 +1,25 @@
-import com.android.build.gradle.BaseExtension
-
 plugins {
     id("com.android.application")
+    id("com.google.gms.google-services")
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
-    namespace = "com.example.golf_league"
-    compileSdk = 36 
+    namespace = "com.golfleague.app"
+    compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.golf_league"
+        applicationId = "com.golfleague.app"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-        manifestPlaceholders["appAuthRedirectScheme"] = "com.example.golf_league"
+        manifestPlaceholders["appAuthRedirectScheme"] = "com.golfleague.app"
     }
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_1_8
-        targetCompatibility = JavaVersion.VERSION_1_8
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
         isCoreLibraryDesugaringEnabled = true
     }
 }
