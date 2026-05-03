@@ -80,7 +80,7 @@ export function CourseHolesEditor({ courseId, initialHoles }: CourseHolesEditorP
               <tr key={i} className="hover:bg-gray-50/50">
                 <td className="px-3 py-1.5 font-medium text-gray-700">
                   {i + 1}
-                  <input type="hidden" {...register(`holes.${i}.holeNumber`, { valueAsNumber: true })} value={i + 1} />
+                  <input type="hidden" {...register(`holes.${i}.holeNumber`, { valueAsNumber: true })} defaultValue={i + 1} />
                 </td>
                 <td className="px-3 py-1.5 text-center">
                   <select

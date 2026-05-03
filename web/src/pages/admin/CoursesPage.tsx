@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { useQuery } from '@tanstack/react-query';
 import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
 import { api } from '../../lib/api';
-import { useCreateCourse } from '../../hooks/admin/useCourseMutations';
+import { useCreateCourse, courseKeys } from '../../hooks/admin/useCourseMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
@@ -96,7 +96,7 @@ function CourseRow({ course }: CourseRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const { data: detail, isLoading } = useQuery<CourseDetail>({
-    queryKey: ['course', course.id],
+    queryKey: courseKeys.detail(String(course.id)),
     queryFn: () => api.get(`/courses/${course.id}`).then((r) => r.data),
     enabled: expanded,
   });
