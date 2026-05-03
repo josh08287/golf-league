@@ -317,45 +317,6 @@ public class PlayerFunctionsTests
     }
 
     [Fact]
-    public async Task DeactivatePlayer_WhenNotAuthenticated_ReturnsUnauthorized()
-    {
-        var mediator = new Mock<IMediator>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
-
-        var result = await sut.DeactivatePlayer(MakeRequest(), "1", CancellationToken.None);
-
-        result.Should().BeOfType<UnauthorizedResult>();
-    }
-
-    [Fact]
-    public async Task DeactivatePlayer_WhenInvalidId_ReturnsBadRequest()
-    {
-        var mediator = new Mock<IMediator>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
-
-        var result = await sut.DeactivatePlayer(MakeRequest(role: "admin"), "abc", CancellationToken.None);
-
-        result.Should().BeOfType<BadRequestObjectResult>();
-    }
-
-    [Fact]
-    public async Task DeactivatePlayer_WhenValid_ReturnsOk()
-    {
-        var mediator = new Mock<IMediator>();
-        mediator.Setup(m => m.Send(It.IsAny<DeactivatePlayerCommand>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Result<bool>.Ok(true));
-
-        var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
-
-        var result = await sut.DeactivatePlayer(MakeRequest(role: "admin"), "1", CancellationToken.None);
-
-        result.Should().BeOfType<OkObjectResult>();
-    }
-
-    [Fact]
     public async Task DeactivatePlayerPost_WhenInvalidId_ReturnsBadRequest()
     {
         var mediator = new Mock<IMediator>();
