@@ -10,7 +10,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { AddPlayerForm } from '../../components/admin/AddPlayerForm';
-import { useDeactivatePlayer } from '../../hooks/admin/usePlayerMutations';
+import { useDeactivatePlayer, useDeletePlayer } from '../../hooks/admin/usePlayerMutations';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import type { Player } from '../../types/api';
 
@@ -21,13 +21,21 @@ export function PlayersPage() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Player | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
 
   const deactivate = useDeactivatePlayer(String(deactivateTarget?.id ?? ''));
+  const deletePlayer = useDeletePlayer();
 
   async function handleDeactivate() {
     if (!deactivateTarget) return;
     await deactivate.mutateAsync();
     setDeactivateTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deletePlayer.mutateAsync(String(deleteTarget.id));
+    setDeleteTarget(null);
   }
 
   if (isLoading) {
@@ -103,6 +111,17 @@ export function PlayersPage() {
               Deactivate
             </Button>
           )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="text-red-700 hover:bg-red-50 hover:text-red-800"
+            onClick={(e) => {
+              e.stopPropagation();
+              setDeleteTarget(p);
+            }}
+          >
+            Delete
+          </Button>
         </div>
       ),
     },
@@ -141,6 +160,16 @@ export function PlayersPage() {
         destructive
         onConfirm={handleDeactivate}
         onCancel={() => setDeactivateTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Player"
+        description={`Permanently delete ${deleteTarget?.fullName}? This cannot be undone and will remove all their data.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

@@ -61,6 +61,23 @@ public sealed class FlightFunctions
         return result.ToOkResult();
     }
 
+    [Function("DeleteFlight")]
+    public async Task<IActionResult> DeleteFlight(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/flights/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var flightId))
+            return new BadRequestObjectResult(new { error = "Invalid flight ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteFlightCommand(flightId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateFlightRequest(
         string Name,
         int? SeasonId,

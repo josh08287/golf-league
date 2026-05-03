@@ -64,3 +64,15 @@ export function useFinalizeRound(roundId: string) {
     },
   });
 }
+
+export function useDeleteRound() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (roundId: string) =>
+      apiClient.delete(`/rounds/${roundId}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.all });
+    },
+  });
+}

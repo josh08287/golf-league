@@ -52,3 +52,15 @@ export function useUpdateCourseHoles(courseId: string) {
     },
   });
 }
+
+export function useDeleteCourse() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (courseId: string) =>
+      apiClient.delete(`/courses/${courseId}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: courseKeys.all });
+    },
+  });
+}

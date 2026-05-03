@@ -18,7 +18,21 @@
       "Bash(dotnet test *)",
       "Bash(python3 *)",
       "Read(//c/Users/JoshBlaine/.nuget/packages/microsoft.azure.functions.worker.core/2.0.0/lib/net8.0/**)",
-      "Bash(dotnet run *)"
+      "Bash(dotnet run *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git -C /c/projects/golf-league commit --allow-empty -m \"Trigger API deployment\")",
+      "Bash(git -C /c/projects/golf-league push origin master)",
+      "Bash(git -C /c/projects/golf-league add src/GolfLeague.Functions/host.json)",
+      "Bash(git -C /c/projects/golf-league commit -m \"Increase function timeout to 10 minutes\")",
+      "Bash(git -C /c/projects/golf-league add .github/workflows/deploy-api.yml)",
+      "Bash(git -C /c/projects/golf-league commit -m \"Fix zip structure for Function App deployment\")",
+      "Bash(git -C /c/projects/golf-league commit -m \"Revert function timeout to 5 minutes\")",
+      "Bash(git -C /c/projects/golf-league add web/src/components/admin/CreateRoundForm.tsx)",
+      "Bash(git -C /c/projects/golf-league commit -m \"Add player selection to CreateRoundForm, default all flight players selected\")",
+      "Bash(git -C /c/projects/golf-league add web/src/pages/admin/ScoreEntryPage.tsx)",
+      "Bash(git -C /c/projects/golf-league commit -m \"Load course hole data in ScoreEntryPage for correct par and stroke index\")"
     ]
   }
 }

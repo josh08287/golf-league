@@ -9,4 +9,5 @@ public interface ICourseRepository
     Task<IReadOnlyList<CourseHole>> GetHolesAsync(int courseId, CancellationToken cancellationToken = default);
     Task AddAsync(Course course, CancellationToken cancellationToken = default);
     Task UpdateHolesAsync(int courseId, IEnumerable<CourseHole> holes, CancellationToken cancellationToken = default);
+    Task DeleteAsync(int courseId, CancellationToken cancellationToken = default);
 }

@@ -154,6 +154,23 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("DeleteRound")]
+    public async Task<IActionResult> DeleteRound(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/rounds/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteRoundCommand(roundId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("FinalizeRound")]
     public async Task<IActionResult> FinalizeRound(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{id}/finalize")] HttpRequest req,

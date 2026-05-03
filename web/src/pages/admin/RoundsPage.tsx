@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { useRounds } from '../../hooks/useRounds';
-import { useFinalizeRound } from '../../hooks/admin/useRoundMutations';
+import { useFinalizeRound, useDeleteRound } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { DataTable } from '../../components/ui/DataTable';
@@ -31,13 +31,21 @@ export function RoundsPage() {
 
   const [createOpen, setCreateOpen] = useState(false);
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Round | null>(null);
 
   const finalize = useFinalizeRound(String(finalizeTarget?.id ?? ''));
+  const deleteRound = useDeleteRound();
 
   async function handleFinalize() {
     if (!finalizeTarget) return;
     await finalize.mutateAsync();
     setFinalizeTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deleteRound.mutateAsync(String(deleteTarget.id));
+    setDeleteTarget(null);
   }
 
   if (isLoading) {
@@ -87,6 +95,16 @@ export function RoundsPage() {
               Finalize
             </Button>
           )}
+          {r.status !== 'Finalized' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-600 hover:bg-red-50 hover:text-red-700"
+              onClick={() => setDeleteTarget(r)}
+            >
+              Delete
+            </Button>
+          )}
         </div>
       ),
     },
@@ -124,6 +142,16 @@ export function RoundsPage() {
         confirmLabel="Finalize"
         onConfirm={handleFinalize}
         onCancel={() => setFinalizeTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Round"
+        description={`Permanently delete the round on ${deleteTarget ? new Date(deleteTarget.scheduledDate).toLocaleDateString() : ''}? This cannot be undone.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setDeleteTarget(null)}
       />
     </div>
   );

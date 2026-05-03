@@ -9,5 +9,6 @@ public interface IFlightRepository
     Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(int flightId, int seasonId, CancellationToken cancellationToken = default);
     Task AddAsync(Flight flight, CancellationToken cancellationToken = default);
+    Task DeleteAsync(int flightId, CancellationToken cancellationToken = default);
     Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default);
 }

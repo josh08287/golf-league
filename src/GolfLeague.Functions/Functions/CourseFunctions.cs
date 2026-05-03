@@ -79,6 +79,23 @@ public sealed class CourseFunctions
         return result.ToOkResult();
     }
 
+    [Function("DeleteCourse")]
+    public async Task<IActionResult> DeleteCourse(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/courses/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var courseId))
+            return new BadRequestObjectResult(new { error = "Invalid course ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteCourseCommand(courseId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateCourseRequest(string Name, double Rating, int Slope);
     private sealed record HoleDto(int HoleNumber, int Par, int StrokeIndex);
     private sealed record UpdateHolesRequest(List<HoleDto> Holes);

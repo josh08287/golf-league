@@ -60,6 +60,18 @@ export function useDeactivatePlayer(playerId: string) {
   });
 }
 
+export function useDeletePlayer() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (playerId: string) =>
+      apiClient.post(`/players/${playerId}/delete`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+    },
+  });
+}
+
 export function useSetHandicap(playerId: string) {
   const qc = useQueryClient();
 

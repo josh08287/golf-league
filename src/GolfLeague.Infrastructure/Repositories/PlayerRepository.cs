@@ -49,6 +49,16 @@ public sealed class PlayerRepository : IPlayerRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeleteAsync(int playerId, CancellationToken cancellationToken = default)
+    {
+        var player = await _context.Players.FindAsync([playerId], cancellationToken);
+        if (player is not null)
+        {
+            _context.Players.Remove(player);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     public async Task AssignToFlightAsync(int playerId, int? flightId, CancellationToken cancellationToken = default)
     {
         var activeSeason = await _context.Seasons

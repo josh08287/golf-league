@@ -74,6 +74,16 @@ public sealed class RoundRepository : IRoundRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task DeleteAsync(int roundId, CancellationToken cancellationToken = default)
+    {
+        var round = await _context.Rounds.FindAsync([roundId], cancellationToken);
+        if (round is not null)
+        {
+            _context.Rounds.Remove(round);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     public async Task AddParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default)
     {
         await _context.RoundParticipants.AddAsync(participant, cancellationToken);

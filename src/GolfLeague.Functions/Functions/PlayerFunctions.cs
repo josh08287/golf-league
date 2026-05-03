@@ -161,6 +161,23 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
+    [Function("DeletePlayer")]
+    public async Task<IActionResult> DeletePlayer(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/delete")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeletePlayerCommand(playerId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("DeactivatePlayerPost")]
     public async Task<IActionResult> DeactivatePlayerPost(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/deactivate")] HttpRequest req,

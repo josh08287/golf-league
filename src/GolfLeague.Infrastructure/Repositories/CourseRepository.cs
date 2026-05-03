@@ -48,4 +48,14 @@ public sealed class CourseRepository : ICourseRepository
         await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteAsync(int courseId, CancellationToken cancellationToken = default)
+    {
+        var course = await _context.Courses.FindAsync([courseId], cancellationToken);
+        if (course is not null)
+        {
+            _context.Courses.Remove(course);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
 }

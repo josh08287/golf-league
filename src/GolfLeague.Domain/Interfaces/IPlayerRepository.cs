@@ -9,5 +9,6 @@ public interface IPlayerRepository
     Task<Player?> GetByEntraObjectIdAsync(string entraObjectId, CancellationToken cancellationToken = default);
     Task AddAsync(Player player, CancellationToken cancellationToken = default);
     Task UpdateAsync(Player player, CancellationToken cancellationToken = default);
+    Task DeleteAsync(int playerId, CancellationToken cancellationToken = default);
     Task AssignToFlightAsync(int playerId, int? flightId, CancellationToken cancellationToken = default);
 }

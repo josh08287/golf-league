@@ -3,14 +3,15 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useQuery } from '@tanstack/react-query';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
-import { useCreateCourse, courseKeys } from '../../hooks/admin/useCourseMutations';
+import { useCreateCourse, useDeleteCourse, courseKeys } from '../../hooks/admin/useCourseMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
+import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { CourseHolesEditor } from '../../components/admin/CourseHolesEditor';
 import type { Course, CourseDetail } from '../../types/api';
@@ -90,9 +91,10 @@ function AddCourseForm({ onSuccess, onCancel }: AddCourseFormProps) {
 
 interface CourseRowProps {
   course: Course;
+  onDelete: (course: Course) => void;
 }
 
-function CourseRow({ course }: CourseRowProps) {
+function CourseRow({ course, onDelete }: CourseRowProps) {
   const [expanded, setExpanded] = useState(false);
 
   const { data: detail, isLoading } = useQuery<CourseDetail>({
@@ -119,8 +121,21 @@ function CourseRow({ course }: CourseRowProps) {
             Rating: {course.rating} &nbsp;|&nbsp; Slope: {course.slope}
           </p>
         </div>
-        <div className="text-gray-400">
-          {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(course);
+            }}
+            title="Delete course"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <div className="text-gray-400">
+            {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </div>
         </div>
       </div>
 
@@ -145,12 +160,21 @@ function CourseRow({ course }: CourseRowProps) {
 
 export function CoursesPage() {
   const [addOpen, setAddOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Course | null>(null);
+
+  const deleteCourse = useDeleteCourse();
 
   const { data: coursesPage, isLoading, error } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
     queryFn: () => api.get('/courses').then((r) => r.data),
   });
   const courses = coursesPage?.data ?? [];
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deleteCourse.mutateAsync(String(deleteTarget.id));
+    setDeleteTarget(null);
+  }
 
   if (isLoading) {
     return (
@@ -175,7 +199,7 @@ export function CoursesPage() {
 
       <div className="space-y-3">
         {courses.map((c) => (
-          <CourseRow key={c.id} course={c} />
+          <CourseRow key={c.id} course={c} onDelete={setDeleteTarget} />
         ))}
         {courses.length === 0 && (
           <p className="text-sm text-gray-500">No courses yet.</p>
