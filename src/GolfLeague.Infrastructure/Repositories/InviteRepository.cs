@@ -34,7 +34,7 @@ public sealed class InviteRepository : IInviteRepository
 
     public async Task<bool> PendingInviteExistsForEmailAsync(string email, CancellationToken cancellationToken = default)
         => await _context.PlayerInvites
-            .AnyAsync(i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending, cancellationToken);
+            .AnyAsync(i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending && i.ExpiresAt > DateTime.UtcNow, cancellationToken);
 
     public async Task AddAsync(PlayerInvite invite, CancellationToken cancellationToken = default)
     {
