@@ -72,6 +72,7 @@ public abstract class BlobSyncedDbContext : DbContext
             (leaseClient, leaseId) = await AcquireLeaseAsync(_containerClient, _blobName, cancellationToken);
 
             // Refresh local DB from blob before writing so we have the latest state.
+            await Database.CloseConnectionAsync();
             await DownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
 
             // Reload entities from disk so EF doesn't apply stale tracked changes
@@ -84,6 +85,7 @@ public abstract class BlobSyncedDbContext : DbContext
 
             var result = await base.SaveChangesAsync(cancellationToken);
 
+            await Database.CloseConnectionAsync();
             await UploadToBlobAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
             return result;
         }
@@ -138,7 +140,10 @@ public abstract class BlobSyncedDbContext : DbContext
             var result = await operation();
 
             if (uploadAfter)
+            {
+                await Database.CloseConnectionAsync();
                 await UploadToBlobAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
+            }
 
             return result;
         }
