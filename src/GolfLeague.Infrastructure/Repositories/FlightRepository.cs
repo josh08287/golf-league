@@ -36,6 +36,15 @@ public sealed class FlightRepository : IFlightRepository
         }, uploadAfter: true, cancellationToken);
     }
 
+    public async Task AddHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default)
+    {
+        await _context.ExecuteWithBlobSyncAsync(async () =>
+        {
+            await _context.SeasonHalves.AddAsync(half, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, uploadAfter: true, cancellationToken);
+    }
+
     public async Task DeleteAsync(int flightId, CancellationToken cancellationToken = default)
     {
         await _context.ExecuteWithBlobSyncAsync(async () =>

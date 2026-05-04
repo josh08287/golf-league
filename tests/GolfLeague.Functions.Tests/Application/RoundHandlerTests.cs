@@ -232,7 +232,7 @@ public class CreateRoundCommandHandlerTests
     {
         var course = MakeCourse();
         var flight1 = MakeFlight();
-        var flight2 = new Flight { Id = 2, Name = "B Flight", SeasonId = 1, MinHandicap = 10, MaxHandicap = 18 };
+        var flight2 = new Flight { Id = 2, Name = "B Flight", SeasonId = 1 };
         var player1 = new Player { Id = 1, FirstName = "A", LastName = "One", IsActive = true };
         var player2 = new Player { Id = 2, FirstName = "B", LastName = "Two", IsActive = true };
 

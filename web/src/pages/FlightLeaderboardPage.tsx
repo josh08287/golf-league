@@ -95,7 +95,7 @@ export function FlightLeaderboardPage() {
           title={title}
           description={
             flightData
-              ? `Handicap ${flightData.minHandicap} – ${flightData.maxHandicap} · ${flightData.playerCount} players`
+              ? `${flightData.playerCount} players`
               : undefined
           }
         />

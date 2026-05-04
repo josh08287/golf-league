@@ -9,8 +9,6 @@ namespace GolfLeague.Application.Flights.Commands;
 public sealed record CreateFlightCommand(
     string Name,
     int? SeasonId,
-    double? MinHandicap,
-    double? MaxHandicap,
     int DisplayOrder,
     string UserId) : IRequest<Result<FlightDto>>, IAmAuditableCommand;
 
@@ -37,14 +35,12 @@ public sealed class CreateFlightCommandHandler : IRequestHandler<CreateFlightCom
         {
             Name = request.Name,
             SeasonId = seasonId.Value,
-            MinHandicap = request.MinHandicap,
-            MaxHandicap = request.MaxHandicap,
             DisplayOrder = request.DisplayOrder,
         };
 
         await _flightRepository.AddAsync(flight, cancellationToken);
 
-        var dto = new FlightDto(flight.Id, flight.SeasonId, flight.Name, flight.MinHandicap, flight.MaxHandicap, flight.DisplayOrder, 0);
+        var dto = new FlightDto(flight.Id, flight.SeasonId, flight.HalfId, flight.Name, flight.DisplayOrder, 0);
         return Result<FlightDto>.Ok(dto);
     }
 }

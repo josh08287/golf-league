@@ -23,16 +23,6 @@ import type { Flight } from '../../types/api';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  minHandicap: z
-    .number({ invalid_type_error: 'Enter a number' })
-    .min(-10)
-    .max(54)
-    .optional(),
-  maxHandicap: z
-    .number({ invalid_type_error: 'Enter a number' })
-    .min(-10)
-    .max(54)
-    .optional(),
   displayOrder: z.number({ invalid_type_error: 'Enter a number' }).int().min(0).default(0),
 });
 
@@ -71,27 +61,6 @@ function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
       <FormField label="Flight Name" error={errors.name} required>
         <input {...register('name')} className={inputClass} placeholder="A Flight" />
       </FormField>
-
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Min Handicap" error={errors.minHandicap}>
-          <input
-            {...register('minHandicap', { valueAsNumber: true })}
-            type="number"
-            step="0.1"
-            className={inputClass}
-            placeholder="e.g. 0"
-          />
-        </FormField>
-        <FormField label="Max Handicap" error={errors.maxHandicap}>
-          <input
-            {...register('maxHandicap', { valueAsNumber: true })}
-            type="number"
-            step="0.1"
-            className={inputClass}
-            placeholder="e.g. 18"
-          />
-        </FormField>
-      </div>
 
       <FormField label="Display Order" error={errors.displayOrder}>
         <input
@@ -132,13 +101,8 @@ function FlightCard({ flight, playerCount, onDelete }: FlightCardProps) {
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">{flight.name}</h3>
-          {(flight.minHandicap != null || flight.maxHandicap != null) && (
-            <p className="mt-0.5 text-xs text-gray-500">
-              Handicap:{' '}
-              {flight.minHandicap != null ? flight.minHandicap : '—'}
-              {' to '}
-              {flight.maxHandicap != null ? flight.maxHandicap : '—'}
-            </p>
+          {flight.halfId != null && (
+            <p className="mt-0.5 text-xs text-gray-500">Half #{flight.halfId}</p>
           )}
         </div>
         <div className="flex items-center gap-2">

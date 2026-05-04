@@ -11,5 +11,6 @@ public class Season
     public int? BestNRounds { get; set; }
 
     public ICollection<Flight> Flights { get; set; } = [];
+    public ICollection<SeasonHalf> Halves { get; set; } = [];
     public ICollection<Round> Rounds { get; set; } = [];
 }

@@ -89,7 +89,7 @@ export function HomePage() {
                     </Badge>
                   </div>
                   <CardDescription>
-                    Handicap {flight.minHandicap} – {flight.maxHandicap}
+                    {flight.playerCount} players
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

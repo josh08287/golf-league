@@ -40,7 +40,7 @@ public sealed class FlightFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
-            new CreateFlightCommand(body.Name, body.SeasonId, body.MinHandicap, body.MaxHandicap, body.DisplayOrder ?? 0, userId),
+            new CreateFlightCommand(body.Name, body.SeasonId, body.DisplayOrder ?? 0, userId),
             cancellationToken);
         return result.ToCreatedResult($"/api/v1/flights/{result.Value?.Id}");
     }
@@ -81,7 +81,5 @@ public sealed class FlightFunctions
     private sealed record CreateFlightRequest(
         string Name,
         int? SeasonId,
-        double? MinHandicap,
-        double? MaxHandicap,
         int? DisplayOrder);
 }

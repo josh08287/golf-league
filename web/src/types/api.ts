@@ -42,8 +42,7 @@ export interface Flight {
   id: number;
   name: string;
   seasonId: number;
-  minHandicap: number | null;
-  maxHandicap: number | null;
+  halfId: number | null;
   displayOrder: number;
   playerCount: number;
 }

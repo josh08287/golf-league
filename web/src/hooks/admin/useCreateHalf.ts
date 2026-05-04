@@ -1,7 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { roundKeys } from '@/hooks/useRounds';
-import type { CreateRoundPayload } from '@/hooks/admin/useRoundMutations';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -10,7 +9,6 @@ export interface CreateHalfPayload {
   numberOfRounds: number;
   frequency: 'weekly' | 'biweekly' | 'daily';
   courseId: number | string;
-  flightIds: number[];
   roundType: 'NineHole' | 'EighteenHole';
   nineHolePattern: 'Front' | 'Back' | 'Alternate'; // Alternate switches each round
   skipDates?: string[]; // ISO date strings to skip
@@ -77,25 +75,14 @@ export function useCreateHalf() {
   return useMutation({
     mutationFn: async (payload: CreateHalfPayload) => {
       const schedules = generateRoundDates(payload);
-
-      // Create rounds sequentially to avoid overwhelming the API
-      // Each round includes all selected flights - backend auto-populates participants
-      const results = [];
-      for (const schedule of schedules) {
-        const roundPayload: CreateRoundPayload = {
-          scheduledDate: schedule.scheduledDate,
-          courseId: payload.courseId,
-          flightIds: payload.flightIds, // All flights in one round
-          roundType: payload.roundType,
-          nineHoleSide: schedule.nineHoleSide,
-          // Players will be auto-selected by the backend based on flights
-        };
-
-        const result = await apiClient.post('/rounds', roundPayload);
-        results.push(result.data);
-      }
-
-      return results;
+      const result = await apiClient.post('/rounds/half', {
+        startDate: payload.startDate,
+        courseId: payload.courseId,
+        roundDates: schedules.map((s) => s.scheduledDate),
+        roundType: payload.roundType,
+        nineHoleSides: schedules.map((s) => s.nineHoleSide).filter(Boolean),
+      });
+      return result.data;
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.all });

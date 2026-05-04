@@ -15,7 +15,7 @@ public class CreateFlightCommandHandlerTests
     {
         var repo = new Mock<IFlightRepository>();
         var handler = new CreateFlightCommandHandler(repo.Object);
-        var cmd = new CreateFlightCommand("A Flight", 1, 0.0, 18.0, 1, "admin");
+        var cmd = new CreateFlightCommand("A Flight", 1, 1, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -31,7 +31,7 @@ public class CreateFlightCommandHandlerTests
         var repo = new Mock<IFlightRepository>();
         repo.Setup(r => r.GetActiveSeasonIdAsync(default)).ReturnsAsync((int?)null);
         var handler = new CreateFlightCommandHandler(repo.Object);
-        var cmd = new CreateFlightCommand("A Flight", null, null, null, 1, "admin");
+        var cmd = new CreateFlightCommand("A Flight", null, 1, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -45,7 +45,7 @@ public class CreateFlightCommandHandlerTests
         var repo = new Mock<IFlightRepository>();
         repo.Setup(r => r.GetActiveSeasonIdAsync(default)).ReturnsAsync(5);
         var handler = new CreateFlightCommandHandler(repo.Object);
-        var cmd = new CreateFlightCommand("A Flight", null, null, null, 1, "admin");
+        var cmd = new CreateFlightCommand("A Flight", null, 1, "admin");
 
         var result = await handler.Handle(cmd, default);
 
@@ -61,7 +61,7 @@ public class GetFlightsQueryHandlerTests
     {
         var flights = new List<Flight>
         {
-            new() { Id = 1, SeasonId = 1, Name = "A Flight", MinHandicap = 0, MaxHandicap = 18, DisplayOrder = 1, Memberships = [] }
+            new() { Id = 1, SeasonId = 1, Name = "A Flight", DisplayOrder = 1, Memberships = [] }
         };
         var repo = new Mock<IFlightRepository>();
         repo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(flights);

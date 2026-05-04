@@ -17,6 +17,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
     }
 
     public DbSet<Season> Seasons => Set<Season>();
+    public DbSet<SeasonHalf> SeasonHalves => Set<SeasonHalf>();
     public DbSet<Flight> Flights => Set<Flight>();
     public DbSet<Player> Players => Set<Player>();
     public DbSet<FlightMembership> FlightMemberships => Set<FlightMembership>();
@@ -34,6 +35,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
         base.OnModelCreating(modelBuilder);
 
         ConfigureSeasons(modelBuilder);
+        ConfigureSeasonHalves(modelBuilder);
         ConfigureFlights(modelBuilder);
         ConfigurePlayers(modelBuilder);
         ConfigureFlightMemberships(modelBuilder);
@@ -67,6 +69,24 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(s => s.Flights)
                   .HasForeignKey(e => e.SeasonId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Half)
+                  .WithMany(h => h.Flights)
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureSeasonHalves(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SeasonHalf>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.HasOne(e => e.Season)
+                  .WithMany(s => s.Halves)
+                  .HasForeignKey(e => e.SeasonId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.SeasonId, e.StartDate });
         });
     }
 
@@ -100,7 +120,12 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany()
                   .HasForeignKey(e => e.SeasonId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Half)
+                  .WithMany()
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => new { e.PlayerId, e.SeasonId });
+            entity.HasIndex(e => new { e.PlayerId, e.HalfId });
         });
     }
 
@@ -173,6 +198,10 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(s => s.Rounds)
                   .HasForeignKey(e => e.SeasonId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Half)
+                  .WithMany(h => h.Rounds)
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Flight)
                   .WithMany(f => f.Rounds)
                   .HasForeignKey(e => e.FlightId)

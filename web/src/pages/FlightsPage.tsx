@@ -24,7 +24,7 @@ export function FlightsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Flights"
-        description="Competition groups organised by handicap range."
+        description="Competition groups created for each half based on starting handicaps."
       />
 
       {isPending && <FullPageSpinner />}
@@ -53,7 +53,7 @@ export function FlightsPage() {
                   </Badge>
                 </div>
                 <CardDescription>
-                  Handicap range: {flight.minHandicap} &ndash; {flight.maxHandicap}
+                  {flight.playerCount} players
                 </CardDescription>
               </CardHeader>
               <CardContent className="mt-auto pt-0">

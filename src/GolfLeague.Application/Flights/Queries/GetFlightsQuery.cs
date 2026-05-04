@@ -23,9 +23,8 @@ public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Re
         var dtos = flights.Select(f => new FlightDto(
             f.Id,
             f.SeasonId,
+            f.HalfId,
             f.Name,
-            f.MinHandicap,
-            f.MaxHandicap,
             f.DisplayOrder,
             f.Memberships.Count
         )).ToList();

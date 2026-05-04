@@ -25,12 +25,10 @@ public class DtoPropertyTests
     [Fact]
     public void FlightDto_AllPropertiesAccessible()
     {
-        var dto = new FlightDto(1, 2, "B Flight", 5.0, 18.0, 2, 10);
+        var dto = new FlightDto(1, 2, null, "B Flight", 2, 10);
         dto.Id.Should().Be(1);
         dto.SeasonId.Should().Be(2);
         dto.Name.Should().Be("B Flight");
-        dto.MinHandicap.Should().Be(5.0);
-        dto.MaxHandicap.Should().Be(18.0);
         dto.DisplayOrder.Should().Be(2);
         dto.PlayerCount.Should().Be(10);
     }

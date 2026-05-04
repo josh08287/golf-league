@@ -90,6 +90,40 @@ public sealed class RoundFunctions
         return result.ToCreatedResult($"/api/v1/rounds/{result.Value?.Id}");
     }
 
+    [Function("CreateHalf")]
+    public async Task<IActionResult> CreateHalf(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/half")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var body = await req.TryDeserializeAsync<CreateHalfRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        int seasonId = body.SeasonId ?? 0;
+        if (seasonId == 0)
+        {
+            var activeSeasonId = await _flightRepository.GetActiveSeasonIdAsync(cancellationToken);
+            if (activeSeasonId is null)
+                return new BadRequestObjectResult(new { error = "No active season found. Please specify a seasonId." });
+            seasonId = activeSeasonId.Value;
+        }
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new CreateHalfCommand(
+            seasonId,
+            body.CourseId,
+            body.ResolvedStartDate,
+            body.ResolvedRoundDates,
+            userId,
+            body.ResolvedRoundType,
+            body.ResolvedNineHoleSides), cancellationToken);
+
+        return result.ToCreatedResult("/api/v1/rounds/half");
+    }
+
     [Function("GetPlayerScorecard")]
     public async Task<IActionResult> GetPlayerScorecard(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{id}/scores/{playerId}")] HttpRequest req,
@@ -225,6 +259,32 @@ public sealed class RoundFunctions
             "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
             _ => Domain.Enums.NineHoleSide.Front
         };
+    }
+
+    private sealed record CreateHalfRequest(
+        int? SeasonId,
+        int CourseId,
+        string StartDate,
+        List<string> RoundDates,
+        string? RoundType,
+        List<string>? NineHoleSides)
+    {
+        public DateOnly ResolvedStartDate => DateOnly.Parse(StartDate);
+        public List<DateOnly> ResolvedRoundDates => RoundDates.Select(DateOnly.Parse).ToList();
+
+        public Domain.Enums.RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
+        {
+            "eighteenhole" or "18" or "18hole" => Domain.Enums.RoundType.EighteenHole,
+            _ => Domain.Enums.RoundType.NineHole
+        };
+
+        public List<Domain.Enums.NineHoleSide> ResolvedNineHoleSides => NineHoleSides?
+            .Select(side => side.ToLowerInvariant() switch
+            {
+                "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
+                _ => Domain.Enums.NineHoleSide.Front
+            })
+            .ToList() ?? [];
     }
 
     private sealed record HoleScoreInputDto(int HoleNumber, int? GrossStrokes, int? GrossScore)

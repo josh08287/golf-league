@@ -19,7 +19,7 @@ namespace GolfLeague.Tests;
 public class FlightFunctionsTests
 {
     private static FlightDto MakeFlightDto(int id = 1) =>
-        new(id, 1, "A Flight", 0, 18, 1, 0);
+        new(id, 1, null, "A Flight", 0, 0);
 
     private static HttpRequest MakeRequest(string? body = null, string? role = null)
     {

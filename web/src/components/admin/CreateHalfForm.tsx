@@ -3,11 +3,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useFlights } from '../../hooks/useFlights';
 import { useCreateHalf } from '../../hooks/admin/useCreateHalf';
 import { api } from '../../lib/api';
 import { Button } from '../ui/Button';
-import { FormField, inputClass, selectClass, checkboxClass } from './FormField';
+import { FormField, inputClass, selectClass } from './FormField';
 import type { Course } from '../../types/api';
 import { Calendar, X, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -46,8 +45,6 @@ const NINE_HOLE_PATTERNS = [
 
 export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   const createHalf = useCreateHalf();
-  const { data: flightsPage } = useFlights();
-  const flights = flightsPage?.data ?? [];
 
   const { data: coursesPage } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
@@ -55,7 +52,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   });
   const courses = coursesPage?.data ?? [];
 
-  const [selectedFlightIds, setSelectedFlightIds] = useState<Set<number>>(new Set());
   const [skipDates, setSkipDates] = useState<Set<string>>(new Set());
   const [showPreview, setShowPreview] = useState(false);
 
@@ -77,11 +73,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   });
 
   const watchedValues = useWatch({ control });
-
-  // Select all flights by default on first load
-  if (selectedFlightIds.size === 0 && flights.length > 0) {
-    setSelectedFlightIds(new Set(flights.map((f) => f.id)));
-  }
 
   const generatedSchedule = useMemo(() => {
     if (!watchedValues.startDate || !watchedValues.numberOfRounds) return [];
@@ -135,22 +126,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
     return dates;
   }, [watchedValues, skipDates]);
 
-  function toggleFlight(id: number) {
-    setSelectedFlightIds((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  }
-
-  function selectAllFlights() {
-    setSelectedFlightIds(new Set(flights.map((f) => f.id)));
-  }
-
-  function selectNoFlights() {
-    setSelectedFlightIds(new Set());
-  }
-
   function addSkipDate(date: string) {
     setSkipDates((prev) => new Set([...prev, date]));
   }
@@ -169,7 +144,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
       numberOfRounds: values.numberOfRounds,
       frequency: values.frequency,
       courseId: Number(values.courseId),
-      flightIds: Array.from(selectedFlightIds),
       roundType: values.roundType,
       nineHolePattern: values.nineHolePattern,
       skipDates: Array.from(skipDates),
@@ -250,44 +224,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
               ))}
             </select>
           </FormField>
-        )}
-      </div>
-
-      {/* Flights Selection */}
-      <div>
-        <div className="mb-1.5 flex items-center justify-between">
-          <label className="text-sm font-medium text-gray-700">
-            Flights{' '}
-            <span className="font-normal text-gray-400">({selectedFlightIds.size} selected)</span>
-          </label>
-          <div className="flex gap-2 text-xs">
-            <button type="button" onClick={selectAllFlights} className="text-[#1B5E20] hover:underline">
-              All
-            </button>
-            <button type="button" onClick={selectNoFlights} className="text-gray-400 hover:underline">
-              None
-            </button>
-          </div>
-        </div>
-        {flights.length === 0 ? (
-          <p className="text-sm text-gray-400">No flights available.</p>
-        ) : (
-          <div className="max-h-32 overflow-y-auto rounded-lg border border-gray-200 divide-y divide-gray-100">
-            {flights.map((f) => (
-              <label
-                key={f.id}
-                className="flex cursor-pointer items-center gap-3 px-3 py-2 hover:bg-gray-50"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedFlightIds.has(f.id)}
-                  onChange={() => toggleFlight(f.id)}
-                  className={checkboxClass}
-                />
-                <span className="text-sm text-gray-800">{f.name}</span>
-              </label>
-            ))}
-          </div>
         )}
       </div>
 
@@ -391,7 +327,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         <Button
           type="submit"
           variant="primary"
-          disabled={isSubmitting || createHalf.isPending || selectedFlightIds.size === 0}
+          disabled={isSubmitting || createHalf.isPending || generatedSchedule.length === 0}
         >
           Create {generatedSchedule.length} Round{generatedSchedule.length === 1 ? '' : 's'}
         </Button>
