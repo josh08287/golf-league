@@ -27,6 +27,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<PlayerRegistration> PlayerRegistrations => Set<PlayerRegistration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -43,6 +44,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
         ConfigureRoundParticipants(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
+        ConfigurePlayerRegistrations(modelBuilder);
     }
 
     private static void ConfigureSeasons(ModelBuilder modelBuilder)
@@ -226,6 +228,31 @@ public sealed class AppDbContext : BlobSyncedDbContext
             entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.EntityId).IsRequired().HasMaxLength(50);
             entity.Property(e => e.UserId).IsRequired().HasMaxLength(36);
+        });
+    }
+
+    private static void ConfigurePlayerRegistrations(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlayerRegistration>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.EntraObjectId).IsRequired().HasMaxLength(36);
+            entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.Phone).HasMaxLength(30);
+            entity.Property(e => e.RejectionReason).HasMaxLength(500);
+            entity.Property(e => e.ReviewedByUserId).HasMaxLength(36);
+            entity.Property(e => e.Status)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<RegistrationStatus>(v))
+                  .HasMaxLength(20);
+            entity.HasIndex(e => e.EntraObjectId);
+            entity.HasOne(e => e.Player)
+                  .WithMany()
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 }

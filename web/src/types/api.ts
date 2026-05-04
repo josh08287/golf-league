@@ -126,6 +126,30 @@ export interface CourseDetail extends Course {
   holeDetails: CourseHole[];
 }
 
+export type RegistrationStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface Registration {
+  id: number;
+  entraObjectId: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string | null;
+  status: RegistrationStatus;
+  requestedAt: string;
+  reviewedAt: string | null;
+  rejectionReason: string | null;
+  playerId: number | null;
+}
+
+export type MyStatus = 'none' | 'pending' | 'approved' | 'rejected';
+
+export interface MyStatusResponse {
+  status: MyStatus;
+  playerId: number | null;
+  rejectionReason: string | null;
+}
+
 export interface Season {
   id: number;
   name: string;

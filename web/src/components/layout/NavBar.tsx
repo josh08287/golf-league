@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, User } from 'lucide-react';
-import { useMsal } from '@azure/msal-react';
+import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useAuthStore } from '@/store/authStore';
+import { usePendingRegistrations } from '@/hooks/admin/useRegistrations';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
@@ -17,6 +18,11 @@ export function NavBar() {
   const { instance } = useMsal();
   const { user, clearUser } = useAuthStore();
   const navigate = useNavigate();
+  const isAuthenticated = useIsAuthenticated();
+
+  // Only fetch pending count when admin is logged in
+  const { data: pendingRegistrations } = usePendingRegistrations();
+  const pendingCount = user?.role === 'admin' ? (pendingRegistrations?.length ?? 0) : 0;
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -56,7 +62,14 @@ export function NavBar() {
         <nav className="hidden md:flex items-center gap-6">
           {links.map((link) => (
             <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === '/'}>
-              {link.label}
+              <span className="relative">
+                {link.label}
+                {link.to === '/admin' && pendingCount > 0 && (
+                  <span className="absolute -right-4 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                    {pendingCount}
+                  </span>
+                )}
+              </span>
             </NavLink>
           ))}
         </nav>
@@ -75,9 +88,16 @@ export function NavBar() {
               </Button>
             </div>
           ) : (
-            <Button size="sm" onClick={handleLogin}>
-              Sign in
-            </Button>
+            <div className="flex items-center gap-2">
+              {!isAuthenticated && (
+                <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
+                  Join League
+                </Button>
+              )}
+              <Button size="sm" onClick={handleLogin}>
+                Sign in
+              </Button>
+            </div>
           )}
         </div>
 

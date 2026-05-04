@@ -8,6 +8,7 @@ import { RoundsPage } from '@/pages/RoundsPage';
 import { RoundDetailPage } from '@/pages/RoundDetailPage';
 import { PlayerProfilePage } from '@/pages/PlayerProfilePage';
 import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
 export default function App() {
@@ -22,6 +23,7 @@ export default function App() {
           <Route path="rounds/:roundId" element={<RoundDetailPage />} />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
           <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
           {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
