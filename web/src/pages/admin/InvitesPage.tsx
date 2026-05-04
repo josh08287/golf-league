@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
-import { Link2, Send, Copy, Check, UserX } from 'lucide-react';
-import { useInvites, useCreateInvites, useRevokeInvite } from '@/hooks/admin/useInvites';
+import { Link2, Send, Copy, Check, UserX, Trash2 } from 'lucide-react';
+import { useInvites, useCreateInvites, useRevokeInvite, useDeleteInvite } from '@/hooks/admin/useInvites';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -167,17 +167,26 @@ function CopyLinkButton({ link }: { link: string }) {
 export function InvitesPage() {
   const { data: invites = [], isLoading, error } = useInvites();
   const revoke = useRevokeInvite();
+  const deleteInvite = useDeleteInvite();
   const [revokeTarget, setRevokeTarget] = useState<Invite | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Invite | null>(null);
   const [showForm, setShowForm] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
-  const pending = invites.filter((i) => i.status === 'Pending');
+  const pending = invites.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) >= new Date());
+  const expired = invites.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) < new Date());
   const others = invites.filter((i) => i.status !== 'Pending');
 
   async function handleRevoke() {
     if (!revokeTarget) return;
     await revoke.mutateAsync(revokeTarget.id);
     setRevokeTarget(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    await deleteInvite.mutateAsync(deleteTarget.id);
+    setDeleteTarget(null);
   }
 
   if (isLoading) return <div className="flex h-64 items-center justify-center"><Spinner /></div>;
@@ -210,7 +219,19 @@ export function InvitesPage() {
         </section>
       )}
 
-      {pending.length === 0 && others.length === 0 && (
+      {/* Expired invites */}
+      {expired.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold text-gray-500 uppercase tracking-wide">Expired ({expired.length})</h2>
+          <div className="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
+            {expired.map((invite) => (
+              <InviteRow key={invite.id} invite={invite} onDelete={() => setDeleteTarget(invite)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {pending.length === 0 && expired.length === 0 && others.length === 0 && (
         <div className="rounded-xl border border-dashed border-gray-300 bg-white p-12 text-center text-gray-400 text-sm">
           No invites yet. Click "Send Invite" to get started.
         </div>
@@ -222,7 +243,7 @@ export function InvitesPage() {
           <h2 className="mb-2 text-sm font-semibold text-gray-500 uppercase tracking-wide">History</h2>
           <div className="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
             {others.map((invite) => (
-              <InviteRow key={invite.id} invite={invite} />
+              <InviteRow key={invite.id} invite={invite} onDelete={() => setDeleteTarget(invite)} />
             ))}
           </div>
         </section>
@@ -237,11 +258,21 @@ export function InvitesPage() {
         onConfirm={() => void handleRevoke()}
         onCancel={() => setRevokeTarget(null)}
       />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="Delete Invite"
+        description={`Delete the invite record for ${deleteTarget?.email}? This will allow them to be invited again.`}
+        confirmLabel="Delete"
+        destructive
+        onConfirm={() => void handleDelete()}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
 
-function InviteRow({ invite, onRevoke }: { invite: Invite; onRevoke?: () => void }) {
+function InviteRow({ invite, onRevoke, onDelete }: { invite: Invite; onRevoke?: () => void; onDelete?: () => void }) {
   const created = new Date(invite.createdAt).toLocaleDateString();
   const expires = new Date(invite.expiresAt).toLocaleDateString();
   const isExpired = invite.status === 'Pending' && new Date(invite.expiresAt) < new Date();
@@ -271,6 +302,12 @@ function InviteRow({ invite, onRevoke }: { invite: Invite; onRevoke?: () => void
           <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={onRevoke}>
             <UserX className="mr-1 h-3.5 w-3.5" />
             Revoke
+          </Button>
+        )}
+        {(isExpired || invite.status !== 'Pending') && onDelete && (
+          <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={onDelete}>
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            Delete
           </Button>
         )}
       </div>

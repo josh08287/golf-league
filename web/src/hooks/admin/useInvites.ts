@@ -42,3 +42,14 @@ export function useRevokeInvite() {
     },
   });
 }
+
+export function useDeleteInvite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      apiClient.delete(`/admin/invites/${id}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: inviteKeys.all });
+    },
+  });
+}

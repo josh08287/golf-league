@@ -53,4 +53,10 @@ public sealed class InviteRepository : IInviteRepository
         _context.PlayerInvites.Update(invite);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task DeleteAsync(PlayerInvite invite, CancellationToken cancellationToken = default)
+    {
+        _context.PlayerInvites.Remove(invite);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

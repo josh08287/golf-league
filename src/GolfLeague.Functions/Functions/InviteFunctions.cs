@@ -70,6 +70,24 @@ public sealed class InviteFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>DELETE /v1/admin/invites/{id} — delete an accepted, revoked, or expired invite (admin only)</summary>
+    [Function("DeleteInvite")]
+    public async Task<IActionResult> DeleteInvite(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/admin/invites/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var inviteId))
+            return new BadRequestObjectResult(new { error = "Invalid invite ID." });
+
+        var adminUserId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteInviteCommand(inviteId, adminUserId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     /// <summary>GET /v1/invites/{token} — fetch invite details by token (public — used by accept page)</summary>
     [Function("GetInviteByToken")]
     public async Task<IActionResult> GetInviteByToken(

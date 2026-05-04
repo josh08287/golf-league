@@ -13,4 +13,5 @@ public interface IInviteRepository
     Task AddAsync(PlayerInvite invite, CancellationToken cancellationToken = default);
     Task AddRangeAsync(IEnumerable<PlayerInvite> invites, CancellationToken cancellationToken = default);
     Task UpdateAsync(PlayerInvite invite, CancellationToken cancellationToken = default);
+    Task DeleteAsync(PlayerInvite invite, CancellationToken cancellationToken = default);
 }
