@@ -13,15 +13,15 @@ final _router = GoRouter(
   routes: [
     GoRoute(
       path: '/splash',
-      builder: (_, __) => const _SplashScreen(),
+      builder: (_, _) => const _SplashScreen(),
     ),
     GoRoute(
       path: '/login',
-      builder: (_, __) => const LoginScreen(),
+      builder: (_, _) => const LoginScreen(),
     ),
     GoRoute(
       path: '/register',
-      builder: (_, __) => const RegisterScreen(),
+      builder: (_, _) => const RegisterScreen(),
     ),
     GoRoute(
       path: '/',
