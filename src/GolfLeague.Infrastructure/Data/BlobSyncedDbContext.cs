@@ -251,7 +251,11 @@ public abstract class BlobSyncedDbContext : DbContext
         try
         {
             // Copy to a temp file so we hold no lock on the live DB during upload.
-            File.Copy(localFilePath, tempPath, overwrite: true);
+            await using (var source = new FileStream(localFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            await using (var destination = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+            {
+                await source.CopyToAsync(destination, cancellationToken);
+            }
 
             var blobClient = containerClient.GetBlobClient(blobName);
             var conditions = leaseId is null ? null : new BlobRequestConditions { LeaseId = leaseId };

@@ -87,7 +87,8 @@
       "PowerShell(Get-Content \"C:\\\\Users\\\\JOSHBL~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--projects-golf-league\\\\f7cae07b-1b10-40ba-bc3d-952414979bd2\\\\tasks\\\\bm6qh75c2.output\" | Select-String \"flutter:|Error|error|exception|Exception\" | Select-Object -First 20 | ForEach-Object { $_.ToString\\(\\) })",
       "Bash(curl -s \"https://raw.githubusercontent.com/subosito/flutter-action/v2/action.yml\")",
       "Bash(git rm *)",
-      "Bash(dotnet ef *)"
+      "Bash(dotnet ef *)",
+      "Bash(dotnet add *)"
     ]
   }
 }

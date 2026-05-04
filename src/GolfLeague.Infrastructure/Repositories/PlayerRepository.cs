@@ -61,9 +61,13 @@ public sealed class PlayerRepository : IPlayerRepository
     {
         await _context.ExecuteWithBlobSyncAsync(async () =>
         {
-            var player = await _context.Players.FindAsync([playerId], cancellationToken);
+            var player = await _context.Players
+                .Include(p => p.RoundParticipants)
+                    .ThenInclude(rp => rp.HoleScores)
+                .FirstOrDefaultAsync(p => p.Id == playerId, cancellationToken);
             if (player is not null)
             {
+                _context.RoundParticipants.RemoveRange(player.RoundParticipants);
                 _context.Players.Remove(player);
                 await _context.SaveChangesAsync(cancellationToken);
             }

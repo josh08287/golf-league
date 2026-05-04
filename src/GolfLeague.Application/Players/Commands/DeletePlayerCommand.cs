@@ -23,8 +23,7 @@ public sealed class DeletePlayerCommandHandler : IRequestHandler<DeletePlayerCom
         if (player is null)
             return Result<bool>.Fail($"Player with ID {request.Id} not found.");
 
-        player.IsActive = false;
-        await _playerRepository.UpdateAsync(player, cancellationToken);
+        await _playerRepository.DeleteAsync(request.Id, cancellationToken);
         return Result<bool>.Ok(true);
     }
 }
