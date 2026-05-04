@@ -30,11 +30,13 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
 {
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
+    private readonly IEmailService _emailService;
 
-    public CreateInvitesCommandHandler(IInviteRepository inviteRepo, IPlayerRepository playerRepo)
+    public CreateInvitesCommandHandler(IInviteRepository inviteRepo, IPlayerRepository playerRepo, IEmailService emailService)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
+        _emailService = emailService;
     }
 
     public async Task<Result<CreateInvitesResult>> Handle(CreateInvitesCommand request, CancellationToken cancellationToken)
@@ -81,6 +83,9 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
         var dtos = created
             .Select(i => GetInvitesQueryHandler.ToDto(i, request.BaseUrl))
             .ToList();
+
+        foreach (var invite in dtos)
+            await _emailService.SendInviteAsync(invite.Email, invite.InviteLink, invite.ExpiresAt, cancellationToken);
 
         return Result<CreateInvitesResult>.Ok(new CreateInvitesResult(dtos, skipped));
     }

@@ -1,11 +1,15 @@
+using Azure.Communication.Email;
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using GolfLeague.Application.Common;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
+using GolfLeague.Infrastructure.Email;
 using GolfLeague.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Infrastructure;
 
@@ -53,6 +57,22 @@ public static class DependencyInjection
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
+
+        var acsConnectionString = configuration["ACS_CONNECTION_STRING"];
+        var acsSenderAddress = configuration["ACS_SENDER_ADDRESS"];
+        if (!string.IsNullOrWhiteSpace(acsConnectionString) && !string.IsNullOrWhiteSpace(acsSenderAddress))
+        {
+            var emailClient = new EmailClient(acsConnectionString);
+            services.AddSingleton(sp => new AzureCommunicationEmailService(
+                emailClient,
+                acsSenderAddress,
+                sp.GetRequiredService<ILogger<AzureCommunicationEmailService>>()));
+            services.AddSingleton<IEmailService>(sp => sp.GetRequiredService<AzureCommunicationEmailService>());
+        }
+        else
+        {
+            services.AddSingleton<IEmailService, NoOpEmailService>();
+        }
 
         return services;
     }

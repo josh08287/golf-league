@@ -7,6 +7,9 @@
     "ENTRA_CLIENT_ID": "",
     "BLOB_STORAGE_ACCOUNT": "",
     "SQLITE_BLOB_CONTAINER": "golf-league-db",
-    "SQLITE_BLOB_NAME": "golf-league.db"
+    "SQLITE_BLOB_NAME": "golf-league.db",
+    "WEB_BASE_URL": "http://localhost:5173",
+    "ACS_CONNECTION_STRING": "",
+    "ACS_SENDER_ADDRESS": ""
   }
 }
