@@ -16,58 +16,64 @@ public sealed class FlightRepository : IFlightRepository
     }
 
     public async Task<Flight?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        => await _context.Flights
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
             .Include(f => f.Season)
-            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
+            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetAllAsync(CancellationToken cancellationToken = default)
-        => await _context.Flights
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
             .Include(f => f.Season)
             .Include(f => f.Memberships)
             .OrderBy(f => f.DisplayOrder)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task AddAsync(Flight flight, CancellationToken cancellationToken = default)
     {
-        await _context.Flights.AddAsync(flight, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.ExecuteWithBlobSyncAsync(async () =>
+        {
+            await _context.Flights.AddAsync(flight, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, uploadAfter: true, cancellationToken);
     }
 
     public async Task DeleteAsync(int flightId, CancellationToken cancellationToken = default)
     {
-        var flight = await _context.Flights.FindAsync([flightId], cancellationToken);
-        if (flight is not null)
+        await _context.ExecuteWithBlobSyncAsync(async () =>
         {
-            _context.Flights.Remove(flight);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+            var flight = await _context.Flights.FindAsync([flightId], cancellationToken);
+            if (flight is not null)
+            {
+                _context.Flights.Remove(flight);
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+        }, uploadAfter: true, cancellationToken);
     }
 
     public async Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default)
-        => await _context.Seasons
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Seasons
             .Where(s => s.IsActive)
             .Select(s => (int?)s.Id)
-            .FirstOrDefaultAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
-        => await _context.Flights
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
             .Where(f => f.SeasonId == seasonId)
             .OrderBy(f => f.DisplayOrder)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<FlightMembership>> GetMembershipsAsync(
         int flightId,
         CancellationToken cancellationToken = default)
-        => await _context.FlightMemberships
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.FlightMemberships
             .Where(fm => fm.FlightId == flightId)
             .Include(fm => fm.Player)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(
         int flightId,
         int seasonId,
         CancellationToken cancellationToken = default)
-        => await _context.RoundParticipants
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.RoundParticipants
             .Include(rp => rp.Player)
             .Include(rp => rp.Round)
             .Where(rp =>
@@ -76,5 +82,5 @@ public sealed class FlightRepository : IFlightRepository
                 rp.Round.Status == RoundStatus.Finalized &&
                 !rp.IsWithdrawn)
             .OrderBy(rp => rp.PlayerId)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 }
