@@ -73,7 +73,7 @@ public abstract class BlobSyncedDbContext : DbContext
 
             // Refresh local DB from blob before writing so we have the latest state.
             await Database.CloseConnectionAsync();
-            await DownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
+            await TryDownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
 
             // Reload entities from disk so EF doesn't apply stale tracked changes
             // on top of refreshed-from-blob data. (We re-attach the pending changes
@@ -132,7 +132,7 @@ public abstract class BlobSyncedDbContext : DbContext
         {
             (leaseClient, leaseId) = await AcquireLeaseAsync(_containerClient, _blobName, cancellationToken);
             await Database.CloseConnectionAsync();
-            await DownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
+            await TryDownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
 
             ChangeTracker.Clear();
             _syncScopeActive.Value = true;
@@ -219,6 +219,22 @@ public abstract class BlobSyncedDbContext : DbContext
 
         var conditions = new BlobRequestConditions { LeaseId = leaseId };
         await blobClient.DownloadToAsync(localFilePath, conditions: conditions, transferOptions: default, cancellationToken: cancellationToken);
+    }
+
+    private static async Task TryDownloadLatestAsync(
+        BlobContainerClient containerClient,
+        string localFilePath,
+        string blobName,
+        string leaseId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await DownloadLatestAsync(containerClient, localFilePath, blobName, leaseId, cancellationToken);
+        }
+        catch (IOException) when (File.Exists(localFilePath))
+        {
+        }
     }
 
     private static async Task UploadToBlobAsync(
