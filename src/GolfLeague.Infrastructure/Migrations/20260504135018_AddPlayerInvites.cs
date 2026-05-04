@@ -6,34 +6,32 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GolfLeague.Infrastructure.Migrations
 {
     /// <inheritdoc />
-    public partial class AddPlayerRegistrations : Migration
+    public partial class AddPlayerInvites : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.CreateTable(
-                name: "PlayerRegistrations",
+                name: "PlayerInvites",
                 columns: table => new
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
-                    EntraObjectId = table.Column<string>(type: "TEXT", maxLength: 36, nullable: false),
-                    FirstName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
-                    LastName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: false),
                     Email = table.Column<string>(type: "TEXT", maxLength: 256, nullable: false),
-                    Phone = table.Column<string>(type: "TEXT", maxLength: 30, nullable: true),
+                    Token = table.Column<string>(type: "TEXT", maxLength: 64, nullable: false),
                     Status = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false),
-                    RequestedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
-                    ReviewedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    ReviewedByUserId = table.Column<string>(type: "TEXT", maxLength: 36, nullable: true),
-                    RejectionReason = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    ExpiresAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    InvitedByUserId = table.Column<string>(type: "TEXT", maxLength: 36, nullable: false),
+                    AcceptedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    AcceptedByEntraObjectId = table.Column<string>(type: "TEXT", maxLength: 36, nullable: true),
                     PlayerId = table.Column<int>(type: "INTEGER", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_PlayerRegistrations", x => x.Id);
+                    table.PrimaryKey("PK_PlayerInvites", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_PlayerRegistrations_Players_PlayerId",
+                        name: "FK_PlayerInvites_Players_PlayerId",
                         column: x => x.PlayerId,
                         principalTable: "Players",
                         principalColumn: "Id",
@@ -41,21 +39,27 @@ namespace GolfLeague.Infrastructure.Migrations
                 });
 
             migrationBuilder.CreateIndex(
-                name: "IX_PlayerRegistrations_EntraObjectId",
-                table: "PlayerRegistrations",
-                column: "EntraObjectId");
+                name: "IX_PlayerInvites_Email",
+                table: "PlayerInvites",
+                column: "Email");
 
             migrationBuilder.CreateIndex(
-                name: "IX_PlayerRegistrations_PlayerId",
-                table: "PlayerRegistrations",
+                name: "IX_PlayerInvites_PlayerId",
+                table: "PlayerInvites",
                 column: "PlayerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_PlayerInvites_Token",
+                table: "PlayerInvites",
+                column: "Token",
+                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "PlayerRegistrations");
+                name: "PlayerInvites");
         }
     }
 }

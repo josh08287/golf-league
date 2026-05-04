@@ -12,7 +12,6 @@ import { Modal } from '../../components/admin/Modal';
 import { AddPlayerForm } from '../../components/admin/AddPlayerForm';
 import { useDeactivatePlayer, useDeletePlayer } from '../../hooks/admin/usePlayerMutations';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
-import { JoinRequestsPanel } from '../../components/admin/JoinRequestsPanel';
 import type { Player } from '../../types/api';
 
 export function PlayersPage() {
@@ -136,8 +135,6 @@ export function PlayersPage() {
           Add Player
         </Button>
       </PageHeader>
-
-      <JoinRequestsPanel />
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
         <DataTable

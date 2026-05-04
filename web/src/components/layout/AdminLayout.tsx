@@ -9,6 +9,7 @@ import {
   ClipboardList,
   LogOut,
   Trophy,
+  Mail,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -22,6 +23,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/players', label: 'Players', icon: Users },
+  { to: '/admin/invites', label: 'Invites', icon: Mail },
   { to: '/admin/flights', label: 'Flights', icon: Trophy },
   { to: '/admin/rounds', label: 'Rounds', icon: CalendarDays },
   { to: '/admin/courses', label: 'Courses', icon: MapPin },

@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'auth/auth_providers.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/login_screen.dart';
-import 'screens/register_screen.dart';
+import 'screens/not_invited_screen.dart';
 import 'screens/round_detail_screen.dart';
 
 final _router = GoRouter(
@@ -20,8 +20,8 @@ final _router = GoRouter(
       builder: (_, _) => const LoginScreen(),
     ),
     GoRoute(
-      path: '/register',
-      builder: (_, _) => const RegisterScreen(),
+      path: '/not-invited',
+      builder: (_, _) => const NotInvitedScreen(),
     ),
     GoRoute(
       path: '/',
@@ -99,11 +99,8 @@ class _SplashScreenState extends ConsumerState<_SplashScreen> {
       case 'approved':
         context.go('/');
       case 'none':
-      case 'pending':
-      case 'rejected':
-        context.go('/register');
       default:
-        context.go('/login');
+        context.go('/not-invited');
     }
   }
 

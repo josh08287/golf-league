@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import { InteractionStatus } from '@azure/msal-browser';
 import { useAuthStore, type UserRole } from '@/store/authStore';
-import { useMyStatus } from '@/hooks/useMyStatus';
 import { NavBar } from './NavBar';
 
 /**
@@ -23,9 +22,6 @@ export function RootLayout() {
   const isAuthenticated = useIsAuthenticated();
   const { accounts, inProgress } = useMsal();
   const { setUser, clearUser } = useAuthStore();
-  const { data: myStatus } = useMyStatus();
-  const navigate = useNavigate();
-  const location = useLocation();
 
   useEffect(() => {
     if (inProgress !== InteractionStatus.None) return;
@@ -34,7 +30,6 @@ export function RootLayout() {
       const account = accounts[0];
       const idTokenClaims = account.idTokenClaims as Record<string, unknown> | undefined;
 
-      // Claims may come directly from idTokenClaims or need decoding from idToken
       const claims: Record<string, unknown> =
         idTokenClaims ?? (account.idToken ? decodeTokenPayload(account.idToken) : {});
 
@@ -52,20 +47,6 @@ export function RootLayout() {
       clearUser();
     }
   }, [isAuthenticated, accounts, inProgress, setUser, clearUser]);
-
-  // After authentication is settled, redirect users who haven't joined yet
-  useEffect(() => {
-    if (!isAuthenticated || inProgress !== InteractionStatus.None) return;
-    if (!myStatus) return;
-
-    const onRegisterOrLoginPage =
-      location.pathname === '/register' || location.pathname === '/login';
-
-    if ((myStatus.status === 'none' || myStatus.status === 'pending' || myStatus.status === 'rejected') &&
-        !onRegisterOrLoginPage) {
-      navigate('/register', { replace: true });
-    }
-  }, [isAuthenticated, inProgress, myStatus, location.pathname, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">

@@ -27,7 +27,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
-    public DbSet<PlayerRegistration> PlayerRegistrations => Set<PlayerRegistration>();
+    public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,7 +44,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
         ConfigureRoundParticipants(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
-        ConfigurePlayerRegistrations(modelBuilder);
+        ConfigurePlayerInvites(modelBuilder);
     }
 
     private static void ConfigureSeasons(ModelBuilder modelBuilder)
@@ -231,24 +231,22 @@ public sealed class AppDbContext : BlobSyncedDbContext
         });
     }
 
-    private static void ConfigurePlayerRegistrations(ModelBuilder modelBuilder)
+    private static void ConfigurePlayerInvites(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<PlayerRegistration>(entity =>
+        modelBuilder.Entity<PlayerInvite>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.EntraObjectId).IsRequired().HasMaxLength(36);
-            entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
-            entity.Property(e => e.Phone).HasMaxLength(30);
-            entity.Property(e => e.RejectionReason).HasMaxLength(500);
-            entity.Property(e => e.ReviewedByUserId).HasMaxLength(36);
+            entity.Property(e => e.Token).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.InvitedByUserId).IsRequired().HasMaxLength(36);
+            entity.Property(e => e.AcceptedByEntraObjectId).HasMaxLength(36);
             entity.Property(e => e.Status)
                   .HasConversion(
                       v => v.ToString(),
-                      v => Enum.Parse<RegistrationStatus>(v))
+                      v => Enum.Parse<InviteStatus>(v))
                   .HasMaxLength(20);
-            entity.HasIndex(e => e.EntraObjectId);
+            entity.HasIndex(e => e.Token).IsUnique();
+            entity.HasIndex(e => e.Email);
             entity.HasOne(e => e.Player)
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)

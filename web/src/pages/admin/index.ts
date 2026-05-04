@@ -8,3 +8,4 @@ export { CoursesPage } from './CoursesPage';
 export { AuditLogPage } from './AuditLogPage';
 export { SettingsPage } from './SettingsPage';
 export { SeasonsPage } from './SeasonsPage';
+export { InvitesPage } from './InvitesPage';

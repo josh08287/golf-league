@@ -3,7 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, User } from 'lucide-react';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
 import { useAuthStore } from '@/store/authStore';
-import { usePendingRegistrations } from '@/hooks/admin/useRegistrations';
+import { useInvites } from '@/hooks/admin/useInvites';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
@@ -20,9 +20,12 @@ export function NavBar() {
   const navigate = useNavigate();
   const isAuthenticated = useIsAuthenticated();
 
-  // Only fetch pending count when admin is logged in
-  const { data: pendingRegistrations } = usePendingRegistrations();
-  const pendingCount = user?.role === 'admin' ? (pendingRegistrations?.length ?? 0) : 0;
+  // Pending invite count for admin badge — only fetched when admin is logged in
+  const { data: invites } = useInvites();
+  const pendingInviteCount =
+    user?.role === 'admin'
+      ? (invites?.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) >= new Date()).length ?? 0)
+      : 0;
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -64,9 +67,9 @@ export function NavBar() {
             <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === '/'}>
               <span className="relative">
                 {link.label}
-                {link.to === '/admin' && pendingCount > 0 && (
+                {link.to === '/admin' && pendingInviteCount > 0 && (
                   <span className="absolute -right-4 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-                    {pendingCount}
+                    {pendingInviteCount}
                   </span>
                 )}
               </span>

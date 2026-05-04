@@ -9,7 +9,6 @@ export const myStatusKeys = {
 
 export function useMyStatus() {
   const isAuthenticated = useIsAuthenticated();
-
   return useQuery({
     queryKey: myStatusKeys.all,
     queryFn: async () => {

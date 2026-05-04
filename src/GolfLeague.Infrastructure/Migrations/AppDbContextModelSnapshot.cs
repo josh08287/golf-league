@@ -276,65 +276,58 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.ToTable("Players");
                 });
 
-            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerRegistration", b =>
+            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerInvite", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AcceptedByEntraObjectId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("EntraObjectId")
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("InvitedByUserId")
                         .IsRequired()
                         .HasMaxLength(36)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("FirstName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("LastName")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Phone")
-                        .HasMaxLength(30)
                         .HasColumnType("TEXT");
 
                     b.Property<int?>("PlayerId")
                         .HasColumnType("INTEGER");
-
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("RequestedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ReviewedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("ReviewedByUserId")
-                        .HasMaxLength(36)
-                        .HasColumnType("TEXT");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("EntraObjectId");
+                    b.HasIndex("Email");
 
                     b.HasIndex("PlayerId");
 
-                    b.ToTable("PlayerRegistrations");
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("PlayerInvites");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Round", b =>
@@ -534,7 +527,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Participant");
                 });
 
-            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerRegistration", b =>
+            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerInvite", b =>
                 {
                     b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
                         .WithMany()

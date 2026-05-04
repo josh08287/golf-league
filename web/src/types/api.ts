@@ -126,28 +126,30 @@ export interface CourseDetail extends Course {
   holeDetails: CourseHole[];
 }
 
-export type RegistrationStatus = 'Pending' | 'Approved' | 'Rejected';
+export type InviteStatus = 'Pending' | 'Accepted' | 'Revoked';
 
-export interface Registration {
+export interface Invite {
   id: number;
-  entraObjectId: string;
-  firstName: string;
-  lastName: string;
   email: string;
-  phone: string | null;
-  status: RegistrationStatus;
-  requestedAt: string;
-  reviewedAt: string | null;
-  rejectionReason: string | null;
+  token: string;
+  status: InviteStatus;
+  createdAt: string;
+  expiresAt: string;
+  acceptedAt: string | null;
   playerId: number | null;
+  inviteLink: string;
 }
 
-export type MyStatus = 'none' | 'pending' | 'approved' | 'rejected';
+export interface CreateInvitesResult {
+  created: Invite[];
+  skipped: string[];
+}
+
+export type MyStatus = 'approved' | 'none';
 
 export interface MyStatusResponse {
   status: MyStatus;
   playerId: number | null;
-  rejectionReason: string | null;
 }
 
 export interface Season {
