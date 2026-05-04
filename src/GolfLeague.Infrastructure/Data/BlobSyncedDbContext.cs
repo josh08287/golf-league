@@ -118,6 +118,9 @@ public abstract class BlobSyncedDbContext : DbContext
         bool uploadAfter,
         CancellationToken cancellationToken = default)
     {
+        if (!uploadAfter)
+            return await operation();
+
         await _transactionGate.WaitAsync(cancellationToken);
         BlobLeaseClient? leaseClient = null;
         string? leaseId = null;
@@ -126,6 +129,7 @@ public abstract class BlobSyncedDbContext : DbContext
         try
         {
             (leaseClient, leaseId) = await AcquireLeaseAsync(_containerClient, _blobName, cancellationToken);
+            await Database.CloseConnectionAsync();
             await DownloadLatestAsync(_containerClient, _localFilePath, _blobName, leaseId, cancellationToken);
 
             ChangeTracker.Clear();
