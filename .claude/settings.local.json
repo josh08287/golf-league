@@ -88,7 +88,9 @@
       "Bash(curl -s \"https://raw.githubusercontent.com/subosito/flutter-action/v2/action.yml\")",
       "Bash(git rm *)",
       "Bash(dotnet ef *)",
-      "Bash(dotnet add *)"
+      "Bash(dotnet add *)",
+      "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json)",
+      "Bash(grep -oE 'tests[\\\\\\\\/][^\\(]+\\\\.cs')"
     ]
   }
 }

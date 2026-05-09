@@ -28,8 +28,11 @@ public sealed class SqlitePragmaInterceptor : DbConnectionInterceptor
 
     private static void ApplyPragmas(DbConnection connection)
     {
+        // foreign_keys is per-connection and must be set every open. We don't
+        // touch journal_mode — it defaults to DELETE on SQLite and changing it
+        // mid-transaction can fail; the default is what we want.
         using var cmd = connection.CreateCommand();
-        cmd.CommandText = "PRAGMA journal_mode=DELETE; PRAGMA foreign_keys=ON;";
+        cmd.CommandText = "PRAGMA foreign_keys=ON;";
         cmd.ExecuteNonQuery();
     }
 }
