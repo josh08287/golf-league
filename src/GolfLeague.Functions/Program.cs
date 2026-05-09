@@ -93,13 +93,15 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
         await BlobSyncedDbContext.DownloadIfNeededAsync(containerClient, localDbPath, blobName);
 
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
         // The two-half refactor changed the schema (Rounds.WeekNumber, gross/net
         // Stableford columns, etc.). EnsureCreated does not migrate, so if the
-        // downloaded blob is the old (v1) schema we drop and recreate.
-        if (await IsLegacySchemaAsync(dbContext))
+        // downloaded blob is the old (v1) schema we drop and recreate. The probe
+        // fails closed: a transient error treats the DB as current to avoid
+        // wiping a healthy database.
+        if (await IsLegacySchemaAsync(dbContext, logger))
         {
-            var logger = host.Services.GetRequiredService<ILogger<Program>>();
             logger.LogWarning("Detected legacy v1 schema in {Blob}; dropping and recreating.", blobName);
             await dbContext.Database.EnsureDeletedAsync();
         }
@@ -120,12 +122,17 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     }
 }
 
-static async Task<bool> IsLegacySchemaAsync(AppDbContext dbContext)
+static async Task<bool> IsLegacySchemaAsync(AppDbContext dbContext, ILogger logger)
 {
     // EnsureCreated only creates tables when none exist. If the DB was downloaded
     // from blob storage and predates the two-half refactor, the Rounds table will
     // be missing the WeekNumber column we now require. Probing for it tells us
     // whether to drop & recreate.
+    //
+    // Fails closed: any transient probe error (e.g. file lock during cold start)
+    // returns false so a flaky check can't wipe a healthy v2 database. Once the
+    // live DB has WeekNumber, this returns false on every deploy and nothing is
+    // touched.
     try
     {
         var connection = dbContext.Database.GetDbConnection();
@@ -146,10 +153,10 @@ static async Task<bool> IsLegacySchemaAsync(AppDbContext dbContext)
             await connection.CloseAsync();
         }
     }
-    catch
+    catch (Exception ex)
     {
-        // If the probe itself fails, assume the file is corrupt/legacy and rebuild.
-        return true;
+        logger.LogWarning(ex, "Schema probe failed; assuming current schema and skipping rebuild.");
+        return false;
     }
 }
 
