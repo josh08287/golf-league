@@ -37,17 +37,22 @@ public static class DependencyInjection
 
         var localDbPath = Path.Combine(Path.GetTempPath(), "golf-league", blobName);
 
-        var dbOptions = new DbContextOptionsBuilder<AppDbContext>()
-            .UseSqlite($"Data Source={localDbPath}")
-            .Options;
+        services.AddSingleton<IBlobDbCoordinator>(sp => new BlobDbCoordinator(
+            sp.GetRequiredService<BlobContainerClient>(),
+            localDbPath,
+            blobName,
+            sp.GetRequiredService<ILogger<BlobDbCoordinator>>()));
+        services.AddSingleton(sp => (BlobDbCoordinator)sp.GetRequiredService<IBlobDbCoordinator>());
 
-        services.AddSingleton(dbOptions);
+        services.AddSingleton<SqlitePragmaInterceptor>();
 
-        services.AddScoped<AppDbContext>(provider =>
+        services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            var options = provider.GetRequiredService<DbContextOptions<AppDbContext>>();
-            return new AppDbContext(options, containerClient, localDbPath, blobName);
+            options.UseSqlite($"Data Source={localDbPath}");
+            options.AddInterceptors(sp.GetRequiredService<SqlitePragmaInterceptor>());
         });
+
+        services.AddScoped<IDbTransactionFactory, EfTransactionFactory>();
 
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IFlightRepository, FlightRepository>();

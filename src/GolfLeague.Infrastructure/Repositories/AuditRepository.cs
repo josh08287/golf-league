@@ -16,25 +16,19 @@ public sealed class AuditRepository : IAuditRepository
 
     public async Task AddAsync(AuditLog auditLog, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.AuditLogs.AddAsync(auditLog, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.AuditLogs.AddAsync(auditLog, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<(IReadOnlyList<AuditLog> Items, int TotalCount)> GetPagedAsync(
         int page, int pageSize, CancellationToken cancellationToken = default)
     {
-        return await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            var query = _context.AuditLogs.OrderByDescending(a => a.Timestamp);
-            var totalCount = await query.CountAsync(cancellationToken);
-            var items = await query
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken);
-            return (items, totalCount);
-        }, uploadAfter: false, cancellationToken);
+        var query = _context.AuditLogs.OrderByDescending(a => a.Timestamp);
+        var totalCount = await query.CountAsync(cancellationToken);
+        var items = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+        return (items, totalCount);
     }
 }

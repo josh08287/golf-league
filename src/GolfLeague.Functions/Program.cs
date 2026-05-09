@@ -1,4 +1,3 @@
-using Azure.Storage.Blobs;
 using GolfLeague.Application.Behaviors;
 using GolfLeague.Functions.Middleware;
 using GolfLeague.Infrastructure;
@@ -40,23 +39,20 @@ var host = new HostBuilder()
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateLifetime = true,
-                    ValidateIssuerSigningKey = true
+                    ValidateIssuerSigningKey = true,
                 };
             });
 
         services.AddAuthorization(options =>
         {
             options.AddPolicy("AdminOnly", policy =>
-                policy.RequireAuthenticatedUser()
-                      .RequireRole("admin"));
+                policy.RequireAuthenticatedUser().RequireRole("admin"));
 
             options.AddPolicy("ScorerOrAdmin", policy =>
                 policy.RequireAuthenticatedUser()
-                      .RequireAssertion(ctx =>
-                          ctx.User.IsInRole("admin") || ctx.User.IsInRole("scorer")));
+                      .RequireAssertion(ctx => ctx.User.IsInRole("admin") || ctx.User.IsInRole("scorer")));
 
-            options.AddPolicy("Authenticated", policy =>
-                policy.RequireAuthenticatedUser());
+            options.AddPolicy("Authenticated", policy => policy.RequireAuthenticatedUser());
         });
 
         services.Configure<JsonOptions>(o =>
@@ -69,9 +65,12 @@ var host = new HostBuilder()
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(typeof(GolfLeague.Application.Players.Commands.CreatePlayerCommand).Assembly);
+            // Order matters: write scope must be the outermost behavior so the
+            // lease and transaction wrap everything (including audit logging).
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(BlobWriteBehavior<,>));
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(BlobReadBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuditBehavior<,>));
         });
-
     })
     .Build();
 
@@ -82,81 +81,28 @@ await host.RunAsync();
 static async Task EnsureDatabaseInitializedAsync(IHost host)
 {
     using var scope = host.Services.CreateScope();
-    var containerClient = scope.ServiceProvider.GetRequiredService<BlobContainerClient>();
-    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
-
-    var blobName = config["SQLITE_BLOB_NAME"] ?? "golf-league-v2.db";
-    var localDbPath = Path.Combine(Path.GetTempPath(), "golf-league", blobName);
+    var coordinator = scope.ServiceProvider.GetRequiredService<BlobDbCoordinator>();
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
     try
     {
-        await BlobSyncedDbContext.DownloadIfNeededAsync(containerClient, localDbPath, blobName);
+        // Take the cross-instance write lease so we don't race another worker
+        // starting up at the same time. BeginWriteAsync also pulls the latest
+        // blob into the local file (atomically — temp file + rename).
+        await using var writeScope = await coordinator.BeginWriteAsync();
 
-        var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var logger = host.Services.GetRequiredService<ILogger<Program>>();
-
-        // The two-half refactor changed the schema (Rounds.WeekNumber, gross/net
-        // Stableford columns, etc.). EnsureCreated does not migrate, so if the
-        // downloaded blob is the old (v1) schema we drop and recreate. The probe
-        // fails closed: a transient error treats the DB as current to avoid
-        // wiping a healthy database.
-        if (await IsLegacySchemaAsync(dbContext, logger))
-        {
-            logger.LogWarning("Detected legacy v1 schema in {Blob}; dropping and recreating.", blobName);
-            await dbContext.Database.EnsureDeletedAsync();
-        }
-
-        // No EF migrations — v2 schema is created fresh from the model.
         await dbContext.Database.EnsureCreatedAsync();
-
-        // Seed a default active season if none exists so flights can be created.
         await SeedActiveSeasonAsync(dbContext);
 
-        // Upload the schema-updated DB back to blob storage.
-        await BlobSyncedDbContext.UploadAsync(containerClient, localDbPath, blobName);
+        // Commit uploads the local file under the same lease and records the
+        // resulting ETag so this instance's later reads don't redundantly
+        // re-download.
+        await writeScope.CommitAsync();
     }
     catch (Exception ex)
     {
-        var logger = host.Services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "Database initialization failed; the host will still start but requests may fail.");
-    }
-}
-
-static async Task<bool> IsLegacySchemaAsync(AppDbContext dbContext, ILogger logger)
-{
-    // EnsureCreated only creates tables when none exist. If the DB was downloaded
-    // from blob storage and predates the two-half refactor, the Rounds table will
-    // be missing the WeekNumber column we now require. Probing for it tells us
-    // whether to drop & recreate.
-    //
-    // Fails closed: any transient probe error (e.g. file lock during cold start)
-    // returns false so a flaky check can't wipe a healthy v2 database. Once the
-    // live DB has WeekNumber, this returns false on every deploy and nothing is
-    // touched.
-    try
-    {
-        var connection = dbContext.Database.GetDbConnection();
-        await connection.OpenAsync();
-        try
-        {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Rounds';";
-            var hasRoundsTable = await cmd.ExecuteScalarAsync() is not null;
-            if (!hasRoundsTable) return false; // empty DB — let EnsureCreated handle it
-
-            cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Rounds') WHERE name='WeekNumber';";
-            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
-            return count == 0;
-        }
-        finally
-        {
-            await connection.CloseAsync();
-        }
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Schema probe failed; assuming current schema and skipping rebuild.");
-        return false;
     }
 }
 

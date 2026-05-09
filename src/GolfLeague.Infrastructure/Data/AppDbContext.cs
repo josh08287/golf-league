@@ -1,18 +1,12 @@
-using Azure.Storage.Blobs;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace GolfLeague.Infrastructure.Data;
 
-public sealed class AppDbContext : BlobSyncedDbContext
+public sealed class AppDbContext : DbContext
 {
-    public AppDbContext(
-        DbContextOptions<AppDbContext> options,
-        BlobContainerClient containerClient,
-        string localFilePath,
-        string blobName)
-        : base(options, containerClient, localFilePath, blobName)
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
     }
 
@@ -201,7 +195,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(c => c.Rounds)
                   .HasForeignKey(e => e.CourseId)
                   .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(e => new { e.HalfId, e.WeekNumber });
+            entity.HasIndex(e => new { e.HalfId, e.WeekNumber }).IsUnique();
         });
     }
 

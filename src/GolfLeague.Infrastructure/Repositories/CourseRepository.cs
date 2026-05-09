@@ -14,57 +14,45 @@ public sealed class CourseRepository : ICourseRepository
         _context = context;
     }
 
-    public async Task<Course?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Courses
+    public Task<Course?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        => _context.Courses
             .Include(c => c.Holes)
-            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken), uploadAfter: false, cancellationToken);
+            .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Course>> GetAllAsync(CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Courses
+        => await _context.Courses
             .Include(c => c.Holes)
             .OrderBy(c => c.Name)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<CourseHole>> GetHolesAsync(int courseId, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.CourseHoles
+        => await _context.CourseHoles
             .Where(h => h.CourseId == courseId)
             .OrderBy(h => h.HoleNumber)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Course course, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.Courses.AddAsync(course, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.Courses.AddAsync(course, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateHolesAsync(int courseId, IEnumerable<CourseHole> holes, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            var existing = await _context.CourseHoles
-                .Where(h => h.CourseId == courseId)
-                .ToListAsync(cancellationToken);
+        var existing = await _context.CourseHoles
+            .Where(h => h.CourseId == courseId)
+            .ToListAsync(cancellationToken);
 
-            _context.CourseHoles.RemoveRange(existing);
-
-            await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        _context.CourseHoles.RemoveRange(existing);
+        await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(int courseId, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            var course = await _context.Courses.FindAsync([courseId], cancellationToken);
-            if (course is not null)
-            {
-                _context.Courses.Remove(course);
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }, uploadAfter: true, cancellationToken);
+        var course = await _context.Courses.FindAsync([courseId], cancellationToken);
+        if (course is null) return;
+        _context.Courses.Remove(course);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

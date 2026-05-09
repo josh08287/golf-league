@@ -15,60 +15,43 @@ public sealed class SeasonRepository : ISeasonRepository
     }
 
     public async Task<IReadOnlyList<Season>> GetAllAsync(CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Seasons
+        => await _context.Seasons
             .Include(s => s.Halves)
             .OrderByDescending(s => s.Year)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
-    public async Task<Season?> GetActiveAsync(CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(
-            async () => await _context.Seasons
-                .Include(s => s.Halves)
-                .FirstOrDefaultAsync(s => s.IsActive, cancellationToken),
-            uploadAfter: false,
-            cancellationToken);
+    public Task<Season?> GetActiveAsync(CancellationToken cancellationToken = default)
+        => _context.Seasons
+            .Include(s => s.Halves)
+            .FirstOrDefaultAsync(s => s.IsActive, cancellationToken);
 
     public async Task AddAsync(Season season, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.Seasons.AddAsync(season, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.Seasons.AddAsync(season, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SetActiveAsync(int seasonId, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.Seasons
-                .Where(s => s.IsActive)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false), cancellationToken);
+        await _context.Seasons
+            .Where(s => s.IsActive)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false), cancellationToken);
 
-            await _context.Seasons
-                .Where(s => s.Id == seasonId)
-                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, true), cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.Seasons
+            .Where(s => s.Id == seasonId)
+            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, true), cancellationToken);
     }
 
-    public async Task<Season?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(
-            async () => await _context.Seasons
-                .Include(s => s.Halves)
-                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken),
-            uploadAfter: false,
-            cancellationToken);
+    public Task<Season?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        => _context.Seasons
+            .Include(s => s.Halves)
+            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            var season = await _context.Seasons.FindAsync([id], cancellationToken);
-            if (season is not null)
-            {
-                _context.Seasons.Remove(season);
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }, uploadAfter: true, cancellationToken);
+        var season = await _context.Seasons.FindAsync([id], cancellationToken);
+        if (season is null) return;
+        _context.Seasons.Remove(season);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

@@ -15,106 +15,92 @@ public sealed class FlightRepository : IFlightRepository
         _context = context;
     }
 
-    public async Task<Flight?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+    public Task<Flight?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
+        => _context.Flights
             .Include(f => f.Season)
             .Include(f => f.Half)
-            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken), uploadAfter: false, cancellationToken);
+            .FirstOrDefaultAsync(f => f.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetAllAsync(CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+        => await _context.Flights
             .Include(f => f.Season)
             .Include(f => f.Half)
             .Include(f => f.Memberships)
             .OrderBy(f => f.HalfId)
             .ThenBy(f => f.DisplayOrder)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+        => await _context.Flights
             .Include(f => f.Memberships)
             .Where(f => f.HalfId == halfId)
             .OrderBy(f => f.DisplayOrder)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Flight flight, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.Flights.AddAsync(flight, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.Flights.AddAsync(flight, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task AddHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            await _context.SeasonHalves.AddAsync(half, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        await _context.SeasonHalves.AddAsync(half, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task UpdateHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            _context.SeasonHalves.Update(half);
-            await _context.SaveChangesAsync(cancellationToken);
-        }, uploadAfter: true, cancellationToken);
+        _context.SeasonHalves.Update(half);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.SeasonHalves
+    public Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default)
+        => _context.SeasonHalves
             .Include(h => h.Flights).ThenInclude(f => f.Memberships)
-            .FirstOrDefaultAsync(h => h.Id == halfId, cancellationToken), uploadAfter: false, cancellationToken);
+            .FirstOrDefaultAsync(h => h.Id == halfId, cancellationToken);
 
     public async Task<IReadOnlyList<SeasonHalf>> GetHalvesBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.SeasonHalves
+        => await _context.SeasonHalves
             .Where(h => h.SeasonId == seasonId)
             .OrderBy(h => h.HalfNumber)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task DeleteAsync(int flightId, CancellationToken cancellationToken = default)
     {
-        await _context.ExecuteWithBlobSyncAsync(async () =>
-        {
-            var flight = await _context.Flights.FindAsync([flightId], cancellationToken);
-            if (flight is not null)
-            {
-                _context.Flights.Remove(flight);
-                await _context.SaveChangesAsync(cancellationToken);
-            }
-        }, uploadAfter: true, cancellationToken);
+        var flight = await _context.Flights.FindAsync([flightId], cancellationToken);
+        if (flight is null) return;
+        _context.Flights.Remove(flight);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Seasons
+        => await _context.Seasons
             .Where(s => s.IsActive)
             .Select(s => (int?)s.Id)
-            .FirstOrDefaultAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+        => await _context.Flights
             .Include(f => f.Half)
             .Where(f => f.SeasonId == seasonId)
             .OrderBy(f => f.HalfId)
             .ThenBy(f => f.DisplayOrder)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<FlightMembership>> GetMembershipsAsync(
         int flightId,
         CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.FlightMemberships
+        => await _context.FlightMemberships
             .Where(fm => fm.FlightId == flightId)
             .Include(fm => fm.Player)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 
     public async Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(
         int flightId,
         int halfId,
         CancellationToken cancellationToken = default)
-        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.RoundParticipants
+        => await _context.RoundParticipants
             .Include(rp => rp.Player)
             .Include(rp => rp.Round)
             .Where(rp =>
@@ -123,5 +109,5 @@ public sealed class FlightRepository : IFlightRepository
                 rp.Round.Status == RoundStatus.Finalized &&
                 !rp.IsWithdrawn)
             .OrderBy(rp => rp.PlayerId)
-            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+            .ToListAsync(cancellationToken);
 }
