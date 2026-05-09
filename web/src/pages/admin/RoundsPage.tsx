@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, CalendarDays } from 'lucide-react';
 import { useRounds } from '../../hooks/useRounds';
-import { useFinalizeRound, useDeleteRound } from '../../hooks/admin/useRoundMutations';
+import {
+  useFinalizeRound,
+  useDeleteRound,
+  useCancelRound,
+} from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { DataTable } from '../../components/ui/DataTable';
@@ -13,7 +17,12 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
 import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
-import { normalizeRoundStatus, isRoundFinalized, isRoundInProgress } from '../../lib/enumUtils';
+import {
+  normalizeRoundStatus,
+  isRoundFinalized,
+  isRoundInProgress,
+  isRoundScheduled,
+} from '../../lib/enumUtils';
 import type { Round, RoundStatus } from '../../types/api';
 
 function RoundStatusBadge({ status }: { status: Round['status'] }) {
@@ -36,15 +45,23 @@ export function RoundsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createHalfOpen, setCreateHalfOpen] = useState(false);
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Round | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Round | null>(null);
 
   const finalize = useFinalizeRound(String(finalizeTarget?.id ?? ''));
+  const cancelRound = useCancelRound();
   const deleteRound = useDeleteRound();
 
   async function handleFinalize() {
     if (!finalizeTarget) return;
     await finalize.mutateAsync();
     setFinalizeTarget(null);
+  }
+
+  async function handleCancel() {
+    if (!cancelTarget) return;
+    await cancelRound.mutateAsync(String(cancelTarget.id));
+    setCancelTarget(null);
   }
 
   async function handleDelete() {
@@ -67,12 +84,25 @@ export function RoundsPage() {
 
   const columns = [
     {
+      key: 'week',
+      header: 'Week',
+      render: (r: Round) => `#${r.weekNumber}`,
+    },
+    {
       key: 'date',
       header: 'Date',
       render: (r: Round) => new Date(r.scheduledDate).toLocaleDateString(),
     },
     { key: 'course', header: 'Course', render: (r: Round) => r.courseName ?? '—' },
-    { key: 'flight', header: 'Flight', render: (r: Round) => r.flightName ?? '—' },
+    {
+      key: 'side',
+      header: '9-Hole Side',
+      render: (r: Round) => (
+        <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
+          {r.nineHoleSide}
+        </Badge>
+      ),
+    },
     {
       key: 'status',
       header: 'Status',
@@ -100,6 +130,16 @@ export function RoundsPage() {
               Finalize
             </Button>
           )}
+          {isRoundScheduled(r.status) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-600 hover:bg-amber-50"
+              onClick={() => setCancelTarget(r)}
+            >
+              Cancel
+            </Button>
+          )}
           {!isRoundFinalized(r.status) && (
             <Button
               variant="ghost"
@@ -121,11 +161,11 @@ export function RoundsPage() {
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setCreateHalfOpen(true)}>
             <CalendarDays className="mr-1 h-4 w-4" />
-            Create Half
+            Generate Schedule
           </Button>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
-            Create Round
+            Add Round
           </Button>
         </div>
       </PageHeader>
@@ -139,14 +179,14 @@ export function RoundsPage() {
         />
       </div>
 
-      <Modal open={createOpen} title="Create Round" onClose={() => setCreateOpen(false)}>
+      <Modal open={createOpen} title="Add Round" onClose={() => setCreateOpen(false)}>
         <CreateRoundForm
           onSuccess={() => setCreateOpen(false)}
           onCancel={() => setCreateOpen(false)}
         />
       </Modal>
 
-      <Modal open={createHalfOpen} title="Create Half Season" onClose={() => setCreateHalfOpen(false)}>
+      <Modal open={createHalfOpen} title="Generate Half Schedule" onClose={() => setCreateHalfOpen(false)}>
         <CreateHalfForm
           onSuccess={() => setCreateHalfOpen(false)}
           onCancel={() => setCreateHalfOpen(false)}
@@ -160,6 +200,15 @@ export function RoundsPage() {
         confirmLabel="Finalize"
         onConfirm={handleFinalize}
         onCancel={() => setFinalizeTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        title="Cancel Round"
+        description={`Cancel the round on ${cancelTarget ? new Date(cancelTarget.scheduledDate).toLocaleDateString() : ''}? A make-up round will be appended one week later with the same 9-hole side.`}
+        confirmLabel="Cancel Round"
+        onConfirm={handleCancel}
+        onCancel={() => setCancelTarget(null)}
       />
 
       <ConfirmDialog

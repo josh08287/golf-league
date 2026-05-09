@@ -8,7 +8,7 @@ namespace GolfLeague.Application.Flights.Commands;
 
 public sealed record CreateFlightCommand(
     string Name,
-    int? SeasonId,
+    int HalfId,
     int DisplayOrder,
     string UserId) : IRequest<Result<FlightDto>>, IAmAuditableCommand;
 
@@ -23,18 +23,15 @@ public sealed class CreateFlightCommandHandler : IRequestHandler<CreateFlightCom
 
     public async Task<Result<FlightDto>> Handle(CreateFlightCommand request, CancellationToken cancellationToken)
     {
-        var seasonId = request.SeasonId;
-        if (seasonId is null)
-        {
-            seasonId = await _flightRepository.GetActiveSeasonIdAsync(cancellationToken);
-            if (seasonId is null)
-                return Result<FlightDto>.Fail("No active season found. Please specify a seasonId.");
-        }
+        var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
+        if (half is null)
+            return Result<FlightDto>.Fail($"Half with ID {request.HalfId} not found.");
 
         var flight = new Flight
         {
             Name = request.Name,
-            SeasonId = seasonId.Value,
+            SeasonId = half.SeasonId,
+            HalfId = half.Id,
             DisplayOrder = request.DisplayOrder,
         };
 

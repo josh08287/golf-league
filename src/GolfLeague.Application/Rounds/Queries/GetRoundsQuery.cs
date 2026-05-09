@@ -1,11 +1,16 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
 namespace GolfLeague.Application.Rounds.Queries;
 
-public sealed record GetRoundsQuery(int? SeasonId, int Page = 1, int PageSize = 20) : IRequest<Result<PagedResult<RoundDto>>>;
+public sealed record GetRoundsQuery(
+    int? SeasonId = null,
+    int? HalfId = null,
+    int Page = 1,
+    int PageSize = 20) : IRequest<Result<PagedResult<RoundDto>>>;
 
 public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Result<PagedResult<RoundDto>>>
 {
@@ -18,9 +23,11 @@ public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Resu
 
     public async Task<Result<PagedResult<RoundDto>>> Handle(GetRoundsQuery request, CancellationToken cancellationToken)
     {
-        var rounds = request.SeasonId.HasValue
-            ? await _roundRepository.GetBySeasonAsync(request.SeasonId.Value, cancellationToken)
-            : await _roundRepository.GetAllAsync(cancellationToken);
+        var rounds = request.HalfId.HasValue
+            ? await _roundRepository.GetByHalfAsync(request.HalfId.Value, cancellationToken)
+            : request.SeasonId.HasValue
+                ? await _roundRepository.GetBySeasonAsync(request.SeasonId.Value, cancellationToken)
+                : await _roundRepository.GetAllAsync(cancellationToken);
 
         var totalCount = rounds.Count;
         var paged = rounds
@@ -28,19 +35,9 @@ public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Resu
             .Take(request.PageSize)
             .ToList();
 
-        var dtos = paged.Select(r => new RoundDto(
-            r.Id,
-            r.SeasonId,
-            r.FlightId,
-            r.Flight?.Name ?? string.Empty,
-            r.CourseId,
-            r.Course?.Name ?? string.Empty,
-            r.RoundDate,
-            r.Status,
-            r.RoundType,
-            r.NineHoleSide,
-            r.Participants.Count
-        )).ToList();
+        var dtos = paged
+            .Select(r => RoundDtoMapper.Map(r, r.Course?.Name ?? string.Empty, r.Participants.Count))
+            .ToList();
 
         return Result<PagedResult<RoundDto>>.Ok(new PagedResult<RoundDto>(dtos, request.Page, request.PageSize, totalCount));
     }

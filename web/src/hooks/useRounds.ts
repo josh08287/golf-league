@@ -3,6 +3,7 @@ import { apiClient } from '@/lib/api';
 import type {
   Round,
   Scorecard,
+  RoundScorecard,
   PagedResponse,
 } from '@/types/api';
 
@@ -66,7 +67,7 @@ export function useRoundScorecards(roundId: string) {
   return useQuery({
     queryKey: roundKeys.scorecards(roundId),
     queryFn: async () => {
-      const response = await apiClient.get<PagedResponse<Scorecard>>(
+      const response = await apiClient.get<PagedResponse<RoundScorecard>>(
         `/rounds/${roundId}/scorecards`,
       );
       return response.data;

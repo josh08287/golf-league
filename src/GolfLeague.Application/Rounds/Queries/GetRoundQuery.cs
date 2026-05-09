@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -22,19 +23,6 @@ public sealed class GetRoundQueryHandler : IRequestHandler<GetRoundQuery, Result
         if (round is null)
             return Result<RoundDto>.Fail($"Round with ID {request.Id} not found.");
 
-        var dto = new RoundDto(
-            round.Id,
-            round.SeasonId,
-            round.FlightId,
-            round.Flight?.Name ?? string.Empty,
-            round.CourseId,
-            round.Course?.Name ?? string.Empty,
-            round.RoundDate,
-            round.Status,
-            round.RoundType,
-            round.NineHoleSide,
-            round.Participants.Count);
-
-        return Result<RoundDto>.Ok(dto);
+        return Result<RoundDto>.Ok(RoundDtoMapper.Map(round, round.Course?.Name ?? string.Empty, round.Participants.Count));
     }
 }

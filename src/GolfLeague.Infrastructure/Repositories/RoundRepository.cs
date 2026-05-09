@@ -17,7 +17,7 @@ public sealed class RoundRepository : IRoundRepository
     public async Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Rounds
             .Include(r => r.Course)
-            .Include(r => r.Flight)
+            .Include(r => r.Half)
             .Include(r => r.Season)
             .Include(r => r.Participants)
                 .ThenInclude(rp => rp.Player)
@@ -26,7 +26,7 @@ public sealed class RoundRepository : IRoundRepository
     public async Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Rounds
             .Include(r => r.Course)
-            .Include(r => r.Flight)
+            .Include(r => r.Half)
             .Include(r => r.Participants)
             .OrderByDescending(r => r.RoundDate)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
@@ -34,10 +34,19 @@ public sealed class RoundRepository : IRoundRepository
     public async Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Rounds
             .Include(r => r.Course)
-            .Include(r => r.Flight)
+            .Include(r => r.Half)
             .Include(r => r.Participants)
             .Where(r => r.SeasonId == seasonId)
             .OrderByDescending(r => r.RoundDate)
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+
+    public async Task<IReadOnlyList<Round>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default)
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Half)
+            .Include(r => r.Participants)
+            .Where(r => r.HalfId == halfId)
+            .OrderBy(r => r.WeekNumber)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsync(int roundId, CancellationToken cancellationToken = default)
@@ -45,7 +54,8 @@ public sealed class RoundRepository : IRoundRepository
             .Include(rp => rp.Player)
             .Include(rp => rp.HoleScores)
             .Where(rp => rp.RoundId == roundId)
-            .OrderBy(rp => rp.Player.LastName)
+            .OrderBy(rp => rp.FlightId)
+            .ThenBy(rp => rp.Player.LastName)
             .ThenBy(rp => rp.Player.FirstName)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 

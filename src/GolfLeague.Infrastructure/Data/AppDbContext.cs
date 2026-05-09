@@ -66,13 +66,14 @@ public sealed class AppDbContext : BlobSyncedDbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.HasOne(e => e.Season)
-                  .WithMany(s => s.Flights)
+                  .WithMany()
                   .HasForeignKey(e => e.SeasonId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Half)
                   .WithMany(h => h.Flights)
                   .HasForeignKey(e => e.HalfId)
                   .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.HalfId, e.DisplayOrder });
         });
     }
 
@@ -86,7 +87,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(s => s.Halves)
                   .HasForeignKey(e => e.SeasonId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.SeasonId, e.StartDate });
+            entity.HasIndex(e => new { e.SeasonId, e.HalfNumber }).IsUnique();
         });
     }
 
@@ -124,8 +125,7 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany()
                   .HasForeignKey(e => e.HalfId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasIndex(e => new { e.PlayerId, e.SeasonId });
-            entity.HasIndex(e => new { e.PlayerId, e.HalfId });
+            entity.HasIndex(e => new { e.PlayerId, e.HalfId }).IsUnique();
         });
     }
 
@@ -183,11 +183,6 @@ public sealed class AppDbContext : BlobSyncedDbContext
                       v => v.ToString(),
                       v => Enum.Parse<RoundStatus>(v))
                   .HasMaxLength(30);
-            entity.Property(e => e.RoundType)
-                  .HasConversion(
-                      v => v.ToString(),
-                      v => Enum.Parse<RoundType>(v))
-                  .HasMaxLength(20);
             entity.Property(e => e.NineHoleSide)
                   .HasConversion(
                       v => v.ToString(),
@@ -202,14 +197,11 @@ public sealed class AppDbContext : BlobSyncedDbContext
                   .WithMany(h => h.Rounds)
                   .HasForeignKey(e => e.HalfId)
                   .OnDelete(DeleteBehavior.Cascade);
-            entity.HasOne(e => e.Flight)
-                  .WithMany(f => f.Rounds)
-                  .HasForeignKey(e => e.FlightId)
-                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Course)
                   .WithMany(c => c.Rounds)
                   .HasForeignKey(e => e.CourseId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.HalfId, e.WeekNumber });
         });
     }
 

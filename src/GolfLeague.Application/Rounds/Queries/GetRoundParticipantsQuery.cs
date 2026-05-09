@@ -9,6 +9,7 @@ public sealed record RoundParticipantDto(
     int RoundId,
     int PlayerId,
     string PlayerName,
+    int FlightId,
     double HandicapAtTime,
     int CourseHandicap,
     bool IsWithdrawn);
@@ -31,13 +32,15 @@ public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundP
             return Result<List<RoundParticipantDto>>.Fail($"Round with ID {request.RoundId} not found.");
 
         var dtos = round.Participants
-            .OrderBy(p => p.Player.LastName)
+            .OrderBy(p => p.FlightId)
+            .ThenBy(p => p.Player.LastName)
             .ThenBy(p => p.Player.FirstName)
             .Select(p => new RoundParticipantDto(
                 p.Id,
                 p.RoundId,
                 p.PlayerId,
                 p.Player.FullName,
+                p.FlightId,
                 p.HandicapIndex,
                 p.CourseHandicap,
                 p.IsWithdrawn))

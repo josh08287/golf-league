@@ -122,6 +122,18 @@ export function SeasonsPage() {
                   {s.startDate} — {s.endDate}
                   {s.bestNRounds != null && ` · Best ${s.bestNRounds} rounds`}
                 </p>
+                {s.halves && s.halves.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {s.halves.map((h) => (
+                      <span
+                        key={h.id}
+                        className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                      >
+                        {h.name}: {h.startDate} → {h.endDate}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 {!s.isActive && (

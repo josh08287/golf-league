@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Users } from 'lucide-react';
 import { useFlights } from '@/hooks/useFlights';
-import { useSeasons } from '@/hooks/useSeasons';
 import {
   Card,
   CardHeader,
@@ -17,8 +16,6 @@ import { PageHeader } from '@/components/ui/PageHeader';
 
 export function FlightsPage() {
   const { data, isPending, isError } = useFlights();
-  const { data: seasons } = useSeasons();
-  const activeSeason = seasons?.find((s) => s.isActive);
 
   return (
     <div className="space-y-6">
@@ -58,7 +55,7 @@ export function FlightsPage() {
               </CardHeader>
               <CardContent className="mt-auto pt-0">
                 <Button variant="outline" size="sm" className="w-full" asChild>
-                  <Link to={`/flights/${flight.id}${activeSeason ? `?seasonId=${activeSeason.id}` : ''}`}>
+                  <Link to={`/flights/${flight.id}?halfId=${flight.halfId}`}>
                     View Leaderboard
                   </Link>
                 </Button>

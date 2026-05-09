@@ -18,12 +18,22 @@ public sealed class FlightRepository : IFlightRepository
     public async Task<Flight?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
             .Include(f => f.Season)
+            .Include(f => f.Half)
             .FirstOrDefaultAsync(f => f.Id == id, cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<Flight>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
             .Include(f => f.Season)
+            .Include(f => f.Half)
             .Include(f => f.Memberships)
+            .OrderBy(f => f.HalfId)
+            .ThenBy(f => f.DisplayOrder)
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
+
+    public async Task<IReadOnlyList<Flight>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default)
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+            .Include(f => f.Memberships)
+            .Where(f => f.HalfId == halfId)
             .OrderBy(f => f.DisplayOrder)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
@@ -44,6 +54,26 @@ public sealed class FlightRepository : IFlightRepository
             await _context.SaveChangesAsync(cancellationToken);
         }, uploadAfter: true, cancellationToken);
     }
+
+    public async Task UpdateHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default)
+    {
+        await _context.ExecuteWithBlobSyncAsync(async () =>
+        {
+            _context.SeasonHalves.Update(half);
+            await _context.SaveChangesAsync(cancellationToken);
+        }, uploadAfter: true, cancellationToken);
+    }
+
+    public async Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default)
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.SeasonHalves
+            .Include(h => h.Flights).ThenInclude(f => f.Memberships)
+            .FirstOrDefaultAsync(h => h.Id == halfId, cancellationToken), uploadAfter: false, cancellationToken);
+
+    public async Task<IReadOnlyList<SeasonHalf>> GetHalvesBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
+        => await _context.ExecuteWithBlobSyncAsync(async () => await _context.SeasonHalves
+            .Where(h => h.SeasonId == seasonId)
+            .OrderBy(h => h.HalfNumber)
+            .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task DeleteAsync(int flightId, CancellationToken cancellationToken = default)
     {
@@ -66,8 +96,10 @@ public sealed class FlightRepository : IFlightRepository
 
     public async Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Flights
+            .Include(f => f.Half)
             .Where(f => f.SeasonId == seasonId)
-            .OrderBy(f => f.DisplayOrder)
+            .OrderBy(f => f.HalfId)
+            .ThenBy(f => f.DisplayOrder)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<IReadOnlyList<FlightMembership>> GetMembershipsAsync(
@@ -80,14 +112,14 @@ public sealed class FlightRepository : IFlightRepository
 
     public async Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(
         int flightId,
-        int seasonId,
+        int halfId,
         CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.RoundParticipants
             .Include(rp => rp.Player)
             .Include(rp => rp.Round)
             .Where(rp =>
-                rp.Round.FlightId == flightId &&
-                rp.Round.SeasonId == seasonId &&
+                rp.FlightId == flightId &&
+                rp.Round.HalfId == halfId &&
                 rp.Round.Status == RoundStatus.Finalized &&
                 !rp.IsWithdrawn)
             .OrderBy(rp => rp.PlayerId)

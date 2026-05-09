@@ -5,7 +5,7 @@ using MediatR;
 
 namespace GolfLeague.Application.Flights.Queries;
 
-public sealed record GetFlightsQuery : IRequest<Result<PagedResult<FlightDto>>>;
+public sealed record GetFlightsQuery(int? HalfId = null, int? SeasonId = null) : IRequest<Result<PagedResult<FlightDto>>>;
 
 public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Result<PagedResult<FlightDto>>>
 {
@@ -18,7 +18,11 @@ public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Re
 
     public async Task<Result<PagedResult<FlightDto>>> Handle(GetFlightsQuery request, CancellationToken cancellationToken)
     {
-        var flights = await _flightRepository.GetAllAsync(cancellationToken);
+        var flights = request.HalfId.HasValue
+            ? await _flightRepository.GetByHalfAsync(request.HalfId.Value, cancellationToken)
+            : request.SeasonId.HasValue
+                ? await _flightRepository.GetBySeasonAsync(request.SeasonId.Value, cancellationToken)
+                : await _flightRepository.GetAllAsync(cancellationToken);
 
         var dtos = flights.Select(f => new FlightDto(
             f.Id,

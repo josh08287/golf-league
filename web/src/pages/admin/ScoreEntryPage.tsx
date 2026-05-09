@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useRound } from '../../hooks/useRounds';
@@ -9,31 +9,35 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ArrowLeft, Save } from 'lucide-react';
 import { api } from '../../lib/api';
-import { normalizeRoundType, normalizeNineHoleSide, isRoundFinalized } from '../../lib/enumUtils';
+import { normalizeNineHoleSide, isRoundFinalized } from '../../lib/enumUtils';
 import type { CourseDetail, Participant } from '../../types/api';
 
-const ALL_HOLES = Array.from({ length: 18 }, (_, i) => i + 1);
-
-function getHolesForRound(roundType: string | number, nineHoleSide: string | number): number[] {
-  const normalizedType = normalizeRoundType(roundType);
-  const normalizedSide = normalizeNineHoleSide(nineHoleSide);
-  
-  if (normalizedType === 'NineHole') {
-    return normalizedSide === 'Back'
-      ? Array.from({ length: 9 }, (_, i) => i + 10) // holes 10-18
-      : Array.from({ length: 9 }, (_, i) => i + 1);  // holes 1-9 (default front)
-  }
-  return ALL_HOLES; // 18 holes (EighteenHole or unknown)
+function holesForSide(nineHoleSide: string | number): number[] {
+  const side = normalizeNineHoleSide(nineHoleSide);
+  return side === 'Back'
+    ? Array.from({ length: 9 }, (_, i) => i + 10)
+    : Array.from({ length: 9 }, (_, i) => i + 1);
 }
 
-function computeStablefordPoints(gross: number, par: number, handicapStrokes: number): number {
-  return Math.max(0, par + 2 - (gross - handicapStrokes));
+function handicapStrokesForHole(courseHandicap: number, strokeIndex: number): number {
+  const base = Math.floor(courseHandicap / 18);
+  const extra = courseHandicap % 18;
+  return base + (strokeIndex <= extra ? 1 : 0);
 }
 
-function handicapStrokesForHole(playerCourseHandicap: number, strokeIndex: number): number {
-  const baseStrokes = Math.floor(playerCourseHandicap / 18);
-  const extra = playerCourseHandicap % 18;
-  return baseStrokes + (strokeIndex <= extra ? 1 : 0);
+function clampNetScore(gross: number, par: number, handicapStrokes: number) {
+  const maxGross = par + 2 + handicapStrokes;
+  return Math.min(gross, maxGross);
+}
+
+function netStableford(gross: number, par: number, handicapStrokes: number): number {
+  const cappedGross = clampNetScore(gross, par, handicapStrokes);
+  const net = cappedGross - handicapStrokes;
+  return Math.max(0, Math.min(6, par + 2 - net));
+}
+
+function grossStableford(gross: number, par: number): number {
+  return Math.max(0, Math.min(6, par + 2 - gross));
 }
 
 type ScoreGrid = Record<string, Record<number, number | ''>>;
@@ -79,37 +83,50 @@ function ScoreCell({ value, onChange, onKeyDown, inputRef, readonly }: ScoreCell
   );
 }
 
-interface StablefordRowProps {
+interface DerivedRowProps {
+  label: string;
   scores: Record<number, number | ''>;
   courseHandicap: number;
   strokeIndexes: Record<number, number>;
   pars: Record<number, number>;
   holes: number[];
+  mode: 'gross' | 'net';
+  rowClass: string;
 }
 
-function StablefordRow({ scores, courseHandicap, strokeIndexes, pars, holes }: StablefordRowProps) {
+function DerivedStablefordRow({
+  label,
+  scores,
+  courseHandicap,
+  strokeIndexes,
+  pars,
+  holes,
+  mode,
+  rowClass,
+}: DerivedRowProps) {
   const points = holes.map((h) => {
     const gross = scores[h];
     if (gross === '' || gross === undefined) return null;
-    const si = strokeIndexes[h] ?? h;
     const par = pars[h] ?? 4;
+    if (mode === 'gross') return grossStableford(gross, par);
+    const si = strokeIndexes[h] ?? h;
     const hStrokes = handicapStrokesForHole(courseHandicap, si);
-    return computeStablefordPoints(gross, par, hStrokes);
+    return netStableford(gross, par, hStrokes);
   });
 
   const total = points.reduce<number>((sum, p) => sum + (p ?? 0), 0);
 
   return (
-    <tr className="bg-green-50">
-      <td className="sticky left-0 z-10 bg-green-50 px-3 py-1.5 text-xs font-medium text-[#1B5E20]">
-        Stableford
+    <tr className={rowClass}>
+      <td className="sticky left-0 z-10 px-3 py-1.5 text-xs font-medium" style={{ background: 'inherit' }}>
+        {label}
       </td>
       {holes.map((h, i) => (
-        <td key={h} className="px-1 py-1.5 text-center text-xs font-semibold text-[#1B5E20]">
+        <td key={h} className="px-1 py-1.5 text-center text-xs font-semibold">
           {points[i] ?? '—'}
         </td>
       ))}
-      <td className="px-3 py-1.5 text-center text-xs font-bold text-[#1B5E20]">{total}</td>
+      <td className="px-3 py-1.5 text-center text-xs font-bold">{total}</td>
     </tr>
   );
 }
@@ -228,7 +245,7 @@ export function ScoreEntryPage() {
   }
 
   const isFinalized = isRoundFinalized(round.status);
-  const holes = getHolesForRound(round.roundType, round.nineHoleSide);
+  const holes = holesForSide(round.nineHoleSide);
 
   const strokeIndexes: Record<number, number> = {};
   const pars: Record<number, number> = {};
@@ -250,7 +267,7 @@ export function ScoreEntryPage() {
         </button>
         <PageHeader
           title="Score Entry"
-          subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()}`}
+          subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()} — ${round.nineHoleSide} 9 (Week ${round.weekNumber})`}
         />
       </div>
 
@@ -306,11 +323,13 @@ export function ScoreEntryPage() {
               const courseHandicap = participant.courseHandicap;
 
               return (
-                <>
-                  <tr key={`${participant.playerId}-scores`} className="hover:bg-gray-50/50">
+                <Fragment key={participant.playerId}>
+                  <tr className="hover:bg-gray-50/50">
                     <td className="sticky left-0 z-10 bg-white px-3 py-2">
                       <div className="font-medium text-gray-900">{participant.playerName}</div>
-                      <div className="text-xs text-gray-400">HCP {participant.handicapAtTime}</div>
+                      <div className="text-xs text-gray-400">
+                        HCP {participant.handicapAtTime} · CH {courseHandicap}
+                      </div>
                     </td>
                     {holes.map((h, hi) => (
                       <td key={h} className="px-1 py-2">
@@ -331,15 +350,27 @@ export function ScoreEntryPage() {
                     </td>
                   </tr>
 
-                  <StablefordRow
-                    key={`${participant.playerId}-stableford`}
+                  <DerivedStablefordRow
+                    label="Gross Stableford"
                     scores={playerScores}
                     courseHandicap={courseHandicap}
                     strokeIndexes={strokeIndexes}
                     pars={pars}
                     holes={holes}
+                    mode="gross"
+                    rowClass="bg-blue-50/60 text-blue-800"
                   />
-                </>
+                  <DerivedStablefordRow
+                    label="Net Stableford"
+                    scores={playerScores}
+                    courseHandicap={courseHandicap}
+                    strokeIndexes={strokeIndexes}
+                    pars={pars}
+                    holes={holes}
+                    mode="net"
+                    rowClass="bg-green-50 text-[#1B5E20]"
+                  />
+                </Fragment>
               );
             })}
           </tbody>

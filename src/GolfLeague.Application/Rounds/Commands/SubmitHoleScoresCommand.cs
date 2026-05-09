@@ -21,18 +21,15 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IPlayerRepository _playerRepository;
-    private readonly IHandicapRepository _handicapRepository;
 
     public SubmitHoleScoresCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
-        IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IPlayerRepository playerRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
-        _handicapRepository = handicapRepository;
     }
 
     public async Task<Result<ScorecardDto>> Handle(SubmitHoleScoresCommand request, CancellationToken cancellationToken)
@@ -58,43 +55,35 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (course is null || player is null)
             return Result<ScorecardDto>.Fail("Course or player data could not be loaded.");
 
-        // Filter holes based on round type and nine-hole side
-        var relevantHoles = round.RoundType == RoundType.NineHole
-            ? round.NineHoleSide == NineHoleSide.Back
-                ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
-                : courseHoles.Where(h => h.HoleNumber <= 9).ToList()
-            : courseHoles.ToList();
+        var relevantHoles = round.NineHoleSide == NineHoleSide.Back
+            ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
+            : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
 
         var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
-
-        // Validate that submitted holes match expected holes for this round type
         var submittedHoleNumbers = request.HoleScores.Select(h => h.HoleNumber).ToHashSet();
-        var expectedHoleCount = round.RoundType == RoundType.NineHole ? 9 : 18;
 
-        if (submittedHoleNumbers.Count != expectedHoleCount)
-            return Result<ScorecardDto>.Fail($"Expected {expectedHoleCount} holes for this {round.RoundType} round on the {round.NineHoleSide}, but received {submittedHoleNumbers.Count}.");
+        if (submittedHoleNumbers.Count != 9)
+            return Result<ScorecardDto>.Fail($"Expected 9 holes for the {round.NineHoleSide} nine, but received {submittedHoleNumbers.Count}.");
 
         var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
-        if (invalidHoles.Any())
+        if (invalidHoles.Count > 0)
             return Result<ScorecardDto>.Fail($"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
 
-        // Clear existing scores before adding new ones (supports updates)
         await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
 
         var holeScoreEntities = new List<HoleScore>();
 
         foreach (var input in request.HoleScores)
         {
-            var hole = courseHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
-            if (hole is null)
-                return Result<ScorecardDto>.Fail($"Hole {input.HoleNumber} not found for this course.");
+            var hole = courseHoles.First(h => h.HoleNumber == input.HoleNumber);
 
             var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
             var actualGross = Math.Min(input.GrossStrokes, maxGross);
             var isMaxScore = input.GrossStrokes >= maxGross;
             var netStrokes = StablefordScoringService.NetStrokes(actualGross, strokesOnHole);
-            var stablefordPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
+            var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
+            var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, actualGross);
 
             holeScoreEntities.Add(new HoleScore
             {
@@ -105,8 +94,9 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 GrossStrokes = actualGross,
                 HandicapStrokes = strokesOnHole,
                 NetStrokes = netStrokes,
-                StablefordPoints = stablefordPoints,
-                IsMaxScore = isMaxScore
+                GrossStablefordPoints = grossPoints,
+                NetStablefordPoints = netPoints,
+                IsMaxScore = isMaxScore,
             });
         }
 
@@ -114,7 +104,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
 
         participant.TotalGrossStrokes = holeScoreEntities.Sum(h => h.GrossStrokes);
         participant.TotalNetStrokes = holeScoreEntities.Sum(h => h.NetStrokes);
-        participant.TotalStablefordPoints = holeScoreEntities.Sum(h => h.StablefordPoints);
+        participant.TotalGrossStablefordPoints = holeScoreEntities.Sum(h => h.GrossStablefordPoints);
+        participant.TotalNetStablefordPoints = holeScoreEntities.Sum(h => h.NetStablefordPoints);
 
         await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
 
@@ -134,7 +125,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 h.GrossStrokes,
                 h.HandicapStrokes,
                 h.NetStrokes,
-                h.StablefordPoints,
+                h.GrossStablefordPoints,
+                h.NetStablefordPoints,
                 h.IsMaxScore))
             .ToList();
 
@@ -144,22 +136,14 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             participant.PlayerId,
             player.FullName,
             player.Initials,
+            participant.FlightId,
             participant.HandicapIndex,
             participant.CourseHandicap,
             participant.TotalGrossStrokes,
             participant.TotalNetStrokes,
-            participant.TotalStablefordPoints,
+            participant.TotalGrossStablefordPoints,
+            participant.TotalNetStablefordPoints,
             participant.IsWithdrawn);
-
-        // Calculate front/back nine summaries for 18-hole rounds
-        var frontNinePar = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.Par);
-        var backNinePar = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.Par);
-        var frontNineGross = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.GrossStrokes);
-        var backNineGross = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.GrossStrokes);
-        var frontNineNet = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.NetStrokes);
-        var backNineNet = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.NetStrokes);
-        var frontNinePoints = holeScoreDtos.Where(h => h.HoleNumber <= 9).Sum(h => h.StablefordPoints);
-        var backNinePoints = holeScoreDtos.Where(h => h.HoleNumber >= 10).Sum(h => h.StablefordPoints);
 
         var scorecard = new ScorecardDto(
             round.Id,
@@ -169,18 +153,11 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             course.SlopeRating,
             participantDto,
             holeScoreDtos,
-            frontNinePar,
-            backNinePar,
             holeScoreDtos.Sum(h => h.Par),
-            frontNineGross,
-            backNineGross,
             holeScoreDtos.Sum(h => h.GrossStrokes),
-            frontNineNet,
-            backNineNet,
             holeScoreDtos.Sum(h => h.NetStrokes),
-            frontNinePoints,
-            backNinePoints,
-            holeScoreDtos.Sum(h => h.StablefordPoints));
+            holeScoreDtos.Sum(h => h.GrossStablefordPoints),
+            holeScoreDtos.Sum(h => h.NetStablefordPoints));
 
         return Result<ScorecardDto>.Ok(scorecard);
     }

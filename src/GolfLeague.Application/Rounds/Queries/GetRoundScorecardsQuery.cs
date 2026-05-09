@@ -9,18 +9,22 @@ public sealed record RoundScorecardHoleDto(
     int Par,
     int Strokes,
     int NetStrokes,
-    int StrokeIndex);
+    int StrokeIndex,
+    int GrossPoints,
+    int NetPoints);
 
 public sealed record RoundScorecardDto(
     int RoundId,
     int PlayerId,
     string PlayerName,
+    int FlightId,
     string CourseName,
     DateOnly ScheduledDate,
     double HandicapAtTime,
     int? GrossScore,
     int? NetScore,
-    int? Points,
+    int? GrossPoints,
+    int? NetPoints,
     List<RoundScorecardHoleDto> Holes);
 
 public sealed record GetRoundScorecardsQuery(int RoundId) : IRequest<Result<PagedResult<RoundScorecardDto>>>;
@@ -55,19 +59,23 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
                     h.Par,
                     h.GrossStrokes,
                     h.NetStrokes,
-                    h.StrokeIndex))
+                    h.StrokeIndex,
+                    h.GrossStablefordPoints,
+                    h.NetStablefordPoints))
                 .ToList();
 
             return new RoundScorecardDto(
                 p.RoundId,
                 p.PlayerId,
                 p.Player.FullName,
+                p.FlightId,
                 courseName,
                 round.RoundDate,
                 p.HandicapIndex,
                 p.TotalGrossStrokes,
                 p.TotalNetStrokes,
-                p.TotalStablefordPoints,
+                p.TotalGrossStablefordPoints,
+                p.TotalNetStablefordPoints,
                 holes);
         }).ToList();
 

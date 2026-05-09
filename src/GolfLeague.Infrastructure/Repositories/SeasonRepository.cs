@@ -16,12 +16,15 @@ public sealed class SeasonRepository : ISeasonRepository
 
     public async Task<IReadOnlyList<Season>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(async () => await _context.Seasons
+            .Include(s => s.Halves)
             .OrderByDescending(s => s.Year)
             .ToListAsync(cancellationToken), uploadAfter: false, cancellationToken);
 
     public async Task<Season?> GetActiveAsync(CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(
-            async () => await _context.Seasons.FirstOrDefaultAsync(s => s.IsActive, cancellationToken),
+            async () => await _context.Seasons
+                .Include(s => s.Halves)
+                .FirstOrDefaultAsync(s => s.IsActive, cancellationToken),
             uploadAfter: false,
             cancellationToken);
 
@@ -50,7 +53,9 @@ public sealed class SeasonRepository : ISeasonRepository
 
     public async Task<Season?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => await _context.ExecuteWithBlobSyncAsync(
-            async () => await _context.Seasons.FirstOrDefaultAsync(s => s.Id == id, cancellationToken),
+            async () => await _context.Seasons
+                .Include(s => s.Halves)
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken),
             uploadAfter: false,
             cancellationToken);
 

@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+
 namespace GolfLeague.Functions.Functions;
 
 public sealed class FlightFunctions
@@ -21,7 +22,9 @@ public sealed class FlightFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/flights")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetFlightsQuery(), cancellationToken);
+        int? halfId = int.TryParse(req.Query["halfId"], out var hid) ? hid : null;
+        int? seasonId = int.TryParse(req.Query["seasonId"], out var sid) ? sid : null;
+        var result = await _mediator.Send(new GetFlightsQuery(halfId, seasonId), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -34,13 +37,12 @@ public sealed class FlightFunctions
         if (authError is not null) return authError;
 
         var body = await req.TryDeserializeAsync<CreateFlightRequest>(cancellationToken);
-
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
-            new CreateFlightCommand(body.Name, body.SeasonId, body.DisplayOrder ?? 0, userId),
+            new CreateFlightCommand(body.Name, body.HalfId, body.DisplayOrder ?? 0, userId),
             cancellationToken);
         return result.ToCreatedResult($"/api/v1/flights/{result.Value?.Id}");
     }
@@ -54,10 +56,12 @@ public sealed class FlightFunctions
         if (!int.TryParse(id, out var flightId))
             return new BadRequestObjectResult(new { error = "Invalid flight ID." });
 
-        if (!int.TryParse(req.Query["seasonId"], out var seasonId))
-            return new BadRequestObjectResult(new { error = "Query parameter 'seasonId' is required." });
+        if (!int.TryParse(req.Query["halfId"], out var halfId))
+            return new BadRequestObjectResult(new { error = "Query parameter 'halfId' is required." });
 
-        var result = await _mediator.Send(new GetFlightStandingsQuery(flightId, seasonId), cancellationToken);
+        var useGross = bool.TryParse(req.Query["useGrossPoints"], out var ug) && ug;
+
+        var result = await _mediator.Send(new GetFlightStandingsQuery(flightId, halfId, useGross), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -80,6 +84,6 @@ public sealed class FlightFunctions
 
     private sealed record CreateFlightRequest(
         string Name,
-        int? SeasonId,
+        int HalfId,
         int? DisplayOrder);
 }

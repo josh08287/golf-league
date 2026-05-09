@@ -6,9 +6,11 @@ public sealed record ParticipantDto(
     int PlayerId,
     string PlayerFullName,
     string PlayerInitials,
+    int FlightId,
     double HandicapIndex,
     int CourseHandicap,
     int? TotalGrossStrokes,
     int? TotalNetStrokes,
-    int? TotalStablefordPoints,
+    int? TotalGrossStablefordPoints,
+    int? TotalNetStablefordPoints,
     bool IsWithdrawn);

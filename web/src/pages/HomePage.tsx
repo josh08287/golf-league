@@ -141,7 +141,8 @@ export function HomePage() {
                 <div>
                   <p className="font-medium text-gray-900">{round.courseName}</p>
                   <p className="text-sm text-gray-500">
-                    {round.flightName} &middot; {formatShortDate(round.scheduledDate)}
+                    Week {round.weekNumber} &middot; {round.nineHoleSide} 9 &middot;{' '}
+                    {formatShortDate(round.scheduledDate)}
                   </p>
                 </div>
                 <div className="flex items-center gap-3">

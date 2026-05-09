@@ -8,5 +8,6 @@ public sealed record HoleScoreDto(
     int GrossStrokes,
     int HandicapStrokes,
     int NetStrokes,
-    int StablefordPoints,
+    int GrossStablefordPoints,
+    int NetStablefordPoints,
     bool IsMaxScore);

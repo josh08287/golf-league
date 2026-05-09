@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { useFlightStandings, useFlight } from '@/hooks/useFlights';
@@ -43,9 +44,7 @@ function StandingsRow({ standing, highlight }: StandingsRowProps) {
 
   return (
     <TableRow className={rowClass}>
-      <TableCell className="w-16 text-center">
-        {positionBadge(standing.position)}
-      </TableCell>
+      <TableCell className="w-16 text-center">{positionBadge(standing.position)}</TableCell>
       <TableCell>
         <Link
           to={`/players/${standing.playerId}`}
@@ -71,16 +70,36 @@ function podiumVariant(position: number): PodiumVariant | null {
 
 export function FlightLeaderboardPage() {
   const { flightId } = useParams<{ flightId: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: seasons } = useSeasons();
-  const activeSeason = seasons?.find((s) => s.isActive);
-  const seasonId = searchParams.get('seasonId') ?? String(activeSeason?.id ?? '');
+  const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
 
   const flight = useFlight(flightId ?? '');
-  const standings = useFlightStandings(flightId ?? '', seasonId);
-
   const flightData = flight.data;
-  const title = flightData?.name ? `${flightData.name} Leaderboard` : 'Flight Leaderboard';
+
+  const halfFromQuery = searchParams.get('halfId');
+  const useGross = searchParams.get('useGrossPoints') === 'true';
+
+  // Default to the half this flight belongs to.
+  const halfId = halfFromQuery ?? (flightData ? String(flightData.halfId) : '');
+
+  const standings = useFlightStandings(flightId ?? '', halfId, useGross);
+
+  const halfLabel = useMemo(() => {
+    if (!activeSeason) return '';
+    const half = activeSeason.halves.find((h) => String(h.id) === halfId);
+    return half?.name ?? '';
+  }, [activeSeason, halfId]);
+
+  const title = flightData?.name
+    ? `${flightData.name} Leaderboard${halfLabel ? ` — ${halfLabel}` : ''}`
+    : 'Flight Leaderboard';
+
+  function setUseGross(next: boolean) {
+    const params = new URLSearchParams(searchParams);
+    params.set('useGrossPoints', String(next));
+    setSearchParams(params);
+  }
 
   return (
     <div className="space-y-6">
@@ -93,12 +112,23 @@ export function FlightLeaderboardPage() {
         </Button>
         <PageHeader
           title={title}
-          description={
-            flightData
-              ? `${flightData.playerCount} players`
-              : undefined
-          }
-        />
+          description={flightData ? `${flightData.playerCount} players` : undefined}
+        >
+          <div className="flex gap-2 text-sm">
+            <button
+              onClick={() => setUseGross(false)}
+              className={`px-3 py-1.5 rounded ${!useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
+            >
+              Net
+            </button>
+            <button
+              onClick={() => setUseGross(true)}
+              className={`px-3 py-1.5 rounded ${useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
+            >
+              Gross
+            </button>
+          </div>
+        </PageHeader>
       </div>
 
       {(standings.isPending || flight.isPending) && <FullPageSpinner />}
@@ -109,10 +139,7 @@ export function FlightLeaderboardPage() {
       {standings.data && (
         <>
           {standings.data.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              No standings available.{' '}
-              {!seasonId && 'Provide a seasonId query parameter to filter by season.'}
-            </p>
+            <p className="text-gray-500 text-sm">No standings available for this half yet.</p>
           ) : (
             <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
               <Table>
@@ -122,8 +149,8 @@ export function FlightLeaderboardPage() {
                     <TableHead>Player</TableHead>
                     <TableHead className="text-center">HCP</TableHead>
                     <TableHead className="text-center">Rounds</TableHead>
-                    <TableHead className="text-center">Total Pts</TableHead>
-                    <TableHead className="text-center">Avg Pts</TableHead>
+                    <TableHead className="text-center">{useGross ? 'Gross Pts' : 'Net Pts'}</TableHead>
+                    <TableHead className="text-center">Avg</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

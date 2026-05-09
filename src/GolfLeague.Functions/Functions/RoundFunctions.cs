@@ -1,7 +1,6 @@
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
 using GolfLeague.Domain.Enums;
-using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -13,12 +12,10 @@ namespace GolfLeague.Functions.Functions;
 public sealed class RoundFunctions
 {
     private readonly IMediator _mediator;
-    private readonly IFlightRepository _flightRepository;
 
-    public RoundFunctions(IMediator mediator, IFlightRepository flightRepository)
+    public RoundFunctions(IMediator mediator)
     {
         _mediator = mediator;
-        _flightRepository = flightRepository;
     }
 
     [Function("GetRounds")]
@@ -27,10 +24,11 @@ public sealed class RoundFunctions
         CancellationToken cancellationToken)
     {
         int? seasonId = int.TryParse(req.Query["seasonId"], out var sid) ? sid : null;
+        int? halfId = int.TryParse(req.Query["halfId"], out var hid) ? hid : null;
         var page = int.TryParse(req.Query["page"], out var p) ? p : 1;
         var pageSize = int.TryParse(req.Query["pageSize"], out var ps) ? ps : 20;
 
-        var result = await _mediator.Send(new GetRoundsQuery(seasonId, page, pageSize), cancellationToken);
+        var result = await _mediator.Send(new GetRoundsQuery(seasonId, halfId, page, pageSize), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -56,72 +54,46 @@ public sealed class RoundFunctions
         if (authError is not null) return authError;
 
         var body = await req.TryDeserializeAsync<CreateRoundRequest>(cancellationToken);
-
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-
-        int seasonId = body.SeasonId ?? 0;
-        if (seasonId == 0)
-        {
-            var activeSeasonId = await _flightRepository.GetActiveSeasonIdAsync(cancellationToken);
-            if (activeSeasonId is null)
-                return new BadRequestObjectResult(new { error = "No active season found. Please specify a seasonId." });
-            seasonId = activeSeasonId.Value;
-        }
-
-        // Support both single flight (backwards compat) and multiple flights
-        var flightIds = body.FlightIds?.Count > 0 ? body.FlightIds : 
-                        body.FlightId.HasValue ? new List<int> { body.FlightId.Value } : 
-                        new List<int>();
-
         var command = new CreateRoundCommand(
-            seasonId,
-            body.FlightId,
-            flightIds,
+            body.HalfId,
             body.CourseId,
             body.ResolvedDate,
+            body.ResolvedNineHoleSide,
             body.Notes,
-            userId,
-            body.ResolvedRoundType,
-            body.ResolvedNineHoleSide);
+            userId);
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/rounds/{result.Value?.Id}");
     }
 
-    [Function("CreateHalf")]
-    public async Task<IActionResult> CreateHalf(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/half")] HttpRequest req,
+    [Function("GenerateHalfSchedule")]
+    public async Task<IActionResult> GenerateHalfSchedule(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/halves/{halfId}/schedule")] HttpRequest req,
+        string halfId,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
-        var body = await req.TryDeserializeAsync<CreateHalfRequest>(cancellationToken);
+        if (!int.TryParse(halfId, out var hid))
+            return new BadRequestObjectResult(new { error = "Invalid half ID." });
+
+        var body = await req.TryDeserializeAsync<GenerateScheduleRequest>(cancellationToken);
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
-        int seasonId = body.SeasonId ?? 0;
-        if (seasonId == 0)
-        {
-            var activeSeasonId = await _flightRepository.GetActiveSeasonIdAsync(cancellationToken);
-            if (activeSeasonId is null)
-                return new BadRequestObjectResult(new { error = "No active season found. Please specify a seasonId." });
-            seasonId = activeSeasonId.Value;
-        }
-
         var userId = req.GetUserId() ?? "unknown";
-        var result = await _mediator.Send(new CreateHalfCommand(
-            seasonId,
+        var result = await _mediator.Send(new GenerateHalfScheduleCommand(
+            hid,
             body.CourseId,
-            body.ResolvedStartDate,
-            body.ResolvedRoundDates,
-            userId,
-            body.ResolvedRoundType,
-            body.ResolvedNineHoleSides), cancellationToken);
+            body.ResolvedWeekDates,
+            body.ResolvedStartingSide,
+            userId), cancellationToken);
 
-        return result.ToCreatedResult("/api/v1/rounds/half");
+        return result.ToCreatedResult($"/api/v1/halves/{hid}/schedule");
     }
 
     [Function("GetPlayerScorecard")]
@@ -192,7 +164,6 @@ public sealed class RoundFunctions
             return new BadRequestObjectResult(new { error = "Invalid ID." });
 
         var body = await req.TryDeserializeAsync<SubmitHoleScoresRequest>(cancellationToken);
-
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
@@ -236,11 +207,30 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("CancelRound")]
+    public async Task<IActionResult> CancelRound(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{id}/cancel")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new CancelRoundCommand(roundId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateRoundRequest(
-        int? SeasonId, int? FlightId, List<int>? FlightIds, int CourseId,
-        string? ScheduledDate, string? RoundDate,
-        string? Notes, List<int>? PlayerIds,
-        string? RoundType, string? NineHoleSide)
+        int HalfId,
+        int CourseId,
+        string? ScheduledDate,
+        string? RoundDate,
+        string? Notes,
+        string? NineHoleSide)
     {
         public DateOnly ResolvedDate => ScheduledDate is not null
             ? DateOnly.Parse(ScheduledDate)
@@ -248,43 +238,26 @@ public sealed class RoundFunctions
                 ? DateOnly.Parse(RoundDate)
                 : DateOnly.FromDateTime(DateTime.UtcNow);
 
-        public Domain.Enums.RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
-        {
-            "eighteenhole" or "18" or "18hole" => Domain.Enums.RoundType.EighteenHole,
-            _ => Domain.Enums.RoundType.NineHole
-        };
-
-        public Domain.Enums.NineHoleSide ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
+        public NineHoleSide? ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
         {
             "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
-            _ => Domain.Enums.NineHoleSide.Front
+            "front" or "front9" or "frontnine" => Domain.Enums.NineHoleSide.Front,
+            _ => null,
         };
     }
 
-    private sealed record CreateHalfRequest(
-        int? SeasonId,
+    private sealed record GenerateScheduleRequest(
         int CourseId,
-        string StartDate,
-        List<string> RoundDates,
-        string? RoundType,
-        List<string>? NineHoleSides)
+        List<string> WeekDates,
+        string? StartingSide)
     {
-        public DateOnly ResolvedStartDate => DateOnly.Parse(StartDate);
-        public List<DateOnly> ResolvedRoundDates => RoundDates.Select(DateOnly.Parse).ToList();
+        public List<DateOnly> ResolvedWeekDates => WeekDates.Select(DateOnly.Parse).ToList();
 
-        public Domain.Enums.RoundType ResolvedRoundType => RoundType?.ToLowerInvariant() switch
+        public NineHoleSide ResolvedStartingSide => StartingSide?.ToLowerInvariant() switch
         {
-            "eighteenhole" or "18" or "18hole" => Domain.Enums.RoundType.EighteenHole,
-            _ => Domain.Enums.RoundType.NineHole
+            "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
+            _ => Domain.Enums.NineHoleSide.Front,
         };
-
-        public List<Domain.Enums.NineHoleSide> ResolvedNineHoleSides => NineHoleSides?
-            .Select(side => side.ToLowerInvariant() switch
-            {
-                "back" or "back9" or "backnine" => Domain.Enums.NineHoleSide.Back,
-                _ => Domain.Enums.NineHoleSide.Front
-            })
-            .ToList() ?? [];
     }
 
     private sealed record HoleScoreInputDto(int HoleNumber, int? GrossStrokes, int? GrossScore)

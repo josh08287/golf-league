@@ -3,22 +3,23 @@ using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
-using GolfLeague.Domain.Services;
 using MediatR;
 using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
+/// <summary>
+/// Adds a single weekly round to a half (e.g. an admin appending a make-up week).
+/// All flights in the half become participants. NineHoleSide is admin-supplied
+/// (or auto-alternated from the previous round if not provided).
+/// </summary>
 public sealed record CreateRoundCommand(
-    int SeasonId,
-    int? FlightId, // Optional - kept for backwards compatibility
-    List<int> FlightIds, // Multiple flights for multi-flight rounds
+    int HalfId,
     int CourseId,
     DateOnly RoundDate,
+    NineHoleSide? NineHoleSide,
     string? Notes,
-    string UserId,
-    RoundType RoundType = RoundType.NineHole,
-    NineHoleSide NineHoleSide = NineHoleSide.Front) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
 
 public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundCommand, Result<RoundDto>>
 {
@@ -44,43 +45,37 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
     public async Task<Result<RoundDto>> Handle(CreateRoundCommand request, CancellationToken cancellationToken)
     {
+        var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
+        if (half is null)
+            return Result<RoundDto>.Fail($"Half with ID {request.HalfId} not found.");
+
         var course = await _courseRepository.GetByIdAsync(request.CourseId, cancellationToken);
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {request.CourseId} not found.");
 
-        // Validate all flights exist
-        var flightIds = request.FlightIds.Count > 0 ? request.FlightIds : 
-                        request.FlightId.HasValue ? new List<int> { request.FlightId.Value } : 
-                        new List<int>();
-        
-        if (flightIds.Count == 0)
-            return Result<RoundDto>.Fail("At least one flight is required.");
+        var flights = await _flightRepository.GetByHalfAsync(request.HalfId, cancellationToken);
+        if (flights.Count == 0)
+            return Result<RoundDto>.Fail("Half has no flights. Create flights first.");
 
-        var flights = new List<Flight>();
-        foreach (var flightId in flightIds)
-        {
-            var flight = await _flightRepository.GetByIdAsync(flightId, cancellationToken);
-            if (flight is null)
-                return Result<RoundDto>.Fail($"Flight with ID {flightId} not found.");
-            flights.Add(flight);
-        }
+        var existing = await _roundRepository.GetByHalfAsync(request.HalfId, cancellationToken);
+        var nextWeek = existing.Count == 0 ? 1 : existing.Max(r => r.WeekNumber) + 1;
 
-        // Create round - no single flight association (or use first for backwards compatibility)
+        var side = request.NineHoleSide ?? NextSide(existing);
+
         var round = new Round
         {
-            SeasonId = request.SeasonId,
-            FlightId = request.FlightId ?? flightIds.First(), // Backwards compatibility
-            CourseId = request.CourseId,
+            SeasonId = half.SeasonId,
+            HalfId = half.Id,
+            CourseId = course.Id,
+            WeekNumber = nextWeek,
             RoundDate = request.RoundDate,
             Status = RoundStatus.Scheduled,
-            RoundType = request.RoundType,
-            NineHoleSide = request.NineHoleSide,
-            Notes = request.Notes
+            NineHoleSide = side,
+            Notes = request.Notes,
         };
 
         await _roundRepository.AddAsync(round, cancellationToken);
 
-        // Add all players from all flights as participants
         var totalParticipants = 0;
         foreach (var flight in flights)
         {
@@ -90,38 +85,29 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
                 var player = await _playerRepository.GetByIdAsync(membership.PlayerId, cancellationToken);
                 if (player is null || !player.IsActive) continue;
 
-                var currentHandicap = await _handicapRepository.GetCurrentAsync(membership.PlayerId, cancellationToken);
-                var handicapIndex = currentHandicap?.HandicapIndex ?? 0.0;
-                var courseHandicap = CourseHandicap(handicapIndex, course.SlopeRating, request.RoundType);
+                var current = await _handicapRepository.GetCurrentAsync(membership.PlayerId, cancellationToken);
+                var index = current?.HandicapIndex ?? 0.0;
 
-                var participant = new RoundParticipant
+                await _roundRepository.AddParticipantAsync(new RoundParticipant
                 {
                     RoundId = round.Id,
                     PlayerId = membership.PlayerId,
-                    FlightId = flight.Id, // Track flight at time of round creation
-                    HandicapIndex = handicapIndex,
-                    CourseHandicap = courseHandicap,
-                    IsWithdrawn = false
-                };
-
-                await _roundRepository.AddParticipantAsync(participant, cancellationToken);
+                    FlightId = flight.Id,
+                    HandicapIndex = index,
+                    CourseHandicap = CourseHandicap(index, course.SlopeRating, RoundType.NineHole),
+                    IsWithdrawn = false,
+                }, cancellationToken);
                 totalParticipants++;
             }
         }
 
-        var dto = new RoundDto(
-            round.Id,
-            round.SeasonId,
-            round.FlightId,
-            flights.Count == 1 ? flights[0].Name : $"{flights.Count} Flights",
-            round.CourseId,
-            course.Name,
-            round.RoundDate,
-            round.Status,
-            round.RoundType,
-            round.NineHoleSide,
-            totalParticipants);
+        return Result<RoundDto>.Ok(RoundDtoMapper.Map(round, course.Name, totalParticipants));
+    }
 
-        return Result<RoundDto>.Ok(dto);
+    private static NineHoleSide NextSide(IReadOnlyList<Round> existing)
+    {
+        if (existing.Count == 0) return NineHoleSide.Front;
+        var last = existing.OrderBy(r => r.WeekNumber).Last();
+        return last.NineHoleSide == NineHoleSide.Front ? NineHoleSide.Back : NineHoleSide.Front;
     }
 }

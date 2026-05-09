@@ -1,23 +1,23 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useCreateHalf } from '../../hooks/admin/useCreateHalf';
+import { Calendar, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { useSeasons } from '../../hooks/useSeasons';
+import { useGenerateHalfSchedule } from '../../hooks/admin/useCreateHalf';
 import { api } from '../../lib/api';
 import { Button } from '../ui/Button';
 import { FormField, inputClass, selectClass } from './FormField';
 import type { Course } from '../../types/api';
-import { Calendar, X, ChevronDown, ChevronUp } from 'lucide-react';
 
 const schema = z.object({
+  halfId: z.string().min(1, 'Half is required'),
   startDate: z.string().min(1, 'Start date is required'),
-  numberOfRounds: z.coerce.number().min(1, 'Must create at least 1 round').max(52, 'Maximum 52 rounds'),
-  frequency: z.enum(['weekly', 'biweekly', 'daily']).default('weekly'),
-  dayOfWeek: z.coerce.number().min(0).max(6).default(1), // 1 = Monday
+  numberOfRounds: z.coerce.number().min(1).max(52),
+  dayOfWeek: z.coerce.number().min(0).max(6).default(1),
   courseId: z.string().min(1, 'Course is required'),
-  roundType: z.enum(['NineHole', 'EighteenHole']).default('NineHole'),
-  nineHolePattern: z.enum(['Front', 'Back', 'Alternate']).default('Alternate'),
+  startingSide: z.enum(['Front', 'Back']).default('Front'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -37,14 +37,12 @@ const DAYS_OF_WEEK = [
   { value: 6, label: 'Saturday' },
 ];
 
-const NINE_HOLE_PATTERNS = [
-  { value: 'Front', label: 'Always Front 9' },
-  { value: 'Back', label: 'Always Back 9' },
-  { value: 'Alternate', label: 'Alternate Front/Back' },
-];
-
 export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
-  const createHalf = useCreateHalf();
+  const generate = useGenerateHalfSchedule();
+
+  const { data: seasons } = useSeasons();
+  const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
+  const halves = activeSeason?.halves ?? [];
 
   const { data: coursesPage } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
@@ -58,78 +56,58 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   const {
     register,
     handleSubmit,
-    watch,
+    setValue,
     control,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
-      frequency: 'weekly',
-      dayOfWeek: 1, // Monday
-      roundType: 'NineHole',
-      nineHolePattern: 'Alternate',
+      dayOfWeek: 1,
       numberOfRounds: 8,
+      startingSide: 'Front',
     },
   });
 
-  const watchedValues = useWatch({ control });
+  useEffect(() => {
+    if (halves.length > 0) {
+      setValue('halfId', String(halves[0].id));
+      if (halves[0].startDate) setValue('startDate', halves[0].startDate);
+    }
+  }, [halves, setValue]);
+
+  const watched = useWatch({ control });
 
   const generatedSchedule = useMemo(() => {
-    if (!watchedValues.startDate || !watchedValues.numberOfRounds) return [];
-
-    const dates: Array<{ date: string; nineHoleSide: string | null }> = [];
-    const start = new Date(watchedValues.startDate);
-    const skipSet = skipDates;
-
+    if (!watched.startDate || !watched.numberOfRounds) return [];
+    const dates: Array<{ date: string; nineHoleSide: 'Front' | 'Back' }> = [];
+    const start = new Date(watched.startDate);
     let currentDate = new Date(start);
-    let roundCount = 0;
-    let alternateSide: 'Front' | 'Back' = 'Front';
+    let count = 0;
+    let side: 'Front' | 'Back' = (watched.startingSide as 'Front' | 'Back') ?? 'Front';
 
-    // Adjust start date to match selected day of week if frequency is weekly/biweekly
-    if (watchedValues.frequency !== 'daily' && watchedValues.dayOfWeek !== undefined) {
+    if (watched.dayOfWeek !== undefined) {
       const currentDay = currentDate.getDay();
-      const targetDay = watchedValues.dayOfWeek;
-      const diff = (targetDay - currentDay + 7) % 7;
+      const target = watched.dayOfWeek;
+      const diff = (target - currentDay + 7) % 7;
       currentDate.setDate(currentDate.getDate() + diff);
     }
 
-    while (roundCount < (watchedValues.numberOfRounds || 0)) {
+    while (count < (watched.numberOfRounds || 0)) {
       const dateStr = currentDate.toISOString().split('T')[0];
-
-      if (!skipSet.has(dateStr)) {
-        let nineHoleSide: string | null = null;
-
-        if (watchedValues.roundType === 'NineHole') {
-          if (watchedValues.nineHolePattern === 'Front') {
-            nineHoleSide = 'Front';
-          } else if (watchedValues.nineHolePattern === 'Back') {
-            nineHoleSide = 'Back';
-          } else {
-            nineHoleSide = alternateSide;
-            alternateSide = alternateSide === 'Front' ? 'Back' : 'Front';
-          }
-        }
-
-        dates.push({ date: dateStr, nineHoleSide });
-        roundCount++;
+      if (!skipDates.has(dateStr)) {
+        dates.push({ date: dateStr, nineHoleSide: side });
+        side = side === 'Front' ? 'Back' : 'Front';
+        count++;
       }
-
-      if (watchedValues.frequency === 'weekly') {
-        currentDate.setDate(currentDate.getDate() + 7);
-      } else if (watchedValues.frequency === 'biweekly') {
-        currentDate.setDate(currentDate.getDate() + 14);
-      } else {
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+      currentDate.setDate(currentDate.getDate() + 7);
     }
 
     return dates;
-  }, [watchedValues, skipDates]);
+  }, [watched, skipDates]);
 
   function addSkipDate(date: string) {
     setSkipDates((prev) => new Set([...prev, date]));
   }
-
   function removeSkipDate(date: string) {
     setSkipDates((prev) => {
       const next = new Set(prev);
@@ -139,24 +117,28 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   }
 
   async function onSubmit(values: FormValues) {
-    await createHalf.mutateAsync({
-      startDate: values.startDate,
-      numberOfRounds: values.numberOfRounds,
-      frequency: values.frequency,
+    await generate.mutateAsync({
+      halfId: Number(values.halfId),
       courseId: Number(values.courseId),
-      roundType: values.roundType,
-      nineHolePattern: values.nineHolePattern,
-      skipDates: Array.from(skipDates),
-      dayOfWeek: values.dayOfWeek,
+      weekDates: generatedSchedule.map((s) => s.date),
+      startingSide: values.startingSide,
     });
     onSuccess();
   }
 
-  const roundType = watch('roundType');
-  const frequency = watch('frequency');
-
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 max-h-[80vh] overflow-y-auto">
+      <FormField label="Half" error={errors.halfId} required>
+        <select {...register('halfId')} className={selectClass}>
+          {halves.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name} ({h.startDate} → {h.endDate})
+            </option>
+          ))}
+          {halves.length === 0 && <option value="">— No active season —</option>}
+        </select>
+      </FormField>
+
       <div className="grid grid-cols-2 gap-4">
         <FormField label="Start Date" error={errors.startDate} required>
           <input {...register('startDate')} type="date" className={inputClass} />
@@ -174,25 +156,22 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
       </div>
 
       <div className="grid grid-cols-2 gap-4">
-        <FormField label="Frequency" error={errors.frequency}>
-          <select {...register('frequency')} className={selectClass}>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Bi-weekly</option>
-            <option value="daily">Daily</option>
+        <FormField label="Day of Week" error={errors.dayOfWeek}>
+          <select {...register('dayOfWeek')} className={selectClass}>
+            {DAYS_OF_WEEK.map((d) => (
+              <option key={d.value} value={d.value}>
+                {d.label}
+              </option>
+            ))}
           </select>
         </FormField>
 
-        {frequency !== 'daily' && (
-          <FormField label="Day of Week" error={errors.dayOfWeek}>
-            <select {...register('dayOfWeek')} className={selectClass}>
-              {DAYS_OF_WEEK.map((d) => (
-                <option key={d.value} value={d.value}>
-                  {d.label}
-                </option>
-              ))}
-            </select>
-          </FormField>
-        )}
+        <FormField label="Starting 9" error={errors.startingSide}>
+          <select {...register('startingSide')} className={selectClass}>
+            <option value="Front">Front (then alternate)</option>
+            <option value="Back">Back (then alternate)</option>
+          </select>
+        </FormField>
       </div>
 
       <FormField label="Course" error={errors.courseId} required>
@@ -206,45 +185,20 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         </select>
       </FormField>
 
-      <div className="grid grid-cols-2 gap-4">
-        <FormField label="Round Type" error={errors.roundType}>
-          <select {...register('roundType')} className={selectClass}>
-            <option value="NineHole">9 Holes</option>
-            <option value="EighteenHole">18 Holes</option>
-          </select>
-        </FormField>
-
-        {roundType === 'NineHole' && (
-          <FormField label="9-Hole Pattern" error={errors.nineHolePattern}>
-            <select {...register('nineHolePattern')} className={selectClass}>
-              {NINE_HOLE_PATTERNS.map((p) => (
-                <option key={p.value} value={p.value}>
-                  {p.label}
-                </option>
-              ))}
-            </select>
-          </FormField>
-        )}
-      </div>
-
-      {/* Skip Dates */}
       <div>
         <label className="text-sm font-medium text-gray-700 mb-1.5 block">Skip Dates (optional)</label>
-        <div className="flex gap-2 mb-2">
-          <input
-            type="date"
-            id="skipDatePicker"
-            className={inputClass}
-            onChange={(e) => {
-              if (e.target.value) {
-                addSkipDate(e.target.value);
-                e.target.value = '';
-              }
-            }}
-          />
-        </div>
+        <input
+          type="date"
+          className={inputClass}
+          onChange={(e) => {
+            if (e.target.value) {
+              addSkipDate(e.target.value);
+              e.target.value = '';
+            }
+          }}
+        />
         {skipDates.size > 0 && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 mt-2">
             {Array.from(skipDates).map((date) => (
               <span
                 key={date}
@@ -252,11 +206,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
               >
                 <Calendar className="h-3 w-3" />
                 {new Date(date).toLocaleDateString()}
-                <button
-                  type="button"
-                  onClick={() => removeSkipDate(date)}
-                  className="hover:text-red-900"
-                >
+                <button type="button" onClick={() => removeSkipDate(date)} className="hover:text-red-900">
                   <X className="h-3 w-3" />
                 </button>
               </span>
@@ -265,7 +215,6 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         )}
       </div>
 
-      {/* Schedule Preview */}
       <div className="border-t border-gray-200 pt-4">
         <button
           type="button"
@@ -281,31 +230,27 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
             <table className="min-w-full text-sm">
               <thead className="bg-gray-50 sticky top-0">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-gray-600">#</th>
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Week</th>
                   <th className="px-3 py-2 text-left font-medium text-gray-600">Date</th>
-                  {roundType === 'NineHole' && (
-                    <th className="px-3 py-2 text-left font-medium text-gray-600">Side</th>
-                  )}
+                  <th className="px-3 py-2 text-left font-medium text-gray-600">Side</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {generatedSchedule.map((item, idx) => (
-                  <tr key={item.date} className="hover:bg-gray-50">
+                  <tr key={item.date}>
                     <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
                     <td className="px-3 py-2">{new Date(item.date).toLocaleDateString()}</td>
-                    {roundType === 'NineHole' && (
-                      <td className="px-3 py-2">
-                        <span
-                          className={`inline-flex px-2 py-0.5 rounded text-xs ${
-                            item.nineHoleSide === 'Front'
-                              ? 'bg-blue-50 text-blue-700'
-                              : 'bg-green-50 text-green-700'
-                          }`}
-                        >
-                          {item.nineHoleSide}
-                        </span>
-                      </td>
-                    )}
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex px-2 py-0.5 rounded text-xs ${
+                          item.nineHoleSide === 'Front'
+                            ? 'bg-blue-50 text-blue-700'
+                            : 'bg-green-50 text-green-700'
+                        }`}
+                      >
+                        {item.nineHoleSide}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -314,10 +259,8 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         )}
       </div>
 
-      {createHalf.isError && (
-        <p className="text-sm text-red-600">
-          Failed to create rounds. Try again.
-        </p>
+      {generate.isError && (
+        <p className="text-sm text-red-600">Failed to generate schedule. Try again.</p>
       )}
 
       <div className="flex justify-end gap-3 pt-2 border-t border-gray-200">
@@ -327,9 +270,9 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         <Button
           type="submit"
           variant="primary"
-          disabled={isSubmitting || createHalf.isPending || generatedSchedule.length === 0}
+          disabled={isSubmitting || generate.isPending || generatedSchedule.length === 0}
         >
-          Create {generatedSchedule.length} Round{generatedSchedule.length === 1 ? '' : 's'}
+          Generate {generatedSchedule.length} Round{generatedSchedule.length === 1 ? '' : 's'}
         </Button>
       </div>
     </form>

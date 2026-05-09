@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,6 +7,7 @@ import { Plus, Users, Trash2 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useFlights } from '../../hooks/useFlights';
 import { usePlayers } from '../../hooks/usePlayers';
+import { useSeasons } from '../../hooks/useSeasons';
 import { useDeleteFlight } from '../../hooks/admin/useFlightMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -15,30 +16,29 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
-import { FormField, inputClass } from '../../components/admin/FormField';
+import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
 import { FlightPlayerAssignment } from '../../components/admin/FlightPlayerAssignment';
-import type { Flight } from '../../types/api';
-
-// ── Schema ─────────────────────────────────────────────────────────────────
+import type { Flight, SeasonHalf } from '../../types/api';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
+  halfId: z.string().min(1, 'Half is required'),
   displayOrder: z.number({ invalid_type_error: 'Enter a number' }).int().min(0).default(0),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-// ── Create Flight Form ─────────────────────────────────────────────────────
-
 interface CreateFlightFormProps {
+  halves: SeasonHalf[];
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
+function CreateFlightForm({ halves, onSuccess, onCancel }: CreateFlightFormProps) {
   const qc = useQueryClient();
   const create = useMutation({
-    mutationFn: (payload: FormValues) => api.post('/flights', payload).then((r) => r.data),
+    mutationFn: (payload: { name: string; halfId: number; displayOrder: number }) =>
+      api.post('/flights', payload).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['flights'] }),
   });
 
@@ -48,16 +48,31 @@ function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { displayOrder: 0 },
+    defaultValues: { displayOrder: 0, halfId: halves[0] ? String(halves[0].id) : '' },
   });
 
   async function onSubmit(values: FormValues) {
-    await create.mutateAsync(values);
+    await create.mutateAsync({
+      name: values.name,
+      halfId: Number(values.halfId),
+      displayOrder: values.displayOrder,
+    });
     onSuccess();
   }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <FormField label="Half" error={errors.halfId} required>
+        <select {...register('halfId')} className={selectClass}>
+          {halves.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
+            </option>
+          ))}
+          {halves.length === 0 && <option value="">— No halves available —</option>}
+        </select>
+      </FormField>
+
       <FormField label="Flight Name" error={errors.name} required>
         <input {...register('name')} className={inputClass} placeholder="A Flight" />
       </FormField>
@@ -71,9 +86,7 @@ function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
         />
       </FormField>
 
-      {create.isError && (
-        <p className="text-sm text-red-600">Failed to create flight. Try again.</p>
-      )}
+      {create.isError && <p className="text-sm text-red-600">Failed to create flight. Try again.</p>}
 
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="ghost" onClick={onCancel}>
@@ -87,23 +100,20 @@ function CreateFlightForm({ onSuccess, onCancel }: CreateFlightFormProps) {
   );
 }
 
-// ── Flight Card ────────────────────────────────────────────────────────────
-
 interface FlightCardProps {
   flight: Flight;
+  halfLabel: string | null;
   playerCount: number;
   onDelete: (flight: Flight) => void;
 }
 
-function FlightCard({ flight, playerCount, onDelete }: FlightCardProps) {
+function FlightCard({ flight, halfLabel, playerCount, onDelete }: FlightCardProps) {
   return (
     <Card className="p-5">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-semibold text-gray-900">{flight.name}</h3>
-          {flight.halfId != null && (
-            <p className="mt-0.5 text-xs text-gray-500">Half #{flight.halfId}</p>
-          )}
+          {halfLabel && <p className="mt-0.5 text-xs text-gray-500">{halfLabel}</p>}
         </div>
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-[#1B5E20]">
@@ -128,13 +138,20 @@ function FlightCard({ flight, playerCount, onDelete }: FlightCardProps) {
   );
 }
 
-// ── Page ───────────────────────────────────────────────────────────────────
-
 export function FlightsPage() {
   const { data: flightsPage, isLoading, error } = useFlights();
   const flights = flightsPage?.data ?? [];
   const { data: playersPage } = usePlayers();
   const players = playersPage?.data ?? [];
+  const { data: seasons } = useSeasons();
+  const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
+  const halves = activeSeason?.halves ?? [];
+  const halfNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const h of halves) m.set(h.id, h.name);
+    return m;
+  }, [halves]);
+
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Flight | null>(null);
 
@@ -162,23 +179,47 @@ export function FlightsPage() {
     return players.filter((p) => p.flightId === flightId).length;
   }
 
+  const flightsByHalf = halves.map((h) => ({
+    half: h,
+    flights: flights.filter((f) => f.halfId === h.id),
+  }));
+
   return (
     <div className="space-y-8">
       <PageHeader title="Flights">
-        <Button variant="primary" onClick={() => setCreateOpen(true)}>
+        <Button variant="primary" onClick={() => setCreateOpen(true)} disabled={halves.length === 0}>
           <Plus className="mr-1 h-4 w-4" />
           Create Flight
         </Button>
       </PageHeader>
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {flights.map((f) => (
-          <FlightCard key={f.id} flight={f} playerCount={playerCountForFlight(f.id)} onDelete={setDeleteTarget} />
-        ))}
-        {flights.length === 0 && (
-          <p className="text-sm text-gray-500">No flights created yet.</p>
-        )}
-      </div>
+      {halves.length === 0 && (
+        <p className="text-sm text-gray-500">
+          No active season with halves. Create a season first.
+        </p>
+      )}
+
+      {flightsByHalf.map(({ half, flights: halfFlights }) => (
+        <section key={half.id} className="space-y-3">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-gray-500">
+            {half.name}
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {halfFlights.map((f) => (
+              <FlightCard
+                key={f.id}
+                flight={f}
+                halfLabel={halfNameById.get(f.halfId) ?? null}
+                playerCount={playerCountForFlight(f.id)}
+                onDelete={setDeleteTarget}
+              />
+            ))}
+            {halfFlights.length === 0 && (
+              <p className="text-sm text-gray-400">No flights in this half yet.</p>
+            )}
+          </div>
+        </section>
+      ))}
 
       {flights.length > 0 && (
         <div>
@@ -192,9 +233,9 @@ export function FlightsPage() {
         </div>
       )}
 
-      {/* Create Flight Modal */}
       <Modal open={createOpen} title="Create Flight" onClose={() => setCreateOpen(false)}>
         <CreateFlightForm
+          halves={halves}
           onSuccess={() => setCreateOpen(false)}
           onCancel={() => setCreateOpen(false)}
         />

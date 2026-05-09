@@ -42,7 +42,7 @@ export interface Flight {
   id: number;
   name: string;
   seasonId: number;
-  halfId: number | null;
+  halfId: number;
   displayOrder: number;
   playerCount: number;
 }
@@ -59,20 +59,18 @@ export interface Standing {
 }
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
-export type RoundType = 'NineHole' | 'EighteenHole';
-export type NineHoleSide = 'NotApplicable' | 'Front' | 'Back';
+export type NineHoleSide = 'Front' | 'Back';
 
 export interface Round {
   id: number;
+  seasonId: number;
+  halfId: number;
   courseId: number;
   courseName: string;
-  flightId: number;
-  flightName: string;
+  weekNumber: number;
   scheduledDate: string;
   status: RoundStatus;
-  roundType: RoundType;
   nineHoleSide: NineHoleSide;
-  seasonId: number;
   participantCount: number;
 }
 
@@ -81,30 +79,79 @@ export interface Participant {
   roundId: number;
   playerId: number;
   playerName: string;
+  flightId: number;
   handicapAtTime: number;
   courseHandicap: number;
   isWithdrawn: boolean;
 }
 
 export interface HoleScore {
+  id?: number;
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+  grossStrokes: number;
+  handicapStrokes: number;
+  netStrokes: number;
+  grossStablefordPoints: number;
+  netStablefordPoints: number;
+  isMaxScore: boolean;
+}
+
+export interface ScorecardParticipant {
+  id: number;
+  roundId: number;
+  playerId: number;
+  playerFullName: string;
+  playerInitials: string;
+  flightId: number;
+  handicapIndex: number;
+  courseHandicap: number;
+  totalGrossStrokes: number | null;
+  totalNetStrokes: number | null;
+  totalGrossStablefordPoints: number | null;
+  totalNetStablefordPoints: number | null;
+  isWithdrawn: boolean;
+}
+
+export interface Scorecard {
+  roundId: number;
+  roundDate: string;
+  courseName: string;
+  courseRating: number;
+  slopeRating: number;
+  participant: ScorecardParticipant;
+  holeScores: HoleScore[];
+  totalPar: number;
+  totalGross: number;
+  totalNet: number;
+  totalGrossPoints: number;
+  totalNetPoints: number;
+}
+
+export interface RoundScorecardHole {
   holeNumber: number;
   par: number;
   strokes: number;
   netStrokes: number;
   strokeIndex: number;
+  grossPoints: number;
+  netPoints: number;
 }
 
-export interface Scorecard {
+export interface RoundScorecard {
   roundId: number;
   playerId: number;
   playerName: string;
+  flightId: number;
   courseName: string;
   scheduledDate: string;
   handicapAtTime: number;
   grossScore: number | null;
   netScore: number | null;
-  points: number | null;
-  holes: HoleScore[];
+  grossPoints: number | null;
+  netPoints: number | null;
+  holes: RoundScorecardHole[];
 }
 
 export interface CourseHole {
@@ -151,6 +198,15 @@ export interface MyStatusResponse {
   playerId: number | null;
 }
 
+export interface SeasonHalf {
+  id: number;
+  seasonId: number;
+  halfNumber: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface Season {
   id: number;
   name: string;
@@ -159,4 +215,5 @@ export interface Season {
   endDate: string;
   isActive: boolean;
   bestNRounds: number | null;
+  halves: SeasonHalf[];
 }

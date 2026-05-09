@@ -85,7 +85,7 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     var containerClient = scope.ServiceProvider.GetRequiredService<BlobContainerClient>();
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
 
-    var blobName = config["SQLITE_BLOB_NAME"] ?? "golf-league.db";
+    var blobName = config["SQLITE_BLOB_NAME"] ?? "golf-league-v2.db";
     var localDbPath = Path.Combine(Path.GetTempPath(), "golf-league", blobName);
 
     try
@@ -94,8 +94,8 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-        // Apply any pending EF migrations (schema changes)
-        await dbContext.Database.MigrateAsync();
+        // No EF migrations — v2 schema is created fresh from the model.
+        await dbContext.Database.EnsureCreatedAsync();
 
         // Seed a default active season if none exists so flights can be created.
         await SeedActiveSeasonAsync(dbContext);
@@ -116,13 +116,39 @@ static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
     if (hasActiveSeason) return;
 
     var year = DateTime.UtcNow.Year;
-    dbContext.Seasons.Add(new GolfLeague.Domain.Entities.Season
+    var start = new DateOnly(year, 5, 1);
+    var end = new DateOnly(year, 9, 30);
+    var midpoint = start.AddDays((end.DayNumber - start.DayNumber) / 2);
+
+    var season = new GolfLeague.Domain.Entities.Season
     {
         Name = $"{year} Season",
         Year = year,
-        StartDate = new DateOnly(year, 1, 1),
-        EndDate = new DateOnly(year, 12, 31),
+        StartDate = start,
+        EndDate = end,
         IsActive = true,
-    });
+    };
+    dbContext.Seasons.Add(season);
+    await dbContext.SaveChangesAsync();
+
+    dbContext.SeasonHalves.AddRange(
+        new GolfLeague.Domain.Entities.SeasonHalf
+        {
+            SeasonId = season.Id,
+            HalfNumber = 1,
+            Name = $"{season.Name} - First Half",
+            StartDate = start,
+            EndDate = midpoint,
+            CreatedAt = DateTime.UtcNow,
+        },
+        new GolfLeague.Domain.Entities.SeasonHalf
+        {
+            SeasonId = season.Id,
+            HalfNumber = 2,
+            Name = $"{season.Name} - Second Half",
+            StartDate = midpoint.AddDays(1),
+            EndDate = end,
+            CreatedAt = DateTime.UtcNow,
+        });
     await dbContext.SaveChangesAsync();
 }

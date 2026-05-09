@@ -2,17 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { roundKeys } from '@/hooks/useRounds';
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
 export interface CreateRoundPayload {
-  scheduledDate: string; // ISO date string — sent as scheduledDate, backend accepts it
-  courseId: number | string;
-  flightId?: number | string; // Legacy single flight
-  flightIds?: number[]; // Multiple flights
-  seasonId?: number | string;
-  playerIds?: number[];
+  halfId: number;
+  courseId: number;
+  scheduledDate: string;
   notes?: string;
-  roundType?: 'NineHole' | 'EighteenHole';
   nineHoleSide?: 'Front' | 'Back';
 }
 
@@ -26,11 +20,8 @@ export interface SubmitHoleScoresPayload {
   scores: HoleScoreInput[];
 }
 
-// ── Hooks ──────────────────────────────────────────────────────────────────
-
 export function useCreateRound() {
   const qc = useQueryClient();
-
   return useMutation({
     mutationFn: (payload: CreateRoundPayload) =>
       apiClient.post('/rounds', payload).then((r) => r.data),
@@ -42,7 +33,6 @@ export function useCreateRound() {
 
 export function useSubmitHoleScores(roundId: string) {
   const qc = useQueryClient();
-
   return useMutation({
     mutationFn: ({ playerId, scores }: SubmitHoleScoresPayload) =>
       apiClient
@@ -57,7 +47,6 @@ export function useSubmitHoleScores(roundId: string) {
 
 export function useFinalizeRound(roundId: string) {
   const qc = useQueryClient();
-
   return useMutation({
     mutationFn: () =>
       apiClient.post(`/rounds/${roundId}/finalize`).then((r) => r.data),
@@ -68,9 +57,19 @@ export function useFinalizeRound(roundId: string) {
   });
 }
 
+export function useCancelRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roundId: string) =>
+      apiClient.post(`/rounds/${roundId}/cancel`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.all });
+    },
+  });
+}
+
 export function useDeleteRound() {
   const qc = useQueryClient();
-
   return useMutation({
     mutationFn: (roundId: string) =>
       apiClient.delete(`/rounds/${roundId}`).then((r) => r.data),

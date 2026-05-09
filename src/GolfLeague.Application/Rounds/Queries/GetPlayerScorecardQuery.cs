@@ -53,7 +53,8 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
                 h.GrossStrokes,
                 h.HandicapStrokes,
                 h.NetStrokes,
-                h.StablefordPoints,
+                h.GrossStablefordPoints,
+                h.NetStablefordPoints,
                 h.IsMaxScore))
             .ToList();
 
@@ -63,15 +64,14 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
             participant.PlayerId,
             player.FullName,
             player.Initials,
+            participant.FlightId,
             participant.HandicapIndex,
             participant.CourseHandicap,
             participant.TotalGrossStrokes,
             participant.TotalNetStrokes,
-            participant.TotalStablefordPoints,
+            participant.TotalGrossStablefordPoints,
+            participant.TotalNetStablefordPoints,
             participant.IsWithdrawn);
-
-        var front = holeScoreDtos.Where(h => h.HoleNumber <= 9).ToList();
-        var back = holeScoreDtos.Where(h => h.HoleNumber > 9).ToList();
 
         var dto = new ScorecardDto(
             round.Id,
@@ -81,18 +81,11 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
             course.SlopeRating,
             participantDto,
             holeScoreDtos,
-            front.Sum(h => h.Par),
-            back.Sum(h => h.Par),
             holeScoreDtos.Sum(h => h.Par),
-            front.Sum(h => h.GrossStrokes),
-            back.Sum(h => h.GrossStrokes),
             holeScoreDtos.Sum(h => h.GrossStrokes),
-            front.Sum(h => h.NetStrokes),
-            back.Sum(h => h.NetStrokes),
             holeScoreDtos.Sum(h => h.NetStrokes),
-            front.Sum(h => h.StablefordPoints),
-            back.Sum(h => h.StablefordPoints),
-            holeScoreDtos.Sum(h => h.StablefordPoints));
+            holeScoreDtos.Sum(h => h.GrossStablefordPoints),
+            holeScoreDtos.Sum(h => h.NetStablefordPoints));
 
         return Result<ScorecardDto>.Ok(dto);
     }

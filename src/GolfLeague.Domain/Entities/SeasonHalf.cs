@@ -4,6 +4,7 @@ public class SeasonHalf
 {
     public int Id { get; set; }
     public int SeasonId { get; set; }
+    public int HalfNumber { get; set; } // 1 or 2
     public string Name { get; set; } = string.Empty;
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }

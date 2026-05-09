@@ -1,5 +1,13 @@
 namespace GolfLeague.Application.DTOs;
 
+public sealed record SeasonHalfDto(
+    int Id,
+    int SeasonId,
+    int HalfNumber,
+    string Name,
+    string StartDate,
+    string EndDate);
+
 public sealed record SeasonDto(
     int Id,
     string Name,
@@ -7,4 +15,5 @@ public sealed record SeasonDto(
     string StartDate,
     string EndDate,
     bool IsActive,
-    int? BestNRounds);
+    int? BestNRounds,
+    List<SeasonHalfDto> Halves);

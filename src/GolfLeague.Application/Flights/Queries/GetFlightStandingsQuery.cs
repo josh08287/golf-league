@@ -5,7 +5,7 @@ using MediatR;
 
 namespace GolfLeague.Application.Flights.Queries;
 
-public sealed record GetFlightStandingsQuery(int FlightId, int SeasonId) : IRequest<Result<List<StandingDto>>>;
+public sealed record GetFlightStandingsQuery(int FlightId, int HalfId, bool UseGrossPoints = false) : IRequest<Result<List<StandingDto>>>;
 
 public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightStandingsQuery, Result<List<StandingDto>>>
 {
@@ -29,7 +29,7 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
         if (flight is null)
             return Result<List<StandingDto>>.Fail($"Flight with ID {request.FlightId} not found.");
 
-        var participants = await _flightRepository.GetStandingsAsync(request.FlightId, request.SeasonId, cancellationToken);
+        var participants = await _flightRepository.GetStandingsAsync(request.FlightId, request.HalfId, cancellationToken);
 
         var grouped = participants
             .Where(rp => !rp.IsWithdrawn)
@@ -44,7 +44,10 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
             if (player is null)
                 continue;
 
-            var totalPoints = group.Sum(rp => rp.TotalStablefordPoints ?? 0);
+            var totalNet = group.Sum(rp => rp.TotalNetStablefordPoints ?? 0);
+            var totalGross = group.Sum(rp => rp.TotalGrossStablefordPoints ?? 0);
+            var totalPoints = request.UseGrossPoints ? totalGross : totalNet;
+
             var roundsPlayed = group.Count();
             var avgPoints = roundsPlayed > 0 ? (double)totalPoints / roundsPlayed : 0.0;
 
