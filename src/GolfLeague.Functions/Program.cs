@@ -80,28 +80,21 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
     logger.LogInformation("Startup: applying EF Core migrations.");
 
-    try
+    // MigrateAsync is idempotent — it only runs migrations the database is
+    // missing. The DbContext's configured execution strategy handles
+    // transient Azure SQL faults during the initial connection. We
+    // deliberately let exceptions propagate so the host fails to start on
+    // permission / config errors instead of running with an empty schema
+    // and 500ing every request.
+    var strategy = dbContext.Database.CreateExecutionStrategy();
+    await strategy.ExecuteAsync(async () =>
     {
-        // MigrateAsync is idempotent — it only runs migrations the database
-        // is missing. The DbContext's configured execution strategy handles
-        // transient Azure SQL faults during the initial connection.
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
-            await dbContext.Database.MigrateAsync();
-        });
+        await dbContext.Database.MigrateAsync();
+    });
 
-        logger.LogInformation("Startup: migrations applied. Seeding active season if missing.");
-        await SeedActiveSeasonAsync(dbContext);
-        logger.LogInformation("Startup: seed complete.");
-    }
-    catch (Exception ex)
-    {
-        // Don't take down the host on a transient failure — Functions will
-        // restart and Azure SQL Serverless may still be resuming. Requests
-        // will surface the error if the DB stays unreachable.
-        logger.LogError(ex, "Startup: database initialization failed; the host will still start but requests may fail.");
-    }
+    logger.LogInformation("Startup: migrations applied. Seeding active season if missing.");
+    await SeedActiveSeasonAsync(dbContext);
+    logger.LogInformation("Startup: seed complete.");
 }
 
 static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
