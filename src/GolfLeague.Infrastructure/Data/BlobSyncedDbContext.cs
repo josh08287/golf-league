@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
@@ -21,6 +22,18 @@ public abstract class BlobSyncedDbContext : DbContext
     // Lease duration must be between 15 and 60 seconds (or -1 for infinite).
     // 60s gives enough headroom for slow uploads without risking long stalls.
     private static readonly TimeSpan _leaseDuration = TimeSpan.FromSeconds(60);
+
+    // Track the ETag of the blob we last synced into our local file. If another
+    // Function App instance writes to the blob, its ETag changes and we know to
+    // re-download before serving reads. Without this, multi-instance deployments
+    // serve stale data because each instance only sees writes that came through
+    // it.
+    private static readonly ConcurrentDictionary<string, ETag> _knownBlobEtags = new();
+
+    // Process-wide gate for read-side refreshes so two concurrent reads don't
+    // both download the same blob. Per-blob would be cleaner but a single gate
+    // is fine at this scale.
+    private static readonly SemaphoreSlim _readRefreshGate = new(1, 1);
 
     protected BlobSyncedDbContext(
         DbContextOptions options,
@@ -51,6 +64,8 @@ public abstract class BlobSyncedDbContext : DbContext
             return;
 
         await blobClient.DownloadToAsync(localFilePath, cancellationToken);
+        var props = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+        _knownBlobEtags[blobName] = props.Value.ETag;
     }
 
     public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -121,7 +136,14 @@ public abstract class BlobSyncedDbContext : DbContext
         CancellationToken cancellationToken = default)
     {
         if (!uploadAfter)
+        {
+            // Read path: refresh local file from blob if another instance wrote to
+            // it since we last synced. We use the blob's ETag as a cheap "did
+            // anything change?" check — GetPropertiesAsync is a HEAD request,
+            // not a download — and only download the body when the ETag differs.
+            await RefreshIfRemoteChangedAsync(cancellationToken);
             return await operation();
+        }
 
         await _transactionGate.WaitAsync(cancellationToken);
         BlobLeaseClient? leaseClient = null;
@@ -262,12 +284,77 @@ public abstract class BlobSyncedDbContext : DbContext
             var uploadOptions = new BlobUploadOptions { Conditions = conditions };
 
             await using var stream = new FileStream(tempPath, FileMode.Open, FileAccess.Read, FileShare.None);
-            await blobClient.UploadAsync(stream, uploadOptions, cancellationToken: cancellationToken);
+            var response = await blobClient.UploadAsync(stream, uploadOptions, cancellationToken: cancellationToken);
+            // Record the new ETag so this instance's next read doesn't redundantly
+            // re-download the blob it just wrote.
+            _knownBlobEtags[blobName] = response.Value.ETag;
         }
         finally
         {
             if (File.Exists(tempPath))
                 File.Delete(tempPath);
+        }
+    }
+
+    private async Task RefreshIfRemoteChangedAsync(CancellationToken cancellationToken)
+    {
+        var blobClient = _containerClient.GetBlobClient(_blobName);
+
+        Response<BlobProperties> propsResponse;
+        try
+        {
+            propsResponse = await blobClient.GetPropertiesAsync(cancellationToken: cancellationToken);
+        }
+        catch (RequestFailedException ex) when (ex.Status == 404)
+        {
+            // Blob doesn't exist yet — nothing to download.
+            return;
+        }
+
+        var remoteEtag = propsResponse.Value.ETag;
+        if (_knownBlobEtags.TryGetValue(_blobName, out var localEtag) &&
+            localEtag == remoteEtag &&
+            File.Exists(_localFilePath))
+        {
+            // Local file matches what's in blob storage — no refresh needed.
+            return;
+        }
+
+        // Empty placeholder blob — nothing useful to download.
+        if (propsResponse.Value.ContentLength == 0)
+            return;
+
+        await _readRefreshGate.WaitAsync(cancellationToken);
+        try
+        {
+            // Re-check after acquiring the gate; another thread may have refreshed.
+            if (_knownBlobEtags.TryGetValue(_blobName, out localEtag) &&
+                localEtag == remoteEtag &&
+                File.Exists(_localFilePath))
+            {
+                return;
+            }
+
+            await Database.CloseConnectionAsync();
+
+            var directory = Path.GetDirectoryName(_localFilePath);
+            if (!string.IsNullOrEmpty(directory))
+                Directory.CreateDirectory(directory);
+
+            try
+            {
+                await blobClient.DownloadToAsync(_localFilePath, cancellationToken);
+                _knownBlobEtags[_blobName] = remoteEtag;
+            }
+            catch (IOException) when (File.Exists(_localFilePath))
+            {
+                // Another thread/process is touching the local file; skip the
+                // refresh and let the caller use whatever's currently on disk.
+            }
+        }
+        finally
+        {
+            _readRefreshGate.Release();
         }
     }
 }
