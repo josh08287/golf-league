@@ -78,28 +78,46 @@ public sealed class PlayerRepository : IPlayerRepository
     {
         await _context.ExecuteWithBlobSyncAsync(async () =>
         {
-            var activeSeason = await _context.Seasons
-                .Where(s => s.IsActive)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (activeSeason is null) return;
-
-            var existing = await _context.FlightMemberships
-                .Where(fm => fm.PlayerId == playerId && fm.SeasonId == activeSeason.Id)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            if (existing is not null)
-                _context.FlightMemberships.Remove(existing);
-
+            // A flight is scoped to a half (post-refactor), so we resolve the
+            // half from the chosen flight and replace only this player's
+            // membership in that same half. Membership in the other half is
+            // preserved.
             if (flightId is not null)
             {
+                var flight = await _context.Flights
+                    .FirstOrDefaultAsync(f => f.Id == flightId.Value, cancellationToken);
+                if (flight is null) return;
+
+                var existingInHalf = await _context.FlightMemberships
+                    .Where(fm => fm.PlayerId == playerId && fm.HalfId == flight.HalfId)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (existingInHalf is not null)
+                    _context.FlightMemberships.Remove(existingInHalf);
+
                 await _context.FlightMemberships.AddAsync(new Domain.Entities.FlightMembership
                 {
                     PlayerId = playerId,
-                    FlightId = flightId.Value,
-                    SeasonId = activeSeason.Id,
-                    JoinedAt = DateTime.UtcNow
+                    FlightId = flight.Id,
+                    SeasonId = flight.SeasonId,
+                    HalfId = flight.HalfId,
+                    JoinedAt = DateTime.UtcNow,
                 }, cancellationToken);
+            }
+            else
+            {
+                // Unassign: drop the player's membership in the active season's
+                // halves. (The drag-to-Unassigned column hits this branch.)
+                var activeSeason = await _context.Seasons
+                    .Where(s => s.IsActive)
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (activeSeason is null) return;
+
+                var existing = await _context.FlightMemberships
+                    .Where(fm => fm.PlayerId == playerId && fm.SeasonId == activeSeason.Id)
+                    .ToListAsync(cancellationToken);
+
+                _context.FlightMemberships.RemoveRange(existing);
             }
 
             await _context.SaveChangesAsync(cancellationToken);

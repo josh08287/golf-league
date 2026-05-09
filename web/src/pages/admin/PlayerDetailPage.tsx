@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,8 @@ import {
   useDeactivatePlayer,
   useSetHandicap,
 } from '../../hooks/admin/usePlayerMutations';
+import { useFlights } from '../../hooks/useFlights';
+import { useSeasons } from '../../hooks/useSeasons';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -18,8 +20,8 @@ import { Badge } from '../../components/ui/Badge';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
-import { FormField, inputClass } from '../../components/admin/FormField';
-import type { HandicapHistoryEntry } from '../../types/api';
+import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
+import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
 
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
@@ -75,6 +77,99 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
           disabled={!isDirty || isSubmitting || updatePlayer.isPending}
         >
           Save Changes
+        </Button>
+        {saved && <span className="text-sm text-green-700">Saved!</span>}
+      </div>
+    </form>
+  );
+}
+
+const flightSchema = z.object({
+  flightId: z.string(),
+});
+
+type FlightAssignmentValues = z.infer<typeof flightSchema>;
+
+interface FlightAssignmentFormProps {
+  playerId: string;
+  currentFlightId: number | null;
+  flights: Flight[];
+  halvesById: Map<number, SeasonHalf>;
+}
+
+function FlightAssignmentForm({
+  playerId,
+  currentFlightId,
+  flights,
+  halvesById,
+}: FlightAssignmentFormProps) {
+  const updatePlayer = useUpdatePlayer(playerId);
+  const [saved, setSaved] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    formState: { isDirty, isSubmitting },
+  } = useForm<FlightAssignmentValues>({
+    resolver: zodResolver(flightSchema),
+    defaultValues: { flightId: currentFlightId != null ? String(currentFlightId) : '' },
+  });
+
+  // Group flights by half for the optgroup label.
+  const grouped = useMemo(() => {
+    const map = new Map<number, Flight[]>();
+    for (const f of flights) {
+      const list = map.get(f.halfId) ?? [];
+      list.push(f);
+      map.set(f.halfId, list);
+    }
+    return [...map.entries()]
+      .map(([halfId, list]) => ({
+        half: halvesById.get(halfId),
+        flights: list.sort((a, b) => a.displayOrder - b.displayOrder),
+      }))
+      .sort((a, b) => (a.half?.halfNumber ?? 99) - (b.half?.halfNumber ?? 99));
+  }, [flights, halvesById]);
+
+  async function onSubmit(values: FlightAssignmentValues) {
+    await updatePlayer.mutateAsync({
+      flightId: values.flightId === '' ? null : values.flightId,
+    });
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <FormField label="Flight">
+        <select {...register('flightId')} className={selectClass}>
+          <option value="">— Unassigned —</option>
+          {grouped.map(({ half, flights: halfFlights }) => (
+            <optgroup
+              key={half?.id ?? 'orphan'}
+              label={half?.name ?? 'Unknown half'}
+            >
+              {halfFlights.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </FormField>
+
+      {updatePlayer.isError && (
+        <p className="text-sm text-red-600">Failed to update flight. Try again.</p>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={!isDirty || isSubmitting || updatePlayer.isPending}
+        >
+          Save Flight
         </Button>
         {saved && <span className="text-sm text-green-700">Saved!</span>}
       </div>
@@ -147,6 +242,26 @@ export function PlayerDetailPage() {
   const { data: player, isLoading, error } = usePlayer(id);
 
   const { data: history = [] } = useHandicapHistory(id);
+
+  const { data: flightsPage } = useFlights();
+  const allFlights = flightsPage?.data ?? [];
+
+  const { data: seasons } = useSeasons();
+  const activeSeason = seasons?.find((s) => s.isActive) ?? null;
+
+  // Only show flights from the active season's halves so the dropdown isn't
+  // cluttered with prior years.
+  const activeSeasonFlights = useMemo(() => {
+    if (!activeSeason) return [];
+    const halfIds = new Set(activeSeason.halves.map((h) => h.id));
+    return allFlights.filter((f) => halfIds.has(f.halfId));
+  }, [allFlights, activeSeason]);
+
+  const halvesById = useMemo(() => {
+    const map = new Map<number, SeasonHalf>();
+    for (const h of activeSeason?.halves ?? []) map.set(h.id, h);
+    return map;
+  }, [activeSeason]);
 
   const deactivate = useDeactivatePlayer(id);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
@@ -229,6 +344,23 @@ export function PlayerDetailPage() {
         </Card>
 
         <Card className="p-6">
+          <h2 className="mb-1 text-base font-semibold text-gray-900">Flight Assignment</h2>
+          <p className="mb-4 text-sm text-gray-500">
+            Currently in: <strong>{player.flightName ?? 'Unassigned'}</strong>
+          </p>
+          {activeSeason ? (
+            <FlightAssignmentForm
+              playerId={id}
+              currentFlightId={player.flightId}
+              flights={activeSeasonFlights}
+              halvesById={halvesById}
+            />
+          ) : (
+            <p className="text-sm text-gray-500">No active season.</p>
+          )}
+        </Card>
+
+        <Card className="p-6 lg:col-span-2">
           <h2 className="mb-1 text-base font-semibold text-gray-900">Manual Handicap Override</h2>
           <p className="mb-4 text-sm text-gray-500">
             Current index: <strong>{player.currentHandicap?.toFixed(1) ?? '—'}</strong>
