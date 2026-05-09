@@ -5,9 +5,7 @@ using GolfLeague.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Json;
-using Microsoft.Azure.Functions.Worker;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -65,10 +63,6 @@ var host = new HostBuilder()
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(typeof(GolfLeague.Application.Players.Commands.CreatePlayerCommand).Assembly);
-            // Order matters: write scope must be the outermost behavior so the
-            // lease and transaction wrap everything (including audit logging).
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(BlobWriteBehavior<,>));
-            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(BlobReadBehavior<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(AuditBehavior<,>));
         });
     })
@@ -81,85 +75,38 @@ await host.RunAsync();
 static async Task EnsureDatabaseInitializedAsync(IHost host)
 {
     using var scope = host.Services.CreateScope();
-    var coordinator = scope.ServiceProvider.GetRequiredService<BlobDbCoordinator>();
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-    logger.LogInformation("Startup: initializing database. Local path={Path}", coordinator.LocalFilePath);
+    logger.LogInformation("Startup: applying EF Core migrations.");
 
     try
     {
-        // Take the cross-instance write lease so we don't race another worker
-        // starting up at the same time. BeginWriteAsync also pulls the latest
-        // blob into the local file (atomically — temp file + rename).
-        logger.LogInformation("Startup: BeginWriteAsync — acquiring blob lease and pulling latest snapshot.");
-        await using var writeScope = await coordinator.BeginWriteAsync();
-
-        var localFileExisted = File.Exists(coordinator.LocalFilePath);
-        var localFileSize = localFileExisted ? new FileInfo(coordinator.LocalFilePath).Length : 0;
-        logger.LogInformation(
-            "Startup: lease acquired. Local file exists={Exists}, size={Size} bytes.",
-            localFileExisted, localFileSize);
-
-        // EnsureCreatedAsync is a no-op if the schema already exists. If the
-        // blob was empty / placeholder this creates the schema fresh.
-        var created = await dbContext.Database.EnsureCreatedAsync();
-        logger.LogInformation("Startup: EnsureCreatedAsync returned created={Created}.", created);
-
-        // Defensive check: if for any reason the Rounds table is missing
-        // (corrupt / truncated blob), force a clean recreate. The legacy
-        // probe used to do this; keeping it here as a safety net only.
-        if (!await TableExistsAsync(dbContext, "Rounds"))
+        // MigrateAsync is idempotent — it only runs migrations the database
+        // is missing. The DbContext's configured execution strategy handles
+        // transient Azure SQL faults during the initial connection.
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
         {
-            logger.LogWarning("Startup: Rounds table missing after EnsureCreated. Forcing EnsureDeleted + EnsureCreated.");
-            await dbContext.Database.EnsureDeletedAsync();
-            await dbContext.Database.EnsureCreatedAsync();
-        }
+            await dbContext.Database.MigrateAsync();
+        });
 
+        logger.LogInformation("Startup: migrations applied. Seeding active season if missing.");
         await SeedActiveSeasonAsync(dbContext);
         logger.LogInformation("Startup: seed complete.");
-
-        // Commit uploads the local file under the same lease and records the
-        // resulting ETag so this instance's later reads don't redundantly
-        // re-download.
-        await writeScope.CommitAsync();
-        logger.LogInformation("Startup: commit complete — blob uploaded under lease.");
     }
     catch (Exception ex)
     {
+        // Don't take down the host on a transient failure — Functions will
+        // restart and Azure SQL Serverless may still be resuming. Requests
+        // will surface the error if the DB stays unreachable.
         logger.LogError(ex, "Startup: database initialization failed; the host will still start but requests may fail.");
-    }
-}
-
-static async Task<bool> TableExistsAsync(AppDbContext dbContext, string tableName)
-{
-    var connection = dbContext.Database.GetDbConnection();
-    var opened = false;
-    if (connection.State != System.Data.ConnectionState.Open)
-    {
-        await connection.OpenAsync();
-        opened = true;
-    }
-    try
-    {
-        await using var cmd = connection.CreateCommand();
-        cmd.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name=$name;";
-        var p = cmd.CreateParameter();
-        p.ParameterName = "$name";
-        p.Value = tableName;
-        cmd.Parameters.Add(p);
-        var result = await cmd.ExecuteScalarAsync();
-        return result is not null;
-    }
-    finally
-    {
-        if (opened) await connection.CloseAsync();
     }
 }
 
 static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
 {
-    var hasActiveSeason = dbContext.Seasons.Any(s => s.IsActive);
+    var hasActiveSeason = await dbContext.Seasons.AnyAsync(s => s.IsActive);
     if (hasActiveSeason) return;
 
     var year = DateTime.UtcNow.Year;

@@ -84,10 +84,10 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task DeleteAsync(int roundId, CancellationToken cancellationToken = default)
     {
-        var round = await _context.Rounds.FindAsync([roundId], cancellationToken);
-        if (round is null) return;
-        _context.Rounds.Remove(round);
-        await _context.SaveChangesAsync(cancellationToken);
+        // Single-statement delete avoids the tracked-load round trip.
+        await _context.Rounds
+            .Where(r => r.Id == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     public async Task AddParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default)
@@ -110,11 +110,9 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task ClearHoleScoresAsync(int participantId, CancellationToken cancellationToken = default)
     {
-        var existing = await _context.HoleScores
+        await _context.HoleScores
             .Where(hs => hs.ParticipantId == participantId)
-            .ToListAsync(cancellationToken);
-        _context.HoleScores.RemoveRange(existing);
-        await _context.SaveChangesAsync(cancellationToken);
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default)

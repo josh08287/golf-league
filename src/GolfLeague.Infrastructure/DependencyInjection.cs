@@ -1,6 +1,4 @@
 using Azure.Communication.Email;
-using Azure.Identity;
-using Azure.Storage.Blobs;
 using GolfLeague.Application.Common;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
@@ -19,40 +17,32 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var storageAccount = configuration["BLOB_STORAGE_ACCOUNT"]
-            ?? throw new InvalidOperationException("BLOB_STORAGE_ACCOUNT is not configured.");
-        var containerName = configuration["SQLITE_BLOB_CONTAINER"]
-            ?? throw new InvalidOperationException("SQLITE_BLOB_CONTAINER is not configured.");
-        var blobName = configuration["SQLITE_BLOB_NAME"]
-            ?? throw new InvalidOperationException("SQLITE_BLOB_NAME is not configured.");
+        var connectionString = configuration["SQL_CONNECTION_STRING"]
+            ?? throw new InvalidOperationException("SQL_CONNECTION_STRING is not configured.");
 
-        var blobServiceUri = new Uri($"https://{storageAccount}.blob.core.windows.net");
-        var credential = new DefaultAzureCredential();
-
-        var blobServiceClient = new BlobServiceClient(blobServiceUri, credential);
-        var containerClient = blobServiceClient.GetBlobContainerClient(containerName);
-
-        services.AddSingleton(blobServiceClient);
-        services.AddSingleton(containerClient);
-
-        var localDbPath = Path.Combine(Path.GetTempPath(), "golf-league", blobName);
-
-        services.AddSingleton<IBlobDbCoordinator>(sp => new BlobDbCoordinator(
-            sp.GetRequiredService<BlobContainerClient>(),
-            localDbPath,
-            blobName,
-            sp.GetRequiredService<ILogger<BlobDbCoordinator>>()));
-        services.AddSingleton(sp => (BlobDbCoordinator)sp.GetRequiredService<IBlobDbCoordinator>());
-
-        services.AddSingleton<SqlitePragmaInterceptor>();
-
-        services.AddDbContext<AppDbContext>((sp, options) =>
+        services.AddDbContext<AppDbContext>(options =>
         {
-            options.UseSqlite($"Data Source={localDbPath}");
-            options.AddInterceptors(sp.GetRequiredService<SqlitePragmaInterceptor>());
-        });
+            options.UseSqlServer(connectionString, sql =>
+            {
+                // Azure SQL routinely throws transient faults (40197, 40501, 49918, etc.).
+                // EnableRetryOnFailure wraps every command in an execution strategy that
+                // retries with exponential backoff. MaxRetryCount=6 + base delay 1s gives
+                // ~63s total worst-case before surfacing the error to the caller.
+                sql.EnableRetryOnFailure(
+                    maxRetryCount: 6,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
 
-        services.AddScoped<IDbTransactionFactory, EfTransactionFactory>();
+                // Functions Consumption can spend ~30s warming up SQL Serverless from
+                // pause. Bump the per-command timeout so cold-start queries don't fail
+                // before the DB is ready.
+                sql.CommandTimeout(60);
+            });
+
+            // Read queries should not pay the change-tracking tax — repositories that
+            // need tracking opt in explicitly via .AsTracking().
+            options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
+        });
 
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IFlightRepository, FlightRepository>();

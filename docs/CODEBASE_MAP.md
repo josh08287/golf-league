@@ -8,8 +8,8 @@ Dense reference for **this repository’s implemented behavior**. For product in
 
 | Topic | `ARCHITECTURE.md` (plan) | This repo (implemented) |
 |--------|---------------------------|-------------------------|
-| Database | Azure SQL Database | **SQLite file** persisted in **Azure Blob Storage** |
-| Migrations | EF migrations against SQL | Startup runs **CREATE TABLE IF NOT EXISTS** from model script + blob sync; local dev uses `AppDbContextFactory` |
+| Database | Azure SQL Database | Azure SQL Database (matches plan) |
+| Migrations | EF migrations against SQL | EF Core migrations under `src/GolfLeague.Infrastructure/Migrations/`; `MigrateAsync()` runs at Function host startup |
 | Default git branch | `main` in narrative | CI uses **`master`** |
 
 ---
@@ -38,12 +38,13 @@ tests/GolfLeague.Functions.Tests/
 - **Per-request auth**: `Middleware/AuthMiddleware.cs` runs authentication so `HttpRequest.HttpContext.User` is set.
 - **Role checks**: `Helpers/HttpRequestExtensions.cs` — `RequireRole`, `GetUserId`, `TryDeserializeAsync`.
 
-### SQLite + Azure Blob
+### Azure SQL
 
-- **`Infrastructure/DependencyInjection.cs`**: builds `BlobServiceClient` / `BlobContainerClient` with `DefaultAzureCredential`; registers `AppDbContext` pointing SQLite at a temp path.
-- **`Data/BlobSyncedDbContext.cs`**: after `SaveChanges`, copies DB to a temp file and uploads to blob (semaphore prevents concurrent uploads).
-- **`Program.cs` `EnsureDatabaseInitializedAsync`**: download blob if newer → `EnsureAllTablesExistAsync` → `SeedActiveSeasonAsync` → upload.
-- **Environment variables**: `BLOB_STORAGE_ACCOUNT`, `SQLITE_BLOB_CONTAINER`, `SQLITE_BLOB_NAME` (see `local.settings.json` for local names).
+- **`Infrastructure/DependencyInjection.cs`**: registers `AppDbContext` with `UseSqlServer(SQL_CONNECTION_STRING)`; enables retry-on-failure (6 retries, 30s max delay) for transient Azure SQL faults; sets command timeout to 60s for Serverless cold-start; defaults `QueryTrackingBehavior` to `NoTracking`.
+- **`Program.cs` `EnsureDatabaseInitializedAsync`**: opens a startup scope and calls `MigrateAsync()` via the configured execution strategy, then `SeedActiveSeasonAsync`.
+- **Auth**: production uses `Authentication=Active Directory Default` in the connection string — the Function App's system-assigned managed identity is the SQL server's AAD admin (set in `infra/modules/sql.bicep`), so it has full DDL + DML rights and no SQL password is stored anywhere. Locally the same setting falls through to `az login` / Visual Studio credentials.
+- **Environment variables**: `SQL_CONNECTION_STRING` (Azure SQL ADO.NET connection string with `Authentication=Active Directory Default`), `BLOB_STORAGE_ACCOUNT` (player photos, future use).
+- **Migrations**: `dotnet ef migrations add <Name> -p src/GolfLeague.Infrastructure -s src/GolfLeague.Functions`. Generated under `src/GolfLeague.Infrastructure/Migrations/`. Applied automatically at Function host startup.
 
 ### HTTP routing
 
@@ -121,8 +122,8 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 | Task | Start here |
 |------|------------|
 | Add/change REST endpoint | `GolfLeague.Functions/Functions/*.cs` + Application command/query + optional repository |
-| Change DB schema | `GolfLeague.Infrastructure/Data/AppDbContext.cs` + entity under `GolfLeague.Domain/Entities/` |
-| Change blob/sync behavior | `BlobSyncedDbContext.cs`, `Program.cs` startup |
+| Change DB schema | `GolfLeague.Infrastructure/Data/AppDbContext.cs` + entity under `GolfLeague.Domain/Entities/`; then `dotnet ef migrations add <Name>` |
+| Apply migrations / seed | `Program.cs` startup (`EnsureDatabaseInitializedAsync`) |
 | Web API consumer | `web/src/lib/api.ts`, then hooks/pages |
 | Mobile API consumer | `mobile/lib/core/config.dart`, repository impl under `features/*/data/`; admin bulk calls `features/admin/data/admin_league_service.dart` |
 | Authorization rules | `Program.cs` policies + `HttpRequestExtensions.RequireRole` in each function |

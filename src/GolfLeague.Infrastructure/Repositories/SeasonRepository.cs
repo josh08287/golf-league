@@ -33,13 +33,24 @@ public sealed class SeasonRepository : ISeasonRepository
 
     public async Task SetActiveAsync(int seasonId, CancellationToken cancellationToken = default)
     {
-        await _context.Seasons
-            .Where(s => s.IsActive)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false), cancellationToken);
+        // Two ExecuteUpdates in a single transaction: clear the active flag on
+        // any other season, then set it on the target. Wrapped in the
+        // execution strategy so transient retries replay the whole transaction.
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        await _context.Seasons
-            .Where(s => s.Id == seasonId)
-            .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, true), cancellationToken);
+            await _context.Seasons
+                .Where(s => s.IsActive && s.Id != seasonId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, false), cancellationToken);
+
+            await _context.Seasons
+                .Where(s => s.Id == seasonId)
+                .ExecuteUpdateAsync(s => s.SetProperty(x => x.IsActive, true), cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
+        });
     }
 
     public Task<Season?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -49,9 +60,8 @@ public sealed class SeasonRepository : ISeasonRepository
 
     public async Task DeleteAsync(int id, CancellationToken cancellationToken = default)
     {
-        var season = await _context.Seasons.FindAsync([id], cancellationToken);
-        if (season is null) return;
-        _context.Seasons.Remove(season);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.Seasons
+            .Where(s => s.Id == id)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 }

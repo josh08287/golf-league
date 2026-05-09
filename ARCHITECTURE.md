@@ -2,7 +2,7 @@
 
 **Version 1.2 | April 2026**
 
-> **Implementation (this repo):** The running API uses **SQLite** with the database file stored in **Azure Blob Storage**, not Azure SQL. HTTP routes, env vars, CI branch, and file layout are summarized in [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md). Sections below that reference Azure SQL describe an earlier or alternate target architecture.
+> **Implementation (this repo):** The running API uses **Azure SQL Database (Serverless)** as described below, with EF Core migrations applied at Function host startup and the Function App's managed identity as the SQL server's Entra admin. HTTP routes, env vars, CI branch, and file layout are summarized in [`docs/CODEBASE_MAP.md`](docs/CODEBASE_MAP.md).
 
 ---
 

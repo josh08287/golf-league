@@ -39,20 +39,29 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task UpdateHolesAsync(int courseId, IEnumerable<CourseHole> holes, CancellationToken cancellationToken = default)
     {
-        var existing = await _context.CourseHoles
-            .Where(h => h.CourseId == courseId)
-            .ToListAsync(cancellationToken);
+        // Replace-by-delete-and-insert. Wrapped in a transaction via the
+        // execution strategy so a transient failure between DELETE and INSERT
+        // doesn't leave the course with no holes.
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
 
-        _context.CourseHoles.RemoveRange(existing);
-        await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+            await _context.CourseHoles
+                .Where(h => h.CourseId == courseId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await _context.CourseHoles.AddRangeAsync(holes, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
+        });
     }
 
     public async Task DeleteAsync(int courseId, CancellationToken cancellationToken = default)
     {
-        var course = await _context.Courses.FindAsync([courseId], cancellationToken);
-        if (course is null) return;
-        _context.Courses.Remove(course);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.Courses
+            .Where(c => c.Id == courseId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 }

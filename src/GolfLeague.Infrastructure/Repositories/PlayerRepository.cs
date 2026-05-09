@@ -47,6 +47,7 @@ public sealed class PlayerRepository : IPlayerRepository
     public async Task DeleteAsync(int playerId, CancellationToken cancellationToken = default)
     {
         var player = await _context.Players
+            .AsTracking()
             .Include(p => p.RoundParticipants).ThenInclude(rp => rp.HoleScores)
             .FirstOrDefaultAsync(p => p.Id == playerId, cancellationToken);
         if (player is null) return;
@@ -65,6 +66,7 @@ public sealed class PlayerRepository : IPlayerRepository
             if (flight is null) return;
 
             var existingInHalf = await _context.FlightMemberships
+                .AsTracking()
                 .FirstOrDefaultAsync(
                     fm => fm.PlayerId == playerId && fm.HalfId == flight.HalfId,
                     cancellationToken);
@@ -89,6 +91,7 @@ public sealed class PlayerRepository : IPlayerRepository
             if (activeSeason is null) return;
 
             var existing = await _context.FlightMemberships
+                .AsTracking()
                 .Where(fm => fm.PlayerId == playerId && fm.SeasonId == activeSeason.Id)
                 .ToListAsync(cancellationToken);
 

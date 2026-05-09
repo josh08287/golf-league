@@ -77,15 +77,6 @@ resource playerPhotosContainer 'Microsoft.Storage/storageAccounts/blobServices/c
   }
 }
 
-// Container for the SQLite database file — no public access
-resource databaseContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-01-01' = {
-  parent: blobService
-  name: 'database'
-  properties: {
-    publicAccess: 'None'
-  }
-}
-
 // Lifecycle management: tier blobs to Archive after 90 days to minimize storage cost
 resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-01-01' = {
   parent: storageAccount

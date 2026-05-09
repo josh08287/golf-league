@@ -68,10 +68,9 @@ public sealed class FlightRepository : IFlightRepository
 
     public async Task DeleteAsync(int flightId, CancellationToken cancellationToken = default)
     {
-        var flight = await _context.Flights.FindAsync([flightId], cancellationToken);
-        if (flight is null) return;
-        _context.Flights.Remove(flight);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.Flights
+            .Where(f => f.Id == flightId)
+            .ExecuteDeleteAsync(cancellationToken);
     }
 
     public async Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default)
