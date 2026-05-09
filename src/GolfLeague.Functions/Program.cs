@@ -94,6 +94,16 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // The two-half refactor changed the schema (Rounds.WeekNumber, gross/net
+        // Stableford columns, etc.). EnsureCreated does not migrate, so if the
+        // downloaded blob is the old (v1) schema we drop and recreate.
+        if (await IsLegacySchemaAsync(dbContext))
+        {
+            var logger = host.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Detected legacy v1 schema in {Blob}; dropping and recreating.", blobName);
+            await dbContext.Database.EnsureDeletedAsync();
+        }
+
         // No EF migrations — v2 schema is created fresh from the model.
         await dbContext.Database.EnsureCreatedAsync();
 
@@ -107,6 +117,39 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     {
         var logger = host.Services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "Database initialization failed; the host will still start but requests may fail.");
+    }
+}
+
+static async Task<bool> IsLegacySchemaAsync(AppDbContext dbContext)
+{
+    // EnsureCreated only creates tables when none exist. If the DB was downloaded
+    // from blob storage and predates the two-half refactor, the Rounds table will
+    // be missing the WeekNumber column we now require. Probing for it tells us
+    // whether to drop & recreate.
+    try
+    {
+        var connection = dbContext.Database.GetDbConnection();
+        await connection.OpenAsync();
+        try
+        {
+            await using var cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM sqlite_master WHERE type='table' AND name='Rounds';";
+            var hasRoundsTable = await cmd.ExecuteScalarAsync() is not null;
+            if (!hasRoundsTable) return false; // empty DB — let EnsureCreated handle it
+
+            cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Rounds') WHERE name='WeekNumber';";
+            var count = Convert.ToInt32(await cmd.ExecuteScalarAsync());
+            return count == 0;
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+    catch
+    {
+        // If the probe itself fails, assume the file is corrupt/legacy and rebuild.
+        return true;
     }
 }
 
