@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Registrations.Commands;
 using GolfLeague.Application.Registrations.Queries;
@@ -144,9 +145,15 @@ public sealed class InviteFunctions
             return new UnauthorizedResult();
 
         // Get role from Entra ID token (admin, scorer, or player from app roles claim)
+        // ClaimsIdentity.IsInRole is case-sensitive, so we check all variations
         var user = req.HttpContext.User;
-        var tokenRole = user.IsInRole("admin") ? "admin" :
-                        user.IsInRole("scorer") ? "scorer" : "player";
+        var roles = user.Claims
+            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
+            .Select(c => c.Value?.ToLowerInvariant())
+            .ToList();
+
+        var tokenRole = roles.Contains("admin") ? "admin" :
+                        roles.Contains("scorer") ? "scorer" : "player";
 
         var result = await _mediator.Send(new GetMyStatusQuery(entraObjectId, tokenRole), cancellationToken);
         return result.ToOkResult();
