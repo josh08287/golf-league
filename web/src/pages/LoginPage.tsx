@@ -12,8 +12,15 @@ export function LoginPage() {
     if (isAuthenticated) navigate('/', { replace: true });
   }, [isAuthenticated, navigate]);
 
-  function handleLogin() {
+  function handleSignIn() {
     void msalInstance.loginRedirect(loginRequest);
+  }
+
+  function handleCreateAccount() {
+    void msalInstance.loginRedirect({
+      ...loginRequest,
+      prompt: 'create', // Show create account option for external users
+    });
   }
 
   return (
@@ -29,7 +36,7 @@ export function LoginPage() {
         <Button
           className="mt-8 w-full gap-2"
           size="lg"
-          onClick={handleLogin}
+          onClick={handleSignIn}
         >
           {/* Microsoft logo SVG */}
           <svg
@@ -43,7 +50,16 @@ export function LoginPage() {
             <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
             <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
           </svg>
-          Sign in with Microsoft
+          Sign in
+        </Button>
+
+        <Button
+          className="mt-3 w-full gap-2"
+          size="lg"
+          variant="outline"
+          onClick={handleCreateAccount}
+        >
+          Create account
         </Button>
 
         <p className="mt-6 text-xs text-gray-400">
