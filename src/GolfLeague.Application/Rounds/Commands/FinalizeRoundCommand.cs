@@ -45,8 +45,11 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {round.CourseId} not found.");
 
+        // Set-based status update — avoids reattaching the Round graph
+        // (Participants + their HoleScores) which can confuse EF tracking
+        // across the subsequent AddDifferentialAsync SaveChanges calls.
+        await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.Finalized, cancellationToken);
         round.Status = RoundStatus.Finalized;
-        await _roundRepository.UpdateAsync(round, cancellationToken);
 
         foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.TotalGrossStrokes.HasValue))
         {

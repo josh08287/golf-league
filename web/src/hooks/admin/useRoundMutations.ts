@@ -67,6 +67,7 @@ export function useFinalizeRound(roundId: string) {
       apiClient.post(`/rounds/${roundId}/finalize`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.scorecards(roundId) });
       qc.invalidateQueries({ queryKey: roundKeys.all });
     },
   });
