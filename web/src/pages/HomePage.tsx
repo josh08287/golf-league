@@ -1,7 +1,8 @@
+import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Trophy, Calendar } from 'lucide-react';
 import { useFlights } from '@/hooks/useFlights';
-import { useRounds } from '@/hooks/useRounds';
+import { useRounds, useRoundScorecards } from '@/hooks/useRounds';
 import {
   Card,
   CardContent,
@@ -9,28 +10,212 @@ import {
   CardTitle,
   CardDescription,
 } from '@/components/ui/Card';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/Table';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { formatShortDate } from '@/lib/utils';
 import { normalizeRoundStatus } from '@/lib/enumUtils';
-import type { RoundStatus } from '@/types/api';
+import type { Flight, Round, RoundScorecard, RoundStatus } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
   const normalized = normalizeRoundStatus(status);
   switch (normalized) {
-    case 'Finalized': return 'green' as const;
-    case 'InProgress': return 'amber' as const;
-    case 'Scheduled': return 'blue' as const;
+    case 'Finalized':           return 'green' as const;
+    case 'InProgress':          return 'amber' as const;
+    case 'PendingFinalization': return 'amber' as const;
+    case 'Scheduled':           return 'blue' as const;
+    case 'Cancelled':           return 'neutral' as const;
   }
+}
+
+/**
+ * Pick the most recently played round to feature on the homepage. We
+ * prefer the latest Finalized round (its scores are stable); if none
+ * are finalized yet we fall back to the most recent round of any
+ * status so admins still see something useful right after entry.
+ */
+function pickFeaturedRound(rounds: Round[]): Round | null {
+  if (rounds.length === 0) return null;
+  const sorted = [...rounds].sort(
+    (a, b) => new Date(b.scheduledDate).getTime() - new Date(a.scheduledDate).getTime(),
+  );
+  const finalized = sorted.find((r) => normalizeRoundStatus(r.status) === 'Finalized');
+  return finalized ?? sorted[0];
+}
+
+interface FlightScorecardCardProps {
+  flightId: number;
+  flightName: string;
+  scorecards: RoundScorecard[];
+}
+
+function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScorecardCardProps) {
+  // Players sorted by net points (the league's primary metric), then net
+  // strokes ascending (lower is better) as a tiebreaker.
+  const sorted = useMemo(() => {
+    return [...scorecards].sort((a, b) => {
+      const ap = a.netPoints ?? -1;
+      const bp = b.netPoints ?? -1;
+      if (bp !== ap) return bp - ap;
+      const an = a.netScore ?? Number.POSITIVE_INFINITY;
+      const bn = b.netScore ?? Number.POSITIVE_INFINITY;
+      return an - bn;
+    });
+  }, [scorecards]);
+
+  if (sorted.length === 0) return null;
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base">{flightName}</CardTitle>
+          <Badge variant="secondary">{sorted.length} players</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="px-0 pb-0">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead>Player</TableHead>
+              <TableHead className="text-right">HCP</TableHead>
+              <TableHead className="text-right">Gross</TableHead>
+              <TableHead className="text-right">Net</TableHead>
+              <TableHead className="text-right">Pts</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sorted.map((sc, i) => (
+              <TableRow key={sc.playerId}>
+                <TableCell className="text-center text-xs text-gray-500">{i + 1}</TableCell>
+                <TableCell>
+                  <Link
+                    to={`/players/${sc.playerId}`}
+                    className="font-medium text-primary-900 hover:underline"
+                  >
+                    {sc.playerName}
+                  </Link>
+                </TableCell>
+                <TableCell className="text-right text-gray-600 tabular-nums">
+                  {sc.handicapAtTime.toFixed(1)}
+                </TableCell>
+                <TableCell className="text-right tabular-nums">{sc.grossScore ?? '—'}</TableCell>
+                <TableCell className="text-right tabular-nums">{sc.netScore ?? '—'}</TableCell>
+                <TableCell className="text-right font-semibold tabular-nums">
+                  {sc.netPoints ?? '—'}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+        <div className="border-t border-gray-100 px-5 py-3">
+          <Button variant="ghost" size="sm" asChild className="-ml-2">
+            <Link to={`/flights/${flightId}`} className="flex items-center gap-1 text-xs">
+              Season standings <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+interface FeaturedRoundProps {
+  round: Round;
+}
+
+function FeaturedRound({ round }: FeaturedRoundProps) {
+  const scorecards = useRoundScorecards(String(round.id));
+  // Top-level flights list gives us names + display order; we look each
+  // scorecard's flightId up against it.
+  const flights = useFlights();
+
+  const cards = (scorecards.data?.data ?? []).reduce<Map<number, RoundScorecard[]>>(
+    (acc, sc) => {
+      const list = acc.get(sc.flightId) ?? [];
+      list.push(sc);
+      acc.set(sc.flightId, list);
+      return acc;
+    },
+    new Map<number, RoundScorecard[]>(),
+  );
+
+  const flightLookup = new Map<number, Flight>(
+    (flights.data?.data ?? []).map((f) => [f.id, f]),
+  );
+
+  const orderedFlightIds = Array.from(cards.keys()).sort((a, b) => {
+    const aOrder = flightLookup.get(a)?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    const bOrder = flightLookup.get(b)?.displayOrder ?? Number.MAX_SAFE_INTEGER;
+    if (aOrder !== bOrder) return aOrder - bOrder;
+    return a - b;
+  });
+
+  return (
+    <div className="space-y-4">
+      <Link
+        to={`/rounds/${round.id}`}
+        className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
+      >
+        <div>
+          <p className="font-semibold text-gray-900">{round.courseName}</p>
+          <p className="text-sm text-gray-500">
+            Week {round.weekNumber} &middot; {round.nineHoleSide} 9 &middot;{' '}
+            {formatShortDate(round.scheduledDate)}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Badge variant={statusVariant(round.status)}>{round.status}</Badge>
+          <ArrowRight className="h-4 w-4 text-gray-400" />
+        </div>
+      </Link>
+
+      {scorecards.isPending && (
+        <div className="flex justify-center py-8">
+          <Spinner />
+        </div>
+      )}
+      {scorecards.isError && (
+        <ErrorMessage message="Could not load scorecards for this round." />
+      )}
+      {scorecards.data && orderedFlightIds.length === 0 && (
+        <p className="text-gray-500 text-sm">No scores recorded for this round yet.</p>
+      )}
+      {scorecards.data && orderedFlightIds.length > 0 && (
+        <div className="grid gap-4 lg:grid-cols-2">
+          {orderedFlightIds.map((flightId) => (
+            <FlightScorecardCard
+              key={flightId}
+              flightId={flightId}
+              flightName={flightLookup.get(flightId)?.name ?? `Flight ${flightId}`}
+              scorecards={cards.get(flightId) ?? []}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function HomePage() {
   const flights = useFlights();
   const rounds = useRounds(1);
 
-  const latestRounds = rounds.data?.data.slice(0, 3) ?? [];
+  const allRounds = rounds.data?.data ?? [];
+  const featured = pickFeaturedRound(allRounds);
+  const olderRounds = featured
+    ? allRounds.filter((r) => r.id !== featured.id).slice(0, 3)
+    : [];
 
   return (
     <div className="space-y-10">
@@ -53,6 +238,34 @@ export function HomePage() {
             <Link to="/rounds">Latest Rounds</Link>
           </Button>
         </div>
+      </section>
+
+      {/* Latest round — expanded by flight */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
+            <Calendar className="h-5 w-5 text-primary-700" />
+            Latest Round
+          </h2>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/rounds" className="flex items-center gap-1">
+              All rounds <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
+
+        {rounds.isPending && (
+          <div className="flex justify-center py-12">
+            <Spinner />
+          </div>
+        )}
+        {rounds.isError && (
+          <ErrorMessage message="Could not load rounds. Please try again." />
+        )}
+        {rounds.data && !featured && (
+          <p className="text-gray-500 text-sm">No rounds played yet.</p>
+        )}
+        {featured && <FeaturedRound round={featured} />}
       </section>
 
       {/* Flights overview */}
@@ -105,34 +318,17 @@ export function HomePage() {
         )}
       </section>
 
-      {/* Latest rounds */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-            <Calendar className="h-5 w-5 text-primary-700" />
-            Recent Rounds
-          </h2>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/rounds" className="flex items-center gap-1">
-              All rounds <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-
-        {rounds.isPending && (
-          <div className="flex justify-center py-12">
-            <Spinner />
+      {/* Older rounds (compact) */}
+      {olderRounds.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
+              <Calendar className="h-5 w-5 text-primary-700" />
+              Recent Rounds
+            </h2>
           </div>
-        )}
-        {rounds.isError && (
-          <ErrorMessage message="Could not load rounds. Please try again." />
-        )}
-        {rounds.data && (
           <div className="space-y-3">
-            {latestRounds.length === 0 && (
-              <p className="text-gray-500 text-sm">No rounds scheduled yet.</p>
-            )}
-            {latestRounds.map((round) => (
+            {olderRounds.map((round) => (
               <Link
                 key={round.id}
                 to={`/rounds/${round.id}`}
@@ -152,8 +348,8 @@ export function HomePage() {
               </Link>
             ))}
           </div>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }
