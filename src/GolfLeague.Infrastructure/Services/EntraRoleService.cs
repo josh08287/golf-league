@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Graph;
 using Microsoft.Graph.Models;
+using Microsoft.Graph.Models.ODataErrors;
 
 namespace GolfLeague.Infrastructure.Services;
 
@@ -84,20 +85,63 @@ public sealed class EntraRoleService : IEntraRoleService
                 return Result<bool>.Ok(true);
             }
 
-            // Assign the app role to the user
-            var assignment = new AppRoleAssignment
+            // For external users (Google, etc.), the user may not be immediately available
+            // in the directory after sign-in due to eventual consistency.
+            // Retry with a small delay to allow the user to be synced.
+            const int maxRetries = 3;
+            const int delayMs = 2000;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                PrincipalId = Guid.Parse(userObjectId),
-                ResourceId = Guid.Parse(servicePrincipal.Id),
-                AppRoleId = appRoleId,
-            };
+                try
+                {
+                    // First verify the user exists in the tenant
+                    var user = await _graphClient.Users[userObjectId]
+                        .GetAsync(cancellationToken: cancellationToken);
 
-            await _graphClient.Users[userObjectId]
-                .AppRoleAssignments
-                .PostAsync(assignment, cancellationToken: cancellationToken);
+                    if (user?.Id is null)
+                    {
+                        _logger.LogWarning("User {UserId} not found in tenant on attempt {Attempt}", userObjectId, attempt);
+                        if (attempt < maxRetries)
+                        {
+                            await Task.Delay(delayMs, cancellationToken);
+                            continue;
+                        }
+                        return Result<bool>.Fail("User not found in Entra ID tenant.");
+                    }
 
-            _logger.LogInformation("Assigned role {RoleName} to user {UserId}", roleName, userObjectId);
-            return Result<bool>.Ok(true);
+                    // Assign the app role to the user
+                    var assignment = new AppRoleAssignment
+                    {
+                        PrincipalId = Guid.Parse(userObjectId),
+                        ResourceId = Guid.Parse(servicePrincipal.Id),
+                        AppRoleId = appRoleId,
+                    };
+
+                    await _graphClient.Users[userObjectId]
+                        .AppRoleAssignments
+                        .PostAsync(assignment, cancellationToken: cancellationToken);
+
+                    _logger.LogInformation("Assigned role {RoleName} to user {UserId} on attempt {Attempt}",
+                        roleName, userObjectId, attempt);
+                    return Result<bool>.Ok(true);
+                }
+                catch (ODataError ex) when (ex.ResponseStatusCode == 404)
+                {
+                    _logger.LogWarning("User {UserId} not found on attempt {Attempt} (404), retrying...",
+                        userObjectId, attempt);
+                    if (attempt < maxRetries)
+                    {
+                        await Task.Delay(delayMs, cancellationToken);
+                    }
+                    else
+                    {
+                        return Result<bool>.Fail($"User not found in Entra ID after {maxRetries} attempts.");
+                    }
+                }
+            }
+
+            return Result<bool>.Fail("Failed to assign role after multiple attempts.");
         }
         catch (Exception ex)
         {

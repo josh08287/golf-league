@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMsal, useIsAuthenticated } from '@azure/msal-react';
+import { InteractionStatus } from '@azure/msal-browser';
 import { msalInstance, loginRequest } from '@/lib/msalConfig';
 import { useInviteByToken, useAcceptInvite } from '@/hooks/useAcceptInvite';
 import { Spinner } from '@/components/ui/Spinner';
@@ -31,7 +32,7 @@ export function AcceptInvitePage() {
   const token = params.get('token') ?? '';
   const navigate = useNavigate();
   const isAuthenticated = useIsAuthenticated();
-  const { accounts } = useMsal();
+  const { accounts, inProgress } = useMsal();
 
   const { data: invite, isLoading: inviteLoading, error: inviteError } = useInviteByToken(token || null);
   const accept = useAcceptInvite(token);
@@ -82,24 +83,55 @@ export function AcceptInvitePage() {
     return <InvalidInvite message="This invite has expired. Please contact the league admin for a new one." />;
   }
 
+  // Wait for MSAL to finish processing (e.g., after redirect from Google sign-in)
+  if (inProgress !== InteractionStatus.None) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
+
   // Not signed in yet — prompt them to sign in first
   if (!isAuthenticated) {
+    // Pre-fill the invited email in the login/create forms
+    const signInRequest = {
+      ...loginRequest,
+      loginHint: invite.email,
+    };
+    const createAccountRequest = {
+      ...loginRequest,
+      loginHint: invite.email,
+      prompt: 'create' as const,
+    };
+
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
         <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md text-center">
           <span className="text-5xl" role="img" aria-label="golf">⛳</span>
           <h1 className="mt-4 text-xl font-bold text-gray-900">You've been invited!</h1>
           <p className="mt-2 text-sm text-gray-500">
-            Sign in with Google or Apple to join the league.
+            Sign in or create an account to join the league.
           </p>
           <p className="mt-1 text-xs text-gray-400">Invite for: <strong>{invite.email}</strong></p>
           <Button
             className="mt-6 w-full"
             size="lg"
-            onClick={() => void msalInstance.loginRedirect(loginRequest)}
+            onClick={() => void msalInstance.loginRedirect(signInRequest)}
           >
-            Sign in to accept
+            Sign in
           </Button>
+          <Button
+            className="mt-3 w-full"
+            size="lg"
+            variant="outline"
+            onClick={() => void msalInstance.loginRedirect(createAccountRequest)}
+          >
+            Create account
+          </Button>
+          <p className="mt-4 text-xs text-gray-400">
+            You can use email, Google, or Apple
+          </p>
         </div>
       </div>
     );
