@@ -12,6 +12,8 @@ import { LoginPage } from '@/pages/LoginPage';
 import { RegisterPage } from '@/pages/RegisterPage';
 import { AuthCallbackPage } from '@/pages/AuthCallbackPage';
 import { MfaPage } from '@/pages/MfaPage';
+import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
+import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
@@ -31,6 +33,8 @@ export default function App() {
           <Route path="register" element={<RegisterPage />} />
           <Route path="auth/callback" element={<AuthCallbackPage />} />
           <Route path="auth/mfa" element={<MfaPage />} />
+          <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="accept-invite" element={<AcceptInvitePage />} />
           {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />

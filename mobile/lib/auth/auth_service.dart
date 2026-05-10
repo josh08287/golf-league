@@ -99,6 +99,13 @@ class AuthService {
     return _handleAuthResponse(response.data);
   }
 
+  Future<void> requestPasswordReset(String email) async {
+    await _dio.post<dynamic>(
+      '/auth/password-reset/request',
+      data: {'email': email},
+    );
+  }
+
   Future<AuthResult?> refresh() async {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken == null) return null;

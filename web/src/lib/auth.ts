@@ -202,3 +202,17 @@ export async function verifyTotpEnrollment(code: string): Promise<void> {
     headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
   });
 }
+
+// ── Password reset ───────────────────────────────────────────────────────────
+
+export async function requestPasswordReset(email: string): Promise<void> {
+  await authClient.post('/auth/password-reset/request', { email });
+}
+
+export async function confirmPasswordReset(input: {
+  email: string;
+  token: string;
+  newPassword: string;
+}): Promise<void> {
+  await authClient.post('/auth/password-reset/confirm', input);
+}

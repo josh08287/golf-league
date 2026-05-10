@@ -41,6 +41,34 @@ public sealed class AzureCommunicationEmailService : IEmailService
             </html>
             """;
 
+        await SendAsync(toEmail, subject, html, "invite", cancellationToken);
+    }
+
+    public async Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
+    {
+        const string subject = "Reset your Golf League password";
+        var html = $"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #1a5c38;">⛳ Password reset</h2>
+              <p>We received a request to reset the password on your Golf League account. Click the button below to set a new password.</p>
+              <p style="margin: 32px 0;">
+                <a href="{resetLink}"
+                   style="background-color: #1a5c38; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                  Set a new password
+                </a>
+              </p>
+              <p style="color: #666; font-size: 14px;">This link expires in 1 hour and can only be used once.</p>
+              <p style="color: #666; font-size: 14px;">If you didn't request this, you can safely ignore this email — your password won't change.</p>
+            </body>
+            </html>
+            """;
+
+        await SendAsync(toEmail, subject, html, "password-reset", cancellationToken);
+    }
+
+    private async Task SendAsync(string toEmail, string subject, string html, string kind, CancellationToken cancellationToken)
+    {
         var message = new EmailMessage(
             senderAddress: _senderAddress,
             recipients: new EmailRecipients([new EmailAddress(toEmail)]),
@@ -49,11 +77,11 @@ public sealed class AzureCommunicationEmailService : IEmailService
         try
         {
             var operation = await _client.SendAsync(Azure.WaitUntil.Started, message, cancellationToken);
-            _logger.LogInformation("Invite email queued for {Email}, operation id: {OperationId}", toEmail, operation.Id);
+            _logger.LogInformation("{Kind} email queued for {Email}, operation id: {OperationId}", kind, toEmail, operation.Id);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send invite email to {Email}", toEmail);
+            _logger.LogError(ex, "Failed to send {Kind} email to {Email}", kind, toEmail);
             throw;
         }
     }

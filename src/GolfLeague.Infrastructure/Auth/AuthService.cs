@@ -1,3 +1,4 @@
+using System.Text;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs.Auth;
 using GolfLeague.Application.Interfaces;
@@ -6,6 +7,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -19,6 +21,7 @@ public sealed class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly AppDbContext _dbContext;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -26,12 +29,14 @@ public sealed class AuthService : IAuthService
         ITokenService tokenService,
         AppDbContext dbContext,
         IPlayerRepository playerRepository,
+        IEmailService emailService,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
         _tokenService = tokenService;
         _dbContext = dbContext;
         _playerRepository = playerRepository;
+        _emailService = emailService;
         _logger = logger;
     }
 
@@ -182,6 +187,89 @@ public sealed class AuthService : IAuthService
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException($"User {userId} not found.");
         return await IssueFullTokensAsync(user, cancellationToken);
+    }
+
+    public async Task<Result<bool>> RequestPasswordResetAsync(
+        string email,
+        string webBaseUrl,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return Result<bool>.Fail("Email is required.");
+
+        var user = await _userManager.FindByEmailAsync(email);
+        // Don't leak account existence — return success either way. Callers
+        // that need to differentiate (e.g. admin tooling) shouldn't use this
+        // endpoint.
+        if (user is null)
+        {
+            _logger.LogInformation("Password reset requested for unknown email {Email}", email);
+            return Result<bool>.Ok(true);
+        }
+
+        var rawToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+        // Identity tokens contain '+' '/' '=' which break URL encoding when
+        // round-tripped through some clients. Base64url-encode the bytes so
+        // the link is safe to put in a query string.
+        var urlSafeToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
+
+        var trimmedBase = (webBaseUrl ?? string.Empty).TrimEnd('/');
+        var link = $"{trimmedBase}/auth/reset-password?email={Uri.EscapeDataString(user.Email!)}&token={urlSafeToken}";
+
+        try
+        {
+            await _emailService.SendPasswordResetAsync(user.Email!, link, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
+            // Don't surface the error to the caller; log and return Ok.
+        }
+
+        return Result<bool>.Ok(true);
+    }
+
+    public async Task<Result<bool>> ConfirmPasswordResetAsync(
+        string email,
+        string token,
+        string newPassword,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(token) || string.IsNullOrWhiteSpace(newPassword))
+            return Result<bool>.Fail("Email, token, and new password are required.");
+
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null)
+            return Result<bool>.Fail("Invalid reset link.");
+
+        string rawToken;
+        try
+        {
+            rawToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
+        }
+        catch
+        {
+            return Result<bool>.Fail("Invalid reset link.");
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, rawToken, newPassword);
+        if (!result.Succeeded)
+        {
+            var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+            return Result<bool>.Fail(errors);
+        }
+
+        // Defensive: invalidate all existing refresh tokens for this user.
+        // A password reset usually implies "lost device", so existing sessions
+        // should be revoked.
+        var existing = await _dbContext.RefreshTokens
+            .AsTracking()
+            .Where(rt => rt.UserId == user.Id && rt.RevokedAt == null)
+            .ToListAsync(cancellationToken);
+        foreach (var rt in existing) rt.RevokedAt = DateTime.UtcNow;
+        if (existing.Count > 0) await _dbContext.SaveChangesAsync(cancellationToken);
+
+        return Result<bool>.Ok(true);
     }
 
     private async Task<AuthResponseDto> IssueTokensAsync(AppUser user, CancellationToken cancellationToken)

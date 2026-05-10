@@ -42,4 +42,25 @@ public interface IAuthService
     Task<AuthResponseDto> IssueAuthenticatedTokensAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Generates an Identity password-reset token for the given email and
+    /// emails it to the user as a link to webBaseUrl/auth/reset-password.
+    /// Always returns Ok (don't leak account existence). When email isn't
+    /// configured the token is logged so the operator can bootstrap manually.
+    /// </summary>
+    Task<Result<bool>> RequestPasswordResetAsync(
+        string email,
+        string webBaseUrl,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Confirms the password reset using the Identity token and sets the new
+    /// password.
+    /// </summary>
+    Task<Result<bool>> ConfirmPasswordResetAsync(
+        string email,
+        string token,
+        string newPassword,
+        CancellationToken cancellationToken = default);
 }

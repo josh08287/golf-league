@@ -3,16 +3,19 @@ using GolfLeague.Functions.Helpers;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Configuration;
 
 namespace GolfLeague.Functions.Functions;
 
 public sealed class AuthFunctions
 {
     private readonly IAuthService _authService;
+    private readonly string _webBaseUrl;
 
-    public AuthFunctions(IAuthService authService)
+    public AuthFunctions(IAuthService authService, IConfiguration configuration)
     {
         _authService = authService;
+        _webBaseUrl = configuration["WEB_BASE_URL"] ?? "http://localhost:5173";
     }
 
     [Function("Register")]
@@ -102,7 +105,51 @@ public sealed class AuthFunctions
         return new OkObjectResult(new { data = result.Value });
     }
 
+    /// <summary>
+    /// POST /v1/auth/password-reset/request — public; emails a reset link.
+    /// Always returns 200 even when the email doesn't match an account, so we
+    /// don't leak account existence to enumeration attempts.
+    /// </summary>
+    [Function("RequestPasswordReset")]
+    public async Task<IActionResult> RequestPasswordReset(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/auth/password-reset/request")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var body = await req.TryDeserializeAsync<PasswordResetRequestBody>(cancellationToken);
+        if (body is null || string.IsNullOrWhiteSpace(body.Email))
+            return new BadRequestObjectResult(new { error = "Email is required." });
+
+        await _authService.RequestPasswordResetAsync(body.Email, _webBaseUrl, cancellationToken);
+        return new OkObjectResult(new { data = new { sent = true } });
+    }
+
+    /// <summary>
+    /// POST /v1/auth/password-reset/confirm — public; consumes the token and sets a new password.
+    /// </summary>
+    [Function("ConfirmPasswordReset")]
+    public async Task<IActionResult> ConfirmPasswordReset(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/auth/password-reset/confirm")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var body = await req.TryDeserializeAsync<PasswordResetConfirmBody>(cancellationToken);
+        if (body is null
+            || string.IsNullOrWhiteSpace(body.Email)
+            || string.IsNullOrWhiteSpace(body.Token)
+            || string.IsNullOrWhiteSpace(body.NewPassword))
+        {
+            return new BadRequestObjectResult(new { error = "Email, token, and newPassword are required." });
+        }
+
+        var result = await _authService.ConfirmPasswordResetAsync(body.Email, body.Token, body.NewPassword, cancellationToken);
+        if (!result.IsSuccess)
+            return new BadRequestObjectResult(new { error = result.Error });
+
+        return new OkObjectResult(new { data = new { reset = true } });
+    }
+
     private sealed record RegisterRequest(string Email, string Password, string? FirstName, string? LastName);
     private sealed record LoginRequest(string Email, string Password);
     private sealed record RefreshRequest(string RefreshToken);
+    private sealed record PasswordResetRequestBody(string Email);
+    private sealed record PasswordResetConfirmBody(string Email, string Token, string NewPassword);
 }

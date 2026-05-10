@@ -66,6 +66,11 @@ export function LoginPage() {
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </Button>
+          <p className="text-right text-xs">
+            <Link to="/auth/forgot-password" className="text-gray-500 hover:text-primary-900 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </form>
 
         <div className="my-6 flex items-center gap-3 text-xs text-gray-400">
