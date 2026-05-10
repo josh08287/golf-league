@@ -34,7 +34,10 @@ export function LoginPage() {
   function handleCreateAccount() {
     void msalInstance.loginRedirect({
       ...loginRequest,
-      prompt: 'create', // Show create account option for external users
+      // prompt:'create' shows sign-up flow with configured identity providers
+      // For local accounts, ensure 'Microsoft Account' is enabled in Entra:
+      // External Identities > All identity providers > Microsoft Account
+      prompt: 'create',
     });
   }
 
