@@ -29,8 +29,11 @@ public sealed class PlayerRepository : IPlayerRepository
             .ThenBy(p => p.FirstName)
             .ToListAsync(cancellationToken);
 
-    public Task<Player?> GetByEntraObjectIdAsync(string entraObjectId, CancellationToken cancellationToken = default)
-        => _context.Players.FirstOrDefaultAsync(p => p.EntraObjectId == entraObjectId, cancellationToken);
+    public Task<Player?> GetByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default)
+        => _context.Players.FirstOrDefaultAsync(p => p.AppUserId == appUserId, cancellationToken);
+
+    public Task<Player?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
+        => _context.Players.FirstOrDefaultAsync(p => p.Email == email, cancellationToken);
 
     public async Task AddAsync(Player player, CancellationToken cancellationToken = default)
     {

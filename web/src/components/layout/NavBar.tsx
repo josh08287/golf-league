@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, User } from 'lucide-react';
-import { useMsal } from '@azure/msal-react';
-import { useAuthStore } from '@/store/authStore';
+import { useAuth } from '@/hooks/useAuth';
 import { useInvites } from '@/hooks/admin/useInvites';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -16,8 +15,7 @@ const publicLinks = [
 
 export function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const { instance } = useMsal();
-  const { user, clearUser } = useAuthStore();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
   // Pending invite count for admin badge — only fetched when admin is logged in
@@ -37,11 +35,6 @@ export function NavBar() {
 
   function handleLogin() {
     navigate('/login');
-  }
-
-  async function handleLogout() {
-    clearUser();
-    await instance.logoutRedirect();
   }
 
   const links = [
@@ -85,7 +78,7 @@ export function NavBar() {
                 <User className="h-4 w-4" />
                 {user.name}
               </span>
-              <Button variant="outline" size="sm" onClick={() => void handleLogout()}>
+              <Button variant="outline" size="sm" onClick={() => void logout()}>
                 <LogOut className="h-4 w-4 mr-1.5" />
                 Sign out
               </Button>
@@ -140,7 +133,7 @@ export function NavBar() {
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  onClick={() => { setMobileOpen(false); void handleLogout(); }}
+                  onClick={() => { setMobileOpen(false); void logout(); }}
                 >
                   <LogOut className="h-4 w-4 mr-1.5" />
                   Sign out

@@ -63,7 +63,6 @@ public sealed class PlayerFunctions
         var nameParts = body.Name.Split(' ', 2, StringSplitOptions.TrimEntries);
         var firstName = nameParts[0];
         var lastName = nameParts.Length > 1 ? nameParts[1] : string.Empty;
-        var entraObjectId = body.EntraObjectId ?? Guid.NewGuid().ToString();
 
         int? flightId = null;
         if (!string.IsNullOrEmpty(body.FlightId) && int.TryParse(body.FlightId, out var fid))
@@ -71,7 +70,7 @@ public sealed class PlayerFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var command = new CreatePlayerCommand(
-            firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId, flightId,
+            firstName, lastName, body.Email, body.InitialHandicap, userId, flightId,
             body.Role ?? "player");
 
         var result = await _mediator.Send(command, cancellationToken);
@@ -255,7 +254,7 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
-    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId, string? FlightId, string? Role);
+    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? FlightId, string? Role);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string Email);
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, string? Role);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)

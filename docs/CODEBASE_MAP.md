@@ -34,9 +34,13 @@ tests/GolfLeague.Functions.Tests/
 
 - **.NET 9** isolated worker Functions (`GolfLeague.Functions.csproj`).
 - **MediatR** registers handlers from `GolfLeague.Application`; **`AuditBehavior`** wraps auditable commands.
-- **JWT**: `Program.cs` configures `JwtBearer` with `https://login.microsoftonline.com/{ENTRA_TENANT_ID}/v2.0` and audience `ENTRA_CLIENT_ID`.
-- **Per-request auth**: `Middleware/AuthMiddleware.cs` runs authentication so `HttpRequest.HttpContext.User` is set.
-- **Role checks**: `Helpers/HttpRequestExtensions.cs` — `RequireRole`, `GetUserId`, `TryDeserializeAsync`.
+- **Identity**: ASP.NET Core Identity backs the `AppUser` entity (Guid PK). `AppDbContext` extends `IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>`. Roles: `admin` / `scorer` / `player`, stored on `AppUser.Role` (single role per user).
+- **JWT**: self-issued HS256 tokens. `Program.cs` validates with `JWT_SIGNING_KEY`. Issuer/audience = `golf-league-api`. Access tokens: 1h. MFA-challenge tokens: 5min. Refresh tokens: 14d, hashed at rest in `RefreshTokens`, rotated on every refresh.
+- **Auth endpoints**: `Functions/AuthFunctions.cs` — `/auth/register`, `/auth/login`, `/auth/refresh`, `/auth/logout`, `/auth/current`. Social: `Functions/ExternalAuthFunctions.cs`. MFA: `Functions/MfaFunctions.cs` (TOTP) and `Functions/PasskeyFunctions.cs` (WebAuthn / FIDO2).
+- **Auth services**: `Infrastructure/Auth/AuthService.cs`, `JwtTokenService.cs`, `MfaService.cs`, `ExternalAuthService.cs`, `PasskeyService.cs`.
+- **Per-request auth**: `Middleware/AuthMiddleware.cs` runs JWT bearer validation so `HttpRequest.HttpContext.User` is set with `role` and `NameIdentifier` claims.
+- **Role checks**: `Helpers/HttpRequestExtensions.cs` — `RequireRole`, `GetUserId` (returns `AppUser.Id` as a Guid string), `TryDeserializeAsync`.
+- **Admin bootstrap**: in `Program.cs` `EnsureDatabaseInitializedAsync`, if no admin exists and `ADMIN_BOOTSTRAP_EMAIL` is set, an admin AppUser is created with no password (requires password-reset flow on first sign-in).
 
 ### Azure SQL
 
@@ -89,8 +93,9 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 ## 5. Web app (`web/`)
 
 - **Entry**: `src/main.tsx`, routes in `src/App.tsx`, admin routes from `src/routes/adminRoutes`.
-- **API**: `src/lib/api.ts` — Axios instance; base URL `import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`; MSAL silent token on requests; 401 → refresh → retry → login redirect.
-- **Auth config**: `src/lib/msalConfig.ts` (env: `VITE_ENTRA_CLIENT_ID`, `VITE_REDIRECT_URI`; API scope embedded — align with Entra app registration).
+- **API**: `src/lib/api.ts` — Axios instance; base URL `import.meta.env.VITE_API_BASE_URL ?? '/api/v1'`; attaches access token from `lib/auth.ts`; 401 → refresh → retry → redirect to `/login`.
+- **Auth**: `src/lib/auth.ts` (token storage + auth API calls), `src/hooks/useAuth.ts` (login/logout + bootstrap from stored token), `src/store/authStore.ts` (Zustand user state).
+- **Login pages**: `/login`, `/register`, `/auth/callback` (social OAuth return), `/auth/mfa` (admin TOTP step).
 - **Types**: `src/types/api.ts` (and hooks under `src/hooks/`, `src/hooks/admin/`).
 - **SWA**: `web/public/staticwebapp.config.json` — SPA fallback to `index.html`.
 
@@ -98,8 +103,9 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 
 ## 6. Mobile app (`mobile/`)
 
-- **API base**: `lib/core/config.dart` (`apiBaseUrl`, Entra `authority`, `clientId`, `redirectUri`, OIDC `scopes`).
-- **HTTP**: `lib/core/network/dio_client.dart` (`tokenServiceProvider`, `dioClientProvider`), `auth_interceptor.dart`; tokens via `lib/core/auth/token_service.dart`.
+- **API base**: `lib/api/api_client.dart` (`apiClientProvider` exposes a Dio configured against `_baseUrl`).
+- **Auth**: `lib/auth/auth_service.dart` (email+password + Google/Facebook via `flutter_web_auth_2` + TOTP exchange), `lib/auth/auth_providers.dart` (`authServiceProvider`, `myStatusProvider`).
+- **Tokens**: stored via `flutter_secure_storage` (`access_token`, `refresh_token`). Social redirect: `com.golfleague.app://auth`.
 - **Auth UI refresh**: `lib/core/auth/auth_tick.dart` (`authTickProvider`, `bumpAuthTick`) — watch this after login/logout so admin gate and profile update.
 - **Offline**: Drift DB `lib/core/database/app_database.dart`; score sync `features/score_entry/data/sync_service.dart`.
 - **Public features**: `features/dashboard`, `leaderboard`, `rounds`, `player_profile`, `score_entry` — each with `data/`, `domain/`, `presentation/` where applicable.

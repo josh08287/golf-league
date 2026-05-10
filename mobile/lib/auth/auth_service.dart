@@ -1,63 +1,25 @@
-import 'dart:convert';
-
-import 'package:flutter_appauth/flutter_appauth.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-
-const _tenantId = '8299a09c-bf4e-4d14-aa8c-13afa3c58965';
-const _clientId = '39dca729-4792-4830-8b72-5441fbe31c2b';
-const _redirectUri = 'com.golfleague.app://auth';
-const _discoveryUrl =
-    'https://login.microsoftonline.com/$_tenantId/v2.0/.well-known/openid-configuration';
-const _scopes = [
-  'openid',
-  'offline_access',
-  'api://$_clientId/access',
-];
+import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 
 const _accessTokenKey = 'access_token';
 const _refreshTokenKey = 'refresh_token';
-const _idTokenKey = 'id_token';
+
+// Custom-scheme redirect for the OS-native browser callback. This must be
+// registered as an intent-filter on Android and as a CFBundleURLScheme on iOS,
+// AND configured on the API side as an allowed redirect URI for Google/Facebook.
+const _externalRedirectUri = 'com.golfleague.app://auth';
+const _externalCallbackScheme = 'com.golfleague.app';
 
 class AuthService {
   AuthService({
-    FlutterAppAuth? appAuth,
+    required Dio dio,
     FlutterSecureStorage? storage,
-  })  : _appAuth = appAuth ?? const FlutterAppAuth(),
+  })  : _dio = dio,
         _storage = storage ?? const FlutterSecureStorage();
 
-  final FlutterAppAuth _appAuth;
+  final Dio _dio;
   final FlutterSecureStorage _storage;
-
-  Future<AuthResult?> signIn() async {
-    final result = await _appAuth.authorizeAndExchangeCode(
-      AuthorizationTokenRequest(
-        _clientId,
-        _redirectUri,
-        discoveryUrl: _discoveryUrl,
-        scopes: _scopes,
-        promptValues: ['select_account'],
-      ),
-    );
-    await _persist(result.accessToken, result.refreshToken, result.idToken);
-    return AuthResult._fromAuthorizeResponse(result);
-  }
-
-  Future<AuthResult?> refresh() async {
-    final refreshToken = await _storage.read(key: _refreshTokenKey);
-    if (refreshToken == null) return null;
-
-    final result = await _appAuth.token(
-      TokenRequest(
-        _clientId,
-        _redirectUri,
-        discoveryUrl: _discoveryUrl,
-        refreshToken: refreshToken,
-        scopes: _scopes,
-      ),
-    );
-    await _persist(result.accessToken, result.refreshToken, result.idToken);
-    return AuthResult._fromTokenResponse(result);
-  }
 
   Future<String?> getAccessToken() => _storage.read(key: _accessTokenKey);
 
@@ -66,73 +28,151 @@ class AuthService {
     return token != null;
   }
 
+  Future<AuthResult> loginWithPassword(String email, String password) async {
+    final response = await _dio.post<dynamic>(
+      '/auth/login',
+      data: {'email': email, 'password': password},
+    );
+    return _handleAuthResponse(response.data);
+  }
+
+  Future<AuthResult> register({
+    required String email,
+    required String password,
+    String? firstName,
+    String? lastName,
+  }) async {
+    final response = await _dio.post<dynamic>(
+      '/auth/register',
+      data: {
+        'email': email,
+        'password': password,
+        if (firstName != null) 'firstName': firstName,
+        if (lastName != null) 'lastName': lastName,
+      },
+    );
+    return _handleAuthResponse(response.data);
+  }
+
+  /// Kicks off the Google or Facebook OAuth flow in an in-app browser tab
+  /// and waits for the provider redirect back to com.golfleague.app://auth.
+  Future<AuthResult> loginWithSocial(String provider) async {
+    final start = await _dio.post<dynamic>(
+      '/auth/external/$provider/start',
+      data: {'redirectUri': _externalRedirectUri},
+    );
+    final startData = (start.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+    final authorizeUrl = startData['authorizeUrl'] as String;
+    final state = startData['state'] as String;
+
+    final callback = await FlutterWebAuth2.authenticate(
+      url: authorizeUrl,
+      callbackUrlScheme: _externalCallbackScheme,
+    );
+
+    final uri = Uri.parse(callback);
+    final code = uri.queryParameters['code'];
+    final returnedState = uri.queryParameters['state'];
+    if (code == null || returnedState != state) {
+      throw const AuthException('Social sign-in returned an invalid response.');
+    }
+
+    final complete = await _dio.post<dynamic>(
+      '/auth/external/$provider/callback',
+      data: {
+        'state': state,
+        'code': code,
+        'redirectUri': _externalRedirectUri,
+      },
+    );
+    return _handleAuthResponse(complete.data);
+  }
+
+  /// Exchange an MFA-challenge token + 6-digit code for full tokens. Mobile
+  /// admins still complete TOTP on a desktop today, but this lets us close
+  /// the loop without adding a passkey/authenticator integration.
+  Future<AuthResult> verifyTotp({required String mfaToken, required String code}) async {
+    final response = await _dio.post<dynamic>(
+      '/auth/mfa/totp/verify',
+      data: {'mfaToken': mfaToken, 'code': code},
+    );
+    return _handleAuthResponse(response.data);
+  }
+
+  Future<AuthResult?> refresh() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken == null) return null;
+    try {
+      final response = await _dio.post<dynamic>(
+        '/auth/refresh',
+        data: {'refreshToken': refreshToken},
+      );
+      return _handleAuthResponse(response.data);
+    } on DioException {
+      await signOut();
+      return null;
+    }
+  }
+
   Future<void> signOut() async {
+    final refreshToken = await _storage.read(key: _refreshTokenKey);
+    if (refreshToken != null) {
+      try {
+        await _dio.post<dynamic>('/auth/logout', data: {'refreshToken': refreshToken});
+      } catch (_) {
+        // Best-effort — clear local storage regardless.
+      }
+    }
     await _storage.deleteAll();
   }
 
-  Future<void> _persist(String? access, String? refresh, String? id) async {
-    if (access != null) await _storage.write(key: _accessTokenKey, value: access);
-    if (refresh != null) await _storage.write(key: _refreshTokenKey, value: refresh);
-    if (id != null) await _storage.write(key: _idTokenKey, value: id);
+  Future<AuthResult> _handleAuthResponse(dynamic responseData) async {
+    final data = (responseData as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+    final accessToken = data['accessToken'] as String;
+    final refreshToken = (data['refreshToken'] as String?) ?? '';
+    final role = data['role'] as String;
+    final mfaRequired = data['mfaRequired'] as bool? ?? false;
+
+    if (mfaRequired) {
+      // Don't store the challenge token — caller must complete MFA first.
+      return AuthResult(
+        accessToken: accessToken,
+        refreshToken: '',
+        role: role,
+        mfaRequired: true,
+      );
+    }
+
+    await _storage.write(key: _accessTokenKey, value: accessToken);
+    if (refreshToken.isNotEmpty) {
+      await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    }
+    return AuthResult(
+      accessToken: accessToken,
+      refreshToken: refreshToken,
+      role: role,
+      mfaRequired: false,
+    );
   }
 }
 
 class AuthResult {
   const AuthResult({
     required this.accessToken,
-    required this.idToken,
-    this.givenName,
-    this.familyName,
-    this.email,
-    this.phone,
-    this.sub,
+    required this.refreshToken,
+    required this.role,
+    required this.mfaRequired,
   });
 
   final String accessToken;
-  final String idToken;
-  final String? givenName;
-  final String? familyName;
-  final String? email;
-  final String? phone;
-  final String? sub;
-
-  factory AuthResult._fromAuthorizeResponse(AuthorizationTokenResponse r) {
-    final claims = _decodeJwt(r.idToken ?? '');
-    return AuthResult(
-      accessToken: r.accessToken ?? '',
-      idToken: r.idToken ?? '',
-      givenName: claims['given_name'] as String?,
-      familyName: claims['family_name'] as String?,
-      email: (claims['email'] ?? claims['preferred_username']) as String?,
-      phone: claims['phone_number'] as String?,
-      sub: (claims['oid'] ?? claims['sub']) as String?,
-    );
-  }
-
-  factory AuthResult._fromTokenResponse(TokenResponse r) {
-    final claims = _decodeJwt(r.idToken ?? '');
-    return AuthResult(
-      accessToken: r.accessToken ?? '',
-      idToken: r.idToken ?? '',
-      givenName: claims['given_name'] as String?,
-      familyName: claims['family_name'] as String?,
-      email: (claims['email'] ?? claims['preferred_username']) as String?,
-      phone: claims['phone_number'] as String?,
-      sub: (claims['oid'] ?? claims['sub']) as String?,
-    );
-  }
+  final String refreshToken;
+  final String role;
+  final bool mfaRequired;
 }
 
-Map<String, dynamic> _decodeJwt(String token) {
-  try {
-    final parts = token.split('.');
-    if (parts.length < 2) return {};
-    final payload = parts[1].replaceAll('-', '+').replaceAll('_', '/');
-    final padded = payload.padRight((payload.length + 3) & ~3, '=');
-    final bytes = base64.decode(padded);
-    final decoded = utf8.decode(bytes);
-    return jsonDecode(decoded) as Map<String, dynamic>;
-  } catch (_) {
-    return {};
-  }
+class AuthException implements Exception {
+  const AuthException(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

@@ -9,6 +9,9 @@ import { RoundDetailPage } from '@/pages/RoundDetailPage';
 import { PlayerProfilePage } from '@/pages/PlayerProfilePage';
 import { PlayersPage } from '@/pages/PlayersPage';
 import { LoginPage } from '@/pages/LoginPage';
+import { RegisterPage } from '@/pages/RegisterPage';
+import { AuthCallbackPage } from '@/pages/AuthCallbackPage';
+import { MfaPage } from '@/pages/MfaPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
@@ -25,6 +28,9 @@ export default function App() {
           <Route path="players" element={<PlayersPage />} />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
           <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="auth/callback" element={<AuthCallbackPage />} />
+          <Route path="auth/mfa" element={<MfaPage />} />
           <Route path="accept-invite" element={<AcceptInvitePage />} />
           {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />

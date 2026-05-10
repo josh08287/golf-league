@@ -36,12 +36,9 @@ public sealed class AuthMiddleware : IFunctionsWorkerMiddleware
 
                     if (result.Succeeded && result.Principal is not null)
                     {
-                        var principal = result.Principal;
-
-                        // Roles come from Entra ID app roles (in the 'roles' claim of the JWT token)
-                        // No need to add database roles - the token already contains the correct roles
-
-                        httpContext.User = principal;
+                        // Role lives in the "role" claim of our self-issued JWT.
+                        // Mapped to ClaimsPrincipal.Roles via RoleClaimType in Program.cs.
+                        httpContext.User = result.Principal;
                     }
                 }
             }

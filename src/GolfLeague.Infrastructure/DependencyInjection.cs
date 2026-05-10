@@ -1,11 +1,13 @@
 using Azure.Communication.Email;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Infrastructure.Auth;
 using GolfLeague.Infrastructure.Data;
 using GolfLeague.Infrastructure.Email;
 using GolfLeague.Infrastructure.Repositories;
-using GolfLeague.Infrastructure.Services;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -46,6 +48,25 @@ public static class DependencyInjection
             options.UseQueryTrackingBehavior(QueryTrackingBehavior.NoTracking);
         });
 
+        // ASP.NET Core Identity — backs the AppUser table, password hashing,
+        // external login linking, lockout, email confirmation tokens, etc.
+        services
+            .AddIdentityCore<AppUser>(options =>
+            {
+                options.Password.RequiredLength = 10;
+                options.Password.RequireDigit = true;
+                options.Password.RequireLowercase = true;
+                options.Password.RequireUppercase = true;
+                options.Password.RequireNonAlphanumeric = false;
+                options.User.RequireUniqueEmail = true;
+                options.SignIn.RequireConfirmedEmail = false;
+                options.Lockout.MaxFailedAccessAttempts = 8;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+            })
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<AppDbContext>()
+            .AddDefaultTokenProviders();
+
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IFlightRepository, FlightRepository>();
         services.AddScoped<IRoundRepository, RoundRepository>();
@@ -54,8 +75,27 @@ public static class DependencyInjection
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
+        services.AddScoped<IAppUserRepository, AppUserRepository>();
 
-        services.AddSingleton<IEntraRoleService, EntraRoleService>();
+        services.AddMemoryCache();
+        services.AddHttpClient("google");
+        services.AddHttpClient("facebook");
+
+        services.AddFido2(options =>
+        {
+            options.ServerDomain = configuration["FIDO2_RP_ID"] ?? "localhost";
+            options.ServerName = configuration["FIDO2_RP_NAME"] ?? "Golf League";
+            options.Origins = new HashSet<string>(
+                (configuration["FIDO2_RP_ORIGINS"] ?? "http://localhost:5173")
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+            options.TimestampDriftTolerance = 300_000;
+        });
+
+        services.AddSingleton<ITokenService, JwtTokenService>();
+        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IMfaService, MfaService>();
+        services.AddScoped<IExternalAuthService, ExternalAuthService>();
+        services.AddScoped<IPasskeyService, PasskeyService>();
 
         var acsConnectionString = configuration["ACS_CONNECTION_STRING"];
         var acsSenderAddress = configuration["ACS_SENDER_ADDRESS"];

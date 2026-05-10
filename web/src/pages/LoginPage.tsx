@@ -1,87 +1,101 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useIsAuthenticated, useMsal } from '@azure/msal-react';
-import { InteractionStatus } from '@azure/msal-browser';
-import { msalInstance, loginRequest } from '@/lib/msalConfig';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
-import { Spinner } from '@/components/ui/Spinner';
+import { useAuth } from '@/hooks/useAuth';
+import { startExternalLogin } from '@/lib/auth';
+
+const schema = z.object({
+  email: z.string().email('Valid email required'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
-  const isAuthenticated = useIsAuthenticated();
-  const { inProgress } = useMsal();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Only redirect after MSAL has finished processing any pending redirect
-    if (inProgress === InteractionStatus.None && isAuthenticated) {
-      navigate('/', { replace: true });
+  if (isAuthenticated) {
+    navigate('/', { replace: true });
+  }
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: '', password: '' },
+  });
+
+  async function onSubmit(values: FormValues) {
+    setSubmitError(null);
+    try {
+      await login(values.email, values.password);
+    } catch (err) {
+      const message =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        ?? 'Sign-in failed. Check your email and password.';
+      setSubmitError(message);
     }
-  }, [isAuthenticated, inProgress, navigate]);
-
-  // Show loading spinner while MSAL is processing the redirect from external identity providers
-  if (inProgress !== InteractionStatus.None) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center">
-        <Spinner />
-      </div>
-    );
   }
 
-  function handleSignIn() {
-    void msalInstance.loginRedirect(loginRequest);
-  }
-
-  function handleCreateAccount() {
-    void msalInstance.loginRedirect({
-      ...loginRequest,
-      // prompt:'create' shows sign-up flow with configured identity providers
-      // For local accounts, ensure 'Microsoft Account' is enabled in Entra:
-      // External Identities > All identity providers > Microsoft Account
-      prompt: 'create',
-    });
-  }
+  const inputClass =
+    'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]';
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
-      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md text-center">
-        {/* Logo */}
-        <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
-        <h1 className="mt-4 text-2xl font-bold text-gray-900">Golf League</h1>
-        <p className="mt-2 text-sm text-gray-500">
-          Sign in to view standings, scorecards, and your player profile.
-        </p>
+      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
+        <div className="text-center">
+          <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
+          <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in</h1>
+        </div>
 
-        <Button
-          className="mt-8 w-full gap-2"
-          size="lg"
-          onClick={handleSignIn}
-        >
-          {/* Microsoft logo SVG */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 21 21"
-            className="h-5 w-5 flex-shrink-0"
-            aria-hidden="true"
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Email</label>
+            <input type="email" autoComplete="email" {...register('email')} className={inputClass} />
+            {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Password</label>
+            <input type="password" autoComplete="current-password" {...register('password')} className={inputClass} />
+            {errors.password && <p className="mt-1 text-xs text-red-600">{errors.password.message}</p>}
+          </div>
+          {submitError && <p className="text-sm text-red-600">{submitError}</p>}
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? 'Signing in…' : 'Sign in'}
+          </Button>
+        </form>
+
+        <div className="my-6 flex items-center gap-3 text-xs text-gray-400">
+          <div className="h-px flex-1 bg-gray-200" />
+          <span>or continue with</span>
+          <div className="h-px flex-1 bg-gray-200" />
+        </div>
+
+        <div className="space-y-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => void startExternalLogin('google')}
           >
-            <rect x="1" y="1" width="9" height="9" fill="#f25022" />
-            <rect x="11" y="1" width="9" height="9" fill="#7fba00" />
-            <rect x="1" y="11" width="9" height="9" fill="#00a4ef" />
-            <rect x="11" y="11" width="9" height="9" fill="#ffb900" />
-          </svg>
-          Sign in
-        </Button>
+            Sign in with Google
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => void startExternalLogin('facebook')}
+          >
+            Sign in with Facebook
+          </Button>
+        </div>
 
-        <Button
-          className="mt-3 w-full gap-2"
-          size="lg"
-          variant="outline"
-          onClick={handleCreateAccount}
-        >
-          Create account
-        </Button>
-
-        <p className="mt-6 text-xs text-gray-400">
-          Powered by Microsoft Entra External ID
+        <p className="mt-6 text-center text-sm text-gray-500">
+          Don&apos;t have an account?{' '}
+          <Link to="/register" className="text-primary-900 font-medium hover:underline">Create one</Link>
         </p>
       </div>
     </div>

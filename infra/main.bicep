@@ -5,9 +5,14 @@
   PREREQUISITES:
     1. Resource group must already exist:
          az group create --name golf-league-prod --location eastus2
-    2. Entra External ID tenant must be created manually in the Azure portal
-       before deployment. The tenant ID and API client ID are supplied
-       as parameters; Bicep only references them — it does not create them.
+    2. Before the first deployment, populate these Key Vault secrets after
+       the first apply (the Function App needs them to start cleanly):
+         - JwtSigningKey            (>= 32-char random string)
+         - AdminBootstrapEmail      (the email of the first admin)
+         - GoogleClientId / GoogleClientSecret    (optional, omit to disable)
+         - FacebookAppId / FacebookAppSecret      (optional, omit to disable)
+       The Function App's Managed Identity has Key Vault Secrets User access,
+       so it will pick them up on next restart.
 
   DEPLOY COMMAND:
     az deployment group create \
@@ -37,14 +42,14 @@ param environmentName string
 @description('Base application name used to construct resource names.')
 param appName string
 
-@description('Entra External ID tenant ID (GUID from the Overview blade of your External ID tenant). Create the External ID tenant manually before deploying.')
-param entraExternalTenantId string
-
-@description('Entra External ID application (client) ID registered for the API. Create this app registration in the External ID tenant before deploying.')
-param entraClientId string
-
 @description('ADO.NET connection string for the existing Azure SQL database. Must use Authentication=Active Directory Default so the Function App MI is the resolved principal at runtime.')
 param sqlConnectionString string
+
+@description('Public origin(s) of the web client, comma-separated. Used as WebAuthn allowed origins and the default WEB_BASE_URL for invite links.')
+param webOrigin string
+
+@description('WebAuthn relying-party ID (the registrable domain, e.g. "app.golfleague.com"). For local dev use "localhost".')
+param fido2RpId string = 'localhost'
 
 // ---------------------------------------------------------------------------
 // Variables
@@ -62,6 +67,11 @@ var appInsightsName    = '${appName}-ai-${uniqueSuffix}'
 var storageAccountName = 'glfstr${uniqueSuffix}'
 var functionAppName    = '${appName}-fn-${uniqueSuffix}'
 var keyVaultName       = '${appName}-kv-${uniqueSuffix}'
+
+// Key Vault secret reference syntax for app settings. The Function App's
+// system-assigned MI resolves these at runtime — the actual secret values
+// are stored only in Key Vault, never in app settings.
+var kvBaseUri = 'https://${keyVaultName}${az.environment().suffixes.keyvaultDns}/secrets'
 
 // ---------------------------------------------------------------------------
 // Modules
@@ -99,8 +109,6 @@ module functionsModule 'modules/functions.bicep' = {
     uniqueSuffix: uniqueSuffix
     appInsightsConnectionString: appInsightsModule.outputs.connectionString
     storageAccountNameForPhotos: storageModule.outputs.storageAccountName
-    entraExternalTenantId: entraExternalTenantId
-    entraClientId: entraClientId
   }
 }
 
@@ -131,16 +139,27 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2023-01-01' = {
     FUNCTIONS_WORKER_RUNTIME: 'dotnet-isolated'
     APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsModule.outputs.connectionString
     AzureWebJobsStorage__accountName: 'fnstore${uniqueSuffix}'
-    ENTRA_TENANT_ID: entraExternalTenantId
-    ENTRA_CLIENT_ID: entraClientId
     BLOB_STORAGE_ACCOUNT: storageModule.outputs.storageAccountName
     WEBSITE_RUN_FROM_PACKAGE: '1'
-    // Connects to the pre-existing Azure SQL DB. Authentication=Active
-    // Directory Default resolves to the Function App's system-assigned
-    // managed identity at runtime (no secrets, no rotation). The MI must
-    // be granted db_owner (or db_datareader+db_datawriter+db_ddladmin) on
-    // the target database — see DEPLOY.md.
     SQL_CONNECTION_STRING: sqlConnectionString
+    WEB_BASE_URL: webOrigin
+
+    // Local-auth configuration — all sensitive values come from Key Vault.
+    // The KV secrets must be created manually after the first apply; see the
+    // PREREQUISITES note at the top of this file.
+    JWT_SIGNING_KEY: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/JwtSigningKey/)'
+    ADMIN_BOOTSTRAP_EMAIL: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/AdminBootstrapEmail/)'
+    GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientId/)'
+    GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientSecret/)'
+    FACEBOOK_APP_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppId/)'
+    FACEBOOK_APP_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppSecret/)'
+
+    // Passkey relying-party config — RP ID is the registrable domain
+    // (no scheme, no path). Origins must be the full origin(s) clients
+    // connect from. Comma-separated for multiple origins (e.g. web + mobile).
+    FIDO2_RP_ID: fido2RpId
+    FIDO2_RP_NAME: 'Golf League'
+    FIDO2_RP_ORIGINS: webOrigin
   }
   dependsOn: [
     keyVaultModule

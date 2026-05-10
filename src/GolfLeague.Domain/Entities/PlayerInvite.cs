@@ -17,7 +17,7 @@ public class PlayerInvite
 
     // Populated when the invited person signs in and accepts
     public DateTime? AcceptedAt { get; set; }
-    public string? AcceptedByEntraObjectId { get; set; }
+    public Guid? AcceptedByAppUserId { get; set; }
 
     public Domain.Enums.PlayerRole Role { get; set; } = Domain.Enums.PlayerRole.Player;
 

@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Registrations.Commands;
 using GolfLeague.Application.Registrations.Queries;
@@ -115,15 +114,15 @@ public sealed class InviteFunctions
         var authError = req.RequireAuthenticated();
         if (authError is not null) return authError;
 
-        var entraObjectId = req.GetUserId();
-        if (string.IsNullOrEmpty(entraObjectId))
+        var userIdStr = req.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var appUserId))
             return new UnauthorizedResult();
 
         var body = await req.TryDeserializeAsync<AcceptInviteRequest>(cancellationToken);
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
-        var command = new AcceptInviteCommand(token, entraObjectId, body.FirstName, body.LastName, body.Email, body.Phone);
+        var command = new AcceptInviteCommand(token, appUserId, body.FirstName, body.LastName, body.Email, body.Phone);
         var result = await _mediator.Send(command, cancellationToken);
 
         if (!result.IsSuccess)
@@ -142,29 +141,11 @@ public sealed class InviteFunctions
         var authError = req.RequireAuthenticated();
         if (authError is not null) return authError;
 
-        var entraObjectId = req.GetUserId();
-        if (string.IsNullOrEmpty(entraObjectId))
+        var userIdStr = req.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var appUserId))
             return new UnauthorizedResult();
 
-        // Get role from Entra ID token (admin, scorer, or player from app roles claim)
-        // ClaimsIdentity.IsInRole is case-sensitive, so we check all variations
-        var user = req.HttpContext.User;
-        var allClaims = user.Claims.Select(c => $"{c.Type}={c.Value}").ToList();
-        log.LogInformation("GetMyStatus called. User: {UserId}, Claims: {Claims}", entraObjectId, string.Join("; ", allClaims));
-
-        var roles = user.Claims
-            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
-            .Select(c => c.Value?.ToLowerInvariant())
-            .ToList();
-
-        log.LogInformation("Extracted roles for user {UserId}: {Roles}", entraObjectId, string.Join(", ", roles));
-
-        var tokenRole = roles.Contains("admin") ? "admin" :
-                        roles.Contains("scorer") ? "scorer" : "player";
-
-        log.LogInformation("Determined token role for user {UserId}: {TokenRole}", entraObjectId, tokenRole);
-
-        var result = await _mediator.Send(new GetMyStatusQuery(entraObjectId, tokenRole), cancellationToken);
+        var result = await _mediator.Send(new GetMyStatusQuery(appUserId), cancellationToken);
         return result.ToOkResult();
     }
 

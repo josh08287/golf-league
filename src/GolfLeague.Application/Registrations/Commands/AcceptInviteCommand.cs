@@ -1,6 +1,5 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
-using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -11,11 +10,13 @@ namespace GolfLeague.Application.Registrations.Commands;
 
 /// <summary>
 /// Called when an invited user signs in and confirms their details.
-/// Creates the Player record and marks the invite accepted.
+/// Creates the Player record, links it to the calling AppUser, and marks
+/// the invite accepted. The user's role is set on the AppUser to match
+/// the invite.
 /// </summary>
 public sealed record AcceptInviteCommand(
     string Token,
-    string EntraObjectId,
+    Guid AppUserId,
     string FirstName,
     string LastName,
     string Email,
@@ -26,20 +27,20 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
     private readonly IHandicapRepository _handicapRepo;
-    private readonly IEntraRoleService _entraRoleService;
+    private readonly IAppUserRepository _appUserRepo;
     private readonly ILogger<AcceptInviteCommandHandler> _logger;
 
     public AcceptInviteCommandHandler(
         IInviteRepository inviteRepo,
         IPlayerRepository playerRepo,
         IHandicapRepository handicapRepo,
-        IEntraRoleService entraRoleService,
+        IAppUserRepository appUserRepo,
         ILogger<AcceptInviteCommandHandler> logger)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
         _handicapRepo = handicapRepo;
-        _entraRoleService = entraRoleService;
+        _appUserRepo = appUserRepo;
         _logger = logger;
     }
 
@@ -59,8 +60,8 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         if (invite.ExpiresAt < DateTime.UtcNow)
             return Result<PlayerDto>.Fail("This invite has expired. Please ask the admin to send a new one.");
 
-        // Guard against re-accepting with the same Entra identity
-        var existing = await _playerRepo.GetByEntraObjectIdAsync(request.EntraObjectId, cancellationToken);
+        // Guard against re-accepting with the same identity
+        var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
         if (existing is not null)
             return Result<PlayerDto>.Fail("Your account is already linked to a player profile.");
 
@@ -69,57 +70,20 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
-            EntraObjectId = request.EntraObjectId,
             IsActive = true,
-            Role = invite.Role
+            AppUserId = request.AppUserId,
         };
 
         await _playerRepo.AddAsync(player, cancellationToken);
 
-        // Ensure user exists in Entra ID (important for external identity providers like Google)
-        // The user may have signed in via federation but not be immediately queryable in the tenant
-        // Pass the EntraObjectId from the JWT token so we can look them up directly
-        var ensureUserResult = await _entraRoleService.EnsureUserExistsAsync(
-            request.Email,
-            $"{request.FirstName} {request.LastName}",
-            request.EntraObjectId,
-            cancellationToken);
-
-        if (!ensureUserResult.IsSuccess)
-        {
-            _logger.LogError(
-                "Failed to verify user exists in Entra ID: {Error}",
-                ensureUserResult.Error);
-            return Result<PlayerDto>.Fail($"User verification failed: {ensureUserResult.Error}");
-        }
-
-        var userObjectId = ensureUserResult.Value!;
-        _logger.LogInformation(
-            "User {Email} verified in Entra ID with object ID {UserId}",
-            request.Email,
-            userObjectId);
-
-        // Assign the role in Entra ID (source of truth for authorization)
-        var roleResult = await _entraRoleService.AssignRoleAsync(
-            userObjectId,
-            invite.Role.ToString().ToLowerInvariant(),
-            cancellationToken);
-
-        if (!roleResult.IsSuccess)
-        {
-            _logger.LogError(
-                "Failed to assign role {Role} to user {UserId} in Entra ID: {Error}",
-                invite.Role,
-                userObjectId,
-                roleResult.Error);
-            // Return error so frontend knows role assignment failed
-            return Result<PlayerDto>.Fail($"Role assignment failed: {roleResult.Error}");
-        }
+        // Assign the invite's role to the AppUser (authoritative for authorization).
+        await _appUserRepo.UpdateRoleAsync(request.AppUserId, invite.Role, cancellationToken);
 
         _logger.LogInformation(
-            "Successfully assigned role {Role} to user {UserId} in Entra ID",
-            invite.Role,
-            userObjectId);
+            "Linked player {PlayerId} to AppUser {UserId} with role {Role}",
+            player.Id,
+            request.AppUserId,
+            invite.Role);
 
         // Placeholder handicap — admin sets the real value in Player Detail
         await _handicapRepo.AddAsync(new Handicap
@@ -132,11 +96,12 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
 
         invite.Status = InviteStatus.Accepted;
         invite.AcceptedAt = DateTime.UtcNow;
-        invite.AcceptedByEntraObjectId = request.EntraObjectId;
+        invite.AcceptedByAppUserId = request.AppUserId;
         invite.PlayerId = player.Id;
         await _inviteRepo.UpdateAsync(invite, cancellationToken);
 
         return Result<PlayerDto>.Ok(new PlayerDto(
-            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null, player.Role.ToString().ToLowerInvariant()));
+            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null,
+            invite.Role.ToString().ToLowerInvariant()));
     }
 }

@@ -15,6 +15,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly IAppUserRepository _appUserRepository;
 
     /// <summary>
     /// Sortable columns for the players list. Default sort is the
@@ -36,23 +37,33 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
 
     public GetPlayersQueryHandler(
         IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IHandicapRepository handicapRepository,
+        IAppUserRepository appUserRepository)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _appUserRepository = appUserRepository;
     }
 
     public async Task<Result<PagedResult<PlayerDto>>> Handle(GetPlayersQuery request, CancellationToken cancellationToken)
     {
         var players = await _playerRepository.GetAllActiveAsync(cancellationToken);
 
-        // Project everyone, then sort, then page. Reordering Skip/Take
-        // before sort would only sort the page, not the full list.
+        var appUserIds = players
+            .Where(p => p.AppUserId.HasValue)
+            .Select(p => p.AppUserId!.Value)
+            .ToList();
+
+        var rolesByUserId = await _appUserRepository.GetRolesAsync(appUserIds, cancellationToken);
+
         var dtos = new List<PlayerDto>(players.Count);
         foreach (var player in players)
         {
             var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-            dtos.Add(ToDto(player, currentHandicap?.HandicapIndex));
+            var role = player.AppUserId.HasValue && rolesByUserId.TryGetValue(player.AppUserId.Value, out var r)
+                ? r.ToString().ToLowerInvariant()
+                : "player";
+            dtos.Add(ToDto(player, currentHandicap?.HandicapIndex, role));
         }
 
         var sorted = SortMap.Apply(dtos, request.Sort);
@@ -78,7 +89,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         return i < 0 ? fullName : fullName[..i];
     }
 
-    internal static PlayerDto ToDto(Player player, double? currentHandicap)
+    internal static PlayerDto ToDto(Player player, double? currentHandicap, string role = "player")
     {
         var activeMembership = player.FlightMemberships
             .Where(fm => fm.Season.IsActive)
@@ -93,6 +104,6 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             currentHandicap,
             activeMembership?.FlightId,
             activeMembership?.Flight.Name,
-            player.Role.ToString().ToLowerInvariant());
+            role);
     }
 }

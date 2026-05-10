@@ -31,13 +31,6 @@ public class HttpRequestExtensionsTests
     }
 
     [Fact]
-    public void GetUserId_WhenOidClaim_ReturnsIt()
-    {
-        var req = MakeAuthenticatedRequest(new Claim("oid", "oid-value"));
-        req.GetUserId().Should().Be("oid-value");
-    }
-
-    [Fact]
     public void GetUserId_WhenSubClaim_ReturnsIt()
     {
         var req = MakeAuthenticatedRequest(new Claim("sub", "sub-value"));

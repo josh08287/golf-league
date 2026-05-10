@@ -11,7 +11,6 @@ public sealed record CreatePlayerCommand(
     string FirstName,
     string LastName,
     string Email,
-    string EntraObjectId,
     double InitialHandicapIndex,
     string UserId,
     int? FlightId = null,
@@ -32,20 +31,16 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
 
     public async Task<Result<PlayerDto>> Handle(CreatePlayerCommand request, CancellationToken cancellationToken)
     {
-        var existing = await _playerRepository.GetByEntraObjectIdAsync(request.EntraObjectId, cancellationToken);
+        var existing = await _playerRepository.GetByEmailAsync(request.Email, cancellationToken);
         if (existing is not null)
-            return Result<PlayerDto>.Fail($"A player with Entra Object ID '{request.EntraObjectId}' already exists.");
+            return Result<PlayerDto>.Fail($"A player with email '{request.Email}' already exists.");
 
         var player = new Player
         {
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
-            EntraObjectId = request.EntraObjectId,
             IsActive = true,
-            Role = Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role)
-                ? role
-                : Domain.Enums.PlayerRole.Player
         };
 
         await _playerRepository.AddAsync(player, cancellationToken);
@@ -76,6 +71,10 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             }
         }
 
+        var roleString = Enum.TryParse<PlayerRole>(request.Role, true, out var role)
+            ? role.ToString().ToLowerInvariant()
+            : "player";
+
         var dto = new PlayerDto(
             player.Id,
             player.FullName,
@@ -84,7 +83,7 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             request.InitialHandicapIndex,
             null,
             null,
-            player.Role.ToString().ToLowerInvariant());
+            roleString);
 
         return Result<PlayerDto>.Ok(dto);
     }

@@ -1,7 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
-using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Queries;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -19,16 +19,16 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
-    private readonly IEntraRoleService _entraRoleService;
+    private readonly IAppUserRepository _appUserRepository;
 
     public UpdatePlayerCommandHandler(
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        IEntraRoleService entraRoleService)
+        IAppUserRepository appUserRepository)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
-        _entraRoleService = entraRoleService;
+        _appUserRepository = appUserRepository;
     }
 
     public async Task<Result<PlayerDto>> Handle(UpdatePlayerCommand request, CancellationToken cancellationToken)
@@ -41,29 +41,30 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
         player.LastName = request.LastName;
         player.Email = request.Email;
 
-        // Update role in Entra ID (authorization source of truth)
-        if (!string.IsNullOrWhiteSpace(request.Role) &&
-            Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role))
-        {
-            // Assign the new role in Entra ID via Microsoft Graph API
-            var roleResult = await _entraRoleService.AssignRoleAsync(
-                player.EntraObjectId,
-                request.Role,
-                cancellationToken);
-
-            if (!roleResult.IsSuccess)
-            {
-                return Result<PlayerDto>.Fail($"Failed to update role in Entra ID: {roleResult.Error}");
-            }
-
-            // Update database role for reference (not used for authorization)
-            player.Role = role;
-        }
-
         await _playerRepository.UpdateAsync(player, cancellationToken);
 
+        // Role lives on the linked AppUser (authoritative). If the Player has
+        // no linked account yet, role updates are deferred until they claim
+        // an invite.
+        var roleString = "player";
+        if (player.AppUserId is Guid appUserId)
+        {
+            if (!string.IsNullOrWhiteSpace(request.Role) &&
+                Enum.TryParse<PlayerRole>(request.Role, true, out var newRole))
+            {
+                await _appUserRepository.UpdateRoleAsync(appUserId, newRole, cancellationToken);
+                roleString = newRole.ToString().ToLowerInvariant();
+            }
+            else
+            {
+                var user = await _appUserRepository.GetByIdAsync(appUserId, cancellationToken);
+                if (user is not null)
+                    roleString = user.Role.ToString().ToLowerInvariant();
+            }
+        }
+
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex);
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, roleString);
 
         return Result<PlayerDto>.Ok(dto);
     }

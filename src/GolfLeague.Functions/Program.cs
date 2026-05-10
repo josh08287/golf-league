@@ -1,15 +1,22 @@
+using System.Text;
 using GolfLeague.Application.Behaviors;
+using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Functions.Middleware;
 using GolfLeague.Infrastructure;
+using GolfLeague.Infrastructure.Auth;
 using GolfLeague.Infrastructure.Data;
 using MediatR;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Json;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
+using System.Security.Claims;
 using System.Text.Json;
 
 var host = new HostBuilder()
@@ -21,24 +28,30 @@ var host = new HostBuilder()
     {
         var config = context.Configuration;
 
-        var tenantId = config["ENTRA_TENANT_ID"]
-            ?? throw new InvalidOperationException("ENTRA_TENANT_ID is not configured.");
-        var clientId = config["ENTRA_CLIENT_ID"]
-            ?? throw new InvalidOperationException("ENTRA_CLIENT_ID is not configured.");
+        var signingKey = config["JWT_SIGNING_KEY"]
+            ?? throw new InvalidOperationException("JWT_SIGNING_KEY is not configured.");
+
+        if (signingKey.Length < 32)
+            throw new InvalidOperationException("JWT_SIGNING_KEY must be at least 32 characters.");
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
 
         services
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = $"https://login.microsoftonline.com/{tenantId}/v2.0";
-                options.Audience = clientId;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
+                    ValidIssuer = JwtTokenService.Issuer,
                     ValidateAudience = true,
+                    ValidAudience = JwtTokenService.Audience,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    RoleClaimType = "roles", // Map Entra ID app roles claim
+                    IssuerSigningKey = key,
+                    ClockSkew = TimeSpan.FromSeconds(30),
+                    RoleClaimType = "role",
+                    NameClaimType = ClaimTypes.NameIdentifier,
                 };
             });
 
@@ -95,6 +108,7 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
     logger.LogInformation("Startup: migrations applied. Seeding active season if missing.");
     await SeedActiveSeasonAsync(dbContext);
+    await BootstrapAdminAsync(scope.ServiceProvider, logger);
     logger.LogInformation("Startup: seed complete.");
 }
 
@@ -139,4 +153,62 @@ static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
             CreatedAt = DateTime.UtcNow,
         });
     await dbContext.SaveChangesAsync();
+}
+
+static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
+{
+    var userManager = services.GetRequiredService<UserManager<AppUser>>();
+    var dbContext = services.GetRequiredService<AppDbContext>();
+    var config = services.GetRequiredService<IConfiguration>();
+
+    var bootstrapEmail = config["ADMIN_BOOTSTRAP_EMAIL"];
+    if (string.IsNullOrWhiteSpace(bootstrapEmail))
+    {
+        logger.LogInformation("Startup: ADMIN_BOOTSTRAP_EMAIL not set; skipping admin bootstrap.");
+        return;
+    }
+
+    var anyAdmin = await dbContext.Users.AnyAsync(u => u.Role == PlayerRole.Admin);
+    if (anyAdmin)
+    {
+        logger.LogInformation("Startup: admin user already exists; skipping bootstrap.");
+        return;
+    }
+
+    var existing = await userManager.FindByEmailAsync(bootstrapEmail);
+    if (existing is not null)
+    {
+        // User exists but isn't admin yet — promote and require MFA enrollment.
+        existing.Role = PlayerRole.Admin;
+        await userManager.UpdateAsync(existing);
+        logger.LogWarning(
+            "Startup: promoted existing user {Email} to admin. They must set a password and enroll MFA.",
+            bootstrapEmail);
+        return;
+    }
+
+    var user = new AppUser
+    {
+        UserName = bootstrapEmail,
+        Email = bootstrapEmail,
+        EmailConfirmed = false,
+        Role = PlayerRole.Admin,
+        CreatedAt = DateTime.UtcNow,
+    };
+
+    // Created with no password — admin must use the "forgot password"
+    // flow on first login to set one. This avoids ever holding a
+    // bootstrap secret in plaintext config.
+    var result = await userManager.CreateAsync(user);
+    if (!result.Succeeded)
+    {
+        var errors = string.Join("; ", result.Errors.Select(e => e.Description));
+        logger.LogError("Startup: failed to create bootstrap admin: {Errors}", errors);
+        return;
+    }
+
+    logger.LogWarning(
+        "Startup: created bootstrap admin {Email} (no password set). " +
+        "Use the password-reset flow to complete account setup.",
+        bootstrapEmail);
 }

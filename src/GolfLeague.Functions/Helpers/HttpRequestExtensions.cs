@@ -9,7 +9,6 @@ public static class HttpRequestExtensions
 {
     public static string? GetUserId(this HttpRequest request)
         => request.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
-           ?? request.HttpContext.User.FindFirst("oid")?.Value
            ?? request.HttpContext.User.FindFirst("sub")?.Value;
 
     public static IActionResult? RequireRole(this HttpRequest request, params string[] allowedRoles)

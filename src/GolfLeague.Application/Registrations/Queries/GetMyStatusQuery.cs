@@ -5,9 +5,10 @@ using MediatR;
 namespace GolfLeague.Application.Registrations.Queries;
 
 /// <summary>
-/// Query to get the current user's status. TokenRole comes from Entra ID app roles claim.
+/// Query to get the current user's status. Role comes from the linked
+/// AppUser (authoritative for authorization).
 /// </summary>
-public sealed record GetMyStatusQuery(string EntraObjectId, string TokenRole) : IRequest<Result<MyStatusResult>>;
+public sealed record GetMyStatusQuery(Guid AppUserId) : IRequest<Result<MyStatusResult>>;
 
 /// <summary>
 /// Status values:
@@ -19,22 +20,23 @@ public sealed record MyStatusResult(string Status, int? PlayerId, string Role);
 public sealed class GetMyStatusQueryHandler : IRequestHandler<GetMyStatusQuery, Result<MyStatusResult>>
 {
     private readonly IPlayerRepository _playerRepo;
+    private readonly IAppUserRepository _appUserRepo;
 
-    public GetMyStatusQueryHandler(IPlayerRepository playerRepo)
+    public GetMyStatusQueryHandler(IPlayerRepository playerRepo, IAppUserRepository appUserRepo)
     {
         _playerRepo = playerRepo;
+        _appUserRepo = appUserRepo;
     }
 
     public async Task<Result<MyStatusResult>> Handle(GetMyStatusQuery request, CancellationToken cancellationToken)
     {
-        var player = await _playerRepo.GetByEntraObjectIdAsync(request.EntraObjectId, cancellationToken);
-        if (player is not null)
-            return Result<MyStatusResult>.Ok(new MyStatusResult(
-                "approved",
-                player.Id,
-                player.Role.ToString().ToLowerInvariant()));
+        var user = await _appUserRepo.GetByIdAsync(request.AppUserId, cancellationToken);
+        var role = (user?.Role.ToString() ?? "player").ToLowerInvariant();
 
-        // For non-players (e.g., admin-only accounts), use the role from the Entra ID token
-        return Result<MyStatusResult>.Ok(new MyStatusResult("none", null, request.TokenRole.ToLowerInvariant()));
+        var player = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
+        if (player is not null)
+            return Result<MyStatusResult>.Ok(new MyStatusResult("approved", player.Id, role));
+
+        return Result<MyStatusResult>.Ok(new MyStatusResult("none", null, role));
     }
 }

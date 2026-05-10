@@ -1,10 +1,12 @@
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 
 namespace GolfLeague.Infrastructure.Data;
 
-public sealed class AppDbContext : DbContext
+public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
     {
@@ -23,6 +25,8 @@ public sealed class AppDbContext : DbContext
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UserPasskey> UserPasskeys => Set<UserPasskey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -41,6 +45,9 @@ public sealed class AppDbContext : DbContext
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
         ConfigurePlayerInvites(modelBuilder);
+        ConfigureAppUsers(modelBuilder);
+        ConfigureRefreshTokens(modelBuilder);
+        ConfigureUserPasskeys(modelBuilder);
     }
 
     private static void ConfigureSeasons(ModelBuilder modelBuilder)
@@ -96,14 +103,14 @@ public sealed class AppDbContext : DbContext
             entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
-            entity.Property(e => e.EntraObjectId).IsRequired().HasMaxLength(36);
-            entity.Property(e => e.Role)
-                  .HasConversion(
-                      v => v.ToString(),
-                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
-                  .HasMaxLength(20)
-                  .IsRequired();
-            entity.HasIndex(e => e.EntraObjectId).IsUnique();
+            // Player has at most one AppUser; AppUser has at most one Player.
+            // SetNull on delete so deleting an AppUser doesn't cascade-wipe
+            // the player history.
+            entity.HasOne(e => e.AppUser)
+                  .WithOne(u => u.Player)
+                  .HasForeignKey<Player>(e => e.AppUserId)
+                  .OnDelete(DeleteBehavior.SetNull);
+            entity.HasIndex(e => e.AppUserId).IsUnique();
         });
     }
 
@@ -275,7 +282,6 @@ public sealed class AppDbContext : DbContext
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
             entity.Property(e => e.Token).IsRequired().HasMaxLength(64);
             entity.Property(e => e.InvitedByUserId).IsRequired().HasMaxLength(128);
-            entity.Property(e => e.AcceptedByEntraObjectId).HasMaxLength(128);
             entity.Property(e => e.Status)
                   .HasConversion(
                       v => v.ToString(),
@@ -293,6 +299,53 @@ public sealed class AppDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.SetNull);
+        });
+    }
+
+    private static void ConfigureAppUsers(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<AppUser>(entity =>
+        {
+            entity.Property(e => e.Role)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
+                  .HasMaxLength(20)
+                  .IsRequired();
+            entity.Property(e => e.TotpSecret).HasMaxLength(64);
+            // PlayerId FK is configured on the Player side (1:1 inverse).
+        });
+    }
+
+    private static void ConfigureRefreshTokens(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TokenHash).IsRequired().HasMaxLength(128);
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.RefreshTokens)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.HasIndex(e => e.UserId);
+            entity.Ignore(e => e.IsActive);
+        });
+    }
+
+    private static void ConfigureUserPasskeys(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<UserPasskey>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.CredentialId).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.Name).HasMaxLength(100);
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.Passkeys)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => e.CredentialId).IsUnique();
+            entity.HasIndex(e => e.UserId);
         });
     }
 }

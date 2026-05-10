@@ -1,5 +1,5 @@
 // modules/functions.bicep
-// Deploys a Consumption-plan Azure Functions app running .NET 8 Isolated Worker.
+// Deploys a Consumption-plan Azure Functions app running .NET 9 Isolated Worker.
 // The Function App uses a system-assigned Managed Identity for all Azure service
 // auth (Key Vault secrets, host storage, blob storage). No connection strings
 // are stored in plain text in app settings — Key Vault references are added
@@ -26,12 +26,6 @@ param appInsightsConnectionString string
 
 @description('Name of the storage account that holds player photos (for BLOB_STORAGE_ACCOUNT app setting).')
 param storageAccountNameForPhotos string
-
-@description('Entra External ID tenant ID (GUID) for JWT validation.')
-param entraExternalTenantId string
-
-@description('Entra External ID application (client) ID registered for the API, for JWT validation.')
-param entraClientId string
 
 // ---------------------------------------------------------------------------
 // Resources
@@ -82,7 +76,9 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   }
 }
 
-// Function App — .NET 8 Isolated Worker with system-assigned Managed Identity
+// Function App — .NET 9 Isolated Worker with system-assigned Managed Identity.
+// Only minimal bootstrap settings are set here; the full set (including Key
+// Vault references) is patched in by main.bicep after Key Vault deploys.
 resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
   name: name
   location: location
@@ -113,14 +109,6 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
         {
           name: 'AzureWebJobsStorage__accountName'
           value: functionsHostStorage.name
-        }
-        {
-          name: 'ENTRA_TENANT_ID'
-          value: entraExternalTenantId
-        }
-        {
-          name: 'ENTRA_CLIENT_ID'
-          value: entraClientId
         }
         {
           name: 'BLOB_STORAGE_ACCOUNT'

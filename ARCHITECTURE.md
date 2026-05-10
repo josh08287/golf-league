@@ -416,55 +416,93 @@ Minimum 80% line coverage enforced in CI. `StablefordCalculator` is a priority u
 
 ## 6. Authentication & Authorization
 
-### Identity Provider: Entra External ID
+### Identity: Local accounts (ASP.NET Core Identity)
 
-A single Entra External ID tenant is used for production. Entra External ID is Microsoft's purpose-built CIAM product — the successor to Azure AD B2C. It uses standard OAuth 2.0 / OIDC flows with no proprietary policy segments or `b2clogin.com` endpoints.
+All users — admins, scorers, and players — have local accounts stored in this app's database. Authentication is handled by ASP.NET Core Identity. The API issues its own JWTs (HS256, signed with `JWT_SIGNING_KEY`); no external identity provider is involved at runtime for token validation.
 
-**Authority:** `https://login.microsoftonline.com/{tenantId}/v2.0`
+**Primary login methods:**
+- Email + password
+- Google OAuth 2.0 (PKCE)
+- Facebook OAuth 2.0 (PKCE)
 
-**App Registrations:**
-- **Mobile app** (`com.golfleague.app`) — public client, PKCE, redirect URI `com.golfleague.app://auth`
-- **API** — exposes scope `api://{API_CLIENT_ID}/access`; validates incoming JWTs
+**Role model (`AppUser.Role`):** `admin` | `scorer` | `player`. The role lives on the AppUser, which is linked 1:1 (optional) to a `Player` row via `Player.AppUserId`. A `Player` may exist without an `AppUser` (admin-managed roster entry); an `AppUser` may exist without a `Player` (an admin who isn't a league participant).
 
-**Custom Attributes (JWT Claims):**
-- `extension_Role`: `admin` | `scorer` | `player`
-- `extension_PlayerId`: links the Entra identity to the app's `Players` record
+**Admin MFA:** required. Admins must enroll either a WebAuthn passkey or TOTP authenticator after primary login. Once enrolled, every admin sign-in carries the primary factor + one of:
+- A passkey assertion (preferred — strongest UX & security)
+- A 6-digit TOTP code
 
-Admins are provisioned by setting `extension_Role` via the Microsoft Graph API — no self-service admin registration.
+Players and scorers can optionally enroll a passkey for password-less sign-in.
 
-### Client Auth Flows
+### First admin bootstrap
 
-| Client | Flow | Token Storage |
+On startup, if no admin exists and `ADMIN_BOOTSTRAP_EMAIL` is set, the Functions host creates an admin `AppUser` with no password. The admin then uses the password-reset flow on first sign-in to set a password and enroll a passkey or TOTP authenticator.
+
+### Token model
+
+| Token | Lifetime | Storage |
 |---|---|---|
-| Web (React) | Authorization Code + PKCE (MSAL.js 2.x) | Access token in memory only (not localStorage) |
-| Android | Authorization Code + PKCE (flutter_appauth) | Android Keystore |
-| iOS | Authorization Code + PKCE (flutter_appauth) | iOS Keychain |
+| Access (full) | 1 hour | Web: in-memory + localStorage; Mobile: secure storage |
+| Access (MFA-challenge) | 5 minutes | Session-scoped only — exchanged for full tokens after MFA |
+| Refresh | 14 days | Web: localStorage; Mobile: secure storage. Rotated on every use. |
 
-Access tokens expire in 1 hour; refresh tokens expire in 14 days. A Dio/Axios interceptor silently refreshes the access token on 401 before retrying the original request.
+Refresh tokens are stored as SHA-256 hashes server-side (`RefreshTokens` table) and rotated on every refresh. Token revocation happens automatically on rotation; explicit revocation is available via `/auth/logout`.
 
-### API Authorization Levels
+### Client auth flows
+
+| Client | Login UI | Token storage |
+|---|---|---|
+| Web (React) | `/login` with email+password + Google/Facebook buttons + passkey | Access in memory + localStorage; refresh in localStorage |
+| Android | Email+password form + Google/Facebook via `flutter_web_auth_2` | `flutter_secure_storage` (Android Keystore) |
+| iOS | Email+password form + Google/Facebook via `flutter_web_auth_2` | `flutter_secure_storage` (iOS Keychain) |
+
+A Dio/Axios interceptor silently refreshes the access token on 401 before retrying the original request.
+
+### API authorization levels
 
 ```
 [Public]         No JWT required
 [Authenticated]  Valid JWT (any role)
-[Scorer]         extension_Role == "scorer" OR "admin"
-[Admin]          extension_Role == "admin"
+[Scorer]         role == "scorer" OR "admin"
+[Admin]          role == "admin"
 ```
 
-ASP.NET Core policy-based authorization enforces these at the controller/endpoint level.
+ASP.NET Core policy-based authorization enforces these at the function level (`AdminOnly`, `ScorerOrAdmin`, `Authenticated`).
 
-### Backend JWT Validation (Azure Functions)
+### Backend JWT validation (Azure Functions)
 
-The Functions host reads `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID` from app settings and configures the `JwtBearerHandler`:
+The Functions host reads `JWT_SIGNING_KEY` from Key Vault (via app setting reference) and validates self-issued tokens:
 
 ```csharp
 services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.Authority = $"https://login.microsoftonline.com/{entraExternalTenantId}/v2.0";
-        options.Audience  = entraClientId;
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidIssuer = "golf-league-api",
+            ValidAudience = "golf-league-api",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey)),
+            RoleClaimType = "role",
+            NameClaimType = ClaimTypes.NameIdentifier,
+        };
     });
 ```
+
+### Required configuration (Key Vault secrets)
+
+| Secret | Purpose |
+|---|---|
+| `JwtSigningKey` | HS256 signing key for access + MFA-challenge tokens. Must be ≥ 32 characters. |
+| `AdminBootstrapEmail` | Email of the first admin account; created with no password on startup. |
+| `GoogleClientId` / `GoogleClientSecret` | OAuth credentials for Google sign-in. Omit to disable Google login. |
+| `FacebookAppId` / `FacebookAppSecret` | OAuth credentials for Facebook sign-in. Omit to disable Facebook login. |
+
+Plus app settings:
+
+| Setting | Purpose |
+|---|---|
+| `FIDO2_RP_ID` | Registrable domain for WebAuthn (e.g. `app.golfleague.com`). |
+| `FIDO2_RP_ORIGINS` | Comma-separated list of allowed origins (e.g. `https://app.golfleague.com`). |
+| `WEB_BASE_URL` | Base URL for invite links emailed to players. |
 
 ---
 
