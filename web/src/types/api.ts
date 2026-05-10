@@ -33,6 +33,7 @@ export interface HandicapHistoryEntry {
   id: number;
   playerId: number;
   handicapIndex: number;
+  nineHoleHandicapIndex: number;
   effectiveDate: string;
   source: 'Manual' | 'Calculated' | 'Initial';
   notes: string | null;

@@ -47,6 +47,7 @@ public sealed class SetHandicapCommandHandler : IRequestHandler<SetHandicapComma
             handicap.Id,
             handicap.PlayerId,
             handicap.HandicapIndex,
+            handicap.NineHoleHandicapIndex,
             handicap.EffectiveDate,
             handicap.Source,
             handicap.Notes);

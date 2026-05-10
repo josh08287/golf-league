@@ -143,6 +143,9 @@ public sealed class AppDbContext : DbContext
                       v => Enum.Parse<HandicapSource>(v))
                   .HasMaxLength(20);
             entity.Property(e => e.Notes).HasMaxLength(500);
+            // NineHoleHandicapIndex is a computed read-only property on the
+            // entity; tell EF not to try to map it as a column.
+            entity.Ignore(e => e.NineHoleHandicapIndex);
             // Handicaps are an audit trail. Don't wipe them when a player
             // is hard-deleted — the delete should be blocked instead, which
             // matches how the app already soft-deletes players.

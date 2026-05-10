@@ -34,6 +34,7 @@ public sealed class GetHandicapHistoryQueryHandler : IRequestHandler<GetHandicap
                 h.Id,
                 h.PlayerId,
                 h.HandicapIndex,
+                h.NineHoleHandicapIndex,
                 h.EffectiveDate,
                 h.Source,
                 h.Notes))

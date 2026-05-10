@@ -292,8 +292,13 @@ export function PlayerDetailPage() {
     },
     {
       key: 'index',
-      header: 'Index',
+      header: '18-Hole',
       render: (h: HandicapHistoryEntry) => h.handicapIndex.toFixed(1),
+    },
+    {
+      key: 'nineHole',
+      header: '9-Hole',
+      render: (h: HandicapHistoryEntry) => h.nineHoleHandicapIndex.toFixed(1),
     },
     {
       key: 'source',

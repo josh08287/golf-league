@@ -23,7 +23,7 @@ public class PlayerFunctionsTests
         new(id, "John Doe", "john@example.com", true, 10.0, null, null);
 
     private static HandicapDto MakeHandicapDto() =>
-        new(1, 1, 10.0, DateOnly.FromDateTime(DateTime.UtcNow), GolfLeague.Domain.Enums.HandicapSource.Manual, null);
+        new(1, 1, 10.0, 5.0, DateOnly.FromDateTime(DateTime.UtcNow), GolfLeague.Domain.Enums.HandicapSource.Manual, null);
 
     private static HttpRequest MakeRequest(string? body = null, string? role = null)
     {

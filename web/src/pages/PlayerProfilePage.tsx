@@ -60,17 +60,33 @@ export function PlayerProfilePage() {
           </PageHeader>
 
           {/* Stats cards */}
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium text-gray-500">
-                  Current Handicap
+                  18-Hole Handicap
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-primary-900">
                   {playerData.currentHandicap?.toFixed(1) ?? '—'}
                 </p>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500">
+                  9-Hole Handicap
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-primary-900">
+                  {playerData.currentHandicap !== null && playerData.currentHandicap !== undefined
+                    ? (playerData.currentHandicap / 2).toFixed(1)
+                    : '—'}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">applied for league rounds</p>
               </CardContent>
             </Card>
 
@@ -117,7 +133,8 @@ export function PlayerProfilePage() {
                 <TableRow className="bg-gray-50">
                   <TableHead>Date</TableHead>
                   <TableHead>Source</TableHead>
-                  <TableHead className="text-right">Handicap Index</TableHead>
+                  <TableHead className="text-right">18-Hole</TableHead>
+                  <TableHead className="text-right">9-Hole</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -127,6 +144,9 @@ export function PlayerProfilePage() {
                     <TableCell className="text-gray-500">{h.source}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {h.handicapIndex.toFixed(1)}
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums text-gray-600">
+                      {h.nineHoleHandicapIndex.toFixed(1)}
                     </TableCell>
                   </TableRow>
                 ))}
