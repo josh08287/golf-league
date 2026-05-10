@@ -19,7 +19,13 @@ public static class HttpRequestExtensions
         if (user.Identity is null || !user.Identity.IsAuthenticated)
             return new UnauthorizedResult();
 
-        var hasRole = allowedRoles.Any(r => user.IsInRole(r));
+        // Get all role claims (case-insensitive comparison)
+        var userRoles = user.Claims
+            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
+            .Select(c => c.Value?.ToLowerInvariant())
+            .ToList();
+
+        var hasRole = allowedRoles.Any(r => userRoles.Contains(r.ToLowerInvariant()));
         if (!hasRole)
             return new ObjectResult(new { error = "Forbidden: insufficient role." }) { StatusCode = 403 };
 
