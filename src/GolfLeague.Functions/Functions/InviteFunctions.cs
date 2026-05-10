@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Functions.Functions;
 
@@ -135,6 +136,7 @@ public sealed class InviteFunctions
     [Function("GetMyStatus")]
     public async Task<IActionResult> GetMyStatus(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/auth/me")] HttpRequest req,
+        ILogger log,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireAuthenticated();
@@ -147,13 +149,20 @@ public sealed class InviteFunctions
         // Get role from Entra ID token (admin, scorer, or player from app roles claim)
         // ClaimsIdentity.IsInRole is case-sensitive, so we check all variations
         var user = req.HttpContext.User;
+        var allClaims = user.Claims.Select(c => $"{c.Type}={c.Value}").ToList();
+        log.LogInformation("GetMyStatus called. User: {UserId}, Claims: {Claims}", entraObjectId, string.Join("; ", allClaims));
+
         var roles = user.Claims
             .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
             .Select(c => c.Value?.ToLowerInvariant())
             .ToList();
 
+        log.LogInformation("Extracted roles for user {UserId}: {Roles}", entraObjectId, string.Join(", ", roles));
+
         var tokenRole = roles.Contains("admin") ? "admin" :
                         roles.Contains("scorer") ? "scorer" : "player";
+
+        log.LogInformation("Determined token role for user {UserId}: {TokenRole}", entraObjectId, tokenRole);
 
         var result = await _mediator.Send(new GetMyStatusQuery(entraObjectId, tokenRole), cancellationToken);
         return result.ToOkResult();

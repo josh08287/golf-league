@@ -57,6 +57,9 @@ public sealed class EntraRoleService : IEntraRoleService
                 return Result<bool>.Fail($"Unknown role: {roleName}");
             }
 
+            _logger.LogInformation("Assigning role {RoleName} (ID: {AppRoleId}) to user {UserId}. App ID: {AppId}",
+                roleName, appRoleId, userObjectId, _clientId);
+
             // Get the service principal for this application
             var servicePrincipals = await _graphClient.ServicePrincipals
                 .GetAsync(config =>
@@ -67,8 +70,12 @@ public sealed class EntraRoleService : IEntraRoleService
             var servicePrincipal = servicePrincipals?.Value?.FirstOrDefault();
             if (servicePrincipal?.Id is null)
             {
-                return Result<bool>.Fail("Service principal not found for the application.");
+                _logger.LogError("Service principal not found for application {AppId}. " +
+                    "Ensure the managed identity has Directory.Read.All permission.", _clientId);
+                return Result<bool>.Fail("Service principal not found for the application. Check Graph API permissions.");
             }
+
+            _logger.LogDebug("Found service principal {SpId} for app {AppId}", servicePrincipal.Id, _clientId);
 
             // Check if the role is already assigned
             var existingAssignments = await _graphClient.ServicePrincipals[servicePrincipal.Id]
@@ -138,6 +145,15 @@ public sealed class EntraRoleService : IEntraRoleService
                     {
                         return Result<bool>.Fail($"User not found in Entra ID after {maxRetries} attempts.");
                     }
+                }
+                catch (ODataError ex) when (ex.ResponseStatusCode == 403)
+                {
+                    _logger.LogError(ex, "Permission denied when assigning role. " +
+                        "Ensure the managed identity has AppRoleAssignment.ReadWrite.All permission. " +
+                        "Error: {Error}", ex.Error?.Message);
+                    return Result<bool>.Fail(
+                        "Permission denied: The application does not have permission to assign app roles. " +
+                        "Grant AppRoleAssignment.ReadWrite.All to the managed identity.");
                 }
             }
 
