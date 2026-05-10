@@ -26,11 +26,12 @@ export function useInvites(sort?: TableSort) {
 export function useCreateInvites() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { emails: string[]; expiryDays?: number }) =>
+    mutationFn: (payload: { emails: string[]; expiryDays?: number; role?: string }) =>
       apiClient
         .post<CreateInvitesResult>('/admin/invites', {
           emails: payload.emails,
           expiryDays: payload.expiryDays ?? 7,
+          role: payload.role ?? 'player',
         })
         .then((r) => r.data),
     onSuccess: () => {

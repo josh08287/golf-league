@@ -27,6 +27,7 @@ import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
   email: z.string().email('Valid email required'),
+  role: z.enum(['admin', 'scorer', 'player']),
 });
 
 const handicapSchema = z.object({
@@ -65,6 +66,13 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
       </FormField>
       <FormField label="Email" error={errors.email} required>
         <input {...register('email')} type="email" className={inputClass} />
+      </FormField>
+      <FormField label="Role" error={errors.role} required>
+        <select {...register('role')} className={selectClass}>
+          <option value="player">Player</option>
+          <option value="scorer">Scorer</option>
+          <option value="admin">Admin</option>
+        </select>
       </FormField>
 
       {updatePlayer.isError && (
@@ -351,7 +359,7 @@ export function PlayerDetailPage() {
           <h2 className="mb-4 text-base font-semibold text-gray-900">Player Info</h2>
           <EditPlayerForm
             playerId={id}
-            defaultValues={{ name: player.fullName, email: player.email }}
+            defaultValues={{ name: player.fullName, email: player.email, role: player.role }}
           />
         </Card>
 

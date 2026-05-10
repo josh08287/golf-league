@@ -14,7 +14,8 @@ public sealed record CreatePlayerCommand(
     string EntraObjectId,
     double InitialHandicapIndex,
     string UserId,
-    int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    int? FlightId = null,
+    string Role = "player") : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
 public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCommand, Result<PlayerDto>>
 {
@@ -41,7 +42,10 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             LastName = request.LastName,
             Email = request.Email,
             EntraObjectId = request.EntraObjectId,
-            IsActive = true
+            IsActive = true,
+            Role = Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role)
+                ? role
+                : Domain.Enums.PlayerRole.Player
         };
 
         await _playerRepository.AddAsync(player, cancellationToken);
@@ -79,7 +83,8 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             player.IsActive,
             request.InitialHandicapIndex,
             null,
-            null);
+            null,
+            player.Role.ToString().ToLowerInvariant());
 
         return Result<PlayerDto>.Ok(dto);
     }

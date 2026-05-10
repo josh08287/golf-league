@@ -16,6 +16,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   const [singleEmail, setSingleEmail] = useState('');
   const [bulkText, setBulkText] = useState('');
   const [expiryDays, setExpiryDays] = useState(7);
+  const [role, setRole] = useState<'player' | 'scorer' | 'admin'>('player');
   const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null);
   const create = useCreateInvites();
 
@@ -30,7 +31,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
     const emails = mode === 'single' ? [singleEmail.trim()] : parseEmails(bulkText);
     if (emails.length === 0 || emails.some((e) => !e.includes('@'))) return;
 
-    const data = await create.mutateAsync({ emails, expiryDays });
+    const data = await create.mutateAsync({ emails, expiryDays, role });
     setResult({ created: data.created.length, skipped: data.skipped });
   }
 
@@ -109,7 +110,17 @@ function InviteForm({ onDone }: { onDone: () => void }) {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="text-sm font-medium text-gray-700 shrink-0">Role</label>
+        <select
+          value={role}
+          onChange={(e) => setRole(e.target.value as 'player' | 'scorer' | 'admin')}
+          className="rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none"
+        >
+          <option value="player">Player</option>
+          <option value="scorer">Scorer</option>
+          <option value="admin">Admin</option>
+        </select>
         <label className="text-sm font-medium text-gray-700 shrink-0">Expires after</label>
         <select
           value={expiryDays}
@@ -296,7 +307,10 @@ function InviteRow({ invite, onRevoke, onDelete }: { invite: Invite; onRevoke?: 
           <CopyLinkButton link={invite.inviteLink} />
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-3">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
+        <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
+          {invite.role}
+        </span>
         <InviteStatusBadge status={invite.status} expired={isExpired} />
         {invite.status === 'Pending' && !isExpired && onRevoke && (
           <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50" onClick={onRevoke}>

@@ -74,6 +74,14 @@ export function PlayersPage() {
       render: (p: Player) => p.currentHandicap?.toFixed(1) ?? '—',
     },
     {
+      key: 'role',
+      header: 'Role',
+      sortable: true,
+      render: (p: Player) => (
+        <span className="capitalize text-sm text-gray-700">{p.role}</span>
+      ),
+    },
+    {
       key: 'flight',
       header: 'Flight',
       sortable: true,

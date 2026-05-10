@@ -17,7 +17,8 @@ public sealed record CreateInvitesCommand(
     IReadOnlyList<string> Emails,
     string AdminUserId,
     string BaseUrl,
-    int ExpiryDays = 7) : IRequest<Result<CreateInvitesResult>>, IAmAuditableCommand
+    int ExpiryDays = 7,
+    string Role = "player") : IRequest<Result<CreateInvitesResult>>, IAmAuditableCommand
 {
     public string UserId => AdminUserId;
 }
@@ -73,7 +74,10 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 Status = InviteStatus.Pending,
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(request.ExpiryDays),
-                InvitedByUserId = request.AdminUserId
+                InvitedByUserId = request.AdminUserId,
+                Role = Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role)
+                    ? role
+                    : Domain.Enums.PlayerRole.Player
             });
         }
 

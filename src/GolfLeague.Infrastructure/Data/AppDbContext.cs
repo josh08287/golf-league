@@ -97,6 +97,12 @@ public sealed class AppDbContext : DbContext
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
             entity.Property(e => e.EntraObjectId).IsRequired().HasMaxLength(36);
+            entity.Property(e => e.Role)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
+                  .HasMaxLength(20)
+                  .IsRequired();
             entity.HasIndex(e => e.EntraObjectId).IsUnique();
         });
     }
@@ -275,6 +281,12 @@ public sealed class AppDbContext : DbContext
                       v => v.ToString(),
                       v => Enum.Parse<InviteStatus>(v))
                   .HasMaxLength(20);
+            entity.Property(e => e.Role)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
+                  .HasMaxLength(20)
+                  .IsRequired();
             entity.HasIndex(e => e.Token).IsUnique();
             entity.HasIndex(e => e.Email);
             entity.HasOne(e => e.Player)

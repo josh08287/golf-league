@@ -19,6 +19,8 @@ public class PlayerInvite
     public DateTime? AcceptedAt { get; set; }
     public string? AcceptedByEntraObjectId { get; set; }
 
+    public Domain.Enums.PlayerRole Role { get; set; } = Domain.Enums.PlayerRole.Player;
+
     // Linked player record created on acceptance
     public int? PlayerId { get; set; }
     public Player? Player { get; set; }

@@ -90,7 +90,8 @@
       "Bash(dotnet ef *)",
       "Bash(dotnet add *)",
       "Bash(node_modules/.bin/tsc --noEmit -p tsconfig.json)",
-      "Bash(grep -oE 'tests[\\\\\\\\/][^\\(]+\\\\.cs')"
+      "Bash(grep -oE 'tests[\\\\\\\\/][^\\(]+\\\\.cs')",
+      "Bash(awk *)"
     ]
   }
 }

@@ -27,6 +27,7 @@ export interface Player {
   currentHandicap: number | null;
   flightId: number | null;
   flightName: string | null;
+  role: 'admin' | 'scorer' | 'player';
 }
 
 export interface HandicapHistoryEntry {
@@ -202,6 +203,7 @@ export interface Invite {
   acceptedAt: string | null;
   playerId: number | null;
   inviteLink: string;
+  role: 'admin' | 'scorer' | 'player';
 }
 
 export interface CreateInvitesResult {
@@ -214,6 +216,7 @@ export type MyStatus = 'approved' | 'none';
 export interface MyStatusResponse {
   status: MyStatus;
   playerId: number | null;
+  role: 'admin' | 'scorer' | 'player';
 }
 
 export interface SeasonHalf {

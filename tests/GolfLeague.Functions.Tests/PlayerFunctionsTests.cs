@@ -20,7 +20,7 @@ namespace GolfLeague.Tests;
 public class PlayerFunctionsTests
 {
     private static PlayerDto MakePlayerDto(int id = 1) =>
-        new(id, "John Doe", "john@example.com", true, 10.0, null, null);
+        new(id, "John Doe", "john@example.com", true, 10.0, null, null, "player");
 
     private static HandicapDto MakeHandicapDto() =>
         new(1, 1, 10.0, 5.0, DateOnly.FromDateTime(DateTime.UtcNow), GolfLeague.Domain.Enums.HandicapSource.Manual, null);

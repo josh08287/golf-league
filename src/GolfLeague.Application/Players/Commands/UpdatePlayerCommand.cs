@@ -11,7 +11,8 @@ public sealed record UpdatePlayerCommand(
     string FirstName,
     string LastName,
     string Email,
-    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    string UserId,
+    string? Role = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
 public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCommand, Result<PlayerDto>>
 {
@@ -35,6 +36,12 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
         player.FirstName = request.FirstName;
         player.LastName = request.LastName;
         player.Email = request.Email;
+
+        if (!string.IsNullOrWhiteSpace(request.Role) &&
+            Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role))
+        {
+            player.Role = role;
+        }
 
         await _playerRepository.UpdateAsync(player, cancellationToken);
 

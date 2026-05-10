@@ -7,4 +7,5 @@ public sealed record PlayerDto(
     bool IsActive,
     double? CurrentHandicap,
     int? FlightId,
-    string? FlightName);
+    string? FlightName,
+    string Role);

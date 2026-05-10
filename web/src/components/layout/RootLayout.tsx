@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom';
 import { useIsAuthenticated, useMsal } from '@azure/msal-react';
 import { InteractionStatus } from '@azure/msal-browser';
 import { useAuthStore, type UserRole } from '@/store/authStore';
+import { useMyStatus } from '@/hooks/useMyStatus';
 import { NavBar } from './NavBar';
 
 /**
@@ -22,6 +23,7 @@ export function RootLayout() {
   const isAuthenticated = useIsAuthenticated();
   const { accounts, inProgress } = useMsal();
   const { setUser, clearUser } = useAuthStore();
+  const myStatus = useMyStatus();
 
   useEffect(() => {
     if (inProgress !== InteractionStatus.None) return;
@@ -34,19 +36,23 @@ export function RootLayout() {
         idTokenClaims ?? (account.idToken ? decodeTokenPayload(account.idToken) : {});
 
       const rolesArr = claims['roles'] as string[] | undefined;
-      const role = rolesArr?.[0] ?? 'player';
-      const playerId = (claims['oid'] as string | undefined) ?? null;
+      const tokenRole = rolesArr?.[0] ?? 'player';
+      const apiRole = myStatus.data?.role as UserRole | undefined;
+      const role = apiRole ?? (tokenRole as UserRole);
+      const playerId = myStatus.data?.playerId != null
+        ? String(myStatus.data.playerId)
+        : ((claims['oid'] as string | undefined) ?? null);
 
       setUser({
         name: account.name ?? account.username,
         email: account.username,
-        role: role as UserRole,
+        role,
         playerId,
       });
     } else if (!isAuthenticated && inProgress === InteractionStatus.None) {
       clearUser();
     }
-  }, [isAuthenticated, accounts, inProgress, setUser, clearUser]);
+  }, [isAuthenticated, accounts, inProgress, myStatus.data, setUser, clearUser]);
 
   return (
     <div className="min-h-screen bg-gray-50">

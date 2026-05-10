@@ -42,5 +42,6 @@ public sealed class GetInvitesQueryHandler : IRequestHandler<GetInvitesQuery, Re
     internal static InviteDto ToDto(Domain.Entities.PlayerInvite i, string baseUrl) =>
         new(i.Id, i.Email, i.Token, i.Status.ToString(),
             i.CreatedAt, i.ExpiresAt, i.AcceptedAt, i.PlayerId,
-            $"{baseUrl.TrimEnd('/')}/accept-invite?token={i.Token}");
+            $"{baseUrl.TrimEnd('/')}/accept-invite?token={i.Token}",
+            i.Role.ToString().ToLowerInvariant());
 }

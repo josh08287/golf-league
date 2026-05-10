@@ -8,6 +8,7 @@ public class Player
     public string Email { get; set; } = string.Empty;
     public string EntraObjectId { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    public Domain.Enums.PlayerRole Role { get; set; } = Domain.Enums.PlayerRole.Player;
 
     public string FullName => $"{FirstName} {LastName}";
     public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();

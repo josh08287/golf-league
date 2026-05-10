@@ -71,7 +71,8 @@ public sealed class PlayerFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var command = new CreatePlayerCommand(
-            firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId, flightId);
+            firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId, flightId,
+            body.Role ?? "player");
 
         var result = await _mediator.Send(command, cancellationToken);
         if (!result.IsSuccess)
@@ -144,7 +145,7 @@ public sealed class PlayerFunctions
         }
 
         var userId = req.GetUserId() ?? "unknown";
-        var result = await _mediator.Send(new UpdatePlayerCommand(playerId, firstName, lastName, email, userId), cancellationToken);
+        var result = await _mediator.Send(new UpdatePlayerCommand(playerId, firstName, lastName, email, userId, body.Role), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -254,9 +255,9 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
-    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId, string? FlightId);
+    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? EntraObjectId, string? FlightId, string? Role);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string Email);
-    private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId);
+    private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, string? Role);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)
     {
         public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;

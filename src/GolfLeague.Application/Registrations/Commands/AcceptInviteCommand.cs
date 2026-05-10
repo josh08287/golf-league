@@ -62,7 +62,8 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             LastName = request.LastName,
             Email = request.Email,
             EntraObjectId = request.EntraObjectId,
-            IsActive = true
+            IsActive = true,
+            Role = invite.Role
         };
 
         await _playerRepo.AddAsync(player, cancellationToken);
@@ -83,6 +84,6 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         await _inviteRepo.UpdateAsync(invite, cancellationToken);
 
         return Result<PlayerDto>.Ok(new PlayerDto(
-            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null));
+            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null, player.Role.ToString().ToLowerInvariant()));
     }
 }

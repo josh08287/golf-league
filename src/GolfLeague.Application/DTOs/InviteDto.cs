@@ -9,4 +9,5 @@ public sealed record InviteDto(
     DateTime ExpiresAt,
     DateTime? AcceptedAt,
     int? PlayerId,
-    string InviteLink);
+    string InviteLink,
+    string Role);

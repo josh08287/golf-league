@@ -9,12 +9,14 @@ export interface CreatePlayerPayload {
   email: string;
   initialHandicap: number;
   flightId?: string;
+  role?: string;
 }
 
 export interface UpdatePlayerPayload {
   name?: string;
   email?: string;
   flightId?: string | null;
+  role?: string;
 }
 
 export interface SetHandicapPayload {
@@ -44,6 +46,7 @@ export function useUpdatePlayer(playerId: string) {
       apiClient.patch(`/players/${playerId}`, payload).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: playerKeys.all });
+      qc.invalidateQueries({ queryKey: playerKeys.detail(playerId) });
     },
   });
 }

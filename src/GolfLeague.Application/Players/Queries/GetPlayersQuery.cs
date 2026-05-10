@@ -92,6 +92,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             player.IsActive,
             currentHandicap,
             activeMembership?.FlightId,
-            activeMembership?.Flight.Name);
+            activeMembership?.Flight.Name,
+            player.Role.ToString().ToLowerInvariant());
     }
 }
