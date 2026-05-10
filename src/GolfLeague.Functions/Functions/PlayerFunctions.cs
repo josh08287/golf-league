@@ -180,6 +180,19 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetPlayerRounds")]
+    public async Task<IActionResult> GetPlayerRounds(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}/rounds")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var result = await _mediator.Send(new GetPlayerRoundsQuery(playerId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("GetHandicapHistory")]
     public async Task<IActionResult> GetHandicapHistory(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}/handicap-history")] HttpRequest req,

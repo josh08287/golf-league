@@ -61,6 +61,21 @@ export interface Standing {
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
 export type NineHoleSide = 'Front' | 'Back';
 
+export interface PlayerRoundSummary {
+  roundId: number;
+  roundDate: string;
+  weekNumber: number;
+  courseName: string;
+  nineHoleSide: NineHoleSide;
+  status: RoundStatus;
+  totalGrossStrokes: number | null;
+  totalNetStrokes: number | null;
+  totalGrossStablefordPoints: number | null;
+  totalNetStablefordPoints: number | null;
+  isWithdrawn: boolean;
+  skippedWeek: boolean;
+}
+
 export interface Round {
   id: number;
   seasonId: number;
@@ -83,6 +98,7 @@ export interface Participant {
   handicapAtTime: number;
   courseHandicap: number;
   isWithdrawn: boolean;
+  skippedWeek: boolean;
 }
 
 export interface HoleScore {
@@ -112,6 +128,7 @@ export interface ScorecardParticipant {
   totalGrossStablefordPoints: number | null;
   totalNetStablefordPoints: number | null;
   isWithdrawn: boolean;
+  skippedWeek: boolean;
 }
 
 export interface Scorecard {

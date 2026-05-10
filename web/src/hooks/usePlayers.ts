@@ -4,6 +4,7 @@ import type {
   Player,
   HandicapHistoryEntry,
   PagedResponse,
+  PlayerRoundSummary,
 } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
@@ -15,6 +16,8 @@ export const playerKeys = {
   detail: (id: string) => [...playerKeys.details(), id] as const,
   handicapHistory: (playerId: string) =>
     [...playerKeys.all, 'handicapHistory', playerId] as const,
+  rounds: (playerId: string) =>
+    [...playerKeys.all, 'rounds', playerId] as const,
 };
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -49,6 +52,19 @@ export function useHandicapHistory(playerId: string) {
     queryFn: async () => {
       const response = await apiClient.get<HandicapHistoryEntry[]>(
         `/players/${playerId}/handicap-history`,
+      );
+      return response.data;
+    },
+    enabled: Boolean(playerId),
+  });
+}
+
+export function usePlayerRounds(playerId: string) {
+  return useQuery({
+    queryKey: playerKeys.rounds(playerId),
+    queryFn: async () => {
+      const response = await apiClient.get<PlayerRoundSummary[]>(
+        `/players/${playerId}/rounds`,
       );
       return response.data;
     },

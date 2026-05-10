@@ -7,6 +7,7 @@ import { FlightLeaderboardPage } from '@/pages/FlightLeaderboardPage';
 import { RoundsPage } from '@/pages/RoundsPage';
 import { RoundDetailPage } from '@/pages/RoundDetailPage';
 import { PlayerProfilePage } from '@/pages/PlayerProfilePage';
+import { PlayersPage } from '@/pages/PlayersPage';
 import { LoginPage } from '@/pages/LoginPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { adminRoutes } from '@/routes/adminRoutes';
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="flights/:flightId" element={<FlightLeaderboardPage />} />
           <Route path="rounds" element={<RoundsPage />} />
           <Route path="rounds/:roundId" element={<RoundDetailPage />} />
+          <Route path="players" element={<PlayersPage />} />
           <Route path="players/:playerId" element={<PlayerProfilePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="accept-invite" element={<AcceptInvitePage />} />

@@ -1,0 +1,90 @@
+import { useNavigate } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Search } from 'lucide-react';
+import { usePlayers } from '@/hooks/usePlayers';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/Table';
+import { FullPageSpinner } from '@/components/ui/Spinner';
+import { ErrorMessage } from '@/components/ui/ErrorMessage';
+import { PageHeader } from '@/components/ui/PageHeader';
+
+export function PlayersPage() {
+  const navigate = useNavigate();
+  const players = usePlayers();
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const data = players.data?.data ?? [];
+    if (!query.trim()) return data;
+    const q = query.toLowerCase();
+    return data.filter(
+      (p) =>
+        p.fullName.toLowerCase().includes(q) ||
+        (p.flightName?.toLowerCase().includes(q) ?? false),
+    );
+  }, [players.data, query]);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Players" description="League roster and current handicaps" />
+
+      <div className="relative max-w-sm">
+        <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+        <input
+          type="search"
+          placeholder="Search by name or flight…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+        />
+      </div>
+
+      {players.isPending && <FullPageSpinner />}
+      {players.isError && (
+        <ErrorMessage message="Could not load players. Please try again." />
+      )}
+
+      {players.data && (
+        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                <TableHead>Player</TableHead>
+                <TableHead>Flight</TableHead>
+                <TableHead className="text-right">Handicap</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-sm text-gray-500 py-8">
+                    {query ? 'No players match your search.' : 'No players yet.'}
+                  </TableCell>
+                </TableRow>
+              )}
+              {filtered.map((p) => (
+                <TableRow
+                  key={p.id}
+                  onClick={() => navigate(`/players/${p.id}`)}
+                  className="cursor-pointer"
+                >
+                  <TableCell className="font-medium text-primary-900">{p.fullName}</TableCell>
+                  <TableCell className="text-gray-600">{p.flightName ?? '—'}</TableCell>
+                  <TableCell className="text-right font-semibold tabular-nums">
+                    {p.currentHandicap?.toFixed(1) ?? '—'}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}

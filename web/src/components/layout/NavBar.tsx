@@ -11,6 +11,7 @@ const publicLinks = [
   { to: '/', label: 'Home' },
   { to: '/flights', label: 'Flights' },
   { to: '/rounds', label: 'Rounds' },
+  { to: '/players', label: 'Players' },
 ];
 
 export function NavBar() {
