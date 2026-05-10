@@ -77,10 +77,13 @@ public sealed class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            // Restrict so deleting a Season doesn't silently wipe a year of
+            // history; the SeasonHalf is itself the cascade root for Flights,
+            // FlightMemberships and Rounds.
             entity.HasOne(e => e.Season)
                   .WithMany(s => s.Halves)
                   .HasForeignKey(e => e.SeasonId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.SeasonId, e.HalfNumber }).IsUnique();
         });
     }
@@ -103,14 +106,20 @@ public sealed class AppDbContext : DbContext
         modelBuilder.Entity<FlightMembership>(entity =>
         {
             entity.HasKey(e => e.Id);
+            // Players are soft-deleted (IsActive=false). Hard-deleting a player
+            // with active memberships should fail loud rather than silently
+            // wipe their season participation.
             entity.HasOne(e => e.Player)
                   .WithMany(p => p.FlightMemberships)
                   .HasForeignKey(e => e.PlayerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
+            // The SeasonHalf cascade is the single owning chain. Dropping a
+            // Flight independent of its Half is blocked until memberships are
+            // cleared explicitly — prevents losing data on accidental delete.
             entity.HasOne(e => e.Flight)
                   .WithMany(f => f.Memberships)
                   .HasForeignKey(e => e.FlightId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Season)
                   .WithMany()
                   .HasForeignKey(e => e.SeasonId)
@@ -134,10 +143,13 @@ public sealed class AppDbContext : DbContext
                       v => Enum.Parse<HandicapSource>(v))
                   .HasMaxLength(20);
             entity.Property(e => e.Notes).HasMaxLength(500);
+            // Handicaps are an audit trail. Don't wipe them when a player
+            // is hard-deleted — the delete should be blocked instead, which
+            // matches how the app already soft-deletes players.
             entity.HasOne(e => e.Player)
                   .WithMany(p => p.Handicaps)
                   .HasForeignKey(e => e.PlayerId)
-                  .OnDelete(DeleteBehavior.Cascade);
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.PlayerId, e.EffectiveDate });
         });
     }

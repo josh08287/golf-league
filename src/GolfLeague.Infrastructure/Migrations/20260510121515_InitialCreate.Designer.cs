@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfLeague.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260509195328_InitialCreate")]
+    [Migration("20260510121515_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -569,7 +569,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Flight", "Flight")
                         .WithMany("Memberships")
                         .HasForeignKey("FlightId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("GolfLeague.Domain.Entities.SeasonHalf", "Half")
@@ -581,7 +581,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
                         .WithMany("FlightMemberships")
                         .HasForeignKey("PlayerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.HasOne("GolfLeague.Domain.Entities.Season", "Season")
@@ -604,7 +604,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
                         .WithMany("Handicaps")
                         .HasForeignKey("PlayerId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Player");
@@ -690,7 +690,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Season", "Season")
                         .WithMany("Halves")
                         .HasForeignKey("SeasonId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("Season");

@@ -49,10 +49,15 @@ public sealed class PlayerRepository : IPlayerRepository
         var player = await _context.Players
             .AsTracking()
             .Include(p => p.RoundParticipants).ThenInclude(rp => rp.HoleScores)
+            .Include(p => p.FlightMemberships)
+            .Include(p => p.Handicaps)
             .FirstOrDefaultAsync(p => p.Id == playerId, cancellationToken);
         if (player is null) return;
 
+        // FK cascades from Player are Restrict — wipe child rows explicitly.
         _context.RoundParticipants.RemoveRange(player.RoundParticipants);
+        _context.FlightMemberships.RemoveRange(player.FlightMemberships);
+        _context.Handicaps.RemoveRange(player.Handicaps);
         _context.Players.Remove(player);
         await _context.SaveChangesAsync(cancellationToken);
     }
