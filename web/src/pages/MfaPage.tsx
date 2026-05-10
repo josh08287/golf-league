@@ -12,9 +12,15 @@ export function MfaPage() {
   const [submitting, setSubmitting] = useState(false);
 
   const mfaToken = sessionStorage.getItem('golf-league-mfa-token');
+  const enrollmentRequired =
+    sessionStorage.getItem('golf-league-mfa-enrollment-required') === '1';
 
   if (!mfaToken) {
     navigate('/login', { replace: true });
+    return null;
+  }
+  if (enrollmentRequired) {
+    navigate('/auth/mfa/enroll', { replace: true });
     return null;
   }
 
@@ -25,6 +31,7 @@ export function MfaPage() {
     try {
       const resp = await verifyTotpForLogin(mfaToken!, code.trim());
       sessionStorage.removeItem('golf-league-mfa-token');
+      sessionStorage.removeItem('golf-league-mfa-enrollment-required');
       await onLoginSuccess(resp);
       navigate('/', { replace: true });
     } catch (err) {

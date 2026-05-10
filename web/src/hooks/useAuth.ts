@@ -57,7 +57,14 @@ export function useAuth() {
       // Caller must handle the MFA path; we just stash the challenge token
       // for the /auth/mfa page.
       sessionStorage.setItem('golf-league-mfa-token', resp.accessToken);
-      navigate('/auth/mfa', { replace: true });
+      sessionStorage.setItem(
+        'golf-league-mfa-enrollment-required',
+        resp.mfaEnrollmentRequired ? '1' : '0',
+      );
+      navigate(
+        resp.mfaEnrollmentRequired ? '/auth/mfa/enroll' : '/auth/mfa',
+        { replace: true },
+      );
       return;
     }
     const me = await getCurrentUser();

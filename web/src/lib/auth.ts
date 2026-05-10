@@ -190,16 +190,23 @@ export async function verifyTotpForLogin(mfaToken: string, code: string): Promis
   return data;
 }
 
-export async function startTotpEnrollment(): Promise<{ secret: string; otpAuthUri: string }> {
+/**
+ * Start TOTP enrollment. During first-login enrollment the user has only an
+ * MFA-challenge token; pass it via `bearerOverride`. From account settings,
+ * omit it and the normal access token is used.
+ */
+export async function startTotpEnrollment(bearerOverride?: string): Promise<{ secret: string; otpAuthUri: string }> {
+  const token = bearerOverride ?? getAccessToken() ?? '';
   const res = await authClient.post('/auth/mfa/totp/enroll', null, {
-    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
   return unwrap(res.data);
 }
 
-export async function verifyTotpEnrollment(code: string): Promise<void> {
+export async function verifyTotpEnrollment(code: string, bearerOverride?: string): Promise<void> {
+  const token = bearerOverride ?? getAccessToken() ?? '';
   await authClient.post('/auth/mfa/totp/verify-enrollment', { code }, {
-    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
 }
 
