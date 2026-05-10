@@ -4,12 +4,15 @@ using MediatR;
 
 namespace GolfLeague.Application.Registrations.Queries;
 
-public sealed record GetMyStatusQuery(string EntraObjectId) : IRequest<Result<MyStatusResult>>;
+/// <summary>
+/// Query to get the current user's status. TokenRole comes from Entra ID app roles claim.
+/// </summary>
+public sealed record GetMyStatusQuery(string EntraObjectId, string TokenRole) : IRequest<Result<MyStatusResult>>;
 
 /// <summary>
 /// Status values:
 ///   "approved"  — user is a linked, active player
-///   "none"      — signed in but no invite / player record (should not normally happen in invite-only model)
+///   "none"      — signed in but no invite / player record (admin-only users)
 /// </summary>
 public sealed record MyStatusResult(string Status, int? PlayerId, string Role);
 
@@ -31,6 +34,7 @@ public sealed class GetMyStatusQueryHandler : IRequestHandler<GetMyStatusQuery, 
                 player.Id,
                 player.Role.ToString().ToLowerInvariant()));
 
-        return Result<MyStatusResult>.Ok(new MyStatusResult("none", null, "player"));
+        // For non-players (e.g., admin-only accounts), use the role from the Entra ID token
+        return Result<MyStatusResult>.Ok(new MyStatusResult("none", null, request.TokenRole.ToLowerInvariant()));
     }
 }

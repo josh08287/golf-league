@@ -143,7 +143,12 @@ public sealed class InviteFunctions
         if (string.IsNullOrEmpty(entraObjectId))
             return new UnauthorizedResult();
 
-        var result = await _mediator.Send(new GetMyStatusQuery(entraObjectId), cancellationToken);
+        // Get role from Entra ID token (admin, scorer, or player from app roles claim)
+        var user = req.HttpContext.User;
+        var tokenRole = user.IsInRole("admin") ? "admin" :
+                        user.IsInRole("scorer") ? "scorer" : "player";
+
+        var result = await _mediator.Send(new GetMyStatusQuery(entraObjectId, tokenRole), cancellationToken);
         return result.ToOkResult();
     }
 
