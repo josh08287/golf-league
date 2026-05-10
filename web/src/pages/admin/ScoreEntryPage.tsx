@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useRound } from '../../hooks/useRounds';
+import { useRound, useRoundScorecards } from '../../hooks/useRounds';
 import { useSubmitHoleScores, useSetParticipantSkipped } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -150,6 +150,8 @@ export function ScoreEntryPage() {
     enabled: Boolean(round?.courseId),
   });
 
+  const { data: scorecardsData } = useRoundScorecards(roundId);
+
   const submitScores = useSubmitHoleScores(roundId);
   const setSkipped = useSetParticipantSkipped(roundId);
 
@@ -170,6 +172,32 @@ export function ScoreEntryPage() {
       }
     }
   }, [roundId]);
+
+  // Seed (or backfill) the grid from server-side scorecards. Without this
+  // a finalized round opened in a fresh browser shows empty cells because
+  // there's no local draft. We never overwrite a value the user has typed
+  // locally — only fill in cells that are still blank.
+  useEffect(() => {
+    const sheets = scorecardsData?.data;
+    if (!sheets || sheets.length === 0) return;
+    setScores((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const sc of sheets) {
+        const key = String(sc.playerId);
+        const existing = next[key] ?? {};
+        const merged: Record<number, number | ''> = { ...existing };
+        for (const h of sc.holes) {
+          if (merged[h.holeNumber] === undefined || merged[h.holeNumber] === '') {
+            merged[h.holeNumber] = h.strokes;
+            changed = true;
+          }
+        }
+        if (changed) next[key] = merged;
+      }
+      return changed ? next : prev;
+    });
+  }, [scorecardsData]);
 
   useEffect(() => {
     if (Object.keys(scores).length > 0) {
