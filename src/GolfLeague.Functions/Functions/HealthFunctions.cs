@@ -9,15 +9,6 @@ namespace GolfLeague.Functions.Functions;
 
 public sealed class HealthFunctions
 {
-    private readonly AppDbContext _dbContext;
-    private readonly ILogger<HealthFunctions> _logger;
-
-    public HealthFunctions(AppDbContext dbContext, ILogger<HealthFunctions> logger)
-    {
-        _dbContext = dbContext;
-        _logger = logger;
-    }
-
     [Function("Health")]
     public IActionResult Health(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "health")] HttpRequest req)
@@ -28,6 +19,18 @@ public sealed class HealthFunctions
             timestamp = DateTime.UtcNow,
             version = "1.0.0"
         });
+    }
+}
+
+public sealed class AdminMigrateFunction
+{
+    private readonly AppDbContext _dbContext;
+    private readonly ILogger<AdminMigrateFunction> _logger;
+
+    public AdminMigrateFunction(AppDbContext dbContext, ILogger<AdminMigrateFunction> logger)
+    {
+        _dbContext = dbContext;
+        _logger = logger;
     }
 
     [Function("MigrateDatabase")]
