@@ -28,6 +28,19 @@ public sealed class FlightFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetFlight")]
+    public async Task<IActionResult> GetFlight(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/flights/{id}")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var flightId))
+            return new BadRequestObjectResult(new { error = "Invalid flight ID." });
+
+        var result = await _mediator.Send(new GetFlightQuery(flightId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("CreateFlight")]
     public async Task<IActionResult> CreateFlight(
         [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/flights")] HttpRequest req,
