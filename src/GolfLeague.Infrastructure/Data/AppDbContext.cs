@@ -263,7 +263,7 @@ public sealed class AppDbContext : DbContext
             entity.Property(e => e.Action).IsRequired().HasMaxLength(200);
             entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.EntityId).IsRequired().HasMaxLength(50);
-            entity.Property(e => e.UserId).IsRequired().HasMaxLength(36);
+            entity.Property(e => e.UserId).IsRequired().HasMaxLength(128);
         });
     }
 
