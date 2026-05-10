@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Seasons.Commands;
 using GolfLeague.Application.Seasons.Queries;
 using GolfLeague.Functions.Helpers;
@@ -21,7 +22,8 @@ public sealed class SeasonFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/seasons")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetSeasonsQuery(), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetSeasonsQuery(sort), cancellationToken);
         return result.ToOkResult();
     }
 

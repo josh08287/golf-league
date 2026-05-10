@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useSortableTable } from '../../hooks/useSortableTable';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { DataTable } from '../../components/ui/DataTable';
 import { Badge } from '../../components/ui/Badge';
@@ -44,13 +45,16 @@ const PAGE_SIZE = 25;
 
 export function AuditLogPage() {
   const [page, setPage] = useState(1);
+  const { sort, cycle } = useSortableTable('auditLog');
 
   const { data, isLoading, error } = useQuery<AuditLogPage>({
-    queryKey: ['audit-log', page],
-    queryFn: () =>
-      api
-        .get('/admin/audit-log', { params: { page, pageSize: PAGE_SIZE } })
-        .then((r) => r.data),
+    queryKey: ['audit-log', page, sort],
+    queryFn: () => {
+      const params: Record<string, string | number> = { page, pageSize: PAGE_SIZE };
+      params.sortBy = sort.sortBy;
+      params.sortDir = sort.sortDir;
+      return api.get('/admin/audit-log', { params }).then((r) => r.data);
+    },
     placeholderData: (prev) => prev,
   });
 
@@ -60,6 +64,7 @@ export function AuditLogPage() {
     {
       key: 'timestamp',
       header: 'Timestamp',
+      sortable: true,
       render: (e: AuditLogEntry) =>
         new Date(e.timestamp).toLocaleString(undefined, {
           dateStyle: 'short',
@@ -69,6 +74,7 @@ export function AuditLogPage() {
     {
       key: 'action',
       header: 'Action',
+      sortable: true,
       render: (e: AuditLogEntry) => (
         <Badge variant={actionVariant(e.action)}>{e.action}</Badge>
       ),
@@ -76,6 +82,7 @@ export function AuditLogPage() {
     {
       key: 'entityType',
       header: 'Entity Type',
+      sortable: true,
       render: (e: AuditLogEntry) => (
         <span className="font-mono text-xs text-gray-600">{e.entityType}</span>
       ),
@@ -83,6 +90,7 @@ export function AuditLogPage() {
     {
       key: 'entityId',
       header: 'Entity ID',
+      sortable: true,
       render: (e: AuditLogEntry) => (
         <span className="font-mono text-xs text-gray-500">
           {e.entityId.slice(0, 8)}…
@@ -92,6 +100,7 @@ export function AuditLogPage() {
     {
       key: 'userId',
       header: 'User ID',
+      sortable: true,
       render: (e: AuditLogEntry) => (
         <span className="font-mono text-xs text-gray-500">
           {e.userId.slice(0, 8)}…
@@ -130,6 +139,8 @@ export function AuditLogPage() {
               data={data?.items ?? []}
               rowKey={(e) => e.id}
               emptyMessage="No audit log entries."
+              sort={sort}
+              onSort={cycle}
             />
           </div>
 

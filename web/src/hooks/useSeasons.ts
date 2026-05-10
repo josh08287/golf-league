@@ -1,15 +1,24 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import type { TableSort } from '@/hooks/useSortableTable';
 import type { Season } from '@/types/api';
 
 export const seasonKeys = {
   all: ['seasons'] as const,
+  list: (sort?: TableSort) => ['seasons', { sort: sort ?? null }] as const,
 };
 
-export function useSeasons() {
+export function useSeasons(sort?: TableSort) {
   return useQuery<Season[]>({
-    queryKey: seasonKeys.all,
-    queryFn: () => apiClient.get('/seasons').then((r) => r.data),
+    queryKey: seasonKeys.list(sort),
+    queryFn: () => {
+      const params: Record<string, string> = {};
+      if (sort) {
+        params.sortBy = sort.sortBy;
+        params.sortDir = sort.sortDir;
+      }
+      return apiClient.get('/seasons', { params }).then((r) => r.data);
+    },
   });
 }
 

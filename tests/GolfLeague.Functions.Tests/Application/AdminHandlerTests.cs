@@ -27,7 +27,9 @@ public class GetAuditLogQueryHandlerTests
         };
 
         var repo = new Mock<IAuditRepository>();
-        repo.Setup(r => r.GetPagedAsync(1, 25, default)).ReturnsAsync((items, 1));
+        // Handler now pulls everything (sort happens in-memory) and pages
+        // after sorting, so it always asks the repo for page 1, MaxValue.
+        repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((items, 1));
 
         var handler = new GetAuditLogQueryHandler(repo.Object);
         var result = await handler.Handle(new GetAuditLogQuery(1, 25), default);
@@ -52,7 +54,7 @@ public class GetAuditLogQueryHandlerTests
     public async Task Handle_WithNoItems_ReturnsEmptyList()
     {
         var repo = new Mock<IAuditRepository>();
-        repo.Setup(r => r.GetPagedAsync(1, 25, default)).ReturnsAsync((new List<AuditLog>(), 0));
+        repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((new List<AuditLog>(), 0));
 
         var handler = new GetAuditLogQueryHandler(repo.Object);
         var result = await handler.Handle(new GetAuditLogQuery(1, 25), default);
@@ -73,7 +75,7 @@ public class GetAuditLogQueryHandlerTests
         };
 
         var repo = new Mock<IAuditRepository>();
-        repo.Setup(r => r.GetPagedAsync(2, 10, default)).ReturnsAsync((items, 1));
+        repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((items, 1));
 
         var handler = new GetAuditLogQueryHandler(repo.Object);
         var result = await handler.Handle(new GetAuditLogQuery(2, 10), default);
@@ -81,7 +83,7 @@ public class GetAuditLogQueryHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Page.Should().Be(2);
         result.Value.PageSize.Should().Be(10);
-        result.Value.Items[0].Timestamp.Should().Be(timestamp.ToString("O"));
-        result.Value.Items[0].Details.Should().BeNull();
+        // Page 2 of a single-item set is empty after in-memory paging.
+        result.Value.Items.Should().BeEmpty();
     }
 }

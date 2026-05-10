@@ -9,12 +9,34 @@ namespace GolfLeague.Application.Players.Queries;
 /// Lists all rounds a player has ever participated in, newest first, as a
 /// compact summary suitable for the public player profile page.
 /// </summary>
-public sealed record GetPlayerRoundsQuery(int PlayerId) : IRequest<Result<List<PlayerRoundSummaryDto>>>;
+public sealed record GetPlayerRoundsQuery(int PlayerId, SortRequest? Sort = null)
+    : IRequest<Result<List<PlayerRoundSummaryDto>>>;
 
 public sealed class GetPlayerRoundsQueryHandler
     : IRequestHandler<GetPlayerRoundsQuery, Result<List<PlayerRoundSummaryDto>>>
 {
     private readonly IRoundRepository _roundRepository;
+
+    /// <summary>
+    /// Default sort: most recent round date first.
+    /// </summary>
+    private static readonly SortMap<PlayerRoundSummaryDto> SortMap = new SortMap<PlayerRoundSummaryDto>(
+            source => source.OrderByDescending(r => r.RoundDate).ThenByDescending(r => r.RoundId))
+        .Add("date", r => r.RoundDate)
+        .Add("roundDate", r => r.RoundDate)
+        .Add("course", r => r.CourseName)
+        .Add("courseName", r => r.CourseName)
+        .Add("week", r => r.WeekNumber)
+        .Add("weekNumber", r => r.WeekNumber)
+        .Add("status", r => r.Status.ToString())
+        .Add("gross", r => r.TotalGrossStrokes)
+        .Add("totalGrossStrokes", r => r.TotalGrossStrokes)
+        .Add("net", r => r.TotalNetStrokes)
+        .Add("totalNetStrokes", r => r.TotalNetStrokes)
+        .Add("grossPts", r => r.TotalGrossStablefordPoints)
+        .Add("totalGrossStablefordPoints", r => r.TotalGrossStablefordPoints)
+        .Add("netPts", r => r.TotalNetStablefordPoints)
+        .Add("totalNetStablefordPoints", r => r.TotalNetStablefordPoints);
 
     public GetPlayerRoundsQueryHandler(IRoundRepository roundRepository)
     {
@@ -29,8 +51,6 @@ public sealed class GetPlayerRoundsQueryHandler
             request.PlayerId, cancellationToken);
 
         var dtos = participants
-            .OrderByDescending(rp => rp.Round.RoundDate)
-            .ThenByDescending(rp => rp.Round.Id)
             .Select(rp => new PlayerRoundSummaryDto(
                 rp.Round.Id,
                 rp.Round.RoundDate,
@@ -46,6 +66,7 @@ public sealed class GetPlayerRoundsQueryHandler
                 rp.SkippedWeek))
             .ToList();
 
-        return Result<List<PlayerRoundSummaryDto>>.Ok(dtos);
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<List<PlayerRoundSummaryDto>>.Ok(sorted.ToList());
     }
 }

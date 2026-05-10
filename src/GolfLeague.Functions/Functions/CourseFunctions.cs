@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Courses.Commands;
 using GolfLeague.Application.Courses.Queries;
 using GolfLeague.Functions.Helpers;
@@ -21,7 +22,8 @@ public sealed class CourseFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/courses")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetCoursesQuery(), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetCoursesQuery(sort), cancellationToken);
         return result.ToOkResult();
     }
 

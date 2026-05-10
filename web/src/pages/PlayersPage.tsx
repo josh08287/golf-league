@@ -2,21 +2,23 @@ import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { usePlayers } from '@/hooks/usePlayers';
+import { useSortableTable } from '@/hooks/useSortableTable';
 import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
+import { SortableTableHead } from '@/components/ui/SortableTableHead';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 
 export function PlayersPage() {
   const navigate = useNavigate();
-  const players = usePlayers();
+  const { sort, cycle } = useSortableTable('players');
+  const players = usePlayers(1, sort);
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {
@@ -55,9 +57,15 @@ export function PlayersPage() {
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
-                <TableHead>Player</TableHead>
-                <TableHead>Flight</TableHead>
-                <TableHead className="text-right">Handicap</TableHead>
+                <SortableTableHead column="name" sort={sort} onSort={cycle}>
+                  Player
+                </SortableTableHead>
+                <SortableTableHead column="flight" sort={sort} onSort={cycle}>
+                  Flight
+                </SortableTableHead>
+                <SortableTableHead column="handicap" sort={sort} onSort={cycle} className="text-right">
+                  Handicap
+                </SortableTableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

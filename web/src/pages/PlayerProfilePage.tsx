@@ -11,10 +11,11 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
+import { SortableTableHead } from '@/components/ui/SortableTableHead';
+import { useSortableTable } from '@/hooks/useSortableTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { FullPageSpinner } from '@/components/ui/Spinner';
@@ -27,8 +28,10 @@ import { normalizeRoundStatus } from '@/lib/enumUtils';
 export function PlayerProfilePage() {
   const { playerId } = useParams<{ playerId: string }>();
   const player = usePlayer(playerId ?? '');
-  const handicapHistory = useHandicapHistory(playerId ?? '');
-  const playerRounds = usePlayerRounds(playerId ?? '');
+  const handicapSort = useSortableTable('playerHandicapHistory');
+  const roundsSort = useSortableTable('playerPastRounds');
+  const handicapHistory = useHandicapHistory(playerId ?? '', handicapSort.sort);
+  const playerRounds = usePlayerRounds(playerId ?? '', roundsSort.sort);
 
   const playerData = player.data;
   const history = handicapHistory.data ?? [];
@@ -131,10 +134,18 @@ export function PlayerProfilePage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead className="text-right">18-Hole</TableHead>
-                  <TableHead className="text-right">9-Hole</TableHead>
+                  <SortableTableHead column="date" sort={handicapSort.sort} onSort={handicapSort.cycle}>
+                    Date
+                  </SortableTableHead>
+                  <SortableTableHead column="source" sort={handicapSort.sort} onSort={handicapSort.cycle}>
+                    Source
+                  </SortableTableHead>
+                  <SortableTableHead column="index" sort={handicapSort.sort} onSort={handicapSort.cycle} className="text-right">
+                    18-Hole
+                  </SortableTableHead>
+                  <SortableTableHead column="nineHole" sort={handicapSort.sort} onSort={handicapSort.cycle} className="text-right">
+                    9-Hole
+                  </SortableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -175,13 +186,27 @@ export function PlayerProfilePage() {
             <Table>
               <TableHeader>
                 <TableRow className="bg-gray-50">
-                  <TableHead>Date</TableHead>
-                  <TableHead>Course</TableHead>
-                  <TableHead className="text-center">Wk</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
-                  <TableHead className="text-right">Gross</TableHead>
-                  <TableHead className="text-right">Net</TableHead>
-                  <TableHead className="text-right">Pts</TableHead>
+                  <SortableTableHead column="date" sort={roundsSort.sort} onSort={roundsSort.cycle}>
+                    Date
+                  </SortableTableHead>
+                  <SortableTableHead column="course" sort={roundsSort.sort} onSort={roundsSort.cycle}>
+                    Course
+                  </SortableTableHead>
+                  <SortableTableHead column="week" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-center">
+                    Wk
+                  </SortableTableHead>
+                  <SortableTableHead column="status" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-center">
+                    Status
+                  </SortableTableHead>
+                  <SortableTableHead column="gross" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-right">
+                    Gross
+                  </SortableTableHead>
+                  <SortableTableHead column="net" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-right">
+                    Net
+                  </SortableTableHead>
+                  <SortableTableHead column="netPts" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-right">
+                    Pts
+                  </SortableTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

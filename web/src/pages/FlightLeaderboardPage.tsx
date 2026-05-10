@@ -7,10 +7,11 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
+import { SortableTableHead } from '@/components/ui/SortableTableHead';
+import { useSortableTable } from '@/hooks/useSortableTable';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { FullPageSpinner } from '@/components/ui/Spinner';
@@ -83,7 +84,8 @@ export function FlightLeaderboardPage() {
   // Default to the half this flight belongs to.
   const halfId = halfFromQuery ?? (flightData ? String(flightData.halfId) : '');
 
-  const standings = useFlightStandings(flightId ?? '', halfId, useGross);
+  const { sort, cycle } = useSortableTable('flightStandings');
+  const standings = useFlightStandings(flightId ?? '', halfId, useGross, sort);
 
   const halfLabel = useMemo(() => {
     if (!activeSeason) return '';
@@ -145,12 +147,24 @@ export function FlightLeaderboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="text-center w-16">Pos</TableHead>
-                    <TableHead>Player</TableHead>
-                    <TableHead className="text-center">HCP</TableHead>
-                    <TableHead className="text-center">Rounds</TableHead>
-                    <TableHead className="text-center">{useGross ? 'Gross Pts' : 'Net Pts'}</TableHead>
-                    <TableHead className="text-center">Avg</TableHead>
+                    <SortableTableHead column="position" sort={sort} onSort={cycle} className="text-center w-16">
+                      Pos
+                    </SortableTableHead>
+                    <SortableTableHead column="player" sort={sort} onSort={cycle}>
+                      Player
+                    </SortableTableHead>
+                    <SortableTableHead column="hcp" sort={sort} onSort={cycle} className="text-center">
+                      HCP
+                    </SortableTableHead>
+                    <SortableTableHead column="rounds" sort={sort} onSort={cycle} className="text-center">
+                      Rounds
+                    </SortableTableHead>
+                    <SortableTableHead column="points" sort={sort} onSort={cycle} className="text-center">
+                      {useGross ? 'Gross Pts' : 'Net Pts'}
+                    </SortableTableHead>
+                    <SortableTableHead column="avg" sort={sort} onSort={cycle} className="text-center">
+                      Avg
+                    </SortableTableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

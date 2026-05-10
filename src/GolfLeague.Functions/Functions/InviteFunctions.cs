@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Registrations.Commands;
 using GolfLeague.Application.Registrations.Queries;
 using GolfLeague.Functions.Helpers;
@@ -29,7 +30,8 @@ public sealed class InviteFunctions
         var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
-        var result = await _mediator.Send(new GetInvitesQuery(_webBaseUrl), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetInvitesQuery(_webBaseUrl, sort), cancellationToken);
         return result.ToOkResult();
     }
 

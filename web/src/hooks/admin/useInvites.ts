@@ -1,16 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import type { TableSort } from '@/hooks/useSortableTable';
 import type { CreateInvitesResult, Invite } from '@/types/api';
 
 export const inviteKeys = {
   all: ['admin', 'invites'] as const,
+  list: (sort?: TableSort) => ['admin', 'invites', { sort: sort ?? null }] as const,
 };
 
-export function useInvites() {
+export function useInvites(sort?: TableSort) {
   return useQuery({
-    queryKey: inviteKeys.all,
+    queryKey: inviteKeys.list(sort),
     queryFn: async () => {
-      const res = await apiClient.get<Invite[]>('/admin/invites');
+      const params: Record<string, string> = {};
+      if (sort) {
+        params.sortBy = sort.sortBy;
+        params.sortDir = sort.sortDir;
+      }
+      const res = await apiClient.get<Invite[]>('/admin/invites', { params });
       return res.data;
     },
   });

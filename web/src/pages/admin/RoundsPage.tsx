@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, CalendarDays } from 'lucide-react';
 import { useRounds } from '../../hooks/useRounds';
+import { useSortableTable } from '../../hooks/useSortableTable';
 import {
   useFinalizeRound,
   useDeleteRound,
@@ -39,7 +40,8 @@ function RoundStatusBadge({ status }: { status: Round['status'] }) {
 
 export function RoundsPage() {
   const navigate = useNavigate();
-  const { data: roundsPage, isLoading, error } = useRounds();
+  const { sort, cycle } = useSortableTable('adminRounds');
+  const { data: roundsPage, isLoading, error } = useRounds(1, sort);
   const rounds = roundsPage?.data ?? [];
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -86,17 +88,20 @@ export function RoundsPage() {
     {
       key: 'week',
       header: 'Week',
+      sortable: true,
       render: (r: Round) => `#${r.weekNumber}`,
     },
     {
       key: 'date',
       header: 'Date',
+      sortable: true,
       render: (r: Round) => new Date(r.scheduledDate).toLocaleDateString(),
     },
-    { key: 'course', header: 'Course', render: (r: Round) => r.courseName ?? '—' },
+    { key: 'course', header: 'Course', sortable: true, render: (r: Round) => r.courseName ?? '—' },
     {
-      key: 'side',
+      key: 'nineHoleSide',
       header: '9-Hole Side',
+      sortable: true,
       render: (r: Round) => (
         <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
           {r.nineHoleSide}
@@ -106,6 +111,7 @@ export function RoundsPage() {
     {
       key: 'status',
       header: 'Status',
+      sortable: true,
       render: (r: Round) => <RoundStatusBadge status={r.status} />,
     },
     {
@@ -176,6 +182,8 @@ export function RoundsPage() {
           data={rounds}
           rowKey={(r) => String(r.id)}
           emptyMessage="No rounds yet."
+          sort={sort}
+          onSort={cycle}
         />
       </div>
 

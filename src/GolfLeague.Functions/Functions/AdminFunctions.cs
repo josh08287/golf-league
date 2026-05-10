@@ -1,4 +1,5 @@
 using GolfLeague.Application.Admin;
+using GolfLeague.Application.Common;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -28,8 +29,9 @@ public sealed class AdminFunctions
         int.TryParse(req.Query["pageSize"], out var pageSize);
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 25;
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
 
-        var result = await _mediator.Send(new GetAuditLogQuery(page, pageSize), cancellationToken);
+        var result = await _mediator.Send(new GetAuditLogQuery(page, pageSize, sort), cancellationToken);
         return result.ToOkResult();
     }
 }

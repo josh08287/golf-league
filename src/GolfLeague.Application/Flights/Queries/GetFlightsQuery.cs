@@ -5,11 +5,29 @@ using MediatR;
 
 namespace GolfLeague.Application.Flights.Queries;
 
-public sealed record GetFlightsQuery(int? HalfId = null, int? SeasonId = null) : IRequest<Result<PagedResult<FlightDto>>>;
+public sealed record GetFlightsQuery(
+    int? HalfId = null,
+    int? SeasonId = null,
+    SortRequest? Sort = null) : IRequest<Result<PagedResult<FlightDto>>>;
 
 public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Result<PagedResult<FlightDto>>>
 {
     private readonly IFlightRepository _flightRepository;
+
+    /// <summary>
+    /// Default sort: half then display order (the natural admin-defined order).
+    /// </summary>
+    private static readonly SortMap<FlightDto> SortMap = new SortMap<FlightDto>(
+            source => source.OrderBy(f => f.HalfId).ThenBy(f => f.DisplayOrder))
+        .Add("name", f => f.Name)
+        .Add("half", f => f.HalfId)
+        .Add("halfId", f => f.HalfId)
+        .Add("season", f => f.SeasonId)
+        .Add("seasonId", f => f.SeasonId)
+        .Add("order", f => f.DisplayOrder)
+        .Add("displayOrder", f => f.DisplayOrder)
+        .Add("players", f => f.PlayerCount)
+        .Add("playerCount", f => f.PlayerCount);
 
     public GetFlightsQueryHandler(IFlightRepository flightRepository)
     {
@@ -33,6 +51,7 @@ public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Re
             f.Memberships.Count
         )).ToList();
 
-        return Result<PagedResult<FlightDto>>.Ok(new PagedResult<FlightDto>(dtos, 1, dtos.Count, dtos.Count));
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<PagedResult<FlightDto>>.Ok(new PagedResult<FlightDto>(sorted.ToList(), 1, sorted.Count, sorted.Count));
     }
 }

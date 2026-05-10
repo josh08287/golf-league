@@ -1,23 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import type { TableSort } from '@/hooks/useSortableTable';
 import type { Flight, Standing, PagedResponse } from '@/types/api';
 
 export const flightKeys = {
   all: ['flights'] as const,
   lists: () => [...flightKeys.all, 'list'] as const,
-  list: (halfId?: number | string) => [...flightKeys.lists(), { halfId: halfId ?? null }] as const,
+  list: (halfId?: number | string, sort?: TableSort) =>
+    [...flightKeys.lists(), { halfId: halfId ?? null, sort: sort ?? null }] as const,
   details: () => [...flightKeys.all, 'detail'] as const,
   detail: (id: string) => [...flightKeys.details(), id] as const,
   standings: (flightId: string, halfId: string) =>
     [...flightKeys.all, 'standings', flightId, halfId] as const,
 };
 
-export function useFlights(halfId?: number | string) {
+export function useFlights(halfId?: number | string, sort?: TableSort) {
   return useQuery({
-    queryKey: flightKeys.list(halfId),
+    queryKey: flightKeys.list(halfId, sort),
     queryFn: async () => {
       const params: Record<string, string | number> = {};
       if (halfId) params.halfId = String(halfId);
+      if (sort) {
+        params.sortBy = sort.sortBy;
+        params.sortDir = sort.sortDir;
+      }
       const response = await apiClient.get<PagedResponse<Flight>>('/flights', { params });
       return response.data;
     },
@@ -35,13 +41,26 @@ export function useFlight(id: string) {
   });
 }
 
-export function useFlightStandings(flightId: string, halfId: string, useGrossPoints = false) {
+export function useFlightStandings(
+  flightId: string,
+  halfId: string,
+  useGrossPoints = false,
+  sort?: TableSort,
+) {
   return useQuery({
-    queryKey: [...flightKeys.standings(flightId, halfId), { useGrossPoints }],
+    queryKey: [...flightKeys.standings(flightId, halfId), { useGrossPoints, sort: sort ?? null }],
     queryFn: async () => {
+      const params: Record<string, string> = {
+        halfId,
+        useGrossPoints: String(useGrossPoints),
+      };
+      if (sort) {
+        params.sortBy = sort.sortBy;
+        params.sortDir = sort.sortDir;
+      }
       const response = await apiClient.get<Standing[]>(
         `/flights/${flightId}/standings`,
-        { params: { halfId, useGrossPoints: String(useGrossPoints) } },
+        { params },
       );
       return response.data;
     },

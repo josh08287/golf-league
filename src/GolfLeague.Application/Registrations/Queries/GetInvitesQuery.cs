@@ -5,11 +5,26 @@ using MediatR;
 
 namespace GolfLeague.Application.Registrations.Queries;
 
-public sealed record GetInvitesQuery(string BaseUrl) : IRequest<Result<List<InviteDto>>>;
+public sealed record GetInvitesQuery(string BaseUrl, SortRequest? Sort = null)
+    : IRequest<Result<List<InviteDto>>>;
 
 public sealed class GetInvitesQueryHandler : IRequestHandler<GetInvitesQuery, Result<List<InviteDto>>>
 {
     private readonly IInviteRepository _repo;
+
+    /// <summary>
+    /// Default sort: newest invites first.
+    /// </summary>
+    private static readonly SortMap<InviteDto> SortMap = new SortMap<InviteDto>(
+            source => source.OrderByDescending(i => i.CreatedAt))
+        .Add("email", i => i.Email)
+        .Add("status", i => i.Status)
+        .Add("created", i => i.CreatedAt)
+        .Add("createdAt", i => i.CreatedAt)
+        .Add("expires", i => i.ExpiresAt)
+        .Add("expiresAt", i => i.ExpiresAt)
+        .Add("accepted", i => i.AcceptedAt)
+        .Add("acceptedAt", i => i.AcceptedAt);
 
     public GetInvitesQueryHandler(IInviteRepository repo)
     {
@@ -20,7 +35,8 @@ public sealed class GetInvitesQueryHandler : IRequestHandler<GetInvitesQuery, Re
     {
         var invites = await _repo.GetAllAsync(cancellationToken);
         var dtos = invites.Select(i => ToDto(i, request.BaseUrl)).ToList();
-        return Result<List<InviteDto>>.Ok(dtos);
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<List<InviteDto>>.Ok(sorted.ToList());
     }
 
     internal static InviteDto ToDto(Domain.Entities.PlayerInvite i, string baseUrl) =>

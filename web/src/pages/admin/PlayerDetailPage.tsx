@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { usePlayer, useHandicapHistory } from '../../hooks/usePlayers';
+import { useSortableTable } from '../../hooks/useSortableTable';
 import {
   useUpdatePlayer,
   useDeactivatePlayer,
@@ -241,7 +242,8 @@ export function PlayerDetailPage() {
 
   const { data: player, isLoading, error } = usePlayer(id);
 
-  const { data: history = [] } = useHandicapHistory(id);
+  const handicapSort = useSortableTable('adminHandicapHistory');
+  const { data: history = [] } = useHandicapHistory(id, handicapSort.sort);
 
   const { data: flightsPage } = useFlights();
   const allFlights = flightsPage?.data ?? [];
@@ -288,21 +290,25 @@ export function PlayerDetailPage() {
     {
       key: 'date',
       header: 'Date',
+      sortable: true,
       render: (h: HandicapHistoryEntry) => new Date(h.effectiveDate).toLocaleDateString(),
     },
     {
       key: 'index',
       header: '18-Hole',
+      sortable: true,
       render: (h: HandicapHistoryEntry) => h.handicapIndex.toFixed(1),
     },
     {
       key: 'nineHole',
       header: '9-Hole',
+      sortable: true,
       render: (h: HandicapHistoryEntry) => h.nineHoleHandicapIndex.toFixed(1),
     },
     {
       key: 'source',
       header: 'Source',
+      sortable: true,
       render: (h: HandicapHistoryEntry) => (
         <Badge
           variant={
@@ -316,6 +322,7 @@ export function PlayerDetailPage() {
     {
       key: 'notes',
       header: 'Notes',
+      sortable: true,
       render: (h: HandicapHistoryEntry) => h.notes ?? '—',
     },
   ];
@@ -381,6 +388,8 @@ export function PlayerDetailPage() {
           data={history}
           rowKey={(h) => `${h.effectiveDate}-${h.handicapIndex}`}
           emptyMessage="No handicap history yet."
+          sort={handicapSort.sort}
+          onSort={handicapSort.cycle}
         />
       </Card>
 

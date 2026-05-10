@@ -27,12 +27,33 @@ public sealed record RoundScorecardDto(
     int? NetPoints,
     List<RoundScorecardHoleDto> Holes);
 
-public sealed record GetRoundScorecardsQuery(int RoundId) : IRequest<Result<PagedResult<RoundScorecardDto>>>;
+public sealed record GetRoundScorecardsQuery(int RoundId, SortRequest? Sort = null)
+    : IRequest<Result<PagedResult<RoundScorecardDto>>>;
 
 public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundScorecardsQuery, Result<PagedResult<RoundScorecardDto>>>
 {
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
+
+    /// <summary>
+    /// Default sort: flight then player name (the natural scorecard listing).
+    /// </summary>
+    private static readonly SortMap<RoundScorecardDto> SortMap = new SortMap<RoundScorecardDto>(
+            source => source.OrderBy(s => s.FlightId).ThenBy(s => s.PlayerName, StringComparer.OrdinalIgnoreCase))
+        .Add("player", s => s.PlayerName)
+        .Add("playerName", s => s.PlayerName)
+        .Add("flight", s => s.FlightId)
+        .Add("flightId", s => s.FlightId)
+        .Add("hcp", s => s.HandicapAtTime)
+        .Add("handicapAtTime", s => s.HandicapAtTime)
+        .Add("gross", s => s.GrossScore)
+        .Add("grossScore", s => s.GrossScore)
+        .Add("net", s => s.NetScore)
+        .Add("netScore", s => s.NetScore)
+        .Add("grossPts", s => s.GrossPoints)
+        .Add("grossPoints", s => s.GrossPoints)
+        .Add("netPts", s => s.NetPoints)
+        .Add("netPoints", s => s.NetPoints);
 
     public GetRoundScorecardsQueryHandler(IRoundRepository roundRepository, ICourseRepository courseRepository)
     {
@@ -79,6 +100,7 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
                 holes);
         }).ToList();
 
-        return Result<PagedResult<RoundScorecardDto>>.Ok(new PagedResult<RoundScorecardDto>(dtos, 1, dtos.Count, dtos.Count));
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<PagedResult<RoundScorecardDto>>.Ok(new PagedResult<RoundScorecardDto>(sorted.ToList(), 1, sorted.Count, sorted.Count));
     }
 }

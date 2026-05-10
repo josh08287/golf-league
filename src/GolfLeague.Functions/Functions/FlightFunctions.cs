@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Flights.Commands;
 using GolfLeague.Application.Flights.Queries;
 using GolfLeague.Functions.Helpers;
@@ -24,7 +25,8 @@ public sealed class FlightFunctions
     {
         int? halfId = int.TryParse(req.Query["halfId"], out var hid) ? hid : null;
         int? seasonId = int.TryParse(req.Query["seasonId"], out var sid) ? sid : null;
-        var result = await _mediator.Send(new GetFlightsQuery(halfId, seasonId), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetFlightsQuery(halfId, seasonId, sort), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -73,8 +75,9 @@ public sealed class FlightFunctions
             return new BadRequestObjectResult(new { error = "Query parameter 'halfId' is required." });
 
         var useGross = bool.TryParse(req.Query["useGrossPoints"], out var ug) && ug;
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
 
-        var result = await _mediator.Send(new GetFlightStandingsQuery(flightId, halfId, useGross), cancellationToken);
+        var result = await _mediator.Send(new GetFlightStandingsQuery(flightId, halfId, useGross, sort), cancellationToken);
         return result.ToOkResult();
     }
 

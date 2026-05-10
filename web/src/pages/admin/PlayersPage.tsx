@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus } from 'lucide-react';
 import { usePlayers } from '../../hooks/usePlayers';
+import { useSortableTable } from '../../hooks/useSortableTable';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { DataTable } from '../../components/ui/DataTable';
@@ -16,7 +17,8 @@ import type { Player } from '../../types/api';
 
 export function PlayersPage() {
   const navigate = useNavigate();
-  const { data: playersPage, isLoading, error } = usePlayers();
+  const { sort, cycle } = useSortableTable('adminPlayers');
+  const { data: playersPage, isLoading, error } = usePlayers(1, sort);
   const players = playersPage?.data ?? [];
 
   const [addOpen, setAddOpen] = useState(false);
@@ -54,6 +56,7 @@ export function PlayersPage() {
     {
       key: 'name',
       header: 'Name',
+      sortable: true,
       render: (p: Player) => (
         <button
           className="font-medium text-[#1B5E20] hover:underline"
@@ -63,20 +66,23 @@ export function PlayersPage() {
         </button>
       ),
     },
-    { key: 'email', header: 'Email', render: (p: Player) => p.email },
+    { key: 'email', header: 'Email', sortable: true, render: (p: Player) => p.email },
     {
       key: 'handicap',
       header: 'Handicap',
+      sortable: true,
       render: (p: Player) => p.currentHandicap?.toFixed(1) ?? '—',
     },
     {
       key: 'flight',
       header: 'Flight',
+      sortable: true,
       render: (p: Player) => p.flightName ?? <span className="text-gray-400">Unassigned</span>,
     },
     {
-      key: 'status',
+      key: 'isActive',
       header: 'Status',
+      sortable: true,
       render: (p: Player) => (
         <Badge variant={p.isActive ? 'success' : 'neutral'}>
           {p.isActive ? 'Active' : 'Inactive'}
@@ -142,6 +148,8 @@ export function PlayersPage() {
           data={players}
           rowKey={(p) => String(p.id)}
           emptyMessage="No players found."
+          sort={sort}
+          onSort={cycle}
         />
       </div>
 

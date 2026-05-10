@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
 using GolfLeague.Domain.Enums;
@@ -27,8 +28,9 @@ public sealed class RoundFunctions
         int? halfId = int.TryParse(req.Query["halfId"], out var hid) ? hid : null;
         var page = int.TryParse(req.Query["page"], out var p) ? p : 1;
         var pageSize = int.TryParse(req.Query["pageSize"], out var ps) ? ps : 20;
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
 
-        var result = await _mediator.Send(new GetRoundsQuery(seasonId, halfId, page, pageSize), cancellationToken);
+        var result = await _mediator.Send(new GetRoundsQuery(seasonId, halfId, page, pageSize, sort), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -133,7 +135,8 @@ public sealed class RoundFunctions
         if (!int.TryParse(id, out var roundId))
             return new BadRequestObjectResult(new { error = "Invalid round ID." });
 
-        var result = await _mediator.Send(new GetRoundScorecardsQuery(roundId), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetRoundScorecardsQuery(roundId, sort), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -146,7 +149,8 @@ public sealed class RoundFunctions
         if (!int.TryParse(id, out var roundId))
             return new BadRequestObjectResult(new { error = "Invalid round ID." });
 
-        var result = await _mediator.Send(new GetRoundParticipantsQuery(roundId), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetRoundParticipantsQuery(roundId, sort), cancellationToken);
         return result.ToOkResult();
     }
 

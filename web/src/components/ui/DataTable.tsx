@@ -1,9 +1,19 @@
+import React from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './Table';
+import { SortableTableHead } from './SortableTableHead';
+import type { TableSort } from '@/hooks/useSortableTable';
 
 export interface Column<T> {
   key: string;
   header: string;
   render: (row: T) => React.ReactNode;
+  /**
+   * Set true to make this column header click-to-sort. The column key is
+   * sent to the backend as `sortBy=<key>`.
+   */
+  sortable?: boolean;
+  /** Optional className applied to the header cell. */
+  className?: string;
 }
 
 interface DataTableProps<T> {
@@ -11,18 +21,46 @@ interface DataTableProps<T> {
   data: T[];
   rowKey: (row: T) => string | number;
   emptyMessage?: string;
+  /**
+   * Pass these together when any column has `sortable: true`. The hook
+   * `useSortableTable` returns the matching shape.
+   */
+  sort?: TableSort;
+  onSort?: (column: string) => void;
 }
 
-import React from 'react';
-
-export function DataTable<T>({ columns, data, rowKey, emptyMessage = 'No data.' }: DataTableProps<T>) {
+export function DataTable<T>({
+  columns,
+  data,
+  rowKey,
+  emptyMessage = 'No data.',
+  sort,
+  onSort,
+}: DataTableProps<T>) {
   return (
     <Table>
       <TableHeader>
         <TableRow>
-          {columns.map((col) => (
-            <TableHead key={col.key}>{col.header}</TableHead>
-          ))}
+          {columns.map((col) => {
+            if (col.sortable && sort && onSort) {
+              return (
+                <SortableTableHead
+                  key={col.key}
+                  column={col.key}
+                  sort={sort}
+                  onSort={onSort}
+                  className={col.className}
+                >
+                  {col.header}
+                </SortableTableHead>
+              );
+            }
+            return (
+              <TableHead key={col.key} className={col.className}>
+                {col.header}
+              </TableHead>
+            );
+          })}
         </TableRow>
       </TableHeader>
       <TableBody>

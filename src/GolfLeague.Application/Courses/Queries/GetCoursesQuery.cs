@@ -5,11 +5,24 @@ using MediatR;
 
 namespace GolfLeague.Application.Courses.Queries;
 
-public sealed record GetCoursesQuery : IRequest<Result<PagedResult<CourseDto>>>;
+public sealed record GetCoursesQuery(SortRequest? Sort = null) : IRequest<Result<PagedResult<CourseDto>>>;
 
 public sealed class GetCoursesQueryHandler : IRequestHandler<GetCoursesQuery, Result<PagedResult<CourseDto>>>
 {
     private readonly ICourseRepository _courseRepository;
+
+    /// <summary>
+    /// Default sort: course name ascending.
+    /// </summary>
+    private static readonly SortMap<CourseDto> SortMap = new SortMap<CourseDto>(
+            source => source.OrderBy(c => c.Name, StringComparer.OrdinalIgnoreCase))
+        .Add("name", c => c.Name)
+        .Add("rating", c => c.Rating)
+        .Add("courseRating", c => c.Rating)
+        .Add("slope", c => c.Slope)
+        .Add("slopeRating", c => c.Slope)
+        .Add("holes", c => c.HoleCount)
+        .Add("holeCount", c => c.HoleCount);
 
     public GetCoursesQueryHandler(ICourseRepository courseRepository)
     {
@@ -32,6 +45,7 @@ public sealed class GetCoursesQueryHandler : IRequestHandler<GetCoursesQuery, Re
                 h.StrokeIndex)).ToList()
         )).ToList();
 
-        return Result<PagedResult<CourseDto>>.Ok(new PagedResult<CourseDto>(dtos, 1, dtos.Count, dtos.Count));
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<PagedResult<CourseDto>>.Ok(new PagedResult<CourseDto>(sorted.ToList(), 1, sorted.Count, sorted.Count));
     }
 }

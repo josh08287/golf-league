@@ -15,11 +15,30 @@ public sealed record RoundParticipantDto(
     bool IsWithdrawn,
     bool SkippedWeek);
 
-public sealed record GetRoundParticipantsQuery(int RoundId) : IRequest<Result<List<RoundParticipantDto>>>;
+public sealed record GetRoundParticipantsQuery(int RoundId, SortRequest? Sort = null)
+    : IRequest<Result<List<RoundParticipantDto>>>;
 
 public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundParticipantsQuery, Result<List<RoundParticipantDto>>>
 {
     private readonly IRoundRepository _roundRepository;
+
+    /// <summary>
+    /// Default sort: flight then player name (the natural scorecard order).
+    /// </summary>
+    private static readonly SortMap<RoundParticipantDto> SortMap = new SortMap<RoundParticipantDto>(
+            source => source.OrderBy(p => p.FlightId).ThenBy(p => p.PlayerName, StringComparer.OrdinalIgnoreCase))
+        .Add("player", p => p.PlayerName)
+        .Add("playerName", p => p.PlayerName)
+        .Add("flight", p => p.FlightId)
+        .Add("flightId", p => p.FlightId)
+        .Add("hcp", p => p.HandicapAtTime)
+        .Add("handicapAtTime", p => p.HandicapAtTime)
+        .Add("courseHcp", p => p.CourseHandicap)
+        .Add("courseHandicap", p => p.CourseHandicap)
+        .Add("withdrawn", p => p.IsWithdrawn)
+        .Add("isWithdrawn", p => p.IsWithdrawn)
+        .Add("skipped", p => p.SkippedWeek)
+        .Add("skippedWeek", p => p.SkippedWeek);
 
     public GetRoundParticipantsQueryHandler(IRoundRepository roundRepository)
     {
@@ -33,9 +52,6 @@ public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundP
             return Result<List<RoundParticipantDto>>.Fail($"Round with ID {request.RoundId} not found.");
 
         var dtos = round.Participants
-            .OrderBy(p => p.FlightId)
-            .ThenBy(p => p.Player.LastName)
-            .ThenBy(p => p.Player.FirstName)
             .Select(p => new RoundParticipantDto(
                 p.Id,
                 p.RoundId,
@@ -48,6 +64,7 @@ public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundP
                 p.SkippedWeek))
             .ToList();
 
-        return Result<List<RoundParticipantDto>>.Ok(dtos);
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<List<RoundParticipantDto>>.Ok(sorted.ToList());
     }
 }

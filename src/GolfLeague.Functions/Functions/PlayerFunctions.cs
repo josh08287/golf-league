@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Interfaces;
@@ -27,8 +28,9 @@ public sealed class PlayerFunctions
     {
         var page = int.TryParse(req.Query["page"], out var p) ? p : 1;
         var pageSize = int.TryParse(req.Query["pageSize"], out var ps) ? ps : 20;
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
 
-        var result = await _mediator.Send(new GetPlayersQuery(page, pageSize), cancellationToken);
+        var result = await _mediator.Send(new GetPlayersQuery(page, pageSize, sort), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -189,7 +191,8 @@ public sealed class PlayerFunctions
         if (!int.TryParse(id, out var playerId))
             return new BadRequestObjectResult(new { error = "Invalid player ID." });
 
-        var result = await _mediator.Send(new GetPlayerRoundsQuery(playerId), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetPlayerRoundsQuery(playerId, sort), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -202,7 +205,8 @@ public sealed class PlayerFunctions
         if (!int.TryParse(id, out var playerId))
             return new BadRequestObjectResult(new { error = "Invalid player ID." });
 
-        var result = await _mediator.Send(new GetHandicapHistoryQuery(playerId), cancellationToken);
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetHandicapHistoryQuery(playerId, sort), cancellationToken);
         return result.ToOkResult();
     }
 

@@ -5,12 +5,27 @@ using MediatR;
 
 namespace GolfLeague.Application.Players.Queries;
 
-public sealed record GetHandicapHistoryQuery(int PlayerId) : IRequest<Result<List<HandicapDto>>>;
+public sealed record GetHandicapHistoryQuery(int PlayerId, SortRequest? Sort = null)
+    : IRequest<Result<List<HandicapDto>>>;
 
 public sealed class GetHandicapHistoryQueryHandler : IRequestHandler<GetHandicapHistoryQuery, Result<List<HandicapDto>>>
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+
+    /// <summary>
+    /// Default sort: most recent effective date first (audit-log style).
+    /// </summary>
+    private static readonly SortMap<HandicapDto> SortMap = new SortMap<HandicapDto>(
+            source => source.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id))
+        .Add("date", h => h.EffectiveDate)
+        .Add("effectiveDate", h => h.EffectiveDate)
+        .Add("source", h => h.Source.ToString())
+        .Add("index", h => h.HandicapIndex)
+        .Add("handicapIndex", h => h.HandicapIndex)
+        .Add("nineHole", h => h.NineHoleHandicapIndex)
+        .Add("nineHoleHandicapIndex", h => h.NineHoleHandicapIndex)
+        .Add("notes", h => h.Notes);
 
     public GetHandicapHistoryQueryHandler(
         IPlayerRepository playerRepository,
@@ -29,7 +44,6 @@ public sealed class GetHandicapHistoryQueryHandler : IRequestHandler<GetHandicap
         var history = await _handicapRepository.GetHistoryAsync(request.PlayerId, cancellationToken);
 
         var dtos = history
-            .OrderByDescending(h => h.EffectiveDate)
             .Select(h => new HandicapDto(
                 h.Id,
                 h.PlayerId,
@@ -40,6 +54,7 @@ public sealed class GetHandicapHistoryQueryHandler : IRequestHandler<GetHandicap
                 h.Notes))
             .ToList();
 
-        return Result<List<HandicapDto>>.Ok(dtos);
+        var sorted = SortMap.Apply(dtos, request.Sort);
+        return Result<List<HandicapDto>>.Ok(sorted.ToList());
     }
 }
