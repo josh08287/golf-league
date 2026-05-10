@@ -88,7 +88,12 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
       </FormField>
 
       {createPlayer.isError && (
-        <p className="text-sm text-red-600">Failed to create player. Please try again.</p>
+        <p className="text-sm text-red-600">
+          {(() => {
+            const err = createPlayer.error as { response?: { data?: { error?: string } }; message?: string };
+            return err?.response?.data?.error ?? err?.message ?? 'Failed to create player. Please try again.';
+          })()}
+        </p>
       )}
 
       <div className="flex justify-end gap-3 pt-2">

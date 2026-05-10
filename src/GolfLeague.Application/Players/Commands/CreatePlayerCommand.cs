@@ -13,7 +13,8 @@ public sealed record CreatePlayerCommand(
     string Email,
     string EntraObjectId,
     double InitialHandicapIndex,
-    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    string UserId,
+    int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
 public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCommand, Result<PlayerDto>>
 {
@@ -54,6 +55,22 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
         };
 
         await _handicapRepository.AddAsync(handicap, cancellationToken);
+
+        if (request.FlightId is int flightId)
+        {
+            try
+            {
+                await _playerRepository.AssignToFlightAsync(player.Id, flightId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Player + handicap are committed. Surface the flight-assignment
+                // error to the caller as a partial success — admin can retry the
+                // assignment from the player edit page.
+                return Result<PlayerDto>.Fail(
+                    $"Player created but flight assignment failed: {ex.Message}");
+            }
+        }
 
         var dto = new PlayerDto(
             player.Id,

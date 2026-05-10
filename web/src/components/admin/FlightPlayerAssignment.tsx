@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api';
 import { usePlayers, playerKeys } from '../../hooks/usePlayers';
 import { Spinner } from '../ui/Spinner';
-import type { Flight, Player } from '../../types/api';
+import type { Flight, Player, PagedResponse } from '../../types/api';
 
 interface FlightPlayerAssignmentProps {
   flights: Flight[];
@@ -30,12 +30,41 @@ export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps)
     const player = players.find((p) => p.id === draggingId);
     if (!player || player.flightId === flightId) return;
 
+    const movedId = draggingId;
+    const newFlight = flightId === null ? null : flights.find((f) => f.id === flightId) ?? null;
+
     setDraggingId(null);
     setOverFlightId(null);
 
-    await apiClient.patch(`/players/${draggingId}`, {
-      flightId: flightId === null ? '' : String(flightId),
-    });
+    // Optimistic update: patch every cached players list so the UI moves the
+    // card instantly. Snapshots let us roll back if the PATCH fails.
+    const snapshots = qc.getQueriesData<PagedResponse<Player>>({ queryKey: playerKeys.lists() });
+    for (const [key, prev] of snapshots) {
+      if (!prev) continue;
+      qc.setQueryData<PagedResponse<Player>>(key, {
+        ...prev,
+        data: prev.data.map((p) =>
+          p.id === movedId
+            ? { ...p, flightId: newFlight?.id ?? null, flightName: newFlight?.name ?? null }
+            : p,
+        ),
+      });
+    }
+
+    try {
+      await apiClient.patch(`/players/${movedId}`, {
+        flightId: flightId === null ? '' : String(flightId),
+      });
+    } catch (err) {
+      // Roll back on failure.
+      for (const [key, prev] of snapshots) {
+        qc.setQueryData(key, prev);
+      }
+      throw err;
+    }
+
+    // Refresh from the server to pick up any server-side changes (e.g.
+    // unique-membership-per-half displacing another row).
     await qc.invalidateQueries({ queryKey: playerKeys.all });
   }
 

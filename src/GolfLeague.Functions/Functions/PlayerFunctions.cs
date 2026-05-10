@@ -63,15 +63,17 @@ public sealed class PlayerFunctions
         var lastName = nameParts.Length > 1 ? nameParts[1] : string.Empty;
         var entraObjectId = body.EntraObjectId ?? Guid.NewGuid().ToString();
 
+        int? flightId = null;
+        if (!string.IsNullOrEmpty(body.FlightId) && int.TryParse(body.FlightId, out var fid))
+            flightId = fid;
+
         var userId = req.GetUserId() ?? "unknown";
-        var command = new CreatePlayerCommand(firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId);
+        var command = new CreatePlayerCommand(
+            firstName, lastName, body.Email, entraObjectId, body.InitialHandicap, userId, flightId);
 
         var result = await _mediator.Send(command, cancellationToken);
         if (!result.IsSuccess)
             return result.ToOkResult();
-
-        if (body.FlightId is not null && int.TryParse(body.FlightId, out var flightId))
-            await _playerRepository.AssignToFlightAsync(result.Value!.Id, flightId, cancellationToken);
 
         return result.ToCreatedResult($"/api/v1/players/{result.Value?.Id}");
     }
