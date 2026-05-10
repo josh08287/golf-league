@@ -114,8 +114,11 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
 
         if (round.Status == RoundStatus.Scheduled)
         {
-            round.Status = RoundStatus.InProgress;
-            await _roundRepository.UpdateAsync(round, cancellationToken);
+            // Use the dedicated status updater so we don't reattach the whole
+            // Round graph (which already has its Participants loaded) on top of
+            // the participant we just tracked via UpdateParticipantAsync — that
+            // would throw a duplicate-key tracking error.
+            await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);
         }
 
         var holeScoreDtos = holeScoreEntities

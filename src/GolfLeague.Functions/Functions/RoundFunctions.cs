@@ -169,8 +169,23 @@ public sealed class RoundFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var holeScores = body.ResolvedScores.Select(h => new HoleScoreInput(h.HoleNumber, h.ResolvedStrokes)).ToList();
-        var result = await _mediator.Send(new SubmitHoleScoresCommand(roundId, playerIdInt, holeScores, userId), cancellationToken);
-        return result.ToOkResult();
+
+        try
+        {
+            var result = await _mediator.Send(new SubmitHoleScoresCommand(roundId, playerIdInt, holeScores, userId), cancellationToken);
+            return result.ToOkResult();
+        }
+        catch (Exception ex)
+        {
+            // Surface the real cause so client-side errors aren't generic 500s.
+            return new ObjectResult(new
+            {
+                error = ex.Message,
+                type = ex.GetType().FullName,
+                inner = ex.InnerException?.Message,
+            })
+            { StatusCode = 500 };
+        }
     }
 
     [Function("SetParticipantSkipped")]

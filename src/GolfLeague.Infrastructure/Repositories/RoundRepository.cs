@@ -1,4 +1,5 @@
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -80,6 +81,15 @@ public sealed class RoundRepository : IRoundRepository
     {
         _context.Rounds.Update(round);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateStatusAsync(int roundId, RoundStatus status, CancellationToken cancellationToken = default)
+    {
+        // Set-based update so we don't reattach the Round graph (Participants
+        // included) and clash with any participant we just tracked.
+        await _context.Rounds
+            .Where(r => r.Id == roundId)
+            .ExecuteUpdateAsync(u => u.SetProperty(r => r.Status, status), cancellationToken);
     }
 
     public async Task DeleteAsync(int roundId, CancellationToken cancellationToken = default)

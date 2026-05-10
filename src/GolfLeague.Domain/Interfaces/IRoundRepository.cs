@@ -1,4 +1,5 @@
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 
 namespace GolfLeague.Domain.Interfaces;
 
@@ -13,6 +14,7 @@ public interface IRoundRepository
     Task<IReadOnlyList<HoleScore>> GetHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
     Task AddAsync(Round round, CancellationToken cancellationToken = default);
     Task UpdateAsync(Round round, CancellationToken cancellationToken = default);
+    Task UpdateStatusAsync(int roundId, RoundStatus status, CancellationToken cancellationToken = default);
     Task DeleteAsync(int roundId, CancellationToken cancellationToken = default);
     Task AddParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
     Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
