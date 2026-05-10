@@ -35,40 +35,14 @@ public sealed class AuthMiddleware : IFunctionsWorkerMiddleware
                         Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerDefaults.AuthenticationScheme);
 
                     if (result.Succeeded && result.Principal is not null)
-                {
-                    var principal = result.Principal;
-                    if (principal.Identity is not null && principal.Identity.IsAuthenticated)
                     {
-                        var entraObjectId = principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                            ?? principal.FindFirst("oid")?.Value
-                            ?? principal.FindFirst("sub")?.Value;
+                        var principal = result.Principal;
 
-                        if (!string.IsNullOrEmpty(entraObjectId))
-                        {
-                            var playerRepo = httpContext.RequestServices
-                                .GetService(typeof(GolfLeague.Domain.Interfaces.IPlayerRepository))
-                                as GolfLeague.Domain.Interfaces.IPlayerRepository;
+                        // Roles come from Entra ID app roles (in the 'roles' claim of the JWT token)
+                        // No need to add database roles - the token already contains the correct roles
 
-                            if (playerRepo is not null)
-                            {
-                                var player = await playerRepo.GetByEntraObjectIdAsync(entraObjectId);
-                                if (player is not null)
-                                {
-                                    var identity = principal.Identity as System.Security.Claims.ClaimsIdentity;
-                                    if (identity is not null)
-                                    {
-                                        var roleClaim = new System.Security.Claims.Claim(
-                                            System.Security.Claims.ClaimTypes.Role,
-                                            player.Role.ToString().ToLowerInvariant());
-                                        identity.AddClaim(roleClaim);
-                                    }
-                                }
-                            }
-                        }
+                        httpContext.User = principal;
                     }
-
-                    httpContext.User = principal;
-                }
                 }
             }
             catch (Exception ex)

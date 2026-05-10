@@ -1,10 +1,12 @@
 using FluentAssertions;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Registrations.Commands;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
 
@@ -163,6 +165,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var adminInvite = MakeInvite(role: PlayerRole.Admin);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
@@ -171,7 +175,10 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-new", default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        entraRoleService.Setup(s => s.AssignRoleAsync("entra-new", "admin", default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand(
             "token-123",
             "entra-new",
@@ -209,6 +216,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var scorerInvite = MakeInvite(role: PlayerRole.Scorer);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-456", default))
@@ -217,7 +226,10 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-scorer", default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        entraRoleService.Setup(s => s.AssignRoleAsync("entra-scorer", "scorer", default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand(
             "token-456",
             "entra-scorer",
@@ -242,6 +254,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var playerInvite = MakeInvite(role: PlayerRole.Player);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-789", default))
@@ -250,7 +264,10 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-player", default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        entraRoleService.Setup(s => s.AssignRoleAsync("entra-player", "player", default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand(
             "token-789",
             "entra-player",
@@ -275,11 +292,13 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         inviteRepo.Setup(r => r.GetByTokenAsync("invalid-token", default))
             .ReturnsAsync((PlayerInvite?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("invalid-token", "entra-1", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -294,12 +313,14 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var revokedInvite = MakeInvite(status: InviteStatus.Revoked);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(revokedInvite);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", "entra-1", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -314,12 +335,14 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var acceptedInvite = MakeInvite(status: InviteStatus.Accepted);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(acceptedInvite);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", "entra-1", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -334,6 +357,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var expiredInvite = new PlayerInvite
         {
@@ -350,7 +375,7 @@ public class AcceptInviteCommandHandlerTests
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(expiredInvite);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", "entra-1", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -365,6 +390,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var validInvite = MakeInvite();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
@@ -375,7 +402,7 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-1", default))
             .ReturnsAsync(existingPlayer);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", "entra-1", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -390,6 +417,8 @@ public class AcceptInviteCommandHandlerTests
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var invite = MakeInvite();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
@@ -398,7 +427,10 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-new", default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object);
+        entraRoleService.Setup(s => s.AssignRoleAsync("entra-new", "player", default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, entraRoleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", "entra-new", "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);

@@ -1,9 +1,11 @@
 using Azure.Communication.Email;
 using GolfLeague.Application.Common;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
 using GolfLeague.Infrastructure.Email;
 using GolfLeague.Infrastructure.Repositories;
+using GolfLeague.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +54,8 @@ public static class DependencyInjection
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
+
+        services.AddSingleton<IEntraRoleService, EntraRoleService>();
 
         var acsConnectionString = configuration["ACS_CONNECTION_STRING"];
         var acsSenderAddress = configuration["ACS_SENDER_ADDRESS"];

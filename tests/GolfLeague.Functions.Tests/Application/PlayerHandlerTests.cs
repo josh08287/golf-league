@@ -1,5 +1,6 @@
 using FluentAssertions;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Entities;
@@ -63,7 +64,8 @@ public class UpdatePlayerCommandHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Player?)null);
         var handicapRepo = new Mock<IHandicapRepository>();
-        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object);
+        var entraRoleService = new Mock<IEntraRoleService>();
+        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, entraRoleService.Object);
 
         var result = await handler.Handle(new UpdatePlayerCommand(99, "J", "D", "e@e.com", "admin"), default);
 
@@ -74,17 +76,20 @@ public class UpdatePlayerCommandHandlerTests
     [Fact]
     public async Task Handle_WhenPlayerFound_UpdatesAndReturnsDto()
     {
-        var player = new Player { Id = 1, FirstName = "Old", LastName = "Name", Email = "old@e.com", FlightMemberships = [] };
+        var player = new Player { Id = 1, FirstName = "Old", LastName = "Name", Email = "old@e.com", FlightMemberships = [], EntraObjectId = "entra-1" };
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
-        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object);
+        var entraRoleService = new Mock<IEntraRoleService>();
+        entraRoleService.Setup(s => s.AssignRoleAsync("entra-1", "admin", default)).ReturnsAsync(GolfLeague.Application.Common.Result<bool>.Ok(true));
+        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, entraRoleService.Object);
 
-        var result = await handler.Handle(new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin"), default);
+        var result = await handler.Handle(new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin", "admin"), default);
 
         result.IsSuccess.Should().BeTrue();
         playerRepo.Verify(r => r.UpdateAsync(It.Is<Player>(p => p.FirstName == "New" && p.Email == "new@e.com"), default), Times.Once);
+        entraRoleService.Verify(s => s.AssignRoleAsync("entra-1", "admin", default), Times.Once);
     }
 }
 

@@ -1,9 +1,11 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Application.Registrations.Commands;
 
@@ -24,15 +26,21 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
     private readonly IHandicapRepository _handicapRepo;
+    private readonly IEntraRoleService _entraRoleService;
+    private readonly ILogger<AcceptInviteCommandHandler> _logger;
 
     public AcceptInviteCommandHandler(
         IInviteRepository inviteRepo,
         IPlayerRepository playerRepo,
-        IHandicapRepository handicapRepo)
+        IHandicapRepository handicapRepo,
+        IEntraRoleService entraRoleService,
+        ILogger<AcceptInviteCommandHandler> logger)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
         _handicapRepo = handicapRepo;
+        _entraRoleService = entraRoleService;
+        _logger = logger;
     }
 
     public async Task<Result<PlayerDto>> Handle(AcceptInviteCommand request, CancellationToken cancellationToken)
@@ -67,6 +75,25 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         };
 
         await _playerRepo.AddAsync(player, cancellationToken);
+
+        // Assign the role in Entra ID (source of truth for authorization)
+        var roleResult = await _entraRoleService.AssignRoleAsync(
+            request.EntraObjectId,
+            invite.Role.ToString().ToLowerInvariant(),
+            cancellationToken);
+
+        if (!roleResult.IsSuccess)
+        {
+            // Log the error but don't fail the invite acceptance
+            // The admin can manually assign the role in Entra ID portal if needed
+            // This handles cases where the user doesn't exist in Entra ID yet
+            // or the service principal doesn't have permission
+            _logger.LogWarning(
+                "Failed to assign role {Role} to user {UserId} in Entra ID: {Error}. Manual assignment may be required.",
+                invite.Role,
+                request.EntraObjectId,
+                roleResult.Error);
+        }
 
         // Placeholder handicap — admin sets the real value in Player Detail
         await _handicapRepo.AddAsync(new Handicap

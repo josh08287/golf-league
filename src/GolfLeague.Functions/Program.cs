@@ -38,6 +38,7 @@ var host = new HostBuilder()
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
+                    RoleClaimType = "roles", // Map Entra ID app roles claim
                 };
             });
 
