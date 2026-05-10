@@ -16,6 +16,6 @@ export function useMyStatus() {
       return res.data;
     },
     enabled: isAuthenticated,
-    staleTime: 30_000,
+    // No staleTime - uses global default (Infinity) to prevent auto-refetch
   });
 }

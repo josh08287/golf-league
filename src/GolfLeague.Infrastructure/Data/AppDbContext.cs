@@ -274,8 +274,8 @@ public sealed class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
             entity.Property(e => e.Token).IsRequired().HasMaxLength(64);
-            entity.Property(e => e.InvitedByUserId).IsRequired().HasMaxLength(36);
-            entity.Property(e => e.AcceptedByEntraObjectId).HasMaxLength(36);
+            entity.Property(e => e.InvitedByUserId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.AcceptedByEntraObjectId).HasMaxLength(128);
             entity.Property(e => e.Status)
                   .HasConversion(
                       v => v.ToString(),
