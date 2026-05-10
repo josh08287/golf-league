@@ -8,15 +8,21 @@ import {
 const TENANT_ID = '8299a09c-bf4e-4d14-aa8c-13afa3c58965';
 const CLIENT_ID = import.meta.env.VITE_ENTRA_CLIENT_ID as string;
 const REDIRECT_URI = (import.meta.env.VITE_REDIRECT_URI as string | undefined) ?? 'http://localhost:5173';
+const CIAM_DOMAIN = (import.meta.env.VITE_CIAM_DOMAIN as string | undefined); // e.g., "golfleague.ciamlogin.com"
 
 // The API scope is on the mobile client registration — used for acquiring tokens
 // that the Azure Functions API will validate.
 const API_SCOPE = 'api://39dca729-4792-4830-8b72-5441fbe31c2b/access';
 
+// Use CIAM authority if configured (for External ID tenants), otherwise fallback to standard
+const authority = CIAM_DOMAIN
+  ? `https://${CIAM_DOMAIN}/${TENANT_ID}/v2.0`
+  : `https://login.microsoftonline.com/${TENANT_ID}/v2.0`;
+
 export const msalConfig: Configuration = {
   auth: {
     clientId: CLIENT_ID,
-    authority: `https://login.microsoftonline.com/${TENANT_ID}/v2.0`,
+    authority,
     redirectUri: REDIRECT_URI,
     postLogoutRedirectUri: REDIRECT_URI,
     navigateToLoginRequestUrl: true,
