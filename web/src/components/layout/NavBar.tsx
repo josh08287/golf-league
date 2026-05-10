@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, User } from 'lucide-react';
-import { useMsal, useIsAuthenticated } from '@azure/msal-react';
+import { useMsal } from '@azure/msal-react';
 import { useAuthStore } from '@/store/authStore';
 import { useInvites } from '@/hooks/admin/useInvites';
 import { Button } from '@/components/ui/Button';
@@ -19,7 +19,6 @@ export function NavBar() {
   const { instance } = useMsal();
   const { user, clearUser } = useAuthStore();
   const navigate = useNavigate();
-  const isAuthenticated = useIsAuthenticated();
 
   // Pending invite count for admin badge — only fetched when admin is logged in
   const { data: invites } = useInvites();
@@ -93,11 +92,6 @@ export function NavBar() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              {!isAuthenticated && (
-                <Button variant="outline" size="sm" onClick={() => navigate('/login')}>
-                  Join League
-                </Button>
-              )}
               <Button size="sm" onClick={handleLogin}>
                 Sign in
               </Button>

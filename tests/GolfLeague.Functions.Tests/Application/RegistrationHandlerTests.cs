@@ -175,6 +175,8 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-new", default))
             .ReturnsAsync((Player?)null);
 
+        entraRoleService.Setup(s => s.EnsureUserExistsAsync("john@example.com", "John Doe", default))
+            .ReturnsAsync(Result<string>.Ok("entra-new"));
         entraRoleService.Setup(s => s.AssignRoleAsync("entra-new", "admin", default))
             .ReturnsAsync(Result<bool>.Ok(true));
 
@@ -226,6 +228,8 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-scorer", default))
             .ReturnsAsync((Player?)null);
 
+        entraRoleService.Setup(s => s.EnsureUserExistsAsync("jane@example.com", "Jane Smith", default))
+            .ReturnsAsync(Result<string>.Ok("entra-scorer"));
         entraRoleService.Setup(s => s.AssignRoleAsync("entra-scorer", "scorer", default))
             .ReturnsAsync(Result<bool>.Ok(true));
 
@@ -264,6 +268,8 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-player", default))
             .ReturnsAsync((Player?)null);
 
+        entraRoleService.Setup(s => s.EnsureUserExistsAsync("bob@example.com", "Bob Johnson", default))
+            .ReturnsAsync(Result<string>.Ok("entra-player"));
         entraRoleService.Setup(s => s.AssignRoleAsync("entra-player", "player", default))
             .ReturnsAsync(Result<bool>.Ok(true));
 
@@ -427,6 +433,8 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByEntraObjectIdAsync("entra-new", default))
             .ReturnsAsync((Player?)null);
 
+        entraRoleService.Setup(s => s.EnsureUserExistsAsync("john@example.com", "John Doe", default))
+            .ReturnsAsync(Result<string>.Ok("entra-new"));
         entraRoleService.Setup(s => s.AssignRoleAsync("entra-new", "player", default))
             .ReturnsAsync(Result<bool>.Ok(true));
 

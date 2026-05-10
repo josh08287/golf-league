@@ -1,16 +1,31 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useIsAuthenticated } from '@azure/msal-react';
+import { useIsAuthenticated, useMsal } from '@azure/msal-react';
+import { InteractionStatus } from '@azure/msal-browser';
 import { msalInstance, loginRequest } from '@/lib/msalConfig';
 import { Button } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Spinner';
 
 export function LoginPage() {
   const isAuthenticated = useIsAuthenticated();
+  const { inProgress } = useMsal();
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/', { replace: true });
-  }, [isAuthenticated, navigate]);
+    // Only redirect after MSAL has finished processing any pending redirect
+    if (inProgress === InteractionStatus.None && isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, inProgress, navigate]);
+
+  // Show loading spinner while MSAL is processing the redirect from external identity providers
+  if (inProgress !== InteractionStatus.None) {
+    return (
+      <div className="flex min-h-[70vh] items-center justify-center">
+        <Spinner />
+      </div>
+    );
+  }
 
   function handleSignIn() {
     void msalInstance.loginRedirect(loginRequest);

@@ -31,4 +31,14 @@ public interface IEntraRoleService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of role names assigned to the user</returns>
     Task<Result<List<string>>> GetUserRolesAsync(string userObjectId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Ensures a user exists in the Entra ID tenant. For external users (Google, etc.),
+    /// this invites them to the tenant. Returns the user's object ID.
+    /// </summary>
+    /// <param name="email">User's email address</param>
+    /// <param name="displayName">User's display name</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>The Entra ID object ID of the user</returns>
+    Task<Result<string>> EnsureUserExistsAsync(string email, string displayName, CancellationToken cancellationToken = default);
 }

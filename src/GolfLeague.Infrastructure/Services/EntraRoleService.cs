@@ -204,4 +204,75 @@ public sealed class EntraRoleService : IEntraRoleService
             return Result<List<string>>.Fail($"Failed to get roles: {ex.Message}");
         }
     }
+
+    public async Task<Result<string>> EnsureUserExistsAsync(
+        string email,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // First, try to find the user by email
+            var users = await _graphClient.Users
+                .GetAsync(config =>
+                {
+                    config.QueryParameters.Filter = $"mail eq '{email}' or userPrincipalName eq '{email}'";
+                    config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
+                }, cancellationToken);
+
+            var existingUser = users?.Value?.FirstOrDefault();
+            if (existingUser?.Id is not null)
+            {
+                _logger.LogDebug("Found existing user {Email} with ID {UserId}", email, existingUser.Id);
+                return Result<string>.Ok(existingUser.Id);
+            }
+
+            // If not found by email, try to find by userPrincipalName with common domains
+            var upn = email.ToLowerInvariant();
+            users = await _graphClient.Users
+                .GetAsync(config =>
+                {
+                    config.QueryParameters.Filter = $"userPrincipalName eq '{upn}'";
+                    config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
+                }, cancellationToken);
+
+            existingUser = users?.Value?.FirstOrDefault();
+            if (existingUser?.Id is not null)
+            {
+                _logger.LogDebug("Found existing user by UPN {Email} with ID {UserId}", email, existingUser.Id);
+                return Result<string>.Ok(existingUser.Id);
+            }
+
+            // User doesn't exist - create an invitation
+            _logger.LogInformation("User {Email} not found in tenant, creating invitation", email);
+
+            var invitation = new Invitation
+            {
+                InvitedUserEmailAddress = email,
+                InvitedUserDisplayName = displayName,
+                InviteRedirectUrl = "https://golf-league.azurewebsites.net", // Main app URL
+                SendInvitationMessage = false, // Don't send email, user is already signing up
+            };
+
+            var invitedUser = await _graphClient.Invitations
+                .PostAsync(invitation, cancellationToken: cancellationToken);
+
+            if (invitedUser?.InvitedUser?.Id is null)
+            {
+                return Result<string>.Fail("Failed to create invitation for user.");
+            }
+
+            _logger.LogInformation(
+                "Created invitation for user {Email} with ID {UserId}",
+                email,
+                invitedUser.InvitedUser.Id);
+
+            return Result<string>.Ok(invitedUser.InvitedUser.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to ensure user exists for {Email}", email);
+            return Result<string>.Fail($"Failed to ensure user exists: {ex.Message}");
+        }
+    }
 }

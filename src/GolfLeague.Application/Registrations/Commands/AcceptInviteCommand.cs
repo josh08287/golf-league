@@ -76,9 +76,31 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
 
         await _playerRepo.AddAsync(player, cancellationToken);
 
+        // Ensure user exists in Entra ID (important for external identity providers like Google)
+        // The user may have signed in via federation but not be fully provisioned in the tenant
+        var ensureUserResult = await _entraRoleService.EnsureUserExistsAsync(
+            request.Email,
+            $"{request.FirstName} {request.LastName}",
+            cancellationToken);
+
+        string userObjectId;
+        if (ensureUserResult.IsSuccess)
+        {
+            userObjectId = ensureUserResult.Value!;
+            _logger.LogInformation("User {Email} exists in Entra ID with object ID {UserId}", request.Email, userObjectId);
+        }
+        else
+        {
+            // Fall back to the EntraObjectId from the token if EnsureUserExists fails
+            _logger.LogWarning(
+                "Could not verify user exists in Entra ID: {Error}. Falling back to token object ID.",
+                ensureUserResult.Error);
+            userObjectId = request.EntraObjectId;
+        }
+
         // Assign the role in Entra ID (source of truth for authorization)
         var roleResult = await _entraRoleService.AssignRoleAsync(
-            request.EntraObjectId,
+            userObjectId,
             invite.Role.ToString().ToLowerInvariant(),
             cancellationToken);
 
@@ -86,12 +108,10 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         {
             // Log the error but don't fail the invite acceptance
             // The admin can manually assign the role in Entra ID portal if needed
-            // This handles cases where the user doesn't exist in Entra ID yet
-            // or the service principal doesn't have permission
             _logger.LogWarning(
                 "Failed to assign role {Role} to user {UserId} in Entra ID: {Error}. Manual assignment may be required.",
                 invite.Role,
-                request.EntraObjectId,
+                userObjectId,
                 roleResult.Error);
         }
 
