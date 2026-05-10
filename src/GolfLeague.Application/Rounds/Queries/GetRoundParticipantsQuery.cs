@@ -12,7 +12,8 @@ public sealed record RoundParticipantDto(
     int FlightId,
     double HandicapAtTime,
     int CourseHandicap,
-    bool IsWithdrawn);
+    bool IsWithdrawn,
+    bool SkippedWeek);
 
 public sealed record GetRoundParticipantsQuery(int RoundId) : IRequest<Result<List<RoundParticipantDto>>>;
 
@@ -43,7 +44,8 @@ public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundP
                 p.FlightId,
                 p.HandicapIndex,
                 p.CourseHandicap,
-                p.IsWithdrawn))
+                p.IsWithdrawn,
+                p.SkippedWeek))
             .ToList();
 
         return Result<List<RoundParticipantDto>>.Ok(dtos);

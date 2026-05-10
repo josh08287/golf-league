@@ -37,6 +37,7 @@ public sealed class HandicapRepository : IHandicapRepository
             .Where(rp =>
                 rp.PlayerId == playerId &&
                 !rp.IsWithdrawn &&
+                !rp.SkippedWeek &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized)
             .OrderByDescending(rp => rp.Round.RoundDate)

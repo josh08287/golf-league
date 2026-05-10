@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useRound } from '../../hooks/useRounds';
-import { useSubmitHoleScores } from '../../hooks/admin/useRoundMutations';
+import { useSubmitHoleScores, useSetParticipantSkipped } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
@@ -151,6 +151,7 @@ export function ScoreEntryPage() {
   });
 
   const submitScores = useSubmitHoleScores(roundId);
+  const setSkipped = useSetParticipantSkipped(roundId);
 
   const [scores, setScores] = useState<ScoreGrid>({});
   const [submitting, setSubmitting] = useState(false);
@@ -200,7 +201,9 @@ export function ScoreEntryPage() {
   }
 
   async function handleSubmitAll() {
+    // Skipped players don't need scores entered. Validate everyone else.
     for (const p of participants) {
+      if (p.skippedWeek) continue;
       for (const h of holes) {
         const v = scores[String(p.playerId)]?.[h];
         if (v === '' || v === undefined) {
@@ -215,6 +218,7 @@ export function ScoreEntryPage() {
 
     try {
       for (const p of participants) {
+        if (p.skippedWeek) continue;
         await submitScores.mutateAsync({
           playerId: p.playerId,
           scores: holes.map((h) => ({
@@ -229,6 +233,24 @@ export function ScoreEntryPage() {
       setSubmitError('Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleToggleSkipped(playerId: number, currentlySkipped: boolean) {
+    setSubmitError(null);
+    try {
+      await setSkipped.mutateAsync({ playerId, skipped: !currentlySkipped });
+      // If newly skipped, clear any local draft entries for this player so
+      // the inputs don't continue to show stale numbers after server reset.
+      if (!currentlySkipped) {
+        setScores((prev) => {
+          const next = { ...prev };
+          delete next[String(playerId)];
+          return next;
+        });
+      }
+    } catch {
+      setSubmitError('Failed to update skip status. Please try again.');
     }
   }
 
@@ -321,21 +343,48 @@ export function ScoreEntryPage() {
                 return sum + (typeof v === 'number' ? v : 0);
               }, 0);
               const courseHandicap = participant.courseHandicap;
+              const skipped = participant.skippedWeek;
 
               return (
                 <Fragment key={participant.playerId}>
-                  <tr className="hover:bg-gray-50/50">
-                    <td className="sticky left-0 z-10 bg-white px-3 py-2">
-                      <div className="font-medium text-gray-900">{participant.playerName}</div>
-                      <div className="text-xs text-gray-400">
-                        HCP {participant.handicapAtTime} · CH {courseHandicap}
+                  <tr className={skipped ? 'bg-gray-50' : 'hover:bg-gray-50/50'}>
+                    <td
+                      className="sticky left-0 z-10 px-3 py-2"
+                      style={{ background: skipped ? '#F9FAFB' : 'white' }}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <div className={`font-medium ${skipped ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
+                            {participant.playerName}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            HCP {participant.handicapAtTime} · CH {courseHandicap}
+                          </div>
+                        </div>
+                        {!isFinalized && (
+                          <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={skipped}
+                              onChange={() => void handleToggleSkipped(participant.playerId, skipped)}
+                              disabled={setSkipped.isPending}
+                              className="h-3.5 w-3.5 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]"
+                            />
+                            Skip
+                          </label>
+                        )}
                       </div>
+                      {skipped && (
+                        <div className="mt-1 text-[11px] font-medium text-amber-700">
+                          Skipped — 0 pts, no handicap impact
+                        </div>
+                      )}
                     </td>
                     {holes.map((h, hi) => (
                       <td key={h} className="px-1 py-2">
                         <ScoreCell
-                          value={playerScores[h] ?? ''}
-                          readonly={isFinalized}
+                          value={skipped ? '' : (playerScores[h] ?? '')}
+                          readonly={isFinalized || skipped}
                           onChange={(v: number | '') => handleScoreChange(String(participant.playerId), h, v)}
                           onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => handleKeyDown(e, pi, hi)}
                           inputRef={(el: HTMLInputElement | null) => {
@@ -346,30 +395,34 @@ export function ScoreEntryPage() {
                       </td>
                     ))}
                     <td className="px-3 py-2 text-center font-semibold text-gray-700">
-                      {grossTotal > 0 ? grossTotal : '—'}
+                      {skipped ? '—' : grossTotal > 0 ? grossTotal : '—'}
                     </td>
                   </tr>
 
-                  <DerivedStablefordRow
-                    label="Gross Stableford"
-                    scores={playerScores}
-                    courseHandicap={courseHandicap}
-                    strokeIndexes={strokeIndexes}
-                    pars={pars}
-                    holes={holes}
-                    mode="gross"
-                    rowClass="bg-blue-50/60 text-blue-800"
-                  />
-                  <DerivedStablefordRow
-                    label="Net Stableford"
-                    scores={playerScores}
-                    courseHandicap={courseHandicap}
-                    strokeIndexes={strokeIndexes}
-                    pars={pars}
-                    holes={holes}
-                    mode="net"
-                    rowClass="bg-green-50 text-[#1B5E20]"
-                  />
+                  {!skipped && (
+                    <>
+                      <DerivedStablefordRow
+                        label="Gross Stableford"
+                        scores={playerScores}
+                        courseHandicap={courseHandicap}
+                        strokeIndexes={strokeIndexes}
+                        pars={pars}
+                        holes={holes}
+                        mode="gross"
+                        rowClass="bg-blue-50/60 text-blue-800"
+                      />
+                      <DerivedStablefordRow
+                        label="Net Stableford"
+                        scores={playerScores}
+                        courseHandicap={courseHandicap}
+                        strokeIndexes={strokeIndexes}
+                        pars={pars}
+                        holes={holes}
+                        mode="net"
+                        rowClass="bg-green-50 text-[#1B5E20]"
+                      />
+                    </>
+                  )}
                 </Fragment>
               );
             })}

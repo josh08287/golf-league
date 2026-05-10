@@ -71,7 +71,8 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
             participant.TotalNetStrokes,
             participant.TotalGrossStablefordPoints,
             participant.TotalNetStablefordPoints,
-            participant.IsWithdrawn);
+            participant.IsWithdrawn,
+            participant.SkippedWeek);
 
         var dto = new ScorecardDto(
             round.Id,

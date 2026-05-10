@@ -173,6 +173,30 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("SetParticipantSkipped")]
+    public async Task<IActionResult> SetParticipantSkipped(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{id}/participants/{playerId}/skip")] HttpRequest req,
+        string id,
+        string playerId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("scorer", "admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId) || !int.TryParse(playerId, out var playerIdInt))
+            return new BadRequestObjectResult(new { error = "Invalid ID." });
+
+        var body = await req.TryDeserializeAsync<SetSkippedRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SetParticipantSkippedCommand(roundId, playerIdInt, body.Skipped, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("DeleteRound")]
     public async Task<IActionResult> DeleteRound(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/rounds/{id}")] HttpRequest req,
@@ -223,6 +247,8 @@ public sealed class RoundFunctions
         var result = await _mediator.Send(new CancelRoundCommand(roundId, userId), cancellationToken);
         return result.ToOkResult();
     }
+
+    private sealed record SetSkippedRequest(bool Skipped);
 
     private sealed record CreateRoundRequest(
         int HalfId,

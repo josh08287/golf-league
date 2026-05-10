@@ -45,6 +45,21 @@ export function useSubmitHoleScores(roundId: string) {
   });
 }
 
+export function useSetParticipantSkipped(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ playerId, skipped }: { playerId: number | string; skipped: boolean }) =>
+      apiClient
+        .post(`/rounds/${roundId}/participants/${playerId}/skip`, { skipped })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rounds', roundId, 'participants'] });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.scorecards(roundId) });
+    },
+  });
+}
+
 export function useFinalizeRound(roundId: string) {
   const qc = useQueryClient();
   return useMutation({

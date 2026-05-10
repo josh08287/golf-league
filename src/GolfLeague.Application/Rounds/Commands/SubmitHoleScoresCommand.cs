@@ -48,6 +48,9 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (participant.IsWithdrawn)
             return Result<ScorecardDto>.Fail($"Player {request.PlayerId} has withdrawn from round {request.RoundId}.");
 
+        if (participant.SkippedWeek)
+            return Result<ScorecardDto>.Fail($"Player {request.PlayerId} is marked as skipping round {request.RoundId}. Clear the skip flag before entering scores.");
+
         var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
         var player = await _playerRepository.GetByIdAsync(request.PlayerId, cancellationToken);
@@ -143,7 +146,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             participant.TotalNetStrokes,
             participant.TotalGrossStablefordPoints,
             participant.TotalNetStablefordPoints,
-            participant.IsWithdrawn);
+            participant.IsWithdrawn,
+            participant.SkippedWeek);
 
         var scorecard = new ScorecardDto(
             round.Id,

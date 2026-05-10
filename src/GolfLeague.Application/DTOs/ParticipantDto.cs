@@ -13,4 +13,5 @@ public sealed record ParticipantDto(
     int? TotalNetStrokes,
     int? TotalGrossStablefordPoints,
     int? TotalNetStablefordPoints,
-    bool IsWithdrawn);
+    bool IsWithdrawn,
+    bool SkippedWeek);

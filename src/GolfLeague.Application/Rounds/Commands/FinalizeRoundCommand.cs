@@ -48,7 +48,7 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         round.Status = RoundStatus.Finalized;
         await _roundRepository.UpdateAsync(round, cancellationToken);
 
-        foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && p.TotalGrossStrokes.HasValue))
+        foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.TotalGrossStrokes.HasValue))
         {
             // 9-hole differential — combined into the WHS calc once we have a paired round.
             var diff = NineHoleScoreDifferential(
