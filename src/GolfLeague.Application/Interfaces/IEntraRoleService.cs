@@ -38,7 +38,8 @@ public interface IEntraRoleService
     /// </summary>
     /// <param name="email">User's email address</param>
     /// <param name="displayName">User's display name</param>
+    /// <param name="entraObjectId">User's Entra ID object ID (from JWT token oid claim) if known</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>The Entra ID object ID of the user</returns>
-    Task<Result<string>> EnsureUserExistsAsync(string email, string displayName, CancellationToken cancellationToken = default);
+    Task<Result<string>> EnsureUserExistsAsync(string email, string displayName, string? entraObjectId = null, CancellationToken cancellationToken = default);
 }

@@ -66,6 +66,11 @@ apiClient.interceptors.response.use(
       }
     }
 
+    // Don't redirect if already on login page to prevent loops
+    if (window.location.pathname === '/login') {
+      return Promise.reject(error);
+    }
+
     await msalInstance.loginRedirect(tokenRequest);
     return Promise.reject(error);
   },

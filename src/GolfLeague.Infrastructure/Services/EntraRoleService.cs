@@ -252,66 +252,81 @@ public sealed class EntraRoleService : IEntraRoleService
     public async Task<Result<string>> EnsureUserExistsAsync(
         string email,
         string displayName,
+        string? entraObjectId = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            // First, try to find the user by email
-            var users = await _graphClient.Users
-                .GetAsync(config =>
+            // If we have the Entra Object ID (from JWT token), try to get the user directly
+            // This is the most reliable way for users who just signed in via Google federation
+            if (!string.IsNullOrEmpty(entraObjectId))
+            {
+                try
                 {
-                    config.QueryParameters.Filter = $"mail eq '{email}' or userPrincipalName eq '{email}'";
-                    config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
-                }, cancellationToken);
+                    var userById = await _graphClient.Users[entraObjectId]
+                        .GetAsync(config =>
+                        {
+                            config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
+                        }, cancellationToken);
 
-            var existingUser = users?.Value?.FirstOrDefault();
-            if (existingUser?.Id is not null)
-            {
-                _logger.LogDebug("Found existing user {Email} with ID {UserId}", email, existingUser.Id);
-                return Result<string>.Ok(existingUser.Id);
-            }
-
-            // If not found by email, try to find by userPrincipalName with common domains
-            var upn = email.ToLowerInvariant();
-            users = await _graphClient.Users
-                .GetAsync(config =>
+                    if (userById?.Id is not null)
+                    {
+                        _logger.LogDebug("Found existing user by Object ID {UserId}", entraObjectId);
+                        return Result<string>.Ok(userById.Id);
+                    }
+                }
+                catch (ODataError ex) when (ex.ResponseStatusCode == 404)
                 {
-                    config.QueryParameters.Filter = $"userPrincipalName eq '{upn}'";
-                    config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
-                }, cancellationToken);
-
-            existingUser = users?.Value?.FirstOrDefault();
-            if (existingUser?.Id is not null)
-            {
-                _logger.LogDebug("Found existing user by UPN {Email} with ID {UserId}", email, existingUser.Id);
-                return Result<string>.Ok(existingUser.Id);
+                    _logger.LogDebug("User with Object ID {UserId} not found directly, trying email lookup", entraObjectId);
+                }
             }
 
-            // User doesn't exist - create an invitation
-            _logger.LogInformation("User {Email} not found in tenant, creating invitation", email);
+            // Try to find the user by email (with retries for eventual consistency)
+            const int maxRetries = 3;
+            const int delayMs = 2000;
 
-            var invitation = new Invitation
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                InvitedUserEmailAddress = email,
-                InvitedUserDisplayName = displayName,
-                InviteRedirectUrl = "https://golf-league.azurewebsites.net", // Main app URL
-                SendInvitationMessage = false, // Don't send email, user is already signing up
-            };
+                // Try by mail or userPrincipalName
+                var users = await _graphClient.Users
+                    .GetAsync(config =>
+                    {
+                        config.QueryParameters.Filter = $"mail eq '{email}' or userPrincipalName eq '{email}'";
+                        config.QueryParameters.Select = ["id", "displayName", "mail", "userPrincipalName"];
+                    }, cancellationToken);
 
-            var invitedUser = await _graphClient.Invitations
-                .PostAsync(invitation, cancellationToken: cancellationToken);
+                var existingUser = users?.Value?.FirstOrDefault();
+                if (existingUser?.Id is not null)
+                {
+                    _logger.LogDebug("Found existing user {Email} with ID {UserId} on attempt {Attempt}",
+                        email, existingUser.Id, attempt);
+                    return Result<string>.Ok(existingUser.Id);
+                }
 
-            if (invitedUser?.InvitedUser?.Id is null)
-            {
-                return Result<string>.Fail("Failed to create invitation for user.");
+                // If we have the entraObjectId, the user should exist but might not be queryable yet
+                // Wait and retry for eventual consistency
+                if (!string.IsNullOrEmpty(entraObjectId) && attempt < maxRetries)
+                {
+                    _logger.LogDebug("User not found by email on attempt {Attempt}, waiting for eventual consistency...", attempt);
+                    await Task.Delay(delayMs, cancellationToken);
+                }
+                else if (attempt < maxRetries)
+                {
+                    await Task.Delay(delayMs, cancellationToken);
+                }
             }
 
-            _logger.LogInformation(
-                "Created invitation for user {Email} with ID {UserId}",
+            // User doesn't exist - this shouldn't happen for Google federation users
+            // but if it does, log an error rather than creating an invitation
+            _logger.LogError(
+                "User {Email} with Object ID {UserId} not found in tenant after {MaxRetries} attempts. " +
+                "This may indicate the external identity provider (Google) federation is not properly configured.",
                 email,
-                invitedUser.InvitedUser.Id);
+                entraObjectId ?? "unknown",
+                maxRetries);
 
-            return Result<string>.Ok(invitedUser.InvitedUser.Id);
+            return Result<string>.Fail(
+                $"User not found in Entra ID tenant. If using Google sign-in, ensure the external identity provider is properly configured.");
         }
         catch (Exception ex)
         {

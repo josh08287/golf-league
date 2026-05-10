@@ -77,26 +77,27 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         await _playerRepo.AddAsync(player, cancellationToken);
 
         // Ensure user exists in Entra ID (important for external identity providers like Google)
-        // The user may have signed in via federation but not be fully provisioned in the tenant
+        // The user may have signed in via federation but not be immediately queryable in the tenant
+        // Pass the EntraObjectId from the JWT token so we can look them up directly
         var ensureUserResult = await _entraRoleService.EnsureUserExistsAsync(
             request.Email,
             $"{request.FirstName} {request.LastName}",
+            request.EntraObjectId,
             cancellationToken);
 
-        string userObjectId;
-        if (ensureUserResult.IsSuccess)
+        if (!ensureUserResult.IsSuccess)
         {
-            userObjectId = ensureUserResult.Value!;
-            _logger.LogInformation("User {Email} exists in Entra ID with object ID {UserId}", request.Email, userObjectId);
-        }
-        else
-        {
-            // Fall back to the EntraObjectId from the token if EnsureUserExists fails
-            _logger.LogWarning(
-                "Could not verify user exists in Entra ID: {Error}. Falling back to token object ID.",
+            _logger.LogError(
+                "Failed to verify user exists in Entra ID: {Error}",
                 ensureUserResult.Error);
-            userObjectId = request.EntraObjectId;
+            return Result<PlayerDto>.Fail($"User verification failed: {ensureUserResult.Error}");
         }
+
+        var userObjectId = ensureUserResult.Value!;
+        _logger.LogInformation(
+            "User {Email} verified in Entra ID with object ID {UserId}",
+            request.Email,
+            userObjectId);
 
         // Assign the role in Entra ID (source of truth for authorization)
         var roleResult = await _entraRoleService.AssignRoleAsync(
@@ -106,14 +107,19 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
 
         if (!roleResult.IsSuccess)
         {
-            // Log the error but don't fail the invite acceptance
-            // The admin can manually assign the role in Entra ID portal if needed
-            _logger.LogWarning(
-                "Failed to assign role {Role} to user {UserId} in Entra ID: {Error}. Manual assignment may be required.",
+            _logger.LogError(
+                "Failed to assign role {Role} to user {UserId} in Entra ID: {Error}",
                 invite.Role,
                 userObjectId,
                 roleResult.Error);
+            // Return error so frontend knows role assignment failed
+            return Result<PlayerDto>.Fail($"Role assignment failed: {roleResult.Error}");
         }
+
+        _logger.LogInformation(
+            "Successfully assigned role {Role} to user {UserId} in Entra ID",
+            invite.Role,
+            userObjectId);
 
         // Placeholder handicap — admin sets the real value in Player Detail
         await _handicapRepo.AddAsync(new Handicap

@@ -56,7 +56,13 @@ export function AcceptInvitePage() {
   });
 
   useEffect(() => {
-    if (accept.isSuccess) navigate('/', { replace: true });
+    if (accept.isSuccess) {
+      // Small delay to ensure auth state is settled before navigation
+      const timer = setTimeout(() => {
+        navigate('/', { replace: true });
+      }, 100);
+      return () => clearTimeout(timer);
+    }
   }, [accept.isSuccess, navigate]);
 
   if (!token) {
