@@ -88,14 +88,8 @@ export function LoginPage() {
           >
             Sign in with Google
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => void startExternalLogin('facebook')}
-          >
-            Sign in with Facebook
-          </Button>
+          {/* Facebook sign-in disabled in UI; backend support remains so the
+              button can be re-added later without touching server code. */}
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400">

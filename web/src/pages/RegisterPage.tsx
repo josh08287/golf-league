@@ -138,14 +138,8 @@ export function RegisterPage() {
           >
             Continue with Google
           </Button>
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={() => void startExternalLogin('facebook')}
-          >
-            Continue with Facebook
-          </Button>
+          {/* Facebook sign-in disabled in UI; backend support remains so the
+              button can be re-added later without touching server code. */}
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-400">
