@@ -939,7 +939,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Player", "PreLinkedPlayer")
                         .WithMany()
                         .HasForeignKey("PreLinkedPlayerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Player");
 

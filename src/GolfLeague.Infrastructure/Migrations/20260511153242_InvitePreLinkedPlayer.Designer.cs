@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfLeague.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260511152005_InvitePreLinkedPlayer")]
+    [Migration("20260511153242_InvitePreLinkedPlayer")]
     partial class InvitePreLinkedPlayer
     {
         /// <inheritdoc />
@@ -942,7 +942,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.Player", "PreLinkedPlayer")
                         .WithMany()
                         .HasForeignKey("PreLinkedPlayerId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Player");
 

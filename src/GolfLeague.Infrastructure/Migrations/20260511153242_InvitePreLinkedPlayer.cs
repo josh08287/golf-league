@@ -26,8 +26,7 @@ namespace GolfLeague.Infrastructure.Migrations
                 table: "PlayerInvites",
                 column: "PreLinkedPlayerId",
                 principalTable: "Players",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
         }
 
         /// <inheritdoc />

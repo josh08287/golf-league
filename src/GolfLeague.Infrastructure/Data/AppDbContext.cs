@@ -299,12 +299,17 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.SetNull);
-            // SetNull on the pre-link so deleting the chosen Player doesn't
-            // cascade-delete the invite. Admin can then pick a different one.
+            // NoAction (instead of SetNull) because PlayerInvites already has
+            // another nullable FK to Players (PlayerId) configured as SetNull.
+            // SQL Server refuses multiple cascade / set-null paths to the
+            // same target (error 1785), so this second FK blocks Player
+            // deletes when an invite still references the row — admin must
+            // revoke or delete the invite first. That's the safer behavior
+            // anyway.
             entity.HasOne(e => e.PreLinkedPlayer)
                   .WithMany()
                   .HasForeignKey(e => e.PreLinkedPlayerId)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
         });
     }
 
