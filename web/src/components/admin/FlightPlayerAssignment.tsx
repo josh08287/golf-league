@@ -11,7 +11,9 @@ interface FlightPlayerAssignmentProps {
 
 export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps) {
   const qc = useQueryClient();
-  const { data: playersPage, isLoading } = usePlayers();
+  // Fetch the full roster in one page so drag-and-drop sees every player,
+  // not just the first 20. Large size handles any realistic league size.
+  const { data: playersPage, isLoading } = usePlayers(1, undefined, 1000);
   const players = playersPage?.data ?? [];
 
   const [draggingId, setDraggingId] = useState<number | null>(null);

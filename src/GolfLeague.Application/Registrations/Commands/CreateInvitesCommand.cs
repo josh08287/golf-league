@@ -18,7 +18,8 @@ public sealed record CreateInvitesCommand(
     string AdminUserId,
     string BaseUrl,
     int ExpiryDays = 7,
-    string Role = "player") : IRequest<Result<CreateInvitesResult>>, IAmAuditableCommand
+    string Role = "player",
+    int? PreLinkedPlayerId = null) : IRequest<Result<CreateInvitesResult>>, IAmAuditableCommand
 {
     public string UserId => AdminUserId;
 }
@@ -50,6 +51,24 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
             .Distinct()
             .ToList();
 
+        // Pre-link only makes sense for a single invite — a single Player
+        // can only be attached to one AppUser.
+        if (request.PreLinkedPlayerId is not null && normalised.Count != 1)
+        {
+            return Result<CreateInvitesResult>.Fail(
+                "Pre-attaching a player only works for a single-email invite.");
+        }
+
+        // Validate the pre-linked Player exists and is still unlinked.
+        if (request.PreLinkedPlayerId is int prelinkId)
+        {
+            var prelinkPlayer = await _playerRepo.GetByIdAsync(prelinkId, cancellationToken);
+            if (prelinkPlayer is null)
+                return Result<CreateInvitesResult>.Fail("The selected player no longer exists.");
+            if (prelinkPlayer.AppUserId is not null)
+                return Result<CreateInvitesResult>.Fail("The selected player is already linked to a user account.");
+        }
+
         foreach (var email in normalised)
         {
             // Skip if a pending invite already exists for this email
@@ -78,7 +97,8 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 InvitedByUserId = request.AdminUserId,
                 Role = Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role)
                     ? role
-                    : Domain.Enums.PlayerRole.Player
+                    : Domain.Enums.PlayerRole.Player,
+                PreLinkedPlayerId = request.PreLinkedPlayerId,
             });
         }
 

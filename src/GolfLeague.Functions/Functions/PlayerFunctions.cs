@@ -1,4 +1,6 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Interfaces;
@@ -14,11 +16,16 @@ public sealed class PlayerFunctions
 {
     private readonly IMediator _mediator;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IAdminUserService _adminUserService;
 
-    public PlayerFunctions(IMediator mediator, IPlayerRepository playerRepository)
+    public PlayerFunctions(
+        IMediator mediator,
+        IPlayerRepository playerRepository,
+        IAdminUserService adminUserService)
     {
         _mediator = mediator;
         _playerRepository = playerRepository;
+        _adminUserService = adminUserService;
     }
 
     [Function("GetPlayers")]
@@ -255,6 +262,58 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>
+    /// GET /v1/players/unlinked — admin-only. Lists active players that aren't
+    /// yet attached to an AppUser. Powers the "link to existing user" picker
+    /// and the invite pre-attach dropdown.
+    /// </summary>
+    [Function("GetUnlinkedPlayers")]
+    public async Task<IActionResult> GetUnlinkedPlayers(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/unlinked")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var players = await _playerRepository.GetUnlinkedActiveAsync(cancellationToken);
+        var data = players.Select(p => new
+        {
+            id = p.Id,
+            fullName = p.FullName,
+            email = p.Email,
+        }).ToList();
+
+        return new OkObjectResult(new { data });
+    }
+
+    /// <summary>
+    /// POST /v1/players/{id}/link-user — admin-only. Map an existing unlinked
+    /// Player to an existing AppUser.
+    /// </summary>
+    [Function("LinkPlayerToUser")]
+    public async Task<IActionResult> LinkPlayerToUser(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/link-user")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<LinkUserBody>(cancellationToken);
+        if (body is null || !Guid.TryParse(body.UserId, out var userId))
+            return new BadRequestObjectResult(new { error = "userId (Guid) is required." });
+
+        var result = await _adminUserService.LinkPlayerToUserAsync(playerId, userId, cancellationToken);
+        if (!result.IsSuccess)
+            return new ConflictObjectResult(new { error = result.Error });
+
+        return new OkObjectResult(new { data = result.Value });
+    }
+
+    private sealed record LinkUserBody(string UserId);
     private sealed record CreatePlayerRequest(string Name, string? Email, double InitialHandicap, string? FlightId);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string? Email);
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, IReadOnlyList<string>? Roles);

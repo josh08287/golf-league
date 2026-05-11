@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { Link2, Send, Copy, Check, UserX, Trash2 } from 'lucide-react';
 import { useInvites, useCreateInvites, useRevokeInvite, useDeleteInvite } from '@/hooks/admin/useInvites';
+import { useUnlinkedPlayers } from '@/hooks/usePlayers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -17,8 +18,14 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   const [bulkText, setBulkText] = useState('');
   const [expiryDays, setExpiryDays] = useState(7);
   const [role, setRole] = useState<'player' | 'scorer' | 'admin'>('player');
+  const [preLinkedPlayerId, setPreLinkedPlayerId] = useState<string>('');
   const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null);
   const create = useCreateInvites();
+
+  // Pre-attach only makes sense in single-email mode (one Player can only
+  // map to one AppUser). Hook is enabled only when we'll actually show the
+  // dropdown so the request doesn't fire for nothing in bulk mode.
+  const { data: unlinkedPlayers = [] } = useUnlinkedPlayers(mode === 'single');
 
   function parseEmails(raw: string): string[] {
     return raw
@@ -31,7 +38,13 @@ function InviteForm({ onDone }: { onDone: () => void }) {
     const emails = mode === 'single' ? [singleEmail.trim()] : parseEmails(bulkText);
     if (emails.length === 0 || emails.some((e) => !e.includes('@'))) return;
 
-    const data = await create.mutateAsync({ emails, expiryDays, role });
+    const data = await create.mutateAsync({
+      emails,
+      expiryDays,
+      role,
+      preLinkedPlayerId:
+        mode === 'single' && preLinkedPlayerId ? Number(preLinkedPlayerId) : null,
+    });
     setResult({ created: data.created.length, skipped: data.skipped });
   }
 
@@ -82,16 +95,41 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       </div>
 
       {mode === 'single' ? (
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
-          <input
-            type="email"
-            value={singleEmail}
-            onChange={(e) => setSingleEmail(e.target.value)}
-            placeholder="player@example.com"
-            className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
-          />
-        </div>
+        <>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+            <input
+              type="email"
+              value={singleEmail}
+              onChange={(e) => setSingleEmail(e.target.value)}
+              placeholder="player@example.com"
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
+            />
+          </div>
+          {unlinkedPlayers.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Attach to existing player <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <select
+                value={preLinkedPlayerId}
+                onChange={(e) => setPreLinkedPlayerId(e.target.value)}
+                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
+              >
+                <option value="">— Don&apos;t attach (create new) —</option>
+                {unlinkedPlayers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.fullName}{p.email ? ` — ${p.email}` : ''}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-gray-400">
+                When the invitee signs up, their new account will be linked to this player
+                instead of creating a fresh roster row.
+              </p>
+            </div>
+          )}
+        </>
       ) : (
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

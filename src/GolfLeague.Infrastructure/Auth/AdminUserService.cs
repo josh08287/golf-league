@@ -263,7 +263,57 @@ public sealed class AdminUserService : IAdminUserService
             currentHandicap?.HandicapIndex ?? initialHandicap,
             null,
             null,
-            roles);
+            roles,
+            user.Id);
+
+        return Result<PlayerDto>.Ok(dto);
+    }
+
+    public async Task<Result<PlayerDto>> LinkPlayerToUserAsync(
+        int playerId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var player = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
+        if (player is null) return Result<PlayerDto>.Fail("Player not found.");
+        if (player.AppUserId is not null)
+            return Result<PlayerDto>.Fail("Player is already linked to a user account.");
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null) return Result<PlayerDto>.Fail("User not found.");
+        if (user.PlayerId is not null)
+            return Result<PlayerDto>.Fail("User is already linked to a player profile.");
+
+        // Set both sides of the 1:1 link in a single transaction-ish sequence.
+        // Player.Email is overwritten with AppUser.Email so future email-based
+        // operations (invite, password reset, etc.) stay consistent.
+        player.AppUserId = user.Id;
+        if (!string.IsNullOrWhiteSpace(user.Email))
+            player.Email = user.Email;
+        await _playerRepository.UpdateAsync(player, cancellationToken);
+
+        user.PlayerId = player.Id;
+        await _userManager.UpdateAsync(user);
+
+        _logger.LogInformation(
+            "Manually linked Player {PlayerId} to AppUser {UserId}",
+            player.Id, user.Id);
+
+        var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
+        var roles = (await _userManager.GetRolesAsync(user))
+            .Select(r => r.ToLowerInvariant())
+            .ToList();
+
+        var dto = new PlayerDto(
+            player.Id,
+            player.FullName,
+            player.Email,
+            player.IsActive,
+            currentHandicap?.HandicapIndex,
+            null,
+            null,
+            roles,
+            user.Id);
 
         return Result<PlayerDto>.Ok(dto);
     }

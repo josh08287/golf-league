@@ -22,6 +22,7 @@ import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
+import { LinkUserForm } from '../../components/admin/LinkUserForm';
 import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
 
 const editSchema = z.object({
@@ -412,6 +413,17 @@ export function PlayerDetailPage() {
             <p className="text-sm text-gray-500">No active season.</p>
           )}
         </Card>
+
+        {player.appUserId === null && (
+          <Card className="p-6 lg:col-span-2">
+            <h2 className="mb-1 text-base font-semibold text-gray-900">Link to user account</h2>
+            <p className="mb-4 text-sm text-gray-500">
+              This player has no linked account. Pick an existing unlinked user to attach,
+              or invite the player and they&apos;ll be linked on sign-up.
+            </p>
+            <LinkUserForm playerId={id} playerEmail={player.email} />
+          </Card>
+        )}
 
         <Card className="p-6 lg:col-span-2">
           <h2 className="mb-1 text-base font-semibold text-gray-900">Manual Handicap Override</h2>

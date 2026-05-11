@@ -18,7 +18,9 @@ import { PageHeader } from '@/components/ui/PageHeader';
 export function PlayersPage() {
   const navigate = useNavigate();
   const { sort, cycle } = useSortableTable('players');
-  const players = usePlayers(1, sort);
+  // Public directory: fetch the full roster so client-side search/filter
+  // sees everyone, not just the first 20.
+  const players = usePlayers(1, sort, 1000);
   const [query, setQuery] = useState('');
 
   const filtered = useMemo(() => {

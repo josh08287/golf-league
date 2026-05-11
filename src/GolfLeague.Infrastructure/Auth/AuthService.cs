@@ -311,6 +311,20 @@ public sealed class AuthService : IAuthService
         {
             player = existingPlayer;
         }
+        else if (invite.PreLinkedPlayerId is int preId
+            && await _playerRepository.GetByIdAsync(preId, cancellationToken) is Player preLink
+            && preLink.AppUserId is null)
+        {
+            // Admin chose this specific Player when issuing the invite.
+            // Honors the pre-attach even if emails don't match — admin
+            // explicitly opted in.
+            preLink.AppUserId = user.Id;
+            preLink.FirstName = firstName;
+            preLink.LastName = lastName;
+            preLink.Email = user.Email;
+            await _playerRepository.UpdateAsync(preLink, cancellationToken);
+            player = preLink;
+        }
         else
         {
             // Look for an admin-pre-created Player row by email and adopt it.

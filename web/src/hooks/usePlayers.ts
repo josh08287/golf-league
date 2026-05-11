@@ -6,14 +6,22 @@ import type {
   HandicapHistoryEntry,
   PagedResponse,
   PlayerRoundSummary,
+  UnlinkedPlayer,
 } from '@/types/api';
+
+function unwrap<T>(data: unknown): T {
+  if (data && typeof data === 'object' && 'data' in (data as object)) {
+    return (data as { data: T }).data;
+  }
+  return data as T;
+}
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 export const playerKeys = {
   all: ['players'] as const,
   lists: () => [...playerKeys.all, 'list'] as const,
-  list: (page: number, sort?: TableSort) =>
-    [...playerKeys.lists(), { page, sort: sort ?? null }] as const,
+  list: (page: number, pageSize: number, sort?: TableSort) =>
+    [...playerKeys.lists(), { page, pageSize, sort: sort ?? null }] as const,
   details: () => [...playerKeys.all, 'detail'] as const,
   detail: (id: string) => [...playerKeys.details(), id] as const,
   handicapHistory: (playerId: string) =>
@@ -24,11 +32,11 @@ export const playerKeys = {
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-export function usePlayers(page = 1, sort?: TableSort) {
+export function usePlayers(page = 1, sort?: TableSort, pageSize = 20) {
   return useQuery({
-    queryKey: playerKeys.list(page, sort),
+    queryKey: playerKeys.list(page, pageSize, sort),
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize };
       if (sort) {
         params.sortBy = sort.sortBy;
         params.sortDir = sort.sortDir;
@@ -66,6 +74,22 @@ export function useHandicapHistory(playerId: string, sort?: TableSort) {
       return response.data;
     },
     enabled: Boolean(playerId),
+  });
+}
+
+/**
+ * Active players that have no AppUser linked. Used by admin to pick which
+ * player should be attached to a new user account (link action or invite
+ * pre-attach). Admin-only on the server.
+ */
+export function useUnlinkedPlayers(enabled: boolean = true) {
+  return useQuery({
+    queryKey: [...playerKeys.all, 'unlinked'] as const,
+    queryFn: async () => {
+      const res = await apiClient.get('/players/unlinked');
+      return unwrap<UnlinkedPlayer[]>(res.data);
+    },
+    enabled,
   });
 }
 

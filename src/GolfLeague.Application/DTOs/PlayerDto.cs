@@ -8,4 +8,5 @@ public sealed record PlayerDto(
     double? CurrentHandicap,
     int? FlightId,
     string? FlightName,
-    IReadOnlyList<string> Roles);
+    IReadOnlyList<string> Roles,
+    Guid? AppUserId = null);

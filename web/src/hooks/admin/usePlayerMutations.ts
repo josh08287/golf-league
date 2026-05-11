@@ -25,6 +25,23 @@ export interface SetHandicapPayload {
 
 // ── Hooks ──────────────────────────────────────────────────────────────────
 
+/**
+ * Manually link an existing unlinked Player to an existing AppUser. Admin-only.
+ * Backend refuses if either side is already linked; surfaces a 409 with a
+ * clear error message.
+ */
+export function useLinkPlayerToUser(playerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (userId: string) =>
+      apiClient.post(`/players/${playerId}/link-user`, { userId }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+      qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
 export function useCreatePlayer() {
   const qc = useQueryClient();
 

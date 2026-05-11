@@ -28,6 +28,16 @@ export interface Player {
   flightId: number | null;
   flightName: string | null;
   roles: ('admin' | 'scorer' | 'player')[];
+  // Null when no AppUser is linked yet. Drives the "Link to user account"
+  // affordance on the admin player-detail page.
+  appUserId: string | null;
+}
+
+/** Lightweight row used by the unlinked-players pickers. */
+export interface UnlinkedPlayer {
+  id: number;
+  fullName: string;
+  email: string | null;
 }
 
 export interface HandicapHistoryEntry {

@@ -35,6 +35,13 @@ public sealed class PlayerRepository : IPlayerRepository
     public Task<Player?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
         => _context.Players.FirstOrDefaultAsync(p => p.Email == email, cancellationToken);
 
+    public async Task<IReadOnlyList<Player>> GetUnlinkedActiveAsync(CancellationToken cancellationToken = default)
+        => await _context.Players
+            .Where(p => p.IsActive && p.AppUserId == null)
+            .OrderBy(p => p.LastName)
+            .ThenBy(p => p.FirstName)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Player player, CancellationToken cancellationToken = default)
     {
         await _context.Players.AddAsync(player, cancellationToken);

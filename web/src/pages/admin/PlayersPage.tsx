@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -16,11 +16,19 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { AdministratorsTable } from '../../components/admin/AdministratorsTable';
 import type { Player } from '../../types/api';
 
+// Default to a large page so a typical league roster (< 100 players) fits in
+// one fetch. Prev/Next controls below the table cover the case where it
+// grows past that.
+const PAGE_SIZE = 100;
+
 export function PlayersPage() {
   const navigate = useNavigate();
   const { sort, cycle } = useSortableTable('adminPlayers');
-  const { data: playersPage, isLoading, error } = usePlayers(1, sort);
+  const [page, setPage] = useState(1);
+  const { data: playersPage, isLoading, error } = usePlayers(page, sort, PAGE_SIZE);
   const players = playersPage?.data ?? [];
+  const meta = playersPage?.meta;
+  const totalPages = meta ? Math.max(1, Math.ceil(meta.totalCount / meta.pageSize)) : 1;
 
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Player | null>(null);
@@ -168,6 +176,34 @@ export function PlayersPage() {
           onSort={cycle}
         />
       </div>
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm text-gray-600">
+          <span>
+            Page {page} of {totalPages} &mdash; {meta?.totalCount ?? 0} total players
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Previous
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+            >
+              Next
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      )}
 
       <div className="space-y-3 pt-8">
         <div>

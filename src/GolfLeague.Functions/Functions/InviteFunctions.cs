@@ -50,7 +50,13 @@ public sealed class InviteFunctions
             return new BadRequestObjectResult(new { error = "At least one email address is required." });
 
         var adminUserId = req.GetUserId() ?? "unknown";
-        var command = new CreateInvitesCommand(body.Emails, adminUserId, _webBaseUrl, body.ExpiryDays ?? 7, body.Role ?? "player");
+        var command = new CreateInvitesCommand(
+            body.Emails,
+            adminUserId,
+            _webBaseUrl,
+            body.ExpiryDays ?? 7,
+            body.Role ?? "player",
+            body.PreLinkedPlayerId);
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToOkResult();
     }
@@ -149,6 +155,6 @@ public sealed class InviteFunctions
         return result.ToOkResult();
     }
 
-    private sealed record CreateInvitesRequest(List<string> Emails, int? ExpiryDays, string? Role);
+    private sealed record CreateInvitesRequest(List<string> Emails, int? ExpiryDays, string? Role, int? PreLinkedPlayerId);
     private sealed record AcceptInviteRequest(string FirstName, string LastName, string Email, string? Phone);
 }

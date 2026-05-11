@@ -105,6 +105,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             currentHandicap,
             activeMembership?.FlightId,
             activeMembership?.Flight.Name,
-            roles ?? Array.Empty<string>());
+            roles ?? Array.Empty<string>(),
+            player.AppUserId);
     }
 }

@@ -141,7 +141,9 @@ function FlightCard({ flight, halfLabel, playerCount, onDelete }: FlightCardProp
 export function FlightsPage() {
   const { data: flightsPage, isLoading, error } = useFlights();
   const flights = flightsPage?.data ?? [];
-  const { data: playersPage } = usePlayers();
+  // Need the full roster for flight assignment / unassigned counts; bump
+  // the page size so we don't silently cap at 20.
+  const { data: playersPage } = usePlayers(1, undefined, 1000);
   const players = playersPage?.data ?? [];
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);

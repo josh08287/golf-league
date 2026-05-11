@@ -299,6 +299,12 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.SetNull);
+            // SetNull on the pre-link so deleting the chosen Player doesn't
+            // cascade-delete the invite. Admin can then pick a different one.
+            entity.HasOne(e => e.PreLinkedPlayer)
+                  .WithMany()
+                  .HasForeignKey(e => e.PreLinkedPlayerId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

@@ -47,4 +47,14 @@ public interface IAdminUserService
         double initialHandicap,
         int? flightId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Manually map an existing unlinked Player to an existing AppUser.
+    /// Refuses if either side is already linked. Sets Player.Email to match
+    /// AppUser.Email (the UI should warn the admin when they differ).
+    /// </summary>
+    Task<Result<PlayerDto>> LinkPlayerToUserAsync(
+        int playerId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }

@@ -1,6 +1,7 @@
 using FluentAssertions;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Interfaces;
@@ -54,7 +55,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<PagedResult<PlayerDto>>.Ok(paged));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var result = await sut.GetPlayers(MakeRequest(), CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
@@ -65,7 +66,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.GetPlayer(MakeRequest(), "abc", CancellationToken.None);
 
@@ -80,7 +81,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<PlayerDto>.Fail("Player with ID 99 not found."));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.GetPlayer(MakeRequest(), "99", CancellationToken.None);
 
@@ -95,7 +96,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<PlayerDto>.Ok(MakePlayerDto()));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.GetPlayer(MakeRequest(), "1", CancellationToken.None);
 
@@ -107,7 +108,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "John Doe", Email = "john@example.com", InitialHandicap = 10.0 });
 
         var result = await sut.CreatePlayer(MakeRequest(body), CancellationToken.None);
@@ -120,7 +121,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var req = MakeRequest(role: "admin");
         req.Body = new MemoryStream();
 
@@ -137,7 +138,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<PlayerDto>.Ok(MakePlayerDto()));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "John Doe", Email = "john@example.com", InitialHandicap = 10.0 });
 
         var result = await sut.CreatePlayer(MakeRequest(body, "admin"), CancellationToken.None);
@@ -150,7 +151,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { FirstName = "John", LastName = "Doe", Email = "john@example.com" });
 
         var result = await sut.UpdatePlayer(MakeRequest(body), "1", CancellationToken.None);
@@ -163,7 +164,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { FirstName = "John", LastName = "Doe", Email = "john@example.com" });
 
         var result = await sut.UpdatePlayer(MakeRequest(body, "admin"), "abc", CancellationToken.None);
@@ -176,7 +177,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var req = MakeRequest(role: "admin");
         req.Body = new MemoryStream();
 
@@ -193,7 +194,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<PlayerDto>.Ok(MakePlayerDto()));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { FirstName = "John", LastName = "Doe", Email = "john@example.com" });
 
         var result = await sut.UpdatePlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -206,7 +207,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "John Doe" });
 
         var result = await sut.PatchPlayer(MakeRequest(body), "1", CancellationToken.None);
@@ -219,7 +220,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "John Doe" });
 
         var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "abc", CancellationToken.None);
@@ -232,7 +233,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var req = MakeRequest(role: "admin");
         req.Body = new MemoryStream();
 
@@ -249,7 +250,7 @@ public class PlayerFunctionsTests
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync((GolfLeague.Domain.Entities.Player?)null);
 
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "John Doe" });
 
         var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -268,7 +269,7 @@ public class PlayerFunctionsTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
 
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Name = "Jane Doe" });
 
         var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -289,7 +290,7 @@ public class PlayerFunctionsTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
 
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { Email = "new@example.com" });
 
         await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -308,7 +309,7 @@ public class PlayerFunctionsTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
 
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { FlightId = "2" });
 
         await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -321,7 +322,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.DeactivatePlayerPost(MakeRequest(role: "admin"), "abc", CancellationToken.None);
 
@@ -336,7 +337,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<bool>.Ok(true));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.DeactivatePlayerPost(MakeRequest(role: "admin"), "1", CancellationToken.None);
 
@@ -348,7 +349,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.GetHandicapHistory(MakeRequest(), "abc", CancellationToken.None);
 
@@ -363,7 +364,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<List<HandicapDto>>.Ok([MakeHandicapDto()]));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.GetHandicapHistory(MakeRequest(), "1", CancellationToken.None);
 
@@ -375,7 +376,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { HandicapIndex = 10.0 });
 
         var result = await sut.SetHandicapPost(MakeRequest(body), "1", CancellationToken.None);
@@ -388,7 +389,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { HandicapIndex = 10.0 });
 
         var result = await sut.SetHandicapPost(MakeRequest(body, "admin"), "abc", CancellationToken.None);
@@ -401,7 +402,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var req = MakeRequest(role: "admin");
         req.Body = new MemoryStream();
 
@@ -418,7 +419,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<HandicapDto>.Ok(MakeHandicapDto()));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { HandicapIndex = 10.0 });
 
         var result = await sut.SetHandicapPost(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -431,7 +432,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { HandicapIndex = 10.0 });
 
         var result = await sut.SetHandicap(MakeRequest(body), "1", CancellationToken.None);
@@ -444,7 +445,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { NewIndex = 12.0 });
 
         var result = await sut.SetHandicap(MakeRequest(body, "admin"), "abc", CancellationToken.None);
@@ -457,7 +458,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var req = MakeRequest(role: "admin");
         req.Body = new MemoryStream();
 
@@ -474,7 +475,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<HandicapDto>.Ok(MakeHandicapDto()));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
         var body = JsonSerializer.Serialize(new { NewIndex = 12.0 });
 
         var result = await sut.SetHandicap(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -487,7 +488,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.DeletePlayer(MakeRequest(), "1", CancellationToken.None);
 
@@ -499,7 +500,7 @@ public class PlayerFunctionsTests
     {
         var mediator = new Mock<IMediator>();
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.DeletePlayer(MakeRequest(role: "admin"), "abc", CancellationToken.None);
 
@@ -514,7 +515,7 @@ public class PlayerFunctionsTests
             .ReturnsAsync(Result<bool>.Ok(true));
 
         var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object);
+        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
         var result = await sut.DeletePlayer(MakeRequest(role: "admin"), "1", CancellationToken.None);
 

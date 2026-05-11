@@ -32,16 +32,25 @@ export function useInvites(sort?: TableSort) {
 export function useCreateInvites() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { emails: string[]; expiryDays?: number; role?: string }) =>
+    mutationFn: (payload: {
+      emails: string[];
+      expiryDays?: number;
+      role?: string;
+      // Optional: pre-attach the invitee's new AppUser to this existing Player.
+      // Only allowed for single-email invites; the backend rejects it otherwise.
+      preLinkedPlayerId?: number | null;
+    }) =>
       apiClient
         .post<CreateInvitesResult>('/admin/invites', {
           emails: payload.emails,
           expiryDays: payload.expiryDays ?? 7,
           role: payload.role ?? 'player',
+          preLinkedPlayerId: payload.preLinkedPlayerId ?? null,
         })
         .then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: inviteKeys.all });
+      qc.invalidateQueries({ queryKey: ['players', 'unlinked'] });
     },
   });
 }
