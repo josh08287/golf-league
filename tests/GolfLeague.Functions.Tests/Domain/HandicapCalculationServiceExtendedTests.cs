@@ -4,136 +4,91 @@ using FluentAssertions;
 
 namespace GolfLeague.Tests.Domain;
 
+/// <summary>
+/// Coverage for the WHS rule 5.2a "score differentials used" lookup table,
+/// the soft / hard cap from rule 5.8, and edge cases. The core happy-path
+/// cases live in <c>DomainServicesTests.HandicapCalculationServiceTests</c>.
+/// </summary>
 public class HandicapCalculationServiceExtendedTests
 {
     [Theory]
-    [InlineData(5.5, 6.5, 6)]
-    [InlineData(10, 12, 11)]
-    [InlineData(20, 24, 22)]
-    [InlineData(0, 0, 0)]
-    public void CombineNineHoleDifferentials_ReturnsAverage(double d1, double d2, double expected)
+    [InlineData(0, 0, 0.0)]
+    [InlineData(1, 1, -2.0)]
+    [InlineData(2, 1, -2.0)]
+    [InlineData(3, 1, -2.0)]
+    [InlineData(4, 1, -1.0)]
+    [InlineData(5, 1, 0.0)]
+    [InlineData(6, 2, -1.0)]
+    [InlineData(7, 2, 0.0)]
+    [InlineData(8, 2, 0.0)]
+    [InlineData(9, 3, 0.0)]
+    [InlineData(11, 3, 0.0)]
+    [InlineData(12, 4, 0.0)]
+    [InlineData(14, 4, 0.0)]
+    [InlineData(15, 5, 0.0)]
+    [InlineData(16, 5, 0.0)]
+    [InlineData(17, 6, 0.0)]
+    [InlineData(18, 6, 0.0)]
+    [InlineData(19, 7, 0.0)]
+    [InlineData(20, 8, 0.0)]
+    public void WhsSelection_MatchesWhsTable(int diffCount, int expectedLowestCount, double expectedAdjustment)
     {
-        var result = HandicapCalculationService.CombineNineHoleDifferentials(d1, d2);
-        result.Should().BeApproximately(expected, 0.01);
+        var (lowest, adj) = HandicapCalculationService.WhsSelection(diffCount);
+        lowest.Should().Be(expectedLowestCount);
+        adj.Should().Be(expectedAdjustment);
     }
 
     [Fact]
-    public void CombineNineHoleDifferentials_RoundsTwoDecimalPlaces()
+    public void ApplyCaps_NoLowIndex_ReturnsRawUnchanged()
     {
-        var result = HandicapCalculationService.CombineNineHoleDifferentials(5.556, 6.777);
-        result.Should().BeApproximately(6.17, 0.01);
+        HandicapCalculationService.ApplyCaps(rawIndex: 25.0, lowIndexInLast365Days: null).Should().Be(25.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_WhenEmpty_ReturnsZero()
+    public void ApplyCaps_RiseAtOrBelowThreshold_ReturnsRawUnchanged()
     {
-        var result = HandicapCalculationService.CalculateNewIndex(new List<double>());
-        result.Should().Be(0.0);
+        // rise of exactly 3.0 is at the soft-cap threshold — not exceeded.
+        HandicapCalculationService.ApplyCaps(rawIndex: 13.0, lowIndexInLast365Days: 10.0).Should().Be(13.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_With1Differential_UsesIt()
+    public void ApplyCaps_SoftCap_HalvesExcess()
     {
-        var differentials = new List<double> { 10.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
+        // rise = 4.0, excess = 1.0; soft-capped = low + 3 + 0.5 = 10 + 3 + 0.5 = 13.5
+        HandicapCalculationService.ApplyCaps(rawIndex: 14.0, lowIndexInLast365Days: 10.0).Should().Be(13.5);
     }
 
     [Fact]
-    public void CalculateNewIndex_With2Differentials_UsesLowest1()
+    public void ApplyCaps_HardCap_TakesOverAtRiseAboveFive()
     {
-        var differentials = new List<double> { 10.0, 8.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        // Should use only the lowest 1 differential (8.0)
-        result.Should().BeGreaterThan(0);
+        // raw 20, low 10, rise = 10. Soft: 10+3+(7/2)=16.5. Hard ceiling: 10+5=15.
+        // Hard wins.
+        HandicapCalculationService.ApplyCaps(rawIndex: 20.0, lowIndexInLast365Days: 10.0).Should().Be(15.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_With3Differentials_UsesLowest1()
+    public void ApplyCaps_NegativeLow_AppliesSoftCap()
     {
-        var differentials = new List<double> { 10.0, 8.0, 12.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
+        // Plus-handicap (-2) golfer; raw +4 means rise = 6, excess over threshold = 3.
+        // Soft = -2 + 3 + (3/2) = 2.5. Hard ceiling = -2 + 5 = 3.0. Soft wins.
+        HandicapCalculationService.ApplyCaps(rawIndex: 4.0, lowIndexInLast365Days: -2.0).Should().Be(2.5);
     }
 
     [Fact]
-    public void CalculateNewIndex_With5Differentials_UsesLowest2()
+    public void ApplyCaps_NegativeLow_AppliesHardCap()
     {
-        var differentials = new List<double> { 10.0, 8.0, 12.0, 9.0, 15.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
+        // -2 golfer; raw +20, rise=22, excess=19; soft = -2+3+(19/2)=10.5
+        // Hard ceiling = -2 + 5 = 3.0. Hard wins.
+        HandicapCalculationService.ApplyCaps(rawIndex: 20.0, lowIndexInLast365Days: -2.0).Should().Be(3.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_With7Differentials_UsesLowest3()
+    public void CalculateNewIndex_HandlesUnsortedInput()
     {
-        var differentials = Enumerable.Range(1, 7).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_With9Differentials_UsesLowest4()
-    {
-        var differentials = Enumerable.Range(1, 9).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_With11Differentials_UsesLowest5()
-    {
-        var differentials = Enumerable.Range(1, 11).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_With14Differentials_UsesLowest6()
-    {
-        var differentials = Enumerable.Range(1, 14).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_With17Differentials_UsesLowest7()
-    {
-        var differentials = Enumerable.Range(1, 17).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_With20Differentials_UsesLowest8()
-    {
-        var differentials = Enumerable.Range(1, 20).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_IgnoresDifferentialsOlderThan20()
-    {
-        var differentials = Enumerable.Range(1, 25).Select(i => (double)i).ToList();
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        // Should only use the last 20 differentials
-        result.Should().BeGreaterThan(0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_NeverBelowNegative10()
-    {
-        var differentials = new List<double> { -100.0, -200.0, -300.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThanOrEqualTo(-10.0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_WithBankruptPlusCourseChange_UsesEvenRounding()
-    {
-        var differentials = new List<double> { 5.15, 5.25, 5.35, 5.45 };
-        var result = HandicapCalculationService.CalculateNewIndex(differentials);
-        result.Should().BeGreaterThan(0);
+        // Order shouldn't matter — method sorts internally.
+        var ordered = new[] { 1.0, 2.0, 3.0, 4.0, 5.0 };
+        var shuffled = new[] { 5.0, 1.0, 3.0, 2.0, 4.0 };
+        HandicapCalculationService.CalculateNewIndex(ordered)
+            .Should().Be(HandicapCalculationService.CalculateNewIndex(shuffled));
     }
 }
