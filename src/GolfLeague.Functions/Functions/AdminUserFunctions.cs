@@ -74,6 +74,36 @@ public sealed class AdminUserFunctions
         return new OkObjectResult(new { data = new { reset = true } });
     }
 
+    [Function("AttachPlayerProfile")]
+    public async Task<IActionResult> AttachPlayer(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/admin/users/{id}/attach-player")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!Guid.TryParse(id, out var userId))
+            return new BadRequestObjectResult(new { error = "Invalid user id." });
+
+        var body = await req.TryDeserializeAsync<AttachPlayerBody>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var result = await _service.AttachPlayerProfileAsync(
+            userId,
+            body.FirstName ?? string.Empty,
+            body.LastName ?? string.Empty,
+            body.InitialHandicap,
+            body.FlightId,
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return new ConflictObjectResult(new { error = result.Error });
+
+        return new OkObjectResult(new { data = result.Value });
+    }
+
     [Function("DeleteAdminUser")]
     public async Task<IActionResult> Delete(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/admin/users/{id}")] HttpRequest req,
@@ -94,4 +124,5 @@ public sealed class AdminUserFunctions
     }
 
     private sealed record RolesBody(string[] Roles);
+    private sealed record AttachPlayerBody(string? FirstName, string? LastName, double InitialHandicap, int? FlightId);
 }

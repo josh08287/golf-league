@@ -2,6 +2,8 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
+using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -16,17 +18,23 @@ public sealed class AdminUserService : IAdminUserService
     private readonly UserManager<AppUser> _userManager;
     private readonly AppDbContext _dbContext;
     private readonly IUserRoleService _roleService;
+    private readonly IPlayerRepository _playerRepository;
+    private readonly IHandicapRepository _handicapRepository;
     private readonly ILogger<AdminUserService> _logger;
 
     public AdminUserService(
         UserManager<AppUser> userManager,
         AppDbContext dbContext,
         IUserRoleService roleService,
+        IPlayerRepository playerRepository,
+        IHandicapRepository handicapRepository,
         ILogger<AdminUserService> logger)
     {
         _userManager = userManager;
         _dbContext = dbContext;
         _roleService = roleService;
+        _playerRepository = playerRepository;
+        _handicapRepository = handicapRepository;
         _logger = logger;
     }
 
@@ -154,6 +162,104 @@ public sealed class AdminUserService : IAdminUserService
 
         _logger.LogWarning("Admin deleted user {UserId} ({Email})", userId, user.Email);
         return Result<bool>.Ok(true);
+    }
+
+    public async Task<Result<PlayerDto>> AttachPlayerProfileAsync(
+        Guid userId,
+        string firstName,
+        string lastName,
+        double initialHandicap,
+        int? flightId,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
+            return Result<PlayerDto>.Fail("First and last name are required.");
+
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null) return Result<PlayerDto>.Fail("User not found.");
+
+        if (user.PlayerId is not null)
+            return Result<PlayerDto>.Fail("This user already has a player profile.");
+
+        if (string.IsNullOrWhiteSpace(user.Email))
+            return Result<PlayerDto>.Fail("User has no email address; cannot create a player profile.");
+
+        // Try to adopt an existing unlinked Player with the same email.
+        var existing = await _playerRepository.GetByEmailAsync(user.Email, cancellationToken);
+        Player player;
+        if (existing is not null && existing.AppUserId is null)
+        {
+            existing.AppUserId = user.Id;
+            existing.FirstName = firstName;
+            existing.LastName = lastName;
+            await _playerRepository.UpdateAsync(existing, cancellationToken);
+            player = existing;
+            _logger.LogInformation(
+                "Adopted existing Player {PlayerId} for AppUser {UserId} by email match",
+                player.Id, user.Id);
+        }
+        else if (existing is not null)
+        {
+            // Email matches a Player already linked to a different AppUser.
+            return Result<PlayerDto>.Fail(
+                "A player with this email is already linked to a different account.");
+        }
+        else
+        {
+            player = new Player
+            {
+                FirstName = firstName,
+                LastName = lastName,
+                Email = user.Email,
+                IsActive = true,
+                AppUserId = user.Id,
+            };
+            await _playerRepository.AddAsync(player, cancellationToken);
+            await _handicapRepository.AddAsync(new Handicap
+            {
+                PlayerId = player.Id,
+                HandicapIndex = initialHandicap,
+                EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                Source = HandicapSource.Initial,
+            }, cancellationToken);
+            _logger.LogInformation("Created Player {PlayerId} for AppUser {UserId}", player.Id, user.Id);
+        }
+
+        user.PlayerId = player.Id;
+        await _userManager.UpdateAsync(user);
+
+        if (flightId is int fId)
+        {
+            try
+            {
+                await _playerRepository.AssignToFlightAsync(player.Id, fId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                // Player is linked; surface flight failure but don't roll back.
+                _logger.LogWarning(ex, "Flight assignment failed for player {PlayerId}", player.Id);
+                return Result<PlayerDto>.Fail(
+                    $"Player linked but flight assignment failed: {ex.Message}");
+            }
+        }
+
+        // Re-read current handicap (existing players may have history we kept).
+        var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
+        var roles = (await _userManager.GetRolesAsync(user))
+            .Select(r => r.ToLowerInvariant())
+            .ToList();
+
+        var dto = new PlayerDto(
+            player.Id,
+            player.FullName,
+            player.Email,
+            player.IsActive,
+            currentHandicap?.HandicapIndex ?? initialHandicap,
+            null,
+            null,
+            roles);
+
+        return Result<PlayerDto>.Ok(dto);
     }
 
     private async Task<bool> AnotherAdminExistsAsync(Guid excludingUserId, CancellationToken cancellationToken)

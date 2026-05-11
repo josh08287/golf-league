@@ -4,6 +4,8 @@ import { DataTable } from '@/components/ui/DataTable';
 import { Badge } from '@/components/ui/Badge';
 import { Spinner } from '@/components/ui/Spinner';
 import { ConfirmDialog } from '@/components/admin/ConfirmDialog';
+import { Modal } from '@/components/admin/Modal';
+import { AddPlayerForm } from '@/components/admin/AddPlayerForm';
 import {
   useAdminUsers,
   useUpdateAdminUserRoles,
@@ -78,6 +80,7 @@ export function AdministratorsTable() {
 
   const [resetTarget, setResetTarget] = useState<AdminUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUser | null>(null);
+  const [attachTarget, setAttachTarget] = useState<AdminUser | null>(null);
   const [opError, setOpError] = useState<string | null>(null);
 
   async function handleSaveRoles(user: AdminUser, roles: AdminUserRole[]) {
@@ -175,6 +178,13 @@ export function AdministratorsTable() {
           <Button
             variant="ghost"
             size="sm"
+            onClick={() => setAttachTarget(u)}
+          >
+            Attach player profile
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
             disabled={!u.hasTotp && !u.hasPasskey}
             onClick={() => setResetTarget(u)}
           >
@@ -226,6 +236,20 @@ export function AdministratorsTable() {
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      <Modal
+        open={!!attachTarget}
+        title="Attach player profile"
+        onClose={() => setAttachTarget(null)}
+      >
+        {attachTarget && (
+          <AddPlayerForm
+            attachToUser={{ id: attachTarget.id, email: attachTarget.email }}
+            onSuccess={() => setAttachTarget(null)}
+            onCancel={() => setAttachTarget(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

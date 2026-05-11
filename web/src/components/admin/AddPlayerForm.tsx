@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useFlights } from '@/hooks/useFlights';
 import { useCreatePlayer } from '@/hooks/admin/usePlayerMutations';
+import { useAttachPlayerProfile } from '@/hooks/admin/useAdminUsers';
 import { Button } from '@/components/ui/Button';
 import { FormField, inputClass, selectClass } from './FormField';
 import type { PagedResponse } from '@/types/api';
@@ -26,12 +27,22 @@ type FormValues = z.infer<typeof schema>;
 interface AddPlayerFormProps {
   onSuccess: () => void;
   onCancel: () => void;
+  /**
+   * When set, the form attaches a Player profile to the supplied AppUser
+   * instead of creating a brand-new player. Email is taken from the user
+   * record and locked.
+   */
+  attachToUser?: { id: string; email: string };
 }
 
-export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
+export function AddPlayerForm({ onSuccess, onCancel, attachToUser }: AddPlayerFormProps) {
   const { data: flightsPage } = useFlights();
   const flights = (flightsPage as PagedResponse<{ id: string; name: string }> | undefined)?.data ?? [];
   const createPlayer = useCreatePlayer();
+  const attachPlayer = useAttachPlayerProfile();
+
+  const isAttachMode = !!attachToUser;
+  const mutation = isAttachMode ? attachPlayer : createPlayer;
 
   const {
     register,
@@ -39,16 +50,33 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { initialHandicap: 18 },
+    defaultValues: {
+      initialHandicap: 18,
+      email: attachToUser?.email ?? '',
+    },
   });
 
   async function onSubmit(values: FormValues) {
-    await createPlayer.mutateAsync({
-      name: values.name,
-      email: values.email,
-      initialHandicap: values.initialHandicap,
-      flightId: values.flightId || undefined,
-    });
+    if (isAttachMode && attachToUser) {
+      // Split the name on the first space; admin can refine later via Edit.
+      const parts = values.name.trim().split(/\s+/);
+      const firstName = parts[0] ?? '';
+      const lastName = parts.slice(1).join(' ');
+      await attachPlayer.mutateAsync({
+        userId: attachToUser.id,
+        firstName,
+        lastName,
+        initialHandicap: values.initialHandicap,
+        flightId: values.flightId ? Number(values.flightId) : undefined,
+      });
+    } else {
+      await createPlayer.mutateAsync({
+        name: values.name,
+        email: values.email,
+        initialHandicap: values.initialHandicap,
+        flightId: values.flightId || undefined,
+      });
+    }
     onSuccess();
   }
 
@@ -64,7 +92,16 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
           type="email"
           className={inputClass}
           placeholder="jane@example.com"
+          readOnly={isAttachMode}
+          // In attach mode the email is the AppUser's email and can't change.
+          // Dimmed visually so admins notice it's not editable.
+          style={isAttachMode ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : undefined}
         />
+        {isAttachMode && (
+          <p className="mt-1 text-xs text-gray-400">
+            Email comes from the account and can't change here.
+          </p>
+        )}
       </FormField>
 
       <FormField label="Initial Handicap Index" error={errors.initialHandicap} required>
@@ -74,6 +111,12 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
           step="0.1"
           className={inputClass}
         />
+        {isAttachMode && (
+          <p className="mt-1 text-xs text-gray-400">
+            If a Player row with this email already exists, its handicap history is preserved
+            and this value is ignored.
+          </p>
+        )}
       </FormField>
 
       <FormField label="Flight Assignment" error={errors.flightId}>
@@ -87,11 +130,12 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
         </select>
       </FormField>
 
-      {createPlayer.isError && (
+      {mutation.isError && (
         <p className="text-sm text-red-600">
           {(() => {
-            const err = createPlayer.error as { response?: { data?: { error?: string } }; message?: string };
-            return err?.response?.data?.error ?? err?.message ?? 'Failed to create player. Please try again.';
+            const err = mutation.error as { response?: { data?: { error?: string } }; message?: string };
+            return err?.response?.data?.error ?? err?.message
+              ?? (isAttachMode ? 'Failed to attach player profile.' : 'Failed to create player. Please try again.');
           })()}
         </p>
       )}
@@ -100,8 +144,8 @@ export function AddPlayerForm({ onSuccess, onCancel }: AddPlayerFormProps) {
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" disabled={isSubmitting || createPlayer.isPending}>
-          Add Player
+        <Button type="submit" variant="primary" disabled={isSubmitting || mutation.isPending}>
+          {isAttachMode ? 'Attach Profile' : 'Add Player'}
         </Button>
       </div>
     </form>

@@ -67,3 +67,29 @@ export function useDeleteAdminUser() {
     onSuccess: () => qc.invalidateQueries({ queryKey: adminUserKeys.all }),
   });
 }
+
+export interface AttachPlayerPayload {
+  firstName: string;
+  lastName: string;
+  initialHandicap: number;
+  flightId?: number | null;
+}
+
+/**
+ * Attach a Player profile to an existing admin-only AppUser. On success the
+ * user moves out of the Administrators table and into the Players table.
+ */
+export function useAttachPlayerProfile() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { userId: string } & AttachPlayerPayload) => {
+      const { userId, ...body } = payload;
+      const res = await apiClient.post(`/admin/users/${userId}/attach-player`, body);
+      return unwrap(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminUserKeys.all });
+      qc.invalidateQueries({ queryKey: ['players'] });
+    },
+  });
+}

@@ -32,4 +32,19 @@ public interface IAdminUserService
     /// delete the last admin.
     /// </summary>
     Task<Result<bool>> DeleteAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Attach a Player profile to an existing admin-only AppUser. If a
+    /// Player with the same email already exists and is unlinked, that row
+    /// is adopted (preserving its history); otherwise a new Player row is
+    /// created with the supplied name, initial handicap, and optional flight.
+    /// Returns the resulting PlayerDto.
+    /// </summary>
+    Task<Result<PlayerDto>> AttachPlayerProfileAsync(
+        Guid userId,
+        string firstName,
+        string lastName,
+        double initialHandicap,
+        int? flightId,
+        CancellationToken cancellationToken = default);
 }
