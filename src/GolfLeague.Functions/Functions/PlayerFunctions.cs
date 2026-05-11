@@ -124,7 +124,7 @@ public sealed class PlayerFunctions
 
         string firstName = playerEntity.FirstName;
         string lastName = playerEntity.LastName;
-        string email = playerEntity.Email;
+        string? email = playerEntity.Email;
 
         if (!string.IsNullOrWhiteSpace(body.Name))
         {
@@ -133,8 +133,8 @@ public sealed class PlayerFunctions
             lastName = parts.Length > 1 ? parts[1] : string.Empty;
         }
 
-        if (!string.IsNullOrWhiteSpace(body.Email))
-            email = body.Email;
+        if (body.Email is not null)
+            email = string.IsNullOrWhiteSpace(body.Email) ? null : body.Email;
 
         if (body.FlightId is not null)
         {
@@ -255,8 +255,8 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
-    private sealed record CreatePlayerRequest(string Name, string Email, double InitialHandicap, string? FlightId);
-    private sealed record UpdatePlayerRequest(string FirstName, string LastName, string Email);
+    private sealed record CreatePlayerRequest(string Name, string? Email, double InitialHandicap, string? FlightId);
+    private sealed record UpdatePlayerRequest(string FirstName, string LastName, string? Email);
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, IReadOnlyList<string>? Roles);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)
     {

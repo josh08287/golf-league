@@ -67,7 +67,12 @@ export function PlayersPage() {
         </button>
       ),
     },
-    { key: 'email', header: 'Email', sortable: true, render: (p: Player) => p.email },
+    {
+      key: 'email',
+      header: 'Email',
+      sortable: true,
+      render: (p: Player) => p.email ?? <span className="text-gray-400">&mdash;</span>,
+    },
     {
       key: 'handicap',
       header: 'Handicap',

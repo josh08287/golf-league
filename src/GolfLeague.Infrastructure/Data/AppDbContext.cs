@@ -102,7 +102,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
-            entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
+            entity.Property(e => e.Email).HasMaxLength(256);
             // Player has at most one AppUser; AppUser has at most one Player.
             // SetNull on delete so deleting an AppUser doesn't cascade-wipe
             // the player history.

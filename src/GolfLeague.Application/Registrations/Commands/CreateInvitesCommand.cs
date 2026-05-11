@@ -59,9 +59,10 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 continue;
             }
 
-            // Skip if they're already a player
+            // Skip if they're already a player. Players without an email
+            // can't collide so we just skip the null check.
             var allPlayers = await _playerRepo.GetAllActiveAsync(cancellationToken);
-            if (allPlayers.Any(p => p.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
+            if (allPlayers.Any(p => p.Email is not null && p.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
             {
                 skipped.Add(email);
                 continue;

@@ -10,7 +10,7 @@ namespace GolfLeague.Application.Players.Commands;
 public sealed record CreatePlayerCommand(
     string FirstName,
     string LastName,
-    string Email,
+    string? Email,
     double InitialHandicapIndex,
     string UserId,
     int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
@@ -30,15 +30,20 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
 
     public async Task<Result<PlayerDto>> Handle(CreatePlayerCommand request, CancellationToken cancellationToken)
     {
-        var existing = await _playerRepository.GetByEmailAsync(request.Email, cancellationToken);
-        if (existing is not null)
-            return Result<PlayerDto>.Fail($"A player with email '{request.Email}' already exists.");
+        // Duplicate-email check is only meaningful when an email is provided.
+        // Players without an email (e.g. guest entries) can be created freely.
+        if (!string.IsNullOrWhiteSpace(request.Email))
+        {
+            var existing = await _playerRepository.GetByEmailAsync(request.Email, cancellationToken);
+            if (existing is not null)
+                return Result<PlayerDto>.Fail($"A player with email '{request.Email}' already exists.");
+        }
 
         var player = new Player
         {
             FirstName = request.FirstName,
             LastName = request.LastName,
-            Email = request.Email,
+            Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email,
             IsActive = true,
         };
 

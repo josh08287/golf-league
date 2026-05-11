@@ -3,7 +3,7 @@ namespace GolfLeague.Application.DTOs;
 public sealed record PlayerDto(
     int Id,
     string FullName,
-    string Email,
+    string? Email,
     bool IsActive,
     double? CurrentHandicap,
     int? FlightId,

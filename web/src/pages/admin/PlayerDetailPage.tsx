@@ -26,7 +26,13 @@ import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
 
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
-  email: z.string().email('Valid email required'),
+  email: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      { message: 'Valid email required' },
+    ),
   isAdmin: z.boolean(),
   isScorer: z.boolean(),
   isPlayer: z.boolean(),
@@ -62,7 +68,9 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
     if (values.isPlayer) roles.push('player');
     await updatePlayer.mutateAsync({
       name: values.name,
-      email: values.email,
+      // Send null when the field is empty so the API clears the column,
+      // rather than passing an empty string.
+      email: values.email?.trim() ? values.email.trim() : null,
       roles,
     });
     setSaved(true);
@@ -74,7 +82,7 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
       <FormField label="Full Name" error={errors.name} required>
         <input {...register('name')} className={inputClass} />
       </FormField>
-      <FormField label="Email" error={errors.email} required>
+      <FormField label="Email" error={errors.email}>
         <input {...register('email')} type="email" className={inputClass} />
       </FormField>
       <FormField label="Roles">
@@ -380,7 +388,7 @@ export function PlayerDetailPage() {
             playerId={id}
             defaultValues={{
               name: player.fullName,
-              email: player.email,
+              email: player.email ?? '',
               isAdmin: player.roles?.includes('admin') ?? false,
               isScorer: player.roles?.includes('scorer') ?? false,
               isPlayer: player.roles?.includes('player') ?? false,

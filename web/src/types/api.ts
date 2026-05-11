@@ -22,7 +22,7 @@ export interface PagedResponse<T> {
 export interface Player {
   id: number;
   fullName: string;
-  email: string;
+  email: string | null;
   isActive: boolean;
   currentHandicap: number | null;
   flightId: number | null;

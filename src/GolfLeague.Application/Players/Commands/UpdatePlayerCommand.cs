@@ -11,7 +11,7 @@ public sealed record UpdatePlayerCommand(
     int Id,
     string FirstName,
     string LastName,
-    string Email,
+    string? Email,
     string UserId,
     IReadOnlyList<string>? Roles = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
@@ -39,7 +39,8 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
 
         player.FirstName = request.FirstName;
         player.LastName = request.LastName;
-        player.Email = request.Email;
+        // Treat whitespace as "no email" so admins can clear the field.
+        player.Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email;
         await _playerRepository.UpdateAsync(player, cancellationToken);
 
         // Roles live on the linked AppUser. If the Player has no linked

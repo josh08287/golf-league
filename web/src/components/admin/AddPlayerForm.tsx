@@ -12,7 +12,15 @@ import type { PagedResponse } from '@/types/api';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
-  email: z.string().email('Valid email required'),
+  // Email is optional for free-standing players (no account yet). When the
+  // value is non-empty it still has to be a valid address.
+  email: z
+    .string()
+    .optional()
+    .refine(
+      (v) => !v || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
+      { message: 'Valid email required' },
+    ),
   initialHandicap: z
     .number({ invalid_type_error: 'Enter a number' })
     .min(-10)
@@ -72,7 +80,9 @@ export function AddPlayerForm({ onSuccess, onCancel, attachToUser }: AddPlayerFo
     } else {
       await createPlayer.mutateAsync({
         name: values.name,
-        email: values.email,
+        // Pass undefined so the API treats omitted email as "no email" rather
+        // than an empty string.
+        email: values.email?.trim() ? values.email.trim() : undefined,
         initialHandicap: values.initialHandicap,
         flightId: values.flightId || undefined,
       });
@@ -86,7 +96,7 @@ export function AddPlayerForm({ onSuccess, onCancel, attachToUser }: AddPlayerFo
         <input {...register('name')} className={inputClass} placeholder="Jane Smith" />
       </FormField>
 
-      <FormField label="Email" error={errors.email} required>
+      <FormField label="Email" error={errors.email} required={isAttachMode}>
         <input
           {...register('email')}
           type="email"
@@ -97,9 +107,13 @@ export function AddPlayerForm({ onSuccess, onCancel, attachToUser }: AddPlayerFo
           // Dimmed visually so admins notice it's not editable.
           style={isAttachMode ? { backgroundColor: '#f9fafb', cursor: 'not-allowed' } : undefined}
         />
-        {isAttachMode && (
+        {isAttachMode ? (
           <p className="mt-1 text-xs text-gray-400">
             Email comes from the account and can't change here.
+          </p>
+        ) : (
+          <p className="mt-1 text-xs text-gray-400">
+            Optional &mdash; required only once the player is invited to claim an account.
           </p>
         )}
       </FormField>

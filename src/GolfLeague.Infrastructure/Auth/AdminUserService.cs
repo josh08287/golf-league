@@ -184,7 +184,9 @@ public sealed class AdminUserService : IAdminUserService
         if (string.IsNullOrWhiteSpace(user.Email))
             return Result<PlayerDto>.Fail("User has no email address; cannot create a player profile.");
 
-        // Try to adopt an existing unlinked Player with the same email.
+        // Try to adopt an existing unlinked Player with the same email. Only
+        // do this lookup when the user has an email (which we already required
+        // above, so this is unconditional here).
         var existing = await _playerRepository.GetByEmailAsync(user.Email, cancellationToken);
         Player player;
         if (existing is not null && existing.AppUserId is null)
@@ -192,6 +194,10 @@ public sealed class AdminUserService : IAdminUserService
             existing.AppUserId = user.Id;
             existing.FirstName = firstName;
             existing.LastName = lastName;
+            // Player.Email matched user.Email by construction, but force it
+            // explicitly in case the row was created without an email or with
+            // a stale one.
+            existing.Email = user.Email;
             await _playerRepository.UpdateAsync(existing, cancellationToken);
             player = existing;
             _logger.LogInformation(

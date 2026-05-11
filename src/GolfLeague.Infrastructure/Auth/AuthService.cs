@@ -320,6 +320,7 @@ public sealed class AuthService : IAuthService
                 byEmail.AppUserId = user.Id;
                 byEmail.FirstName = firstName;
                 byEmail.LastName = lastName;
+                byEmail.Email = user.Email; // keep player email in sync with the linked account
                 await _playerRepository.UpdateAsync(byEmail, cancellationToken);
                 player = byEmail;
             }

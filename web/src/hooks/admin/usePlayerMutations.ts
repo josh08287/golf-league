@@ -6,14 +6,14 @@ import { playerKeys } from '@/hooks/usePlayers';
 
 export interface CreatePlayerPayload {
   name: string;
-  email: string;
+  email?: string;
   initialHandicap: number;
   flightId?: string;
 }
 
 export interface UpdatePlayerPayload {
   name?: string;
-  email?: string;
+  email?: string | null;
   flightId?: string | null;
   roles?: string[];
 }
