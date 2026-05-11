@@ -106,29 +106,33 @@ function InviteForm({ onDone }: { onDone: () => void }) {
               className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
             />
           </div>
-          {unlinkedPlayers.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Attach to existing player <span className="text-gray-400 font-normal">(optional)</span>
-              </label>
-              <select
-                value={preLinkedPlayerId}
-                onChange={(e) => setPreLinkedPlayerId(e.target.value)}
-                className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
-              >
-                <option value="">— Don&apos;t attach (create new) —</option>
-                {unlinkedPlayers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.fullName}{p.email ? ` — ${p.email}` : ''}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-gray-400">
-                When the invitee signs up, their new account will be linked to this player
-                instead of creating a fresh roster row.
-              </p>
-            </div>
-          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Attach to existing player <span className="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <select
+              value={preLinkedPlayerId}
+              onChange={(e) => setPreLinkedPlayerId(e.target.value)}
+              disabled={unlinkedPlayers.length === 0}
+              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400"
+            >
+              <option value="">
+                {unlinkedPlayers.length === 0
+                  ? '— No unlinked players available —'
+                  : '— Don’t attach (create new) —'}
+              </option>
+              {unlinkedPlayers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName}{p.email ? ` — ${p.email}` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-gray-400">
+              {unlinkedPlayers.length === 0
+                ? 'No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.'
+                : 'When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row.'}
+            </p>
+          </div>
         </>
       ) : (
         <div>

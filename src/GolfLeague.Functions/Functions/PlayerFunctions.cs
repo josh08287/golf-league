@@ -263,13 +263,17 @@ public sealed class PlayerFunctions
     }
 
     /// <summary>
-    /// GET /v1/players/unlinked — admin-only. Lists active players that aren't
-    /// yet attached to an AppUser. Powers the "link to existing user" picker
-    /// and the invite pre-attach dropdown.
+    /// GET /v1/admin/players/unlinked — admin-only. Lists active players that
+    /// aren't yet attached to an AppUser. Powers the "link to existing user"
+    /// picker and the invite pre-attach dropdown.
+    ///
+    /// Lives under /v1/admin/ rather than /v1/players/unlinked to avoid
+    /// route collision with /v1/players/{id} — the framework would otherwise
+    /// match "unlinked" as a non-numeric id and 400 on parse.
     /// </summary>
     [Function("GetUnlinkedPlayers")]
     public async Task<IActionResult> GetUnlinkedPlayers(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/unlinked")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/players/unlinked")] HttpRequest req,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireRole("admin");

@@ -86,7 +86,7 @@ export function useUnlinkedPlayers(enabled: boolean = true) {
   return useQuery({
     queryKey: [...playerKeys.all, 'unlinked'] as const,
     queryFn: async () => {
-      const res = await apiClient.get('/players/unlinked');
+      const res = await apiClient.get('/admin/players/unlinked');
       return unwrap<UnlinkedPlayer[]>(res.data);
     },
     enabled,
