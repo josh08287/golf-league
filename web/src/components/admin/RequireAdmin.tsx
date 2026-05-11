@@ -17,7 +17,7 @@ export function RequireAdmin() {
     return <Navigate to="/login" replace />;
   }
 
-  if (user.role !== 'admin') {
+  if (!user.roles?.includes('admin')) {
     return <Navigate to="/" replace />;
   }
 

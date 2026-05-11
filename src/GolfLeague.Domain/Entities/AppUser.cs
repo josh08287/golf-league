@@ -1,12 +1,9 @@
-using GolfLeague.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
 
 namespace GolfLeague.Domain.Entities;
 
 public sealed class AppUser : IdentityUser<Guid>
 {
-    public PlayerRole Role { get; set; } = PlayerRole.Player;
-
     public int? PlayerId { get; set; }
     public Player? Player { get; set; }
 
@@ -16,6 +13,10 @@ public sealed class AppUser : IdentityUser<Guid>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 
+    // Roles are stored in AspNetUserRoles (Identity's join table). Use
+    // UserManager.GetRolesAsync / AddToRoleAsync / RemoveFromRoleAsync to
+    // read or mutate. A user can hold any combination of admin / scorer /
+    // player.
     public ICollection<RefreshToken> RefreshTokens { get; set; } = [];
     public ICollection<UserPasskey> Passkeys { get; set; } = [];
 }

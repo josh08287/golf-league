@@ -60,10 +60,11 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         foreach (var player in players)
         {
             var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-            var role = player.AppUserId.HasValue && rolesByUserId.TryGetValue(player.AppUserId.Value, out var r)
-                ? r.ToString().ToLowerInvariant()
-                : "player";
-            dtos.Add(ToDto(player, currentHandicap?.HandicapIndex, role));
+            IReadOnlyList<string> roles = player.AppUserId.HasValue
+                && rolesByUserId.TryGetValue(player.AppUserId.Value, out var r)
+                ? r
+                : Array.Empty<string>();
+            dtos.Add(ToDto(player, currentHandicap?.HandicapIndex, roles));
         }
 
         var sorted = SortMap.Apply(dtos, request.Sort);
@@ -89,7 +90,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         return i < 0 ? fullName : fullName[..i];
     }
 
-    internal static PlayerDto ToDto(Player player, double? currentHandicap, string role = "player")
+    internal static PlayerDto ToDto(Player player, double? currentHandicap, IReadOnlyList<string>? roles = null)
     {
         var activeMembership = player.FlightMemberships
             .Where(fm => fm.Season.IsActive)
@@ -104,6 +105,6 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             currentHandicap,
             activeMembership?.FlightId,
             activeMembership?.Flight.Name,
-            role);
+            roles ?? Array.Empty<string>());
     }
 }

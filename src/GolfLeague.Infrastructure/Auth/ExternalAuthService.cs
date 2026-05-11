@@ -23,8 +23,9 @@ public sealed class ExternalAuthService : IExternalAuthService
     private readonly IMemoryCache _cache;
     private readonly IConfiguration _config;
     private readonly UserManager<AppUser> _userManager;
-    private readonly IAuthService _authService;
+    private readonly AuthService _authService;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IInviteRepository _inviteRepository;
     private readonly ILogger<ExternalAuthService> _logger;
 
     public ExternalAuthService(
@@ -32,8 +33,9 @@ public sealed class ExternalAuthService : IExternalAuthService
         IMemoryCache cache,
         IConfiguration config,
         UserManager<AppUser> userManager,
-        IAuthService authService,
+        AuthService authService,
         IPlayerRepository playerRepository,
+        IInviteRepository inviteRepository,
         ILogger<ExternalAuthService> logger)
     {
         _httpClientFactory = httpClientFactory;
@@ -42,6 +44,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         _userManager = userManager;
         _authService = authService;
         _playerRepository = playerRepository;
+        _inviteRepository = inviteRepository;
         _logger = logger;
     }
 
@@ -100,19 +103,28 @@ public sealed class ExternalAuthService : IExternalAuthService
             return Result<AuthResponseDto>.Fail($"{provider} did not return enough profile info (email required).");
 
         // Find or create AppUser
-        var user = await FindOrCreateUserAsync(provider, profile, cancellationToken);
+        var (user, error) = await FindOrCreateUserAsync(provider, profile, cancellationToken);
         if (user is null)
-            return Result<AuthResponseDto>.Fail("Failed to create or link the account.");
+            return Result<AuthResponseDto>.Fail(error ?? "Failed to create or link the account.");
 
         var tokens = await _authService.IssueAuthenticatedTokensAsync(user.Id, cancellationToken);
         return Result<AuthResponseDto>.Ok(tokens);
     }
 
-    private async Task<AppUser?> FindOrCreateUserAsync(string provider, ExternalProfile profile, CancellationToken cancellationToken)
+    /// <summary>
+    /// Three paths:
+    ///  1) Existing external-login link → just sign that user in.
+    ///  2) Existing email-matched account → link the provider to it (e.g. bootstrap admin
+    ///     signing in with Google for the first time, or invite-via-password user adding
+    ///     a social method later).
+    ///  3) Fresh sign-up → REQUIRES a pending invite for that email. No open registration.
+    /// </summary>
+    private async Task<(AppUser? User, string? Error)> FindOrCreateUserAsync(
+        string provider, ExternalProfile profile, CancellationToken cancellationToken)
     {
         // 1) Look up by Identity external-login link (provider + providerUserId)
         var byLogin = await _userManager.FindByLoginAsync(provider, profile.ProviderUserId);
-        if (byLogin is not null) return byLogin;
+        if (byLogin is not null) return (byLogin, null);
 
         // 2) Fall back to email match — link to existing account if found.
         var byEmail = await _userManager.FindByEmailAsync(profile.Email);
@@ -123,17 +135,25 @@ public sealed class ExternalAuthService : IExternalAuthService
                 new UserLoginInfo(provider, profile.ProviderUserId, provider));
             if (!addLogin.Succeeded)
                 _logger.LogWarning("Failed to attach {Provider} login to existing user {Email}", provider, profile.Email);
-            return byEmail;
+            return (byEmail, null);
         }
 
-        // 3) Create a new AppUser. Role defaults to Player; admins must be
-        //    promoted explicitly.
+        // 3) Fresh creation — require a pending invite for this email.
+        var invite = await _inviteRepository.GetPendingByEmailAsync(profile.Email, cancellationToken);
+        var inviteError = AuthService.ValidateInvite(invite, profile.Email);
+        if (inviteError is not null)
+        {
+            _logger.LogInformation(
+                "Refused to create user from {Provider} for {Email}: {Reason}",
+                provider, profile.Email, inviteError);
+            return (null, "You don't have an invite to join the league. Ask an admin to send you one.");
+        }
+
         var fresh = new AppUser
         {
             UserName = profile.Email,
             Email = profile.Email,
-            EmailConfirmed = true, // social provider attested email
-            Role = PlayerRole.Player,
+            EmailConfirmed = true,
             CreatedAt = DateTime.UtcNow,
         };
         var create = await _userManager.CreateAsync(fresh);
@@ -141,22 +161,18 @@ public sealed class ExternalAuthService : IExternalAuthService
         {
             _logger.LogError("Failed to create user from {Provider}: {Errors}",
                 provider, string.Join("; ", create.Errors.Select(e => e.Description)));
-            return null;
+            return (null, "Could not create account.");
         }
 
         await _userManager.AddLoginAsync(fresh, new UserLoginInfo(provider, profile.ProviderUserId, provider));
+        await _authService.AddRoleAsync(fresh, invite!.Role);
 
-        // Link an existing pre-created Player row by email match if available.
-        var player = await _playerRepository.GetByEmailAsync(profile.Email, cancellationToken);
-        if (player is not null && player.AppUserId is null)
-        {
-            player.AppUserId = fresh.Id;
-            await _playerRepository.UpdateAsync(player, cancellationToken);
-            fresh.PlayerId = player.Id;
-            await _userManager.UpdateAsync(fresh);
-        }
+        // Use the social-provider name as a best-effort default, split on first space.
+        var first = profile.Name?.Split(' ', 2)[0] ?? string.Empty;
+        var last = (profile.Name?.Split(' ', 2).ElementAtOrDefault(1)) ?? string.Empty;
+        await _authService.ConsumeInviteAsync(invite, fresh, first, last, cancellationToken);
 
-        return fresh;
+        return (fresh, null);
     }
 
     private (string ClientId, string ClientSecret) GetCredentials(string provider) => provider switch

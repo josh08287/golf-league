@@ -1,11 +1,12 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
 namespace GolfLeague.Application.Registrations.Queries;
 
 /// <summary>
-/// Query to get the current user's status. Role comes from the linked
+/// Query to get the current user's status. Roles come from the linked
 /// AppUser (authoritative for authorization).
 /// </summary>
 public sealed record GetMyStatusQuery(Guid AppUserId) : IRequest<Result<MyStatusResult>>;
@@ -13,30 +14,27 @@ public sealed record GetMyStatusQuery(Guid AppUserId) : IRequest<Result<MyStatus
 /// <summary>
 /// Status values:
 ///   "approved"  — user is a linked, active player
-///   "none"      — signed in but no invite / player record (admin-only users)
+///   "none"      — signed in but no player record (admin-only users)
 /// </summary>
-public sealed record MyStatusResult(string Status, int? PlayerId, string Role);
+public sealed record MyStatusResult(string Status, int? PlayerId, IReadOnlyList<string> Roles);
 
 public sealed class GetMyStatusQueryHandler : IRequestHandler<GetMyStatusQuery, Result<MyStatusResult>>
 {
     private readonly IPlayerRepository _playerRepo;
-    private readonly IAppUserRepository _appUserRepo;
+    private readonly IUserRoleService _roleService;
 
-    public GetMyStatusQueryHandler(IPlayerRepository playerRepo, IAppUserRepository appUserRepo)
+    public GetMyStatusQueryHandler(IPlayerRepository playerRepo, IUserRoleService roleService)
     {
         _playerRepo = playerRepo;
-        _appUserRepo = appUserRepo;
+        _roleService = roleService;
     }
 
     public async Task<Result<MyStatusResult>> Handle(GetMyStatusQuery request, CancellationToken cancellationToken)
     {
-        var user = await _appUserRepo.GetByIdAsync(request.AppUserId, cancellationToken);
-        var role = (user?.Role.ToString() ?? "player").ToLowerInvariant();
+        var roles = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
 
         var player = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
-        if (player is not null)
-            return Result<MyStatusResult>.Ok(new MyStatusResult("approved", player.Id, role));
-
-        return Result<MyStatusResult>.Ok(new MyStatusResult("none", null, role));
+        var status = player is not null ? "approved" : "none";
+        return Result<MyStatusResult>.Ok(new MyStatusResult(status, player?.Id, roles));
     }
 }

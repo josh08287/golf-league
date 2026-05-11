@@ -138,13 +138,23 @@ public class AcceptInviteCommandHandlerTests
         AppUserId = appUserId,
     };
 
+    private static Mock<IUserRoleService> NoExistingRoles()
+    {
+        var roleService = new Mock<IUserRoleService>();
+        roleService.Setup(r => r.GetRolesAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync(Array.Empty<string>());
+        roleService.Setup(r => r.SetRolesAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyCollection<string>>(), default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+        return roleService;
+    }
+
     [Fact]
-    public async Task Handle_AcceptInvite_CreatesPlayerWithInviteRole()
+    public async Task Handle_AcceptInvite_AssignsInviteRoleToAppUser()
     {
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
-        var appUserRepo = new Mock<IAppUserRepository>();
+        var roleService = NoExistingRoles();
         var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         var adminInvite = MakeInvite(role: PlayerRole.Admin);
@@ -155,20 +165,12 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, appUserRepo.Object, logger.Object);
-        var command = new AcceptInviteCommand(
-            "token-123",
-            appUserId,
-            "John",
-            "Doe",
-            "john@example.com",
-            null);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, roleService.Object, logger.Object);
+        var command = new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Role.Should().Be("admin");
-
         playerRepo.Verify(r => r.AddAsync(
             It.Is<Player>(p =>
                 p.FirstName == "John" &&
@@ -176,9 +178,9 @@ public class AcceptInviteCommandHandlerTests
                 p.Email == "john@example.com" &&
                 p.AppUserId == appUserId),
             default), Times.Once);
-
-        appUserRepo.Verify(r => r.UpdateRoleAsync(appUserId, PlayerRole.Admin, default), Times.Once);
-
+        roleService.Verify(
+            r => r.SetRolesAsync(appUserId, It.Is<IReadOnlyCollection<string>>(rs => rs.Contains("admin")), default),
+            Times.Once);
         inviteRepo.Verify(r => r.UpdateAsync(
             It.Is<PlayerInvite>(i =>
                 i.Status == InviteStatus.Accepted &&
@@ -187,12 +189,11 @@ public class AcceptInviteCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AcceptInviteWithScorerRole_AssignsScorer()
+    public async Task Handle_AcceptInvite_PreservesExistingRoles()
     {
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
-        var appUserRepo = new Mock<IAppUserRepository>();
         var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
         inviteRepo.Setup(r => r.GetByTokenAsync("token-456", default))
@@ -202,14 +203,25 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, appUserRepo.Object, logger.Object);
+        var roleService = new Mock<IUserRoleService>();
+        // User already has 'player'; should end with both 'player' and 'scorer'.
+        roleService.Setup(r => r.GetRolesAsync(appUserId, default))
+            .ReturnsAsync(new[] { "player" });
+        roleService.Setup(r => r.SetRolesAsync(appUserId, It.IsAny<IReadOnlyCollection<string>>(), default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, roleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-456", appUserId, "Jane", "Smith", "jane@example.com", "555-1234");
 
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Role.Should().Be("scorer");
-        appUserRepo.Verify(r => r.UpdateRoleAsync(appUserId, PlayerRole.Scorer, default), Times.Once);
+        roleService.Verify(
+            r => r.SetRolesAsync(
+                appUserId,
+                It.Is<IReadOnlyCollection<string>>(rs => rs.Contains("player") && rs.Contains("scorer")),
+                default),
+            Times.Once);
     }
 
     [Fact]
@@ -223,7 +235,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("invalid-token", Guid.NewGuid(), "John", "Doe", "j@e.com", null), default);
@@ -243,7 +255,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("token-123", Guid.NewGuid(), "J", "D", "j@e.com", null), default);
@@ -263,7 +275,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("token-123", Guid.NewGuid(), "J", "D", "j@e.com", null), default);
@@ -292,7 +304,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("token-123", Guid.NewGuid(), "J", "D", "j@e.com", null), default);
@@ -317,7 +329,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             new Mock<IHandicapRepository>().Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "j@e.com", null), default);
@@ -344,7 +356,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             handicapRepo.Object,
-            new Mock<IAppUserRepository>().Object,
+            NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
         var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null), default);

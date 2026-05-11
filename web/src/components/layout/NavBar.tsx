@@ -19,11 +19,11 @@ export function NavBar() {
   const navigate = useNavigate();
 
   // Pending invite count for admin badge — only fetched when admin is logged in
+  const isAdmin = user?.roles?.includes('admin') ?? false;
   const { data: invites } = useInvites();
-  const pendingInviteCount =
-    user?.role === 'admin'
-      ? (invites?.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) >= new Date()).length ?? 0)
-      : 0;
+  const pendingInviteCount = isAdmin
+    ? (invites?.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) >= new Date()).length ?? 0)
+    : 0;
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     cn(
@@ -39,7 +39,7 @@ export function NavBar() {
 
   const links = [
     ...publicLinks,
-    ...(user?.role === 'admin' ? [{ to: '/admin', label: 'Admin' }] : []),
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
   ];
 
   return (

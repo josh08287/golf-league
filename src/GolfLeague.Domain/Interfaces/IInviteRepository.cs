@@ -10,6 +10,7 @@ public interface IInviteRepository
     Task<IReadOnlyList<PlayerInvite>> GetByStatusAsync(InviteStatus status, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PlayerInvite>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<bool> PendingInviteExistsForEmailAsync(string email, CancellationToken cancellationToken = default);
+    Task<PlayerInvite?> GetPendingByEmailAsync(string email, CancellationToken cancellationToken = default);
     Task AddAsync(PlayerInvite invite, CancellationToken cancellationToken = default);
     Task AddRangeAsync(IEnumerable<PlayerInvite> invites, CancellationToken cancellationToken = default);
     Task UpdateAsync(PlayerInvite invite, CancellationToken cancellationToken = default);

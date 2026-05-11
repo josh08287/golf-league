@@ -21,6 +21,8 @@ public sealed class AuthService : IAuthService
     private readonly ITokenService _tokenService;
     private readonly AppDbContext _dbContext;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IInviteRepository _inviteRepository;
+    private readonly IHandicapRepository _handicapRepository;
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
@@ -29,6 +31,8 @@ public sealed class AuthService : IAuthService
         ITokenService tokenService,
         AppDbContext dbContext,
         IPlayerRepository playerRepository,
+        IInviteRepository inviteRepository,
+        IHandicapRepository handicapRepository,
         IEmailService emailService,
         ILogger<AuthService> logger)
     {
@@ -36,6 +40,8 @@ public sealed class AuthService : IAuthService
         _tokenService = tokenService;
         _dbContext = dbContext;
         _playerRepository = playerRepository;
+        _inviteRepository = inviteRepository;
+        _handicapRepository = handicapRepository;
         _emailService = emailService;
         _logger = logger;
     }
@@ -45,8 +51,17 @@ public sealed class AuthService : IAuthService
         string password,
         string firstName,
         string lastName,
+        string inviteToken,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(inviteToken))
+            return Result<AuthResponseDto>.Fail("An invite is required to create an account.");
+
+        var invite = await _inviteRepository.GetByTokenAsync(inviteToken, cancellationToken);
+        var inviteFailure = ValidateInvite(invite, email);
+        if (inviteFailure is not null)
+            return Result<AuthResponseDto>.Fail(inviteFailure);
+
         var existing = await _userManager.FindByEmailAsync(email);
         if (existing is not null)
             return Result<AuthResponseDto>.Fail("An account with that email already exists.");
@@ -55,8 +70,7 @@ public sealed class AuthService : IAuthService
         {
             UserName = email,
             Email = email,
-            EmailConfirmed = false,
-            Role = PlayerRole.Player,
+            EmailConfirmed = true, // invite holder has access to the email inbox
             CreatedAt = DateTime.UtcNow,
         };
 
@@ -67,9 +81,8 @@ public sealed class AuthService : IAuthService
             return Result<AuthResponseDto>.Fail(errors);
         }
 
-        // Try to link this new account to an existing Player by email match
-        // (e.g., an admin pre-created the Player row before the user signed up).
-        await TryLinkPlayerByEmailAsync(user, cancellationToken);
+        await AddRoleAsync(user, invite!.Role);
+        await ConsumeInviteAsync(invite, user, firstName, lastName, cancellationToken);
 
         var response = await IssueTokensAsync(user, cancellationToken);
         return Result<AuthResponseDto>.Ok(response);
@@ -161,18 +174,20 @@ public sealed class AuthService : IAuthService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var user = await _dbContext.Users
-            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null)
             return Result<CurrentUserDto>.Fail("User not found.");
 
         var hasPasskey = await _dbContext.UserPasskeys
             .AnyAsync(p => p.UserId == userId, cancellationToken);
 
+        var roles = await _userManager.GetRolesAsync(user);
+        var normalized = roles.Select(r => r.ToLowerInvariant()).ToList();
+
         var dto = new CurrentUserDto(
             user.Id,
             user.Email ?? string.Empty,
-            user.Role.ToString().ToLowerInvariant(),
+            normalized,
             user.PlayerId,
             hasPasskey,
             user.TotpEnabled);
@@ -198,9 +213,6 @@ public sealed class AuthService : IAuthService
             return Result<bool>.Fail("Email is required.");
 
         var user = await _userManager.FindByEmailAsync(email);
-        // Don't leak account existence — return success either way. Callers
-        // that need to differentiate (e.g. admin tooling) shouldn't use this
-        // endpoint.
         if (user is null)
         {
             _logger.LogInformation("Password reset requested for unknown email {Email}", email);
@@ -208,9 +220,6 @@ public sealed class AuthService : IAuthService
         }
 
         var rawToken = await _userManager.GeneratePasswordResetTokenAsync(user);
-        // Identity tokens contain '+' '/' '=' which break URL encoding when
-        // round-tripped through some clients. Base64url-encode the bytes so
-        // the link is safe to put in a query string.
         var urlSafeToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(rawToken));
 
         var trimmedBase = (webBaseUrl ?? string.Empty).TrimEnd('/');
@@ -223,7 +232,6 @@ public sealed class AuthService : IAuthService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send password reset email to {Email}", user.Email);
-            // Don't surface the error to the caller; log and return Ok.
         }
 
         return Result<bool>.Ok(true);
@@ -259,9 +267,6 @@ public sealed class AuthService : IAuthService
             return Result<bool>.Fail(errors);
         }
 
-        // Defensive: invalidate all existing refresh tokens for this user.
-        // A password reset usually implies "lost device", so existing sessions
-        // should be revoked.
         var existing = await _dbContext.RefreshTokens
             .AsTracking()
             .Where(rt => rt.UserId == user.Id && rt.RevokedAt == null)
@@ -272,33 +277,137 @@ public sealed class AuthService : IAuthService
         return Result<bool>.Ok(true);
     }
 
+    /// <summary>
+    /// Validate that the given invite is good for the supplied email and is
+    /// still pending/non-expired. Returns null on success, an error message
+    /// to surface on failure.
+    /// </summary>
+    internal static string? ValidateInvite(PlayerInvite? invite, string email)
+    {
+        if (invite is null) return "Invite not found.";
+        if (invite.Status == InviteStatus.Revoked) return "This invite has been revoked.";
+        if (invite.Status == InviteStatus.Accepted) return "This invite has already been used.";
+        if (invite.ExpiresAt < DateTime.UtcNow) return "This invite has expired.";
+        if (!string.Equals(invite.Email, email, StringComparison.OrdinalIgnoreCase))
+            return "This invite was sent to a different email address.";
+        return null;
+    }
+
+    /// <summary>
+    /// Consume an invite: link the AppUser, create the Player row (if there
+    /// isn't one already linked), seed an initial handicap, mark the invite
+    /// accepted.
+    /// </summary>
+    internal async Task ConsumeInviteAsync(
+        PlayerInvite invite,
+        AppUser user,
+        string firstName,
+        string lastName,
+        CancellationToken cancellationToken)
+    {
+        var existingPlayer = await _playerRepository.GetByAppUserIdAsync(user.Id, cancellationToken);
+        Player player;
+        if (existingPlayer is not null)
+        {
+            player = existingPlayer;
+        }
+        else
+        {
+            // Look for an admin-pre-created Player row by email and adopt it.
+            var byEmail = await _playerRepository.GetByEmailAsync(user.Email!, cancellationToken);
+            if (byEmail is not null && byEmail.AppUserId is null)
+            {
+                byEmail.AppUserId = user.Id;
+                byEmail.FirstName = firstName;
+                byEmail.LastName = lastName;
+                await _playerRepository.UpdateAsync(byEmail, cancellationToken);
+                player = byEmail;
+            }
+            else
+            {
+                player = new Player
+                {
+                    FirstName = firstName,
+                    LastName = lastName,
+                    Email = user.Email!,
+                    IsActive = true,
+                    AppUserId = user.Id,
+                };
+                await _playerRepository.AddAsync(player, cancellationToken);
+                await _handicapRepository.AddAsync(new Handicap
+                {
+                    PlayerId = player.Id,
+                    HandicapIndex = 0.0,
+                    EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Source = HandicapSource.Initial,
+                }, cancellationToken);
+            }
+        }
+
+        user.PlayerId = player.Id;
+        await _userManager.UpdateAsync(user);
+
+        invite.Status = InviteStatus.Accepted;
+        invite.AcceptedAt = DateTime.UtcNow;
+        invite.AcceptedByAppUserId = user.Id;
+        invite.PlayerId = player.Id;
+        await _inviteRepository.UpdateAsync(invite, cancellationToken);
+    }
+
+    /// <summary>
+    /// Ensure a single role is present on the AppUser. Idempotent.
+    /// </summary>
+    internal async Task AddRoleAsync(AppUser user, PlayerRole role)
+    {
+        var name = role.ToString().ToLowerInvariant();
+        if (!await _userManager.IsInRoleAsync(user, name))
+        {
+            var result = await _userManager.AddToRoleAsync(user, name);
+            if (!result.Succeeded)
+            {
+                _logger.LogError(
+                    "Failed to add role {Role} to user {UserId}: {Errors}",
+                    name, user.Id, string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
+        }
+    }
+
     private async Task<AuthResponseDto> IssueTokensAsync(AppUser user, CancellationToken cancellationToken)
     {
-        var requiresMfa = user.Role == PlayerRole.Admin;
+        var roles = (await _userManager.GetRolesAsync(user))
+            .Select(r => r.ToLowerInvariant())
+            .ToList();
+
+        // Admins must satisfy a second factor on every sign-in.
+        var requiresMfa = roles.Contains("admin");
         var mfaEnrolled = user.TotpEnabled
             || await _dbContext.UserPasskeys.AnyAsync(p => p.UserId == user.Id, cancellationToken);
 
         if (requiresMfa)
         {
-            // Return MFA-challenge token; no refresh token is issued until
-            // MFA completes successfully.
             var challenge = _tokenService.IssueMfaChallengeToken(user);
             return new AuthResponseDto(
                 AccessToken: challenge.Token,
                 RefreshToken: string.Empty,
                 AccessTokenExpiresAt: challenge.ExpiresAt,
-                Role: user.Role.ToString().ToLowerInvariant(),
+                Roles: roles,
                 UserId: user.Id,
                 MfaRequired: true,
                 MfaEnrollmentRequired: !mfaEnrolled);
         }
 
-        return await IssueFullTokensAsync(user, cancellationToken);
+        return await IssueFullTokensAsync(user, cancellationToken, roles);
     }
 
-    private async Task<AuthResponseDto> IssueFullTokensAsync(AppUser user, CancellationToken cancellationToken)
+    private async Task<AuthResponseDto> IssueFullTokensAsync(
+        AppUser user,
+        CancellationToken cancellationToken,
+        IReadOnlyList<string>? cachedRoles = null)
     {
-        var access = _tokenService.IssueAccessToken(user);
+        var roles = cachedRoles
+            ?? (await _userManager.GetRolesAsync(user)).Select(r => r.ToLowerInvariant()).ToList();
+
+        var access = _tokenService.IssueAccessToken(user, roles);
         var refreshPlaintext = _tokenService.GenerateRefreshToken();
         var refresh = new RefreshToken
         {
@@ -314,27 +423,9 @@ public sealed class AuthService : IAuthService
             AccessToken: access.Token,
             RefreshToken: refreshPlaintext,
             AccessTokenExpiresAt: access.ExpiresAt,
-            Role: user.Role.ToString().ToLowerInvariant(),
+            Roles: roles,
             UserId: user.Id,
             MfaRequired: false,
             MfaEnrollmentRequired: false);
-    }
-
-    private async Task TryLinkPlayerByEmailAsync(AppUser user, CancellationToken cancellationToken)
-    {
-        if (string.IsNullOrEmpty(user.Email)) return;
-
-        var player = await _playerRepository.GetByEmailAsync(user.Email, cancellationToken);
-        if (player is null || player.AppUserId is not null) return;
-
-        player.AppUserId = user.Id;
-        await _playerRepository.UpdateAsync(player, cancellationToken);
-
-        user.PlayerId = player.Id;
-        await _userManager.UpdateAsync(user);
-
-        _logger.LogInformation(
-            "Linked AppUser {UserId} to existing Player {PlayerId} by email match",
-            user.Id, player.Id);
     }
 }

@@ -1,5 +1,4 @@
 using GolfLeague.Domain.Entities;
-using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
@@ -24,27 +23,29 @@ public sealed class AppUserRepository : IAppUserRepository
         return _context.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalized, cancellationToken);
     }
 
-    public async Task<IReadOnlyDictionary<Guid, PlayerRole>> GetRolesAsync(
+    public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetRolesAsync(
         IReadOnlyCollection<Guid> userIds,
         CancellationToken cancellationToken = default)
     {
         if (userIds.Count == 0)
-            return new Dictionary<Guid, PlayerRole>();
+            return new Dictionary<Guid, IReadOnlyList<string>>();
 
-        return await _context.Users
-            .Where(u => userIds.Contains(u.Id))
-            .Select(u => new { u.Id, u.Role })
-            .ToDictionaryAsync(x => x.Id, x => x.Role, cancellationToken);
-    }
+        // Walk UserRoles join + Roles dict in one query, group by user, project to a dict.
+        var rows = await _context.UserRoles
+            .Where(ur => userIds.Contains(ur.UserId))
+            .Join(_context.Roles,
+                  ur => ur.RoleId,
+                  r => r.Id,
+                  (ur, r) => new { ur.UserId, RoleName = r.Name })
+            .ToListAsync(cancellationToken);
 
-    public async Task UpdateRoleAsync(Guid userId, PlayerRole role, CancellationToken cancellationToken = default)
-    {
-        var user = await _context.Users
-            .AsTracking()
-            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
-        if (user is null) return;
-        if (user.Role == role) return;
-        user.Role = role;
-        await _context.SaveChangesAsync(cancellationToken);
+        return rows
+            .GroupBy(x => x.UserId)
+            .ToDictionary(
+                g => g.Key,
+                g => (IReadOnlyList<string>)g
+                    .Select(x => (x.RoleName ?? string.Empty).ToLowerInvariant())
+                    .Where(s => s.Length > 0)
+                    .ToList());
     }
 }

@@ -13,7 +13,7 @@ export function useInvites(sort?: TableSort) {
   // Only admins can read /admin/invites. Firing it for everyone (the NavBar
   // calls this on every page) causes a 401 on public pages and triggers
   // the api.ts redirect-to-login interceptor.
-  const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
+  const isAdmin = useAuthStore((s) => s.user?.roles?.includes('admin') ?? false);
   return useQuery({
     queryKey: inviteKeys.list(sort),
     queryFn: async () => {

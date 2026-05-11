@@ -10,7 +10,7 @@ public sealed record AuthResponseDto(
     string AccessToken,
     string RefreshToken,
     DateTime AccessTokenExpiresAt,
-    string Role,
+    IReadOnlyList<string> Roles,
     Guid UserId,
     bool MfaRequired,
     bool MfaEnrollmentRequired);
@@ -18,7 +18,7 @@ public sealed record AuthResponseDto(
 public sealed record CurrentUserDto(
     Guid UserId,
     string Email,
-    string Role,
+    IReadOnlyList<string> Roles,
     int? PlayerId,
     bool HasPasskey,
     bool HasTotp);

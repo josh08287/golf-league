@@ -13,8 +13,7 @@ public sealed record CreatePlayerCommand(
     string Email,
     double InitialHandicapIndex,
     string UserId,
-    int? FlightId = null,
-    string Role = "player") : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
 public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCommand, Result<PlayerDto>>
 {
@@ -63,18 +62,14 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             }
             catch (Exception ex)
             {
-                // Player + handicap are committed. Surface the flight-assignment
-                // error to the caller as a partial success — admin can retry the
-                // assignment from the player edit page.
                 return Result<PlayerDto>.Fail(
                     $"Player created but flight assignment failed: {ex.Message}");
             }
         }
 
-        var roleString = Enum.TryParse<PlayerRole>(request.Role, true, out var role)
-            ? role.ToString().ToLowerInvariant()
-            : "player";
-
+        // Newly-created players have no AppUser yet (admin pre-creates the
+        // roster row, the user gains an AppUser by accepting an invite).
+        // So roles is empty until acceptance.
         var dto = new PlayerDto(
             player.Id,
             player.FullName,
@@ -83,7 +78,7 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
             request.InitialHandicapIndex,
             null,
             null,
-            roleString);
+            Array.Empty<string>());
 
         return Result<PlayerDto>.Ok(dto);
     }

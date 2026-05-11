@@ -1,5 +1,7 @@
 using FluentAssertions;
+using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
 using GolfLeague.Domain.Entities;
@@ -63,8 +65,8 @@ public class UpdatePlayerCommandHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Player?)null);
         var handicapRepo = new Mock<IHandicapRepository>();
-        var appUserRepo = new Mock<IAppUserRepository>();
-        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, appUserRepo.Object);
+        var roleService = new Mock<IUserRoleService>();
+        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, roleService.Object);
 
         var result = await handler.Handle(new UpdatePlayerCommand(99, "J", "D", "e@e.com", "admin"), default);
 
@@ -73,7 +75,7 @@ public class UpdatePlayerCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_WhenPlayerHasAppUser_UpdatesRoleOnAppUser()
+    public async Task Handle_WhenRolesSupplied_AndPlayerHasAppUser_SetsRoles()
     {
         var appUserId = Guid.NewGuid();
         var player = new Player { Id = 1, FirstName = "Old", LastName = "Name", Email = "old@e.com", FlightMemberships = [], AppUserId = appUserId };
@@ -81,31 +83,43 @@ public class UpdatePlayerCommandHandlerTests
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
-        var appUserRepo = new Mock<IAppUserRepository>();
-        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, appUserRepo.Object);
 
-        var result = await handler.Handle(new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin", "admin"), default);
+        var roleService = new Mock<IUserRoleService>();
+        roleService.Setup(r => r.SetRolesAsync(appUserId, It.IsAny<IReadOnlyCollection<string>>(), default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+        roleService.Setup(r => r.GetRolesAsync(appUserId, default))
+            .ReturnsAsync(new[] { "admin", "player" });
+
+        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, roleService.Object);
+
+        var result = await handler.Handle(
+            new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin", new[] { "admin", "player" }),
+            default);
 
         result.IsSuccess.Should().BeTrue();
         playerRepo.Verify(r => r.UpdateAsync(It.Is<Player>(p => p.FirstName == "New" && p.Email == "new@e.com"), default), Times.Once);
-        appUserRepo.Verify(r => r.UpdateRoleAsync(appUserId, PlayerRole.Admin, default), Times.Once);
+        roleService.Verify(
+            r => r.SetRolesAsync(appUserId, It.Is<IReadOnlyCollection<string>>(rs => rs.Count == 2 && rs.Contains("admin") && rs.Contains("player")), default),
+            Times.Once);
     }
 
     [Fact]
-    public async Task Handle_WhenPlayerHasNoAppUser_DoesNotCallAppUserRepo()
+    public async Task Handle_WhenPlayerHasNoAppUser_DoesNotCallRoleService()
     {
         var player = new Player { Id = 1, FirstName = "Old", LastName = "Name", Email = "old@e.com", FlightMemberships = [], AppUserId = null };
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync((Handicap?)null);
-        var appUserRepo = new Mock<IAppUserRepository>();
-        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, appUserRepo.Object);
+        var roleService = new Mock<IUserRoleService>();
+        var handler = new UpdatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, roleService.Object);
 
-        var result = await handler.Handle(new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin", "admin"), default);
+        var result = await handler.Handle(
+            new UpdatePlayerCommand(1, "New", "Name", "new@e.com", "admin", new[] { "admin" }),
+            default);
 
         result.IsSuccess.Should().BeTrue();
-        appUserRepo.Verify(r => r.UpdateRoleAsync(It.IsAny<Guid>(), It.IsAny<PlayerRole>(), default), Times.Never);
+        roleService.Verify(r => r.SetRolesAsync(It.IsAny<Guid>(), It.IsAny<IReadOnlyCollection<string>>(), default), Times.Never);
     }
 }
 
@@ -191,13 +205,21 @@ public class SetHandicapCommandHandlerTests
 
 public class GetPlayerQueryHandlerTests
 {
+    private static IUserRoleService EmptyRoleService()
+    {
+        var mock = new Mock<IUserRoleService>();
+        mock.Setup(r => r.GetRolesAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync(Array.Empty<string>());
+        return mock.Object;
+    }
+
     [Fact]
     public async Task Handle_WhenPlayerNotFound_ReturnsFail()
     {
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Player?)null);
         var handicapRepo = new Mock<IHandicapRepository>();
-        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object);
+        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService());
 
         var result = await handler.Handle(new GetPlayerQuery(99), default);
 
@@ -213,7 +235,7 @@ public class GetPlayerQueryHandlerTests
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 8.0 });
-        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object);
+        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService());
 
         var result = await handler.Handle(new GetPlayerQuery(1), default);
 
@@ -229,7 +251,7 @@ public class GetPlayersQueryHandlerTests
     {
         var mock = new Mock<IAppUserRepository>();
         mock.Setup(r => r.GetRolesAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
-            .ReturnsAsync(new Dictionary<Guid, PlayerRole>());
+            .ReturnsAsync(new Dictionary<Guid, IReadOnlyList<string>>());
         return mock.Object;
     }
 

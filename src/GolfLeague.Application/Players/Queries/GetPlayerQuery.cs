@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -11,13 +12,16 @@ public sealed class GetPlayerQueryHandler : IRequestHandler<GetPlayerQuery, Resu
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly IUserRoleService _roleService;
 
     public GetPlayerQueryHandler(
         IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IHandicapRepository handicapRepository,
+        IUserRoleService roleService)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _roleService = roleService;
     }
 
     public async Task<Result<PlayerDto>> Handle(GetPlayerQuery request, CancellationToken cancellationToken)
@@ -27,7 +31,11 @@ public sealed class GetPlayerQueryHandler : IRequestHandler<GetPlayerQuery, Resu
             return Result<PlayerDto>.Fail($"Player with ID {request.Id} not found.");
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex);
+        var roles = player.AppUserId.HasValue
+            ? await _roleService.GetRolesAsync(player.AppUserId.Value, cancellationToken)
+            : Array.Empty<string>();
+
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, roles);
         return Result<PlayerDto>.Ok(dto);
     }
 }

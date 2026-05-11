@@ -40,7 +40,7 @@ export function useAuth() {
         setUser({
           name: me.email,
           email: me.email,
-          role: me.role,
+          roles: me.roles ?? [],
           playerId: me.playerId != null ? String(me.playerId) : null,
         });
       } catch {
@@ -71,7 +71,7 @@ export function useAuth() {
     setUser({
       name: me.email,
       email: me.email,
-      role: me.role,
+      roles: me.roles ?? [],
       playerId: me.playerId != null ? String(me.playerId) : null,
     });
     await queryClient.invalidateQueries();

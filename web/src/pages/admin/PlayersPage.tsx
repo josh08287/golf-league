@@ -75,10 +75,12 @@ export function PlayersPage() {
     },
     {
       key: 'role',
-      header: 'Role',
-      sortable: true,
+      header: 'Roles',
+      sortable: false,
       render: (p: Player) => (
-        <span className="capitalize text-sm text-gray-700">{p.role}</span>
+        <span className="capitalize text-sm text-gray-700">
+          {(p.roles ?? []).length === 0 ? <span className="text-gray-400">none</span> : (p.roles ?? []).join(', ')}
+        </span>
       ),
     },
     {

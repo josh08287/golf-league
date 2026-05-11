@@ -6,10 +6,11 @@ namespace GolfLeague.Application.Interfaces;
 public interface ITokenService
 {
     /// <summary>
-    /// Issues a normal access token (full role claim). Used after primary
-    /// login is complete and any required MFA has been satisfied.
+    /// Issues a normal access token with one "role" claim per assigned role.
+    /// Used after primary login is complete and any required MFA has been
+    /// satisfied.
     /// </summary>
-    AccessTokenResult IssueAccessToken(AppUser user);
+    AccessTokenResult IssueAccessToken(AppUser user, IEnumerable<string> roles);
 
     /// <summary>
     /// Issues a short-lived MFA-challenge token that proves the user

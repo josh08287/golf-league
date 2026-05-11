@@ -10,11 +10,17 @@ namespace GolfLeague.Application.Interfaces;
 /// </summary>
 public interface IAuthService
 {
+    /// <summary>
+    /// Self-service registration. Requires a valid, pending, non-expired
+    /// invite token whose email matches the supplied email. Fails otherwise —
+    /// there is no open sign-up.
+    /// </summary>
     Task<Result<AuthResponseDto>> RegisterAsync(
         string email,
         string password,
         string firstName,
         string lastName,
+        string inviteToken,
         CancellationToken cancellationToken = default);
 
     Task<Result<AuthResponseDto>> LoginAsync(

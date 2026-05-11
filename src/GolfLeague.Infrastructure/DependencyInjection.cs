@@ -92,7 +92,9 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<ITokenService, JwtTokenService>();
-        services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<AuthService>();
+        services.AddScoped<IAuthService>(sp => sp.GetRequiredService<AuthService>());
+        services.AddScoped<IUserRoleService, UserRoleService>();
         services.AddScoped<IMfaService, MfaService>();
         services.AddScoped<IExternalAuthService, ExternalAuthService>();
         services.AddScoped<IPasskeyService, PasskeyService>();

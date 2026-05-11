@@ -6,11 +6,13 @@ const ACCESS_EXPIRES_KEY = 'golf-league-access-expires';
 
 export type Provider = 'google' | 'facebook';
 
+export type AppRole = 'admin' | 'scorer' | 'player';
+
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
   accessTokenExpiresAt: string;
-  role: 'admin' | 'scorer' | 'player' | 'mfa-pending';
+  roles: AppRole[];
   userId: string;
   mfaRequired: boolean;
   mfaEnrollmentRequired: boolean;
@@ -19,7 +21,7 @@ export interface AuthResponse {
 export interface CurrentUser {
   userId: string;
   email: string;
-  role: 'admin' | 'scorer' | 'player';
+  roles: AppRole[];
   playerId: number | null;
   hasPasskey: boolean;
   hasTotp: boolean;
@@ -108,6 +110,7 @@ export async function login(email: string, password: string): Promise<AuthRespon
 export async function register(input: {
   email: string;
   password: string;
+  inviteToken: string;
   firstName?: string;
   lastName?: string;
 }): Promise<AuthResponse> {

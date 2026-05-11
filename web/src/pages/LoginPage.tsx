@@ -98,9 +98,8 @@ export function LoginPage() {
           </Button>
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
-          Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-primary-900 font-medium hover:underline">Create one</Link>
+        <p className="mt-6 text-center text-xs text-gray-400">
+          New here? Membership is invite-only — ask an admin to send you a link.
         </p>
       </div>
     </div>

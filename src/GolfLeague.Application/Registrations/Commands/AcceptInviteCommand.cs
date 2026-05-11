@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -9,10 +10,12 @@ using Microsoft.Extensions.Logging;
 namespace GolfLeague.Application.Registrations.Commands;
 
 /// <summary>
-/// Called when an invited user signs in and confirms their details.
-/// Creates the Player record, links it to the calling AppUser, and marks
-/// the invite accepted. The user's role is set on the AppUser to match
-/// the invite.
+/// Legacy "I'm already signed in, claim this invite" flow. The main
+/// registration paths (POST /auth/register and the social callback) consume
+/// the invite themselves now. This handler still exists for the case where
+/// a user already has an AppUser (e.g. previously signed in via social with
+/// an invite) and the admin issues them a *new* invite to attach a Player
+/// profile.
 /// </summary>
 public sealed record AcceptInviteCommand(
     string Token,
@@ -27,20 +30,20 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
     private readonly IHandicapRepository _handicapRepo;
-    private readonly IAppUserRepository _appUserRepo;
+    private readonly IUserRoleService _roleService;
     private readonly ILogger<AcceptInviteCommandHandler> _logger;
 
     public AcceptInviteCommandHandler(
         IInviteRepository inviteRepo,
         IPlayerRepository playerRepo,
         IHandicapRepository handicapRepo,
-        IAppUserRepository appUserRepo,
+        IUserRoleService roleService,
         ILogger<AcceptInviteCommandHandler> logger)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
         _handicapRepo = handicapRepo;
-        _appUserRepo = appUserRepo;
+        _roleService = roleService;
         _logger = logger;
     }
 
@@ -60,7 +63,6 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         if (invite.ExpiresAt < DateTime.UtcNow)
             return Result<PlayerDto>.Fail("This invite has expired. Please ask the admin to send a new one.");
 
-        // Guard against re-accepting with the same identity
         var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
         if (existing is not null)
             return Result<PlayerDto>.Fail("Your account is already linked to a player profile.");
@@ -76,8 +78,14 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
 
         await _playerRepo.AddAsync(player, cancellationToken);
 
-        // Assign the invite's role to the AppUser (authoritative for authorization).
-        await _appUserRepo.UpdateRoleAsync(request.AppUserId, invite.Role, cancellationToken);
+        // Add the invite's role on top of whatever the user already has.
+        var currentRoles = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
+        var inviteRole = invite.Role.ToString().ToLowerInvariant();
+        if (!currentRoles.Contains(inviteRole))
+        {
+            var combined = currentRoles.Append(inviteRole).ToList();
+            await _roleService.SetRolesAsync(request.AppUserId, combined, cancellationToken);
+        }
 
         _logger.LogInformation(
             "Linked player {PlayerId} to AppUser {UserId} with role {Role}",
@@ -85,7 +93,6 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             request.AppUserId,
             invite.Role);
 
-        // Placeholder handicap — admin sets the real value in Player Detail
         await _handicapRepo.AddAsync(new Handicap
         {
             PlayerId = player.Id,
@@ -100,8 +107,8 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         invite.PlayerId = player.Id;
         await _inviteRepo.UpdateAsync(invite, cancellationToken);
 
+        var refreshedRoles = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
         return Result<PlayerDto>.Ok(new PlayerDto(
-            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null,
-            invite.Role.ToString().ToLowerInvariant()));
+            player.Id, player.FullName, player.Email, player.IsActive, 0.0, null, null, refreshedRoles));
     }
 }

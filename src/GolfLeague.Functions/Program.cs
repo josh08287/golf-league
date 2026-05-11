@@ -1,7 +1,6 @@
 using System.Text;
 using GolfLeague.Application.Behaviors;
 using GolfLeague.Domain.Entities;
-using GolfLeague.Domain.Enums;
 using GolfLeague.Functions.Middleware;
 using GolfLeague.Infrastructure;
 using GolfLeague.Infrastructure.Auth;
@@ -106,10 +105,29 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
         await dbContext.Database.MigrateAsync();
     });
 
-    logger.LogInformation("Startup: migrations applied. Seeding active season if missing.");
+    logger.LogInformation("Startup: migrations applied. Seeding roles + active season if missing.");
+    await SeedRolesAsync(scope.ServiceProvider, logger);
     await SeedActiveSeasonAsync(dbContext);
     await BootstrapAdminAsync(scope.ServiceProvider, logger);
     logger.LogInformation("Startup: seed complete.");
+}
+
+static async Task SeedRolesAsync(IServiceProvider services, ILogger logger)
+{
+    var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+    foreach (var name in new[] { "admin", "scorer", "player" })
+    {
+        if (!await roleManager.RoleExistsAsync(name))
+        {
+            var result = await roleManager.CreateAsync(new IdentityRole<Guid> { Name = name });
+            if (!result.Succeeded)
+            {
+                logger.LogError(
+                    "Startup: failed to seed role {Role}: {Errors}",
+                    name, string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
+        }
+    }
 }
 
 static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
@@ -177,7 +195,9 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
         return;
     }
 
-    var anyAdmin = await dbContext.Users.AnyAsync(u => u.Role == PlayerRole.Admin);
+    // Check whether anyone already holds the admin role.
+    var anyAdmin = await dbContext.UserRoles
+        .AnyAsync(ur => dbContext.Roles.Any(r => r.Id == ur.RoleId && r.Name == "admin"));
     if (anyAdmin)
     {
         logger.LogInformation("Startup: admin user already exists; skipping bootstrap.");
@@ -187,11 +207,19 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
     var existing = await userManager.FindByEmailAsync(bootstrapEmail);
     if (existing is not null)
     {
-        // User exists but isn't admin yet — promote and require MFA enrollment.
-        existing.Role = PlayerRole.Admin;
-        await userManager.UpdateAsync(existing);
+        if (!await userManager.IsInRoleAsync(existing, "admin"))
+        {
+            var addResult = await userManager.AddToRoleAsync(existing, "admin");
+            if (!addResult.Succeeded)
+            {
+                logger.LogError(
+                    "Startup: failed to grant admin role to existing user {Email}: {Errors}",
+                    bootstrapEmail, string.Join("; ", addResult.Errors.Select(e => e.Description)));
+                return;
+            }
+        }
         logger.LogWarning(
-            "Startup: promoted existing user {Email} to admin. They must set a password and enroll MFA.",
+            "Startup: granted admin role to existing user {Email}. They must enroll MFA on next sign-in.",
             bootstrapEmail);
         return;
     }
@@ -201,7 +229,6 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
         UserName = bootstrapEmail,
         Email = bootstrapEmail,
         EmailConfirmed = false,
-        Role = PlayerRole.Admin,
         CreatedAt = DateTime.UtcNow,
     };
 
@@ -213,6 +240,15 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
     {
         var errors = string.Join("; ", result.Errors.Select(e => e.Description));
         logger.LogError("Startup: failed to create bootstrap admin: {Errors}", errors);
+        return;
+    }
+
+    var roleResult = await userManager.AddToRoleAsync(user, "admin");
+    if (!roleResult.Succeeded)
+    {
+        logger.LogError(
+            "Startup: created bootstrap admin {Email} but failed to assign admin role: {Errors}",
+            bootstrapEmail, string.Join("; ", roleResult.Errors.Select(e => e.Description)));
         return;
     }
 

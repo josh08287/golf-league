@@ -6,7 +6,7 @@ export type UserRole = 'admin' | 'scorer' | 'player';
 export interface AuthUser {
   name: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   playerId: string | null;
 }
 
@@ -31,3 +31,7 @@ export const useAuthStore = create<AuthState>()(
     },
   ),
 );
+
+/** Convenience: returns true if the user holds the given role. */
+export const hasRole = (user: AuthUser | null, role: UserRole): boolean =>
+  !!user?.roles?.includes(role);

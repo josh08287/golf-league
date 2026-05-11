@@ -27,7 +27,9 @@ import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
   email: z.string().email('Valid email required'),
-  role: z.enum(['admin', 'scorer', 'player']),
+  isAdmin: z.boolean(),
+  isScorer: z.boolean(),
+  isPlayer: z.boolean(),
 });
 
 const handicapSchema = z.object({
@@ -54,7 +56,15 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
   } = useForm<EditValues>({ resolver: zodResolver(editSchema), defaultValues });
 
   async function onSubmit(values: EditValues) {
-    await updatePlayer.mutateAsync(values);
+    const roles: string[] = [];
+    if (values.isAdmin) roles.push('admin');
+    if (values.isScorer) roles.push('scorer');
+    if (values.isPlayer) roles.push('player');
+    await updatePlayer.mutateAsync({
+      name: values.name,
+      email: values.email,
+      roles,
+    });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
@@ -67,12 +77,21 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
       <FormField label="Email" error={errors.email} required>
         <input {...register('email')} type="email" className={inputClass} />
       </FormField>
-      <FormField label="Role" error={errors.role} required>
-        <select {...register('role')} className={selectClass}>
-          <option value="player">Player</option>
-          <option value="scorer">Scorer</option>
-          <option value="admin">Admin</option>
-        </select>
+      <FormField label="Roles">
+        <div className="flex flex-col gap-2 mt-1">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register('isPlayer')} /> Player
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register('isScorer')} /> Scorer
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" {...register('isAdmin')} /> Admin
+          </label>
+        </div>
+        <p className="mt-1 text-xs text-gray-400">
+          Admins must enroll a second factor (passkey or TOTP) on next sign-in.
+        </p>
       </FormField>
 
       {updatePlayer.isError && (
@@ -359,7 +378,13 @@ export function PlayerDetailPage() {
           <h2 className="mb-4 text-base font-semibold text-gray-900">Player Info</h2>
           <EditPlayerForm
             playerId={id}
-            defaultValues={{ name: player.fullName, email: player.email, role: player.role }}
+            defaultValues={{
+              name: player.fullName,
+              email: player.email,
+              isAdmin: player.roles?.includes('admin') ?? false,
+              isScorer: player.roles?.includes('scorer') ?? false,
+              isPlayer: player.roles?.includes('player') ?? false,
+            }}
           />
         </Card>
 

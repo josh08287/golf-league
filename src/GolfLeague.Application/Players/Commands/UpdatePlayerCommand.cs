@@ -1,7 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Queries;
-using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -13,22 +13,22 @@ public sealed record UpdatePlayerCommand(
     string LastName,
     string Email,
     string UserId,
-    string? Role = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    IReadOnlyList<string>? Roles = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
 
 public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCommand, Result<PlayerDto>>
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
-    private readonly IAppUserRepository _appUserRepository;
+    private readonly IUserRoleService _roleService;
 
     public UpdatePlayerCommandHandler(
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        IAppUserRepository appUserRepository)
+        IUserRoleService roleService)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
-        _appUserRepository = appUserRepository;
+        _roleService = roleService;
     }
 
     public async Task<Result<PlayerDto>> Handle(UpdatePlayerCommand request, CancellationToken cancellationToken)
@@ -40,31 +40,24 @@ public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCom
         player.FirstName = request.FirstName;
         player.LastName = request.LastName;
         player.Email = request.Email;
-
         await _playerRepository.UpdateAsync(player, cancellationToken);
 
-        // Role lives on the linked AppUser (authoritative). If the Player has
-        // no linked account yet, role updates are deferred until they claim
-        // an invite.
-        var roleString = "player";
+        // Roles live on the linked AppUser. If the Player has no linked
+        // account yet, role updates are deferred until they claim an invite.
+        IReadOnlyList<string> currentRoles = Array.Empty<string>();
         if (player.AppUserId is Guid appUserId)
         {
-            if (!string.IsNullOrWhiteSpace(request.Role) &&
-                Enum.TryParse<PlayerRole>(request.Role, true, out var newRole))
+            if (request.Roles is not null)
             {
-                await _appUserRepository.UpdateRoleAsync(appUserId, newRole, cancellationToken);
-                roleString = newRole.ToString().ToLowerInvariant();
+                var setResult = await _roleService.SetRolesAsync(appUserId, request.Roles, cancellationToken);
+                if (!setResult.IsSuccess)
+                    return Result<PlayerDto>.Fail(setResult.Error!);
             }
-            else
-            {
-                var user = await _appUserRepository.GetByIdAsync(appUserId, cancellationToken);
-                if (user is not null)
-                    roleString = user.Role.ToString().ToLowerInvariant();
-            }
+            currentRoles = await _roleService.GetRolesAsync(appUserId, cancellationToken);
         }
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, roleString);
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, currentRoles);
 
         return Result<PlayerDto>.Ok(dto);
     }

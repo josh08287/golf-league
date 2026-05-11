@@ -306,14 +306,9 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     {
         modelBuilder.Entity<AppUser>(entity =>
         {
-            entity.Property(e => e.Role)
-                  .HasConversion(
-                      v => v.ToString(),
-                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
-                  .HasMaxLength(20)
-                  .IsRequired();
             entity.Property(e => e.TotpSecret).HasMaxLength(64);
             // PlayerId FK is configured on the Player side (1:1 inverse).
+            // Roles live in AspNetUserRoles (Identity's built-in join table).
         });
     }
 

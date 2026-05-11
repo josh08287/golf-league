@@ -9,14 +9,13 @@ export interface CreatePlayerPayload {
   email: string;
   initialHandicap: number;
   flightId?: string;
-  role?: string;
 }
 
 export interface UpdatePlayerPayload {
   name?: string;
   email?: string;
   flightId?: string | null;
-  role?: string;
+  roles?: string[];
 }
 
 export interface SetHandicapPayload {

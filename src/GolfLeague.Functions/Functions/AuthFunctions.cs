@@ -30,8 +30,16 @@ public sealed class AuthFunctions
         if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Password))
             return new BadRequestObjectResult(new { error = "Email and password are required." });
 
+        if (string.IsNullOrWhiteSpace(body.InviteToken))
+            return new BadRequestObjectResult(new { error = "An invite is required to create an account." });
+
         var result = await _authService.RegisterAsync(
-            body.Email, body.Password, body.FirstName ?? string.Empty, body.LastName ?? string.Empty, cancellationToken);
+            body.Email,
+            body.Password,
+            body.FirstName ?? string.Empty,
+            body.LastName ?? string.Empty,
+            body.InviteToken,
+            cancellationToken);
 
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
@@ -147,7 +155,7 @@ public sealed class AuthFunctions
         return new OkObjectResult(new { data = new { reset = true } });
     }
 
-    private sealed record RegisterRequest(string Email, string Password, string? FirstName, string? LastName);
+    private sealed record RegisterRequest(string Email, string Password, string InviteToken, string? FirstName, string? LastName);
     private sealed record LoginRequest(string Email, string Password);
     private sealed record RefreshRequest(string RefreshToken);
     private sealed record PasswordResetRequestBody(string Email);

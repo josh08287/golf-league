@@ -38,6 +38,13 @@ public sealed class InviteRepository : IInviteRepository
                 i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending && i.ExpiresAt > DateTime.UtcNow,
                 cancellationToken);
 
+    public Task<PlayerInvite?> GetPendingByEmailAsync(string email, CancellationToken cancellationToken = default)
+        => _context.PlayerInvites
+            .OrderByDescending(i => i.CreatedAt)
+            .FirstOrDefaultAsync(
+                i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending && i.ExpiresAt > DateTime.UtcNow,
+                cancellationToken);
+
     public async Task AddAsync(PlayerInvite invite, CancellationToken cancellationToken = default)
     {
         await _context.PlayerInvites.AddAsync(invite, cancellationToken);
