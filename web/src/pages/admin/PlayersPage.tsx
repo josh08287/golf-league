@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -85,7 +86,9 @@ export function PlayersPage() {
       key: 'handicap',
       header: 'Handicap',
       sortable: true,
-      render: (p: Player) => p.currentHandicap?.toFixed(1) ?? '—',
+      render: (p: Player) => (
+        <span title={HANDICAP_PAIR_TOOLTIP}>{formatHandicapPair(p.currentHandicap)}</span>
+      ),
     },
     {
       key: 'role',

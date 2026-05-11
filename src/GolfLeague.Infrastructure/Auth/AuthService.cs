@@ -306,14 +306,27 @@ public sealed class AuthService : IAuthService
         CancellationToken cancellationToken)
     {
         var existingPlayer = await _playerRepository.GetByAppUserIdAsync(user.Id, cancellationToken);
+        Player? preLink = null;
+        if (existingPlayer is null && invite.PreLinkedPlayerId is int preId)
+        {
+            preLink = await _playerRepository.GetByIdAsync(preId, cancellationToken);
+            _logger.LogInformation(
+                "Invite {InviteId} pre-link lookup: PreLinkedPlayerId={PreId}, Found={Found}, AppUserId={AppUserId}",
+                invite.Id, preId, preLink is not null, preLink?.AppUserId);
+            if (preLink is not null && preLink.AppUserId is not null)
+            {
+                // Pre-linked player got linked elsewhere between invite creation
+                // and acceptance — fall through to the email-match / new path.
+                preLink = null;
+            }
+        }
+
         Player player;
         if (existingPlayer is not null)
         {
             player = existingPlayer;
         }
-        else if (invite.PreLinkedPlayerId is int preId
-            && await _playerRepository.GetByIdAsync(preId, cancellationToken) is Player preLink
-            && preLink.AppUserId is null)
+        else if (preLink is not null)
         {
             // Admin chose this specific Player when issuing the invite.
             // Honors the pre-attach even if emails don't match — admin
@@ -324,6 +337,9 @@ public sealed class AuthService : IAuthService
             preLink.Email = user.Email;
             await _playerRepository.UpdateAsync(preLink, cancellationToken);
             player = preLink;
+            _logger.LogInformation(
+                "Linked AppUser {UserId} to pre-attached Player {PlayerId} from invite {InviteId}",
+                user.Id, preLink.Id, invite.Id);
         }
         else
         {

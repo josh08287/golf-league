@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { usePlayers } from '@/hooks/usePlayers';
 import { useSortableTable } from '@/hooks/useSortableTable';
 import {
@@ -66,7 +67,7 @@ export function PlayersPage() {
                   Flight
                 </SortableTableHead>
                 <SortableTableHead column="handicap" sort={sort} onSort={cycle} className="text-right">
-                  Handicap
+                  Hcp <span className="text-xs font-normal text-gray-400">18 / 9</span>
                 </SortableTableHead>
               </TableRow>
             </TableHeader>
@@ -86,8 +87,8 @@ export function PlayersPage() {
                 >
                   <TableCell className="font-medium text-primary-900">{p.fullName}</TableCell>
                   <TableCell className="text-gray-600">{p.flightName ?? '—'}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums">
-                    {p.currentHandicap?.toFixed(1) ?? '—'}
+                  <TableCell className="text-right font-semibold tabular-nums" title={HANDICAP_PAIR_TOOLTIP}>
+                    {formatHandicapPair(p.currentHandicap)}
                   </TableCell>
                 </TableRow>
               ))}

@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { useRound, useRoundScorecards } from '../../hooks/useRounds';
 import { useSubmitHoleScores, useSetParticipantSkipped } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -385,8 +386,8 @@ export function ScoreEntryPage() {
                           <div className={`font-medium ${skipped ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
                             {participant.playerName}
                           </div>
-                          <div className="text-xs text-gray-400">
-                            HCP {participant.handicapAtTime} · CH {courseHandicap}
+                          <div className="text-xs text-gray-400" title={HANDICAP_PAIR_TOOLTIP}>
+                            HCP {formatHandicapPair(participant.handicapAtTime)} · CH {courseHandicap}
                           </div>
                         </div>
                         {!isFinalized && (

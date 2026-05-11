@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../lib/api';
 import { usePlayers, playerKeys } from '../../hooks/usePlayers';
 import { Spinner } from '../ui/Spinner';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import type { Flight, Player, PagedResponse } from '../../types/api';
 
 interface FlightPlayerAssignmentProps {
@@ -151,7 +152,9 @@ function FlightColumn({
             ].join(' ')}
           >
             {p.fullName}
-            <span className="ml-2 text-xs text-gray-400">({p.currentHandicap?.toFixed(1) ?? '—'})</span>
+            <span className="ml-2 text-xs text-gray-400" title={HANDICAP_PAIR_TOOLTIP}>
+              ({formatHandicapPair(p.currentHandicap)})
+            </span>
           </li>
         ))}
       </ul>

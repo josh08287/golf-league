@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Trophy, Calendar } from 'lucide-react';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
 import { useRounds, useRoundScorecards } from '@/hooks/useRounds';
 import {
@@ -106,8 +107,8 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
                     {sc.playerName}
                   </Link>
                 </TableCell>
-                <TableCell className="text-right text-gray-600 tabular-nums">
-                  {sc.handicapAtTime.toFixed(1)}
+                <TableCell className="text-right text-gray-600 tabular-nums whitespace-nowrap" title={HANDICAP_PAIR_TOOLTIP}>
+                  {formatHandicapPair(sc.handicapAtTime)}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{sc.grossScore ?? '—'}</TableCell>
                 <TableCell className="text-right tabular-nums">{sc.netScore ?? '—'}</TableCell>

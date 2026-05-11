@@ -1,6 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronDown } from 'lucide-react';
 import * as Accordion from '@radix-ui/react-accordion';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useRound, useRoundScorecards } from '@/hooks/useRounds';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -137,8 +138,8 @@ function ScorecardTable({ scorecard }: { scorecard: RoundScorecard }) {
         <span>
           Net Pts: <strong>{scorecard.netPoints ?? '—'}</strong>
         </span>
-        <span>
-          HCP: <strong>{scorecard.handicapAtTime}</strong>
+        <span title={HANDICAP_PAIR_TOOLTIP}>
+          HCP: <strong>{formatHandicapPair(scorecard.handicapAtTime)}</strong>
         </span>
       </div>
     </div>
@@ -204,8 +205,8 @@ export function RoundDetailPage() {
                         >
                           {sc.playerName}
                         </Link>
-                        <span className="text-sm text-gray-400">
-                          HCP {sc.handicapAtTime}
+                        <span className="text-sm text-gray-400 whitespace-nowrap" title={HANDICAP_PAIR_TOOLTIP}>
+                          HCP {formatHandicapPair(sc.handicapAtTime)}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">

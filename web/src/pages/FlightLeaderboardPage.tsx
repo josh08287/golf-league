@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlightStandings, useFlight } from '@/hooks/useFlights';
 import { useSeasons } from '@/hooks/useSeasons';
 import {
@@ -54,7 +55,9 @@ function StandingsRow({ standing, highlight }: StandingsRowProps) {
           {standing.playerFullName}
         </Link>
       </TableCell>
-      <TableCell className="text-center">{standing.currentHandicapIndex.toFixed(1)}</TableCell>
+      <TableCell className="text-center whitespace-nowrap" title={HANDICAP_PAIR_TOOLTIP}>
+        {formatHandicapPair(standing.currentHandicapIndex)}
+      </TableCell>
       <TableCell className="text-center">{standing.roundsPlayed}</TableCell>
       <TableCell className="text-center font-semibold">{standing.totalPoints}</TableCell>
       <TableCell className="text-center">{standing.averagePoints.toFixed(1)}</TableCell>
@@ -154,7 +157,7 @@ export function FlightLeaderboardPage() {
                       Player
                     </SortableTableHead>
                     <SortableTableHead column="hcp" sort={sort} onSort={cycle} className="text-center">
-                      HCP
+                      Hcp <span className="text-xs font-normal text-gray-400">18 / 9</span>
                     </SortableTableHead>
                     <SortableTableHead column="rounds" sort={sort} onSort={cycle} className="text-center">
                       Rounds

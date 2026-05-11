@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
+import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { usePlayer, useHandicapHistory } from '../../hooks/usePlayers';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import {
@@ -428,7 +429,7 @@ export function PlayerDetailPage() {
         <Card className="p-6 lg:col-span-2">
           <h2 className="mb-1 text-base font-semibold text-gray-900">Manual Handicap Override</h2>
           <p className="mb-4 text-sm text-gray-500">
-            Current index: <strong>{player.currentHandicap?.toFixed(1) ?? '—'}</strong>
+            Current index: <strong title={HANDICAP_PAIR_TOOLTIP}>{formatHandicapPair(player.currentHandicap)}</strong>
           </p>
           <HandicapOverrideForm playerId={id} currentIndex={player.currentHandicap ?? 18} />
         </Card>
