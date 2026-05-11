@@ -95,6 +95,7 @@ public static class DependencyInjection
         services.AddScoped<AuthService>();
         services.AddScoped<IAuthService>(sp => sp.GetRequiredService<AuthService>());
         services.AddScoped<IUserRoleService, UserRoleService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IMfaService, MfaService>();
         services.AddScoped<IExternalAuthService, ExternalAuthService>();
         services.AddScoped<IPasskeyService, PasskeyService>();

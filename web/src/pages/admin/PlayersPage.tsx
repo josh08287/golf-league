@@ -13,6 +13,7 @@ import { Modal } from '../../components/admin/Modal';
 import { AddPlayerForm } from '../../components/admin/AddPlayerForm';
 import { useDeactivatePlayer, useDeletePlayer } from '../../hooks/admin/usePlayerMutations';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { AdministratorsTable } from '../../components/admin/AdministratorsTable';
 import type { Player } from '../../types/api';
 
 export function PlayersPage() {
@@ -161,6 +162,16 @@ export function PlayersPage() {
           sort={sort}
           onSort={cycle}
         />
+      </div>
+
+      <div className="space-y-3 pt-8">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">Administrators</h2>
+          <p className="text-sm text-gray-500">
+            Accounts with no player profile &mdash; typically league admins who don&apos;t compete.
+          </p>
+        </div>
+        <AdministratorsTable />
       </div>
 
       <Modal open={addOpen} title="Add Player" onClose={() => setAddOpen(false)}>
