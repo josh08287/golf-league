@@ -168,6 +168,15 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
         return;
     }
 
+    if (bootstrapEmail.StartsWith("@Microsoft.KeyVault(", StringComparison.OrdinalIgnoreCase))
+    {
+        logger.LogError(
+            "Startup: ADMIN_BOOTSTRAP_EMAIL resolved to a raw Key Vault reference string — " +
+            "the secret is missing or the managed identity lacks access. " +
+            "Create the 'AdminBootstrapEmail' secret in Key Vault and restart the Function App.");
+        return;
+    }
+
     var anyAdmin = await dbContext.Users.AnyAsync(u => u.Role == PlayerRole.Admin);
     if (anyAdmin)
     {

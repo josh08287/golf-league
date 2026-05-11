@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
-import { requestPasswordReset } from '@/lib/auth';
+import { clearAuth, requestPasswordReset } from '@/lib/auth';
 
 const schema = z.object({
   email: z.string().email('Valid email required'),
@@ -14,6 +14,11 @@ type FormValues = z.infer<typeof schema>;
 
 export function ForgotPasswordPage() {
   const [submitted, setSubmitted] = useState(false);
+
+  // Same reasoning as ResetPasswordPage: user is here precisely because they
+  // can't sign in; pre-emptively drop any stale tokens so nothing else on
+  // the page accidentally redirects them away.
+  useEffect(() => { clearAuth(); }, []);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),

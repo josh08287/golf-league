@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { useAuthStore } from '@/store/authStore';
 import type { TableSort } from '@/hooks/useSortableTable';
 import type { CreateInvitesResult, Invite } from '@/types/api';
 
@@ -9,6 +10,10 @@ export const inviteKeys = {
 };
 
 export function useInvites(sort?: TableSort) {
+  // Only admins can read /admin/invites. Firing it for everyone (the NavBar
+  // calls this on every page) causes a 401 on public pages and triggers
+  // the api.ts redirect-to-login interceptor.
+  const isAdmin = useAuthStore((s) => s.user?.role === 'admin');
   return useQuery({
     queryKey: inviteKeys.list(sort),
     queryFn: async () => {
@@ -20,6 +25,7 @@ export function useInvites(sort?: TableSort) {
       const res = await apiClient.get<Invite[]>('/admin/invites', { params });
       return res.data;
     },
+    enabled: isAdmin,
   });
 }
 

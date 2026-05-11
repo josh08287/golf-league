@@ -147,12 +147,12 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2023-01-01' = {
     // Local-auth configuration — all sensitive values come from Key Vault.
     // The KV secrets must be created manually after the first apply; see the
     // PREREQUISITES note at the top of this file.
-    JWT_SIGNING_KEY: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/JwtSigningKey/)'
-    ADMIN_BOOTSTRAP_EMAIL: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/AdminBootstrapEmail/)'
-    GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientId/)'
-    GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientSecret/)'
-    FACEBOOK_APP_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppId/)'
-    FACEBOOK_APP_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppSecret/)'
+    JWT_SIGNING_KEY: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/JwtSigningKey)'
+    ADMIN_BOOTSTRAP_EMAIL: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/AdminBootstrapEmail)'
+    GOOGLE_CLIENT_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientId)'
+    GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientSecret)'
+    FACEBOOK_APP_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppId)'
+    FACEBOOK_APP_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppSecret)'
 
     // Passkey relying-party config — RP ID is the registrable domain
     // (no scheme, no path). Origins must be the full origin(s) clients

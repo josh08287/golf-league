@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
-import { confirmPasswordReset } from '@/lib/auth';
+import { clearAuth, confirmPasswordReset } from '@/lib/auth';
 
 const schema = z.object({
   newPassword: z.string().min(10, 'Password must be at least 10 characters'),
@@ -20,6 +20,12 @@ export function ResetPasswordPage() {
 
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  // The user is about to set a new password — any token in storage is by
+  // definition stale (they got here because they couldn't sign in). Clearing
+  // up front avoids the api.ts 401 interceptor kicking us back to /login
+  // when something else on the page fires a background request.
+  useEffect(() => { clearAuth(); }, []);
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),

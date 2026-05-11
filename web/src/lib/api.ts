@@ -64,10 +64,17 @@ apiClient.interceptors.response.use(
       return apiClient.request(config);
     }
 
-    // Refresh failed — sign the user out and redirect (unless we're already
-    // on the login page, to avoid a navigation loop).
+    // Refresh failed — sign the user out and redirect, unless we're already
+    // on a public auth page. Public auth pages (login, register, password
+    // reset, social callback, MFA, invite acceptance) must never trigger an
+    // auth redirect from a background 401, or the user gets bounced mid-flow.
     clearAuth();
-    if (window.location.pathname !== '/login') {
+    const path = window.location.pathname;
+    const publicAuthPaths = ['/login', '/register', '/accept-invite', '/auth/'];
+    const onPublicAuthPage = publicAuthPaths.some((p) =>
+      p.endsWith('/') ? path.startsWith(p) : path === p,
+    );
+    if (!onPublicAuthPage) {
       window.location.href = '/login';
     }
     return Promise.reject(error);
