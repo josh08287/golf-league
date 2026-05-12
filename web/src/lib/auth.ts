@@ -75,6 +75,14 @@ function getRefreshToken(): string | null {
   return localStorage.getItem(REFRESH_KEY);
 }
 
+export function isTokenExpired(): boolean {
+  const expiry = localStorage.getItem(ACCESS_EXPIRES_KEY);
+  if (!expiry) return false;
+  // Treat the token as expired 60 seconds early to avoid sending a token
+  // that will expire mid-request.
+  return Date.now() >= new Date(expiry).getTime() - 60_000;
+}
+
 export function isAuthenticated(): boolean {
   return getAccessToken() !== null;
 }

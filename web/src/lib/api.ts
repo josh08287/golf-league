@@ -3,7 +3,7 @@ import axios, {
   AxiosHeaders,
   InternalAxiosRequestConfig,
 } from 'axios';
-import { getAccessToken, refresh, clearAuth } from './auth';
+import { getAccessToken, isTokenExpired, refresh, clearAuth } from './auth';
 
 // Module-level navigator — set once by NavigatorInjector in App.tsx so the
 // interceptor can do a soft React Router redirect instead of a hard reload.
@@ -26,10 +26,14 @@ export const apiClient = axios.create({
 export const api = apiClient;
 
 // ── Request interceptor ────────────────────────────────────────────────────────
-// Attach the access token if we have one in local storage.
+// Attach the access token. If the stored token is within 60s of expiry,
+// proactively refresh it first so we never send an already-expired token.
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken();
+  async (config: InternalAxiosRequestConfig) => {
+    let token = getAccessToken();
+    if (token && isTokenExpired()) {
+      token = await refresh();
+    }
     if (!token) return config;
     const headers = config.headers ?? new AxiosHeaders();
     (headers as AxiosHeaders).set('Authorization', `Bearer ${token}`);
