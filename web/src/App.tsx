@@ -1,4 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { setNavigator } from '@/lib/api';
 import { RootLayout } from '@/components/layout/RootLayout';
 
 import { HomePage } from '@/pages/HomePage';
@@ -19,9 +21,16 @@ import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { TeeTimesNextPage, TeeTimesRoundPage } from '@/pages/TeeTimesPage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
+function NavigatorInjector() {
+  const navigate = useNavigate();
+  useEffect(() => { setNavigator(navigate); }, [navigate]);
+  return null;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
+      <NavigatorInjector />
       <Routes>
         <Route element={<RootLayout />}>
           <Route index element={<HomePage />} />

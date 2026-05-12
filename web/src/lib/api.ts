@@ -5,6 +5,13 @@ import axios, {
 } from 'axios';
 import { getAccessToken, refresh, clearAuth } from './auth';
 
+// Module-level navigator — set once by NavigatorInjector in App.tsx so the
+// interceptor can do a soft React Router redirect instead of a hard reload.
+let _navigate: ((path: string) => void) | null = null;
+export function setNavigator(fn: (path: string) => void) {
+  _navigate = fn;
+}
+
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
@@ -75,7 +82,11 @@ apiClient.interceptors.response.use(
       p.endsWith('/') ? path.startsWith(p) : path === p,
     );
     if (!onPublicAuthPage) {
-      window.location.href = '/login';
+      if (_navigate) {
+        _navigate('/login');
+      } else {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   },
