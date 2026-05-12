@@ -248,3 +248,31 @@ export interface Season {
   bestNRounds: number | null;
   halves: SeasonHalf[];
 }
+
+// ── Tee times ─────────────────────────────────────────────────────────────────
+
+export interface TeeTimeParticipant {
+  participantId: number;
+  playerId: number;
+  playerName: string;
+  flightId: number;
+  flightName: string;
+}
+
+export interface TeeTimeSlot {
+  id: number;
+  teeTimeNumber: number;
+  scheduledTime: string; // "15:28"
+  autoFilled: boolean;
+  players: TeeTimeParticipant[];
+}
+
+export interface RoundTeeTimeSchedule {
+  roundId: number;
+  cutoffUtc: string; // ISO-8601
+  isLocked: boolean;
+  participantCount: number;
+  currentUserParticipantId: number | null;
+  currentUserTeeTimeId: number | null;
+  slots: TeeTimeSlot[];
+}

@@ -16,6 +16,7 @@ import { MfaEnrollPage } from '@/pages/MfaEnrollPage';
 import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
+import { TeeTimesNextPage, TeeTimesRoundPage } from '@/pages/TeeTimesPage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
 export default function App() {
@@ -38,6 +39,8 @@ export default function App() {
           <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="auth/reset-password" element={<ResetPasswordPage />} />
           <Route path="accept-invite" element={<AcceptInvitePage />} />
+          <Route path="tee-times" element={<TeeTimesNextPage />} />
+          <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
           {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

@@ -1,5 +1,5 @@
-import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ChevronDown, Clock } from 'lucide-react';
 import * as Accordion from '@radix-ui/react-accordion';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useRound, useRoundScorecards } from '@/hooks/useRounds';
@@ -148,6 +148,7 @@ function ScorecardTable({ scorecard }: { scorecard: RoundScorecard }) {
 
 export function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
+  const navigate = useNavigate();
   const round = useRound(roundId ?? '');
   const scorecards = useRoundScorecards(roundId ?? '');
 
@@ -170,7 +171,19 @@ export function RoundDetailPage() {
           title={round.data.courseName}
           description={`${formatDate(round.data.scheduledDate)} — Week ${round.data.weekNumber} — ${round.data.nineHoleSide} 9`}
         >
-          <Badge variant={statusVariant(round.data.status)}>{round.data.status}</Badge>
+          <div className="flex items-center gap-2">
+            <Badge variant={statusVariant(round.data.status)}>{round.data.status}</Badge>
+            {round.data.status === 'Scheduled' && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => navigate(`/rounds/${roundId}/tee-times`)}
+              >
+                <Clock className="h-4 w-4 mr-1" />
+                Tee Times
+              </Button>
+            )}
+          </div>
         </PageHeader>
       )}
 

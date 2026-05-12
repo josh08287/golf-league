@@ -13,6 +13,10 @@ const publicLinks = [
   { to: '/players', label: 'Players' },
 ];
 
+const authedLinks = [
+  { to: '/tee-times', label: 'Tee Times' },
+];
+
 export function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
@@ -39,6 +43,7 @@ export function NavBar() {
 
   const links = [
     ...publicLinks,
+    ...(user ? authedLinks : []),
     ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
   ];
 
