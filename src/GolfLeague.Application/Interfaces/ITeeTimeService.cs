@@ -1,0 +1,33 @@
+using GolfLeague.Application.Common;
+using GolfLeague.Application.DTOs;
+
+namespace GolfLeague.Application.Interfaces;
+
+public interface ITeeTimeService
+{
+    /// <summary>
+    /// Return the tee-time schedule for the round, generating empty slots
+    /// up-front based on the participant count. Highlights the calling
+    /// user's own assignment when <paramref name="callingPlayerId"/> is set.
+    /// </summary>
+    Task<Result<RoundTeeTimeScheduleDto>> GetScheduleAsync(int roundId, int? callingPlayerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Caller joins the supplied tee-time slot. If they were already in
+    /// another slot in the same round, they're moved (single atomic step).
+    /// Returns the refreshed schedule.
+    /// </summary>
+    Task<Result<RoundTeeTimeScheduleDto>> JoinAsync(int roundId, int teeTimeId, int callingPlayerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Caller leaves whatever slot they're in for this round. No-op if not
+    /// assigned. Returns the refreshed schedule.
+    /// </summary>
+    Task<Result<RoundTeeTimeScheduleDto>> LeaveAsync(int roundId, int callingPlayerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Resolve the "next" round id — earliest scheduled round whose date is
+    /// today or in the future. Returns null if nothing scheduled.
+    /// </summary>
+    Task<int?> ResolveNextRoundIdAsync(DateOnly today, CancellationToken cancellationToken = default);
+}

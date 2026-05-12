@@ -22,6 +22,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<CourseHole> CourseHoles => Set<CourseHole>();
     public DbSet<Round> Rounds => Set<Round>();
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
+    public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
@@ -42,6 +43,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureCourseHoles(modelBuilder);
         ConfigureRounds(modelBuilder);
         ConfigureRoundParticipants(modelBuilder);
+        ConfigureRoundTeeTimes(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
         ConfigurePlayerInvites(modelBuilder);
@@ -244,8 +246,38 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany()
                   .HasForeignKey(e => e.FlightId)
                   .OnDelete(DeleteBehavior.Restrict);
+            // Tee-time link: nullable, SetNull on delete so deleting a tee
+            // time (e.g. admin regenerating the schedule) clears assignments
+            // rather than wiping the participant rows.
+            entity.HasOne(e => e.TeeTime)
+                  .WithMany(t => t.Participants)
+                  .HasForeignKey(e => e.TeeTimeId)
+                  .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
             entity.HasIndex(e => new { e.RoundId, e.FlightId });
+            entity.HasIndex(e => e.TeeTimeId);
+        });
+    }
+
+    private static void ConfigureRoundTeeTimes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RoundTeeTime>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            // NoAction (rather than Cascade) on Round → RoundTeeTime because
+            // RoundParticipants → RoundTeeTimes uses SetNull, and SQL Server
+            // refuses multiple cascade paths to the same target table when one
+            // is Cascade and another is SetNull (error 1785). If admin deletes
+            // a Round, the FK will block until the tee times are cleared
+            // manually first — typically not needed since admin uses
+            // CancelRoundCommand which leaves the row in place.
+            entity.HasOne(e => e.Round)
+                  .WithMany()
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            // (RoundId, TeeTimeNumber) uniquely identifies a slot — prevents
+            // duplicate slot rows from racing inserts.
+            entity.HasIndex(e => new { e.RoundId, e.TeeTimeNumber }).IsUnique();
         });
     }
 

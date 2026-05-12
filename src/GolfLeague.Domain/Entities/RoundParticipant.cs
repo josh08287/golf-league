@@ -21,6 +21,13 @@ public class RoundParticipant
     /// </summary>
     public bool SkippedWeek { get; set; }
 
+    /// <summary>
+    /// Optional tee-time assignment. Null until the player claims a slot
+    /// (or autofill places them). Used by the /tee-times sign-up flow.
+    /// </summary>
+    public int? TeeTimeId { get; set; }
+    public RoundTeeTime? TeeTime { get; set; }
+
     public Round Round { get; set; } = null!;
     public Player Player { get; set; } = null!;
     public Flight Flight { get; set; } = null!;

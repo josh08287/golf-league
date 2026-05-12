@@ -11,6 +11,17 @@ public static class HttpRequestExtensions
         => request.HttpContext.User.FindFirst(ClaimTypes.NameIdentifier)?.Value
            ?? request.HttpContext.User.FindFirst("sub")?.Value;
 
+    /// <summary>
+    /// Returns the calling user's linked Player id from the "playerId" JWT
+    /// claim (set by JwtTokenService when the AppUser has a Player). Returns
+    /// null when the user has no linked Player or no valid claim.
+    /// </summary>
+    public static int? GetPlayerId(this HttpRequest request)
+    {
+        var raw = request.HttpContext.User.FindFirst("playerId")?.Value;
+        return int.TryParse(raw, out var id) ? id : null;
+    }
+
     public static IActionResult? RequireRole(this HttpRequest request, params string[] allowedRoles)
     {
         var user = request.HttpContext.User;
