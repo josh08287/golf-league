@@ -168,7 +168,7 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
     join.mutate(
       { roundId: schedule.roundId, teeTimeId },
       {
-        onError: (err) => {
+        onError: (err: unknown) => {
           const msg =
             (err as { response?: { data?: { error?: string } } })?.response?.data?.error
             ?? 'Could not join that slot.';
@@ -181,7 +181,7 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
   function handleLeave() {
     setActionError(null);
     leave.mutate(schedule.roundId, {
-      onError: (err) => {
+      onError: (err: unknown) => {
         const msg =
           (err as { response?: { data?: { error?: string } } })?.response?.data?.error
           ?? 'Could not leave slot.';
