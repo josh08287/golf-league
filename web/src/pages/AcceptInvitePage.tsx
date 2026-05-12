@@ -98,7 +98,7 @@ export function AcceptInvitePage() {
     <div className="flex min-h-[70vh] items-center justify-center">
       <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <span className="text-4xl" role="img" aria-label="golf">⛳</span>
-        <h1 className="mt-3 text-2xl font-bold text-gray-900">Join Golf League</h1>
+        <h1 className="mt-3 text-2xl font-bold text-gray-900">Join Capital Golf League</h1>
         <p className="mt-1 text-sm text-gray-500">Confirm your details to complete your registration.</p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">

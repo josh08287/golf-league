@@ -223,7 +223,7 @@ export function HomePage() {
       {/* Hero */}
       <section className="rounded-2xl bg-primary-900 px-8 py-12 text-white text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-          ⛳ Golf League
+          ⛳ Capital Golf League
         </h1>
         <p className="mt-4 text-primary-100 text-lg max-w-xl mx-auto">
           Track standings, scores, and handicaps all season long.

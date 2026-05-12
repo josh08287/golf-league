@@ -10,7 +10,7 @@ namespace GolfLeague.Infrastructure.Auth;
 
 public sealed class MfaService : IMfaService
 {
-    private const string TotpIssuer = "Golf League";
+    private const string TotpIssuer = "Capital Golf League";
     private const int TotpStep = 30;
     private const int TotpDigits = 6;
 

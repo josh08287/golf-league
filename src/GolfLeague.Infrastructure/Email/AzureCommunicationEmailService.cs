@@ -23,12 +23,12 @@ public sealed class AzureCommunicationEmailService : IEmailService
     public async Task SendInviteAsync(string toEmail, string inviteLink, DateTime expiresAt, CancellationToken cancellationToken = default)
     {
         var expiry = expiresAt.ToString("MMMM d, yyyy");
-        var subject = "You've been invited to join the Golf League";
+        var subject = "You've been invited to join the Capital Golf League";
         var html = $"""
             <html>
             <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
-              <h2 style="color: #1a5c38;">⛳ You're invited to join the Golf League!</h2>
-              <p>You've been invited to join our golf league. Click the button below to accept your invitation and complete your registration.</p>
+              <h2 style="color: #1a5c38;">⛳ You're invited to join the Capital Golf League!</h2>
+              <p>You've been invited to join the Capital Golf League. Click the button below to accept your invitation and complete your registration.</p>
               <p style="margin: 32px 0;">
                 <a href="{inviteLink}"
                    style="background-color: #1a5c38; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">
@@ -46,12 +46,12 @@ public sealed class AzureCommunicationEmailService : IEmailService
 
     public async Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
     {
-        const string subject = "Reset your Golf League password";
+        const string subject = "Reset your Capital Golf League password";
         var html = $"""
             <html>
             <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
               <h2 style="color: #1a5c38;">⛳ Password reset</h2>
-              <p>We received a request to reset the password on your Golf League account. Click the button below to set a new password.</p>
+              <p>We received a request to reset the password on your Capital Golf League account. Click the button below to set a new password.</p>
               <p style="margin: 32px 0;">
                 <a href="{resetLink}"
                    style="background-color: #1a5c38; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">

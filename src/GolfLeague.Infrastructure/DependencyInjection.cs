@@ -1,6 +1,7 @@
 using Azure.Communication.Email;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Rounds;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Infrastructure.Auth;
@@ -70,12 +71,15 @@ public static class DependencyInjection
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IFlightRepository, FlightRepository>();
         services.AddScoped<IRoundRepository, RoundRepository>();
+        services.AddScoped<ITeeTimeRepository, TeeTimeRepository>();
         services.AddScoped<ICourseRepository, CourseRepository>();
         services.AddScoped<IHandicapRepository, HandicapRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
         services.AddScoped<IAppUserRepository, AppUserRepository>();
+        services.AddScoped<ITeeTimeService, TeeTimeService>();
+        services.AddScoped<ITeeTimeAutofillService, TeeTimeAutofillService>();
 
         services.AddMemoryCache();
         services.AddHttpClient("google");
@@ -84,7 +88,7 @@ public static class DependencyInjection
         services.AddFido2(options =>
         {
             options.ServerDomain = configuration["FIDO2_RP_ID"] ?? "localhost";
-            options.ServerName = configuration["FIDO2_RP_NAME"] ?? "Golf League";
+            options.ServerName = configuration["FIDO2_RP_NAME"] ?? "Capital Golf League";
             options.Origins = new HashSet<string>(
                 (configuration["FIDO2_RP_ORIGINS"] ?? "http://localhost:5173")
                     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));

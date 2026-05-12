@@ -22,7 +22,7 @@ export function RootLayout() {
       </main>
       <footer className="border-t border-gray-200 bg-white mt-auto">
         <div className="container mx-auto max-w-screen-xl px-4 py-6 text-center text-sm text-gray-400">
-          &copy; {new Date().getFullYear()} Golf League &mdash; All rights reserved
+          &copy; {new Date().getFullYear()} Capital Golf League &mdash; All rights reserved
         </div>
       </footer>
     </div>

@@ -48,7 +48,7 @@ export function AdminLayout() {
         {/* Logo / Brand */}
         <div className="flex h-16 items-center gap-2 border-b border-green-700 px-6">
           <Flag className="h-6 w-6 text-green-300" />
-          <span className="text-lg font-bold tracking-tight">Golf League</span>
+          <span className="text-lg font-bold tracking-tight">Capital Golf League</span>
         </div>
 
         {/* Navigation */}

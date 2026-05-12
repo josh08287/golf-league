@@ -56,7 +56,7 @@ export function NavBar() {
           className="flex items-center gap-2 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
         >
           <span className="text-2xl" role="img" aria-label="golf flag">⛳</span>
-          <span className="hidden sm:inline">Golf League</span>
+          <span className="hidden sm:inline">Capital Golf League</span>
         </Link>
 
         {/* Desktop nav */}

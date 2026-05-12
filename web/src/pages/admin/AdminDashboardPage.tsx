@@ -74,7 +74,7 @@ export function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Dashboard" subtitle="Golf League Admin" />
+      <PageHeader title="Dashboard" subtitle="Capital Golf League Admin" />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
