@@ -472,3 +472,23 @@ export interface PlayerStatistics {
   parOrBetterPercentage: number | null;
   strokesGainedPutting: StrokesGainedPutting | null;
 }
+
+// ── Most Improved ───────────────────────────────────────────────────────────
+
+export interface MostImprovedPlayer {
+  playerId: number;
+  playerName: string;
+  seasonHalfName: string;
+  startingHandicapIndex: number;
+  currentHandicapIndex: number;
+  improvementFactor: number;
+  handicapReduction: number;
+  roundsPlayedInHalf: number;
+}
+
+export interface MostImprovedResult {
+  winner: MostImprovedPlayer | null;
+  leaderboard: MostImprovedPlayer[];
+  seasonHalfName: string;
+  minRoundsRequired: number;
+}

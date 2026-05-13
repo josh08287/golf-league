@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Target } from 'lucide-react';
-import { useCourses, useCourseStatistics } from '@/hooks/useStatistics';
+import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp } from 'lucide-react';
+import { useCourses, useCourseStatistics, useMostImproved } from '@/hooks/useStatistics';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -19,7 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
-import type { HoleStatistics } from '@/types/api';
+import type { HoleStatistics, MostImprovedPlayer } from '@/types/api';
 
 function scoreToParLabel(val: number | null) {
   if (val == null) return '—';
@@ -67,6 +68,147 @@ function scoringBar(hole: HoleStatistics) {
   );
 }
 
+function HandicapReductionBadge({ value }: { value: number }) {
+  const isPositive = value > 0;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-semibold ${
+        isPositive
+          ? 'bg-green-100 text-green-700'
+          : value < 0
+            ? 'bg-red-100 text-red-700'
+            : 'bg-gray-100 text-gray-600'
+      }`}
+    >
+      {isPositive ? <TrendingDown className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+      {isPositive ? '-' : value < 0 ? '+' : ''}{Math.abs(value).toFixed(1)}
+    </span>
+  );
+}
+
+function MostImprovedSection() {
+  const { data, isPending, isError } = useMostImproved();
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+
+  if (isPending || isError || !data) return null;
+
+  const { winner, leaderboard, seasonHalfName, minRoundsRequired } = data;
+
+  if (!winner) {
+    return (
+      <Card>
+        <CardContent className="py-6 text-center">
+          <Award className="mx-auto h-8 w-8 text-gray-300" />
+          <p className="mt-2 text-sm text-gray-500">
+            Not enough data yet for Most Improved ({seasonHalfName}). Players need at least {minRoundsRequired} finalized rounds.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <Card className="border-amber-200 bg-gradient-to-br from-amber-50 to-white">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Award className="h-5 w-5 text-amber-500" />
+            Most Improved Player — {seasonHalfName}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Link
+                to={`/players/${winner.playerId}`}
+                className="text-xl font-bold text-primary-900 hover:underline"
+              >
+                {winner.playerName}
+              </Link>
+              <p className="text-sm text-gray-500 mt-0.5">
+                {winner.roundsPlayedInHalf} rounds played
+              </p>
+            </div>
+            <div className="text-right">
+              <span className="text-2xl font-bold text-green-700 tabular-nums">
+                {winner.improvementFactor.toFixed(3)}
+              </span>
+              <p className="text-xs text-gray-400 mt-1">
+                HI: {winner.startingHandicapIndex.toFixed(1)} → {winner.currentHandicapIndex.toFixed(1)}
+                <span className="ml-1">
+                  (<HandicapReductionBadge value={winner.handicapReduction} />)
+                </span>
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {leaderboard.length > 1 && (
+        <div>
+          <button
+            onClick={() => setShowLeaderboard((v) => !v)}
+            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {showLeaderboard ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            {showLeaderboard ? 'Hide' : 'Show'} improvement leaderboard ({leaderboard.length} players)
+          </button>
+
+          {showLeaderboard && (
+            <div className="mt-2 rounded-lg border border-gray-200 bg-white overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-gray-50">
+                    <TableHead className="w-10 text-center">#</TableHead>
+                    <TableHead>Player</TableHead>
+                    <TableHead className="text-right">Starting HI</TableHead>
+                    <TableHead className="text-right">Current HI</TableHead>
+                    <TableHead className="text-right">Factor</TableHead>
+                    <TableHead className="text-right">Drop</TableHead>
+                    <TableHead className="text-right w-16">Rounds</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {leaderboard.map((p: MostImprovedPlayer, i: number) => (
+                    <TableRow key={p.playerId}>
+                      <TableCell className="text-center font-semibold text-gray-500">
+                        {i + 1}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          to={`/players/${p.playerId}`}
+                          className="font-medium text-primary-900 hover:underline"
+                        >
+                          {p.playerName}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.startingHandicapIndex.toFixed(1)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.currentHandicapIndex.toFixed(1)}
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums font-semibold">
+                        {p.improvementFactor.toFixed(3)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <HandicapReductionBadge value={p.handicapReduction} />
+                      </TableCell>
+                      <TableCell className="text-right tabular-nums text-gray-500">
+                        {p.roundsPlayedInHalf}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StatisticsPage() {
   const courses = useCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
@@ -99,11 +241,14 @@ export function StatisticsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Course Statistics"
-        description="Performance breakdown by hole across all finalized rounds"
+        title="League Statistics"
+        description="Season awards and performance breakdown across all finalized rounds"
       >
         <BarChart3 className="h-6 w-6 text-primary-700" />
       </PageHeader>
+
+      {/* Most Improved Player */}
+      <MostImprovedSection />
 
       {/* Course picker */}
       {courses.isPending && <FullPageSpinner />}

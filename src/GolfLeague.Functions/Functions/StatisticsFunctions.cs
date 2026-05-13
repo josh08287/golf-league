@@ -41,4 +41,13 @@ public sealed class StatisticsFunctions
         var result = await _mediator.Send(new GetPlayerStatisticsQuery(playerId), cancellationToken);
         return result.ToOkResult();
     }
+
+    [Function("GetMostImprovedPlayer")]
+    public async Task<IActionResult> GetMostImprovedPlayer(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/statistics/most-improved")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetMostImprovedPlayerQuery(), cancellationToken);
+        return result.ToOkResult();
+    }
 }

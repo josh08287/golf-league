@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Course, CourseStatistics, PlayerStatistics } from '@/types/api';
+import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 export const statisticsKeys = {
@@ -10,6 +10,7 @@ export const statisticsKeys = {
     [...statisticsKeys.all, 'course', String(courseId)] as const,
   player: (playerId: number | string) =>
     [...statisticsKeys.all, 'player', String(playerId)] as const,
+  mostImproved: () => [...statisticsKeys.all, 'most-improved'] as const,
 };
 
 export function useCourses() {
@@ -47,5 +48,17 @@ export function usePlayerStatistics(playerId: number | string) {
       return response.data;
     },
     enabled: Boolean(playerId),
+  });
+}
+
+export function useMostImproved() {
+  return useQuery({
+    queryKey: statisticsKeys.mostImproved(),
+    queryFn: async () => {
+      const response = await apiClient.get<MostImprovedResult>(
+        '/statistics/most-improved',
+      );
+      return response.data;
+    },
   });
 }
