@@ -24,8 +24,77 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
 import { LinkUserForm } from '../../components/admin/LinkUserForm';
-import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
+import { useSetTeeTimePreference } from '../../hooks/useTeeTimes';
+import type { Flight, HandicapHistoryEntry, SeasonHalf, TeeTimeSlotName } from '../../types/api';
 import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '../../types/api';
+
+function TeeTimePreferenceCard({ playerId, currentMask }: { playerId: string; currentMask: number }) {
+  const setPreference = useSetTeeTimePreference();
+  const [selected, setSelected] = useState<Set<TeeTimeSlotName>>(
+    () => new Set(TEE_TIME_SLOTS.filter((s) => (currentMask & TEE_TIME_SLOT_FLAG[s]) !== 0)),
+  );
+
+  function toggle(slot: TeeTimeSlotName) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(slot)) next.delete(slot); else next.add(slot);
+      return next;
+    });
+  }
+
+  function save() {
+    setPreference.mutate({ playerId: parseInt(playerId, 10), preferredSlots: [...selected] });
+  }
+
+  const isDirty = TEE_TIME_SLOTS.some(
+    (s) => selected.has(s) !== ((currentMask & TEE_TIME_SLOT_FLAG[s]) !== 0),
+  );
+
+  return (
+    <Card className="p-6">
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Tee-Time Preference</h2>
+      <p className="mb-3 text-sm text-gray-500">
+        Slot preference used by auto-fill when assigning this player to tee times.
+      </p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {TEE_TIME_SLOTS.map((slot) => {
+          const active = selected.has(slot);
+          return (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => toggle(slot)}
+              className={[
+                'px-3 py-1 rounded-full text-sm font-medium border transition-colors',
+                active
+                  ? 'bg-[#1B5E20] text-white border-[#1B5E20]'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-[#1B5E20]',
+              ].join(' ')}
+            >
+              {slot}
+            </button>
+          );
+        })}
+      </div>
+      {isDirty && (
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="primary" onClick={save} disabled={setPreference.isPending}>
+            Save Preference
+          </Button>
+          {setPreference.isError && (
+            <span className="text-xs text-red-600">Failed to save.</span>
+          )}
+          {setPreference.isSuccess && !setPreference.isPending && (
+            <span className="text-xs text-green-700">Saved!</span>
+          )}
+        </div>
+      )}
+      {!isDirty && selected.size === 0 && (
+        <p className="text-sm text-gray-400 italic">No preference set — player will be placed anywhere.</p>
+      )}
+    </Card>
+  );
+}
 
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
@@ -448,33 +517,7 @@ export function PlayerDetailPage() {
         />
       </Card>
 
-      <Card className="p-6">
-        <h2 className="mb-1 text-base font-semibold text-gray-900">Tee-Time Preference</h2>
-        <p className="mb-3 text-sm text-gray-500">
-          Slot preference used by auto-fill. Set by the player on their profile.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {TEE_TIME_SLOTS.map((slot) => {
-            const active = (player.preferredTeeTimeSlots & TEE_TIME_SLOT_FLAG[slot]) !== 0;
-            return (
-              <span
-                key={slot}
-                className={[
-                  'px-3 py-1 rounded-full text-sm font-medium border',
-                  active
-                    ? 'bg-[#1B5E20] text-white border-[#1B5E20]'
-                    : 'bg-white text-gray-400 border-gray-200',
-                ].join(' ')}
-              >
-                {slot}
-              </span>
-            );
-          })}
-          {player.preferredTeeTimeSlots === 0 && (
-            <span className="text-sm text-gray-400 italic">No preference set</span>
-          )}
-        </div>
-      </Card>
+      <TeeTimePreferenceCard playerId={id} currentMask={player.preferredTeeTimeSlots ?? 0} />
 
       {player.isActive && (
         <Card className="border-red-200 p-6">
