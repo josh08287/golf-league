@@ -79,10 +79,20 @@ export function NavBar() {
         <div className="hidden md:flex items-center gap-3">
           {user ? (
             <div className="flex items-center gap-3">
-              <span className="flex items-center gap-1.5 text-sm text-gray-600">
-                <User className="h-4 w-4" />
-                {user.name}
-              </span>
+              {user.playerId ? (
+                <Link
+                  to={`/players/${user.playerId}`}
+                  className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary-900 transition-colors"
+                >
+                  <User className="h-4 w-4" />
+                  {user.name}
+                </Link>
+              ) : (
+                <span className="flex items-center gap-1.5 text-sm text-gray-600">
+                  <User className="h-4 w-4" />
+                  {user.name}
+                </span>
+              )}
               <Button variant="outline" size="sm" onClick={() => void logout()}>
                 <LogOut className="h-4 w-4 mr-1.5" />
                 Sign out
@@ -133,7 +143,17 @@ export function NavBar() {
           <div className="mt-3 border-t border-gray-100 pt-3">
             {user ? (
               <div className="flex flex-col gap-2">
+                {user.playerId ? (
+                <Link
+                  to={`/players/${user.playerId}`}
+                  className="text-sm text-gray-700 px-3 hover:text-primary-900 transition-colors"
+                  onClick={() => setMobileOpen(false)}
+                >
+                  {user.name}
+                </Link>
+              ) : (
                 <span className="text-sm text-gray-500 px-3">{user.name}</span>
+              )}
                 <Button
                   variant="outline"
                   size="sm"

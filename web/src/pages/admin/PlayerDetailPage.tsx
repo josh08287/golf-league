@@ -25,6 +25,7 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
 import { LinkUserForm } from '../../components/admin/LinkUserForm';
 import type { Flight, HandicapHistoryEntry, SeasonHalf } from '../../types/api';
+import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '../../types/api';
 
 const editSchema = z.object({
   name: z.string().min(1, 'Required'),
@@ -445,6 +446,34 @@ export function PlayerDetailPage() {
           sort={handicapSort.sort}
           onSort={handicapSort.cycle}
         />
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="mb-1 text-base font-semibold text-gray-900">Tee-Time Preference</h2>
+        <p className="mb-3 text-sm text-gray-500">
+          Slot preference used by auto-fill. Set by the player on their profile.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {TEE_TIME_SLOTS.map((slot) => {
+            const active = (player.preferredTeeTimeSlots & TEE_TIME_SLOT_FLAG[slot]) !== 0;
+            return (
+              <span
+                key={slot}
+                className={[
+                  'px-3 py-1 rounded-full text-sm font-medium border',
+                  active
+                    ? 'bg-[#1B5E20] text-white border-[#1B5E20]'
+                    : 'bg-white text-gray-400 border-gray-200',
+                ].join(' ')}
+              >
+                {slot}
+              </span>
+            );
+          })}
+          {player.preferredTeeTimeSlots === 0 && (
+            <span className="text-sm text-gray-400 italic">No preference set</span>
+          )}
+        </div>
       </Card>
 
       {player.isActive && (
