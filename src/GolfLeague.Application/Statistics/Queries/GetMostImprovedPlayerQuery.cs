@@ -47,19 +47,13 @@ public sealed class GetMostImprovedPlayerQueryHandler
 
     private readonly ISeasonRepository _seasonRepository;
     private readonly IRoundRepository _roundRepository;
-    private readonly IHandicapRepository _handicapRepository;
-    private readonly IPlayerRepository _playerRepository;
 
     public GetMostImprovedPlayerQueryHandler(
         ISeasonRepository seasonRepository,
-        IRoundRepository roundRepository,
-        IHandicapRepository handicapRepository,
-        IPlayerRepository playerRepository)
+        IRoundRepository roundRepository)
     {
         _seasonRepository = seasonRepository;
         _roundRepository = roundRepository;
-        _handicapRepository = handicapRepository;
-        _playerRepository = playerRepository;
     }
 
     public async Task<Result<MostImprovedResultDto>> Handle(
@@ -82,12 +76,12 @@ public sealed class GetMostImprovedPlayerQueryHandler
         if (currentHalf is null)
             return Result<MostImprovedResultDto>.Fail("No season halves configured.");
 
-        var halfStartDate = currentHalf.StartDate;
-
-        // Get all finalized rounds in this half to count per-player participation
+        // Get all finalized rounds in this half, ordered chronologically
         var rounds = await _roundRepository.GetByHalfAsync(currentHalf.Id, cancellationToken);
         var finalizedRounds = rounds
             .Where(r => r.Status == RoundStatus.Finalized)
+            .OrderBy(r => r.RoundDate)
+            .ThenBy(r => r.WeekNumber)
             .ToList();
 
         if (finalizedRounds.Count == 0)
@@ -96,83 +90,67 @@ public sealed class GetMostImprovedPlayerQueryHandler
                 null, [], currentHalf.Name, MinRounds));
         }
 
-        // Count finalized rounds per player
-        var roundsPerPlayer = new Dictionary<int, int>();
-        var playerNames = new Dictionary<int, string>();
-        foreach (var round in finalizedRounds)
+        // Collect each player's participations in chronological round order
+        // using the HandicapIndex recorded on the RoundParticipant
+        var playerEntries = new Dictionary<int, List<(int RoundIndex, double HandicapIndex, string Name)>>();
+
+        for (var i = 0; i < finalizedRounds.Count; i++)
         {
-            var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
+            var participants = await _roundRepository.GetParticipantsAsync(
+                finalizedRounds[i].Id, cancellationToken);
+
             foreach (var p in participants)
             {
                 if (p.IsWithdrawn || p.SkippedWeek || !p.TotalGrossStrokes.HasValue)
                     continue;
 
-                roundsPerPlayer[p.PlayerId] = roundsPerPlayer.GetValueOrDefault(p.PlayerId) + 1;
-                playerNames.TryAdd(p.PlayerId, p.Player?.FullName ?? $"Player #{p.PlayerId}");
+                if (!playerEntries.TryGetValue(p.PlayerId, out var list))
+                {
+                    list = [];
+                    playerEntries[p.PlayerId] = list;
+                }
+                list.Add((i, p.HandicapIndex, p.Player?.FullName ?? $"Player #{p.PlayerId}"));
             }
         }
 
-        // Filter to players with enough rounds
-        var qualifyingPlayerIds = roundsPerPlayer
-            .Where(kv => kv.Value >= MinRounds)
-            .Select(kv => kv.Key)
-            .ToList();
-
-        if (qualifyingPlayerIds.Count == 0)
-        {
-            return Result<MostImprovedResultDto>.Ok(new MostImprovedResultDto(
-                null, [], currentHalf.Name, MinRounds));
-        }
-
-        // For each qualifying player, find their starting and current handicap
+        // Build leaderboard for players with enough rounds
         var leaderboard = new List<MostImprovedPlayerDto>();
 
-        foreach (var playerId in qualifyingPlayerIds)
+        foreach (var (playerId, entries) in playerEntries)
         {
-            var history = await _handicapRepository.GetHistoryAsync(playerId, cancellationToken);
-            if (history.Count < 2)
-                continue; // Need at least a starting and current handicap
-
-            var ordered = history.OrderBy(h => h.EffectiveDate).ThenBy(h => h.Id).ToList();
-
-            // Starting handicap: the latest handicap on or before the half start date.
-            // If none exist before the half, use the earliest handicap in the history.
-            var startingHandicap = ordered
-                .Where(h => h.EffectiveDate <= halfStartDate)
-                .OrderByDescending(h => h.EffectiveDate)
-                .ThenByDescending(h => h.Id)
-                .FirstOrDefault();
-
-            startingHandicap ??= ordered.First();
-
-            // Current handicap: the most recent one
-            var currentHandicap = ordered.Last();
-
-            // Only count if the current handicap is strictly after the starting one
-            if (currentHandicap.Id == startingHandicap.Id)
+            if (entries.Count < MinRounds)
                 continue;
+
+            var first = entries.First();  // first finalized round in the half
+            var last = entries.Last();    // last finalized round in the half
+
+            if (first.RoundIndex == last.RoundIndex)
+                continue;
+
+            var startingHi = first.HandicapIndex;
+            var currentHi = last.HandicapIndex;
 
             // USGA Rule 7e: Improvement Factor = (A) / (B)
             //   A = Starting Handicap Index + 12
             //   B = Current Handicap Index + 12
-            var a = startingHandicap.HandicapIndex + 12.0;
-            var b = currentHandicap.HandicapIndex + 12.0;
+            var a = startingHi + 12.0;
+            var b = currentHi + 12.0;
 
             // Guard against division by zero (shouldn't happen with +12)
             if (b <= 0) continue;
 
             var improvementFactor = Math.Round(a / b, 3);
-            var reduction = startingHandicap.HandicapIndex - currentHandicap.HandicapIndex;
+            var reduction = startingHi - currentHi;
 
             leaderboard.Add(new MostImprovedPlayerDto(
                 playerId,
-                playerNames[playerId],
+                first.Name,
                 currentHalf.Name,
-                Math.Round(startingHandicap.HandicapIndex, 1),
-                Math.Round(currentHandicap.HandicapIndex, 1),
+                Math.Round(startingHi, 1),
+                Math.Round(currentHi, 1),
                 improvementFactor,
                 Math.Round(reduction, 1),
-                roundsPerPlayer[playerId]));
+                entries.Count));
         }
 
         // Highest improvement factor wins (>1.000 means handicap went down)
