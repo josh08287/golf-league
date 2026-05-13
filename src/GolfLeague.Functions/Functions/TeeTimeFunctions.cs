@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
+using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -15,17 +16,23 @@ public sealed class TeeTimeFunctions
 {
     private readonly ITeeTimeService _service;
     private readonly ITeeTimeAutofillService _autofill;
+    private readonly IRoundRepository _rounds;
+    private readonly ITeeTimeRepository _teeTimes;
     private readonly IMediator _mediator;
     private readonly ILogger<TeeTimeFunctions> _logger;
 
     public TeeTimeFunctions(
         ITeeTimeService service,
         ITeeTimeAutofillService autofill,
+        IRoundRepository rounds,
+        ITeeTimeRepository teeTimes,
         IMediator mediator,
         ILogger<TeeTimeFunctions> logger)
     {
         _service = service;
         _autofill = autofill;
+        _rounds = rounds;
+        _teeTimes = teeTimes;
         _mediator = mediator;
         _logger = logger;
     }
@@ -218,4 +225,120 @@ public sealed class TeeTimeFunctions
     private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes);
     private sealed record PlayerScoreInputDto(int PlayerId, List<HoleScoreInputDto>? HoleScores);
     private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
+
+    /// <summary>
+    /// POST /v1/admin/rounds/{roundId}/tee-times/{teeTimeId}/participants/{participantId}
+    /// Admin-only: Move a participant to a specific tee time slot, bypassing the cutoff check.
+    /// If the participant is already in a slot, they are moved. Capacity checks still apply.
+    /// </summary>
+    [Function("AdminMoveParticipantToTeeTime")]
+    public async Task<IActionResult> AdminMoveParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/admin/rounds/{roundId:int}/tee-times/{teeTimeId:int}/participants/{participantId:int}")] HttpRequest req,
+        int roundId,
+        int teeTimeId,
+        int participantId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null)
+            return new NotFoundObjectResult(new { error = "Round not found." });
+
+        var participant = round.Participants.FirstOrDefault(p => p.Id == participantId);
+        if (participant is null)
+            return new NotFoundObjectResult(new { error = "Participant not found in this round." });
+
+        var slot = await _teeTimes.GetByIdAsync(teeTimeId, cancellationToken);
+        if (slot is null || slot.RoundId != roundId)
+            return new NotFoundObjectResult(new { error = "Tee time slot not found in this round." });
+
+        // Capacity check: exclude the participant if they're already in this slot
+        var occupants = slot.Participants.Count(p => p.Id != participantId);
+        if (occupants >= Domain.Services.TeeTimeSchedule.CapacityPerTeeTime)
+            return new ConflictObjectResult(new { error = "That tee time is full." });
+
+        if (participant.TeeTimeId != teeTimeId)
+        {
+            await _teeTimes.SetParticipantTeeTimeAsync(participantId, teeTimeId, cancellationToken);
+        }
+
+        var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// DELETE /v1/admin/rounds/{roundId}/tee-times/participants/{participantId}
+    /// Admin-only: Remove a participant from their current tee time slot, bypassing the cutoff check.
+    /// </summary>
+    [Function("AdminRemoveParticipantFromTeeTime")]
+    public async Task<IActionResult> AdminRemoveParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/admin/rounds/{roundId:int}/tee-times/participants/{participantId:int}")] HttpRequest req,
+        int roundId,
+        int participantId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null)
+            return new NotFoundObjectResult(new { error = "Round not found." });
+
+        var participant = round.Participants.FirstOrDefault(p => p.Id == participantId);
+        if (participant is null)
+            return new NotFoundObjectResult(new { error = "Participant not found in this round." });
+
+        if (participant.TeeTimeId is not null)
+        {
+            await _teeTimes.SetParticipantTeeTimeAsync(participantId, null, cancellationToken);
+        }
+
+        var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// GET /v1/admin/rounds/{roundId}/participants
+    /// Admin-only: Get all participants for a round with their current tee time assignments.
+    /// Includes unassigned participants for admin tee time management.
+    /// </summary>
+    [Function("GetRoundParticipantsForAdmin")]
+    public async Task<IActionResult> GetRoundParticipantsForAdmin(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/rounds/{roundId:int}/participants")] HttpRequest req,
+        int roundId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null)
+            return new NotFoundObjectResult(new { error = "Round not found." });
+
+        var participants = round.Participants
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
+            .Select(p => new
+            {
+                p.Id,
+                p.PlayerId,
+                p.Player.FullName,
+                p.FlightId,
+                p.Flight?.Name,
+                p.HandicapIndex,
+                p.CourseHandicap,
+                p.TeeTimeId,
+                TeeTimeNumber = p.TeeTime?.TeeTimeNumber,
+                p.IsWithdrawn,
+                p.SkippedWeek
+            })
+            .ToList();
+
+        return new OkObjectResult(new { data = participants });
+    }
 }

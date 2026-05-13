@@ -10,6 +10,7 @@ import {
   LogOut,
   Trophy,
   Mail,
+  Clock,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -26,6 +27,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin/invites', label: 'Invites', icon: Mail },
   { to: '/admin/flights', label: 'Flights', icon: Trophy },
   { to: '/admin/rounds', label: 'Rounds', icon: CalendarDays },
+  { to: '/admin/tee-times', label: 'Tee Times', icon: Clock },
   { to: '/admin/courses', label: 'Courses', icon: MapPin },
   { to: '/admin/settings', label: 'Settings', icon: Settings },
   { to: '/admin/audit-log', label: 'Audit Log', icon: ClipboardList },
