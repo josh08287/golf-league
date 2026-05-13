@@ -8,10 +8,8 @@ import {
   type AdminParticipant,
 } from '@/hooks/admin/useTeeTimeMutations';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
-import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { Badge } from '@/components/ui/Badge';
 import { Clock, Users, GripVertical, X, Calendar, ArrowRightLeft } from 'lucide-react';
 import type { TeeTimeSlot, TeeTimeParticipant } from '@/types/api';
@@ -79,13 +77,11 @@ function DraggablePlayer({ participant, currentTeeTimeId, onRemove, isDragging }
 interface TeeTimeSlotCardProps {
   slot: TeeTimeSlot;
   roundId: number;
-  unassignedPlayers: AdminParticipant[];
   onPlayerMoved: () => void;
 }
 
-function TeeTimeSlotCard({ slot, roundId, unassignedPlayers, onPlayerMoved }: TeeTimeSlotCardProps) {
+function TeeTimeSlotCard({ slot, roundId, onPlayerMoved }: TeeTimeSlotCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
-  const [draggingPlayerId, setDraggingPlayerId] = useState<number | null>(null);
   const moveParticipant = useAdminMoveParticipantToTeeTime(roundId);
   const removeParticipant = useAdminRemoveParticipantFromTeeTime(roundId);
 
@@ -101,7 +97,7 @@ function TeeTimeSlotCard({ slot, roundId, unassignedPlayers, onPlayerMoved }: Te
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
-    if (!isFull || slotPlayers.some(p => p.participantId === draggingPlayerId)) {
+    if (!isFull) {
       e.dataTransfer.dropEffect = 'move';
       setIsDragOver(true);
     }
@@ -197,7 +193,6 @@ function TeeTimeSlotCard({ slot, roundId, unassignedPlayers, onPlayerMoved }: Te
                 participant={fullParticipant}
                 currentTeeTimeId={slot.id}
                 onRemove={() => handleRemove(player.participantId)}
-                isDragging={draggingPlayerId === player.participantId}
               />
             );
           })}
@@ -378,7 +373,6 @@ export function TeeTimesAdminPage() {
                 key={slot.id}
                 slot={slot}
                 roundId={selectedRoundId}
-                unassignedPlayers={unassignedParticipants}
                 onPlayerMoved={handlePlayerMoved}
               />
             ))}
