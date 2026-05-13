@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using Microsoft.Extensions.Logging;
@@ -99,20 +100,82 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         }
 
         // --- Phase 2: assign everyone else to empty slots, greedy 2+2.
-        foreach (var slot in slots.Where(s => s.Participants.Count == 0).OrderBy(s => s.TeeTimeNumber))
-        {
-            if (unassignedQueue.Count == 0) break;
+        // Players with a slot preference are placed into their preferred band
+        // first; players with None are used to fill whatever remains.
+        var emptySlots = slots
+            .Where(s => s.Participants.Count == 0)
+            .OrderBy(s => s.TeeTimeNumber)
+            .ToList();
 
-            // Take 2 from the largest flight.
-            var picks = TakeFromLargestFlight(unassignedQueue, 2);
-            // Take 2 from the next-largest flight.
-            picks.AddRange(TakeFromLargestFlight(unassignedQueue, 2));
+        var totalSlots = slots.Count;
+
+        // Split unassigned queue by whether they have a preference.
+        var preferenceQueue = unassignedQueue
+            .Where(p => p.Player.PreferredTeeTimeSlots != TeeTimeSlotPreference.None)
+            .ToList();
+        var noPreferenceQueue = unassignedQueue
+            .Where(p => p.Player.PreferredTeeTimeSlots == TeeTimeSlotPreference.None)
+            .ToList();
+
+        // First pass: players with preferences — place them into a slot in
+        // their preferred band when one is available; otherwise defer to
+        // the no-preference pool.
+        var deferred = new List<RoundParticipant>();
+        foreach (var slot in emptySlots)
+        {
+            if (preferenceQueue.Count == 0 && deferred.Count == 0) break;
+
+            var band = SlotBand(slot.TeeTimeNumber, totalSlots);
+            var bandFlag = BandToFlag(band);
+
+            // Prefer players whose preference includes this slot's band.
+            var willing = preferenceQueue
+                .Where(p => (p.Player.PreferredTeeTimeSlots & bandFlag) != 0)
+                .ToList();
+
+            var picks = new List<RoundParticipant>();
+            picks.AddRange(TakeFromLargestFlight(willing, 2));
+            // Remove picked from preferenceQueue.
+            foreach (var w in picks) preferenceQueue.Remove(w);
+            willing = preferenceQueue
+                .Where(p => (p.Player.PreferredTeeTimeSlots & bandFlag) != 0)
+                .ToList();
+            var picks2 = TakeFromLargestFlight(willing, 2);
+            foreach (var w in picks2) preferenceQueue.Remove(w);
+            picks.AddRange(picks2);
+
+            if (picks.Count == 0) continue; // no willing players for this slot
 
             foreach (var p in picks)
             {
                 await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
+                unassignedQueue.Remove(p);
+            }
+        }
+
+        // Players with preferences who didn't find a matching band slot
+        // fall back into the no-preference pool.
+        noPreferenceQueue.AddRange(preferenceQueue);
+        preferenceQueue.Clear();
+
+        // Second pass: fill remaining empty slots with no-preference players
+        // (and any preference players who couldn't be matched above).
+        foreach (var slot in emptySlots)
+        {
+            if (noPreferenceQueue.Count == 0) break;
+            if (slot.Participants.Count > 0) continue; // already filled above
+
+            var picks = TakeFromLargestFlight(noPreferenceQueue, 2);
+            picks.AddRange(TakeFromLargestFlight(noPreferenceQueue, 2));
+
+            foreach (var p in picks)
+            {
+                await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
+                assignedCount++;
+                touchedSlotIds.Add(slot.Id);
+                unassignedQueue.Remove(p);
             }
         }
 
@@ -136,6 +199,21 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 
         return Result<AutofillResult>.Ok(new AutofillResult(assignedCount, touchedSlotIds.Count));
     }
+
+    /// <summary>
+    /// Returns which third (Early/Middle/Late) the given 1-based slot number
+    /// falls into for a round with <paramref name="totalSlots"/> slots.
+    /// </summary>
+    private static TeeTimeSlotPreference SlotBand(int teeTimeNumber, int totalSlots)
+    {
+        if (totalSlots <= 0) return TeeTimeSlotPreference.Early;
+        var third = Math.Max(1, totalSlots / 3);
+        if (teeTimeNumber <= third) return TeeTimeSlotPreference.Early;
+        if (teeTimeNumber <= third * 2) return TeeTimeSlotPreference.Middle;
+        return TeeTimeSlotPreference.Late;
+    }
+
+    private static TeeTimeSlotPreference BandToFlag(TeeTimeSlotPreference band) => band;
 
     private static int LargestFlight(List<RoundParticipant> pool)
         => pool.GroupBy(p => p.FlightId)

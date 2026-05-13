@@ -1,3 +1,5 @@
+using GolfLeague.Domain.Enums;
+
 namespace GolfLeague.Application.DTOs;
 
 public sealed record PlayerDto(
@@ -9,4 +11,5 @@ public sealed record PlayerDto(
     int? FlightId,
     string? FlightName,
     IReadOnlyList<string> Roles,
-    Guid? AppUserId = null);
+    Guid? AppUserId = null,
+    TeeTimeSlotPreference PreferredTeeTimeSlots = TeeTimeSlotPreference.None);

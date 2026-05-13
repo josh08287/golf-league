@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/authStore';
-import type { RoundTeeTimeSchedule } from '@/types/api';
+import type { RoundTeeTimeSchedule, TeeTimeSlotName } from '@/types/api';
 
 function unwrap<T>(data: unknown): T {
   if (data && typeof data === 'object' && 'data' in (data as object)) {
@@ -64,6 +64,18 @@ export function useLeaveTeeTime() {
     mutationFn: async (roundId: number) => {
       const res = await apiClient.post(`/rounds/${roundId}/tee-times/leave`);
       return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
+  });
+}
+
+export function useSetTeeTimePreference() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { playerId: number; preferredSlots: TeeTimeSlotName[] }) => {
+      await apiClient.put(`/players/${payload.playerId}/tee-time-preference`, {
+        preferredSlots: payload.preferredSlots,
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
   });

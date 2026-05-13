@@ -7,6 +7,7 @@ import {
   useRoundTeeTimes,
   useJoinTeeTime,
   useLeaveTeeTime,
+  useSetTeeTimePreference,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
 import { Badge } from '@/components/ui/Badge';
@@ -16,7 +17,8 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatShortDate } from '@/lib/utils';
-import type { RoundTeeTimeSchedule, TeeTimeSlot } from '@/types/api';
+import type { RoundTeeTimeSchedule, TeeTimeSlot, TeeTimeSlotName } from '@/types/api';
+import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '@/types/api';
 
 // ── Countdown helper ──────────────────────────────────────────────────────────
 
@@ -143,6 +145,83 @@ function SlotCard({ slot, schedule, isParticipant, onJoin, onLeave, mutating }: 
   );
 }
 
+// ── Preference selector ───────────────────────────────────────────────────────
+
+interface PreferenceSelectorProps {
+  playerId: number;
+  currentMask: number;
+}
+
+function TeeTimePreferenceSelector({ playerId, currentMask }: PreferenceSelectorProps) {
+  const setPreference = useSetTeeTimePreference();
+
+  const [selected, setSelected] = useState<Set<TeeTimeSlotName>>(
+    () => new Set(TEE_TIME_SLOTS.filter((s) => (currentMask & TEE_TIME_SLOT_FLAG[s]) !== 0)),
+  );
+
+  function toggle(slot: TeeTimeSlotName) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(slot)) next.delete(slot); else next.add(slot);
+      return next;
+    });
+  }
+
+  function save() {
+    setPreference.mutate({ playerId, preferredSlots: [...selected] });
+  }
+
+  const isDirty = TEE_TIME_SLOTS.some(
+    (s) => selected.has(s) !== ((currentMask & TEE_TIME_SLOT_FLAG[s]) !== 0),
+  );
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-3">
+      <p className="text-sm font-medium text-gray-700">
+        Preferred tee-time slots for auto-fill
+        <span className="ml-1 text-xs font-normal text-gray-400">(select none, any, or all)</span>
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {TEE_TIME_SLOTS.map((slot) => {
+          const active = selected.has(slot);
+          return (
+            <button
+              key={slot}
+              type="button"
+              onClick={() => toggle(slot)}
+              className={[
+                'px-3 py-1 rounded-full text-sm font-medium border transition-colors',
+                active
+                  ? 'bg-[#1B5E20] text-white border-[#1B5E20]'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-[#1B5E20]',
+              ].join(' ')}
+            >
+              {slot}
+            </button>
+          );
+        })}
+      </div>
+      {isDirty && (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={save}
+            disabled={setPreference.isPending}
+          >
+            Save preference
+          </Button>
+          {setPreference.isError && (
+            <span className="text-xs text-red-600">Failed to save.</span>
+          )}
+          {setPreference.isSuccess && !setPreference.isPending && (
+            <span className="text-xs text-green-700">Saved!</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Inner view (shared between next-round and specific-round routes) ──────────
 
 interface TeeTimeViewProps {
@@ -255,6 +334,13 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
           </p>
         )}
       </div>
+
+      {user && hasPlayerId && (
+        <TeeTimePreferenceSelector
+          playerId={parseInt(user.playerId!, 10)}
+          currentMask={schedule.currentUserPreferredSlots ?? 0}
+        />
+      )}
     </div>
   );
 }

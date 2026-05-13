@@ -106,6 +106,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             activeMembership?.FlightId,
             activeMembership?.Flight.Name,
             roles ?? Array.Empty<string>(),
-            player.AppUserId);
+            player.AppUserId,
+            player.PreferredTeeTimeSlots);
     }
 }

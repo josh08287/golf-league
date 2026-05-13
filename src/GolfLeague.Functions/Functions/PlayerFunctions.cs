@@ -3,6 +3,7 @@ using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
@@ -317,6 +318,55 @@ public sealed class PlayerFunctions
         return new OkObjectResult(new { data = result.Value });
     }
 
+    /// <summary>
+    /// PUT /v1/players/{id}/tee-time-preference
+    /// Authenticated players may update their own preference; admins may
+    /// update any player's preference.
+    /// Body: { "preferredSlots": ["Early", "Late"] } — pass empty array for None.
+    /// </summary>
+    [Function("SetTeeTimePreference")]
+    public async Task<IActionResult> SetTeeTimePreference(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/tee-time-preference")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        // Allow admin or the player themselves.
+        var callingPlayerId = req.GetPlayerId();
+        var isAdmin = req.HttpContext.User.IsInRole("admin")
+            || req.HttpContext.User.Claims.Any(c =>
+                (c.Type == System.Security.Claims.ClaimTypes.Role || c.Type == "roles")
+                && c.Value.Equals("admin", StringComparison.OrdinalIgnoreCase));
+
+        if (!isAdmin && callingPlayerId != playerId)
+            return new ObjectResult(new { error = "Forbidden: you may only update your own preference." }) { StatusCode = 403 };
+
+        var body = await req.TryDeserializeAsync<SetTeeTimePreferenceRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var preference = TeeTimeSlotPreference.None;
+        foreach (var slot in body.PreferredSlots ?? [])
+        {
+            if (Enum.TryParse<TeeTimeSlotPreference>(slot, ignoreCase: true, out var flag))
+                preference |= flag;
+        }
+
+        var player = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
+        if (player is null)
+            return new NotFoundObjectResult(new { error = $"Player {playerId} not found." });
+
+        player.PreferredTeeTimeSlots = preference;
+        await _playerRepository.UpdateAsync(player, cancellationToken);
+
+        return new OkObjectResult(new { data = new { playerId, preferredTeeTimeSlots = (int)preference } });
+    }
+
     private sealed record LinkUserBody(string UserId);
     private sealed record CreatePlayerRequest(string Name, string? Email, double InitialHandicap, string? FlightId);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string? Email);
@@ -325,4 +375,5 @@ public sealed class PlayerFunctions
     {
         public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;
     }
+    private sealed record SetTeeTimePreferenceRequest(IReadOnlyList<string>? PreferredSlots);
 }

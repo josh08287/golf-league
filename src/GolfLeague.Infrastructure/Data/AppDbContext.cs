@@ -108,6 +108,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             // Player has at most one AppUser; AppUser has at most one Player.
             // SetNull on delete so deleting an AppUser doesn't cascade-wipe
             // the player history.
+            entity.Property(e => e.PreferredTeeTimeSlots)
+                  .HasConversion<int>();
             entity.HasOne(e => e.AppUser)
                   .WithOne(u => u.Player)
                   .HasForeignKey<Player>(e => e.AppUserId)

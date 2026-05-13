@@ -19,6 +19,15 @@ export interface PagedResponse<T> {
 
 // ── Domain DTOs ───────────────────────────────────────────────────────────────
 
+export type TeeTimeSlotPreference = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
+export const TEE_TIME_SLOTS = ['Early', 'Middle', 'Late'] as const;
+export type TeeTimeSlotName = (typeof TEE_TIME_SLOTS)[number];
+export const TEE_TIME_SLOT_FLAG: Record<TeeTimeSlotName, number> = {
+  Early: 1,
+  Middle: 2,
+  Late: 4,
+};
+
 export interface Player {
   id: number;
   fullName: string;
@@ -31,6 +40,7 @@ export interface Player {
   // Null when no AppUser is linked yet. Drives the "Link to user account"
   // affordance on the admin player-detail page.
   appUserId: string | null;
+  preferredTeeTimeSlots: TeeTimeSlotPreference;
 }
 
 /** Lightweight row used by the unlinked-players pickers. */
@@ -275,4 +285,5 @@ export interface RoundTeeTimeSchedule {
   currentUserParticipantId: number | null;
   currentUserTeeTimeId: number | null;
   slots: TeeTimeSlot[];
+  currentUserPreferredSlots: TeeTimeSlotPreference;
 }

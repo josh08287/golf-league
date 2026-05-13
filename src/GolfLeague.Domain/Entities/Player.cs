@@ -1,3 +1,5 @@
+using GolfLeague.Domain.Enums;
+
 namespace GolfLeague.Domain.Entities;
 
 public class Player
@@ -18,6 +20,12 @@ public class Player
     // The AppUser carries the authoritative Role for authorization.
     public Guid? AppUserId { get; set; }
     public AppUser? AppUser { get; set; }
+
+    /// <summary>
+    /// Bit-flags of the player's preferred tee-time slots for autofill.
+    /// None = no preference; autofill may place the player in any slot.
+    /// </summary>
+    public TeeTimeSlotPreference PreferredTeeTimeSlots { get; set; } = TeeTimeSlotPreference.None;
 
     public string FullName => $"{FirstName} {LastName}";
     public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();

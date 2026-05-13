@@ -142,6 +142,7 @@ public sealed class TeeTimeService : ITeeTimeService
             participantCount,
             callerParticipant?.Id,
             callerParticipant?.TeeTimeId,
-            slotDtos);
+            slotDtos,
+            callerParticipant?.Player.PreferredTeeTimeSlots ?? Domain.Enums.TeeTimeSlotPreference.None);
     }
 }

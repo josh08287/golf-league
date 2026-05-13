@@ -1,3 +1,5 @@
+using GolfLeague.Domain.Enums;
+
 namespace GolfLeague.Application.DTOs;
 
 public sealed record TeeTimeSlotDto(
@@ -21,4 +23,5 @@ public sealed record RoundTeeTimeScheduleDto(
     int ParticipantCount,
     int? CurrentUserParticipantId,
     int? CurrentUserTeeTimeId,
-    IReadOnlyList<TeeTimeSlotDto> Slots);
+    IReadOnlyList<TeeTimeSlotDto> Slots,
+    TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None);
