@@ -51,6 +51,9 @@ param webOrigin string
 @description('WebAuthn relying-party ID (the registrable domain, e.g. "app.golfleague.com"). For local dev use "localhost".')
 param fido2RpId string = 'localhost'
 
+@description('Array of allowed CORS origins for the Function App (e.g., ["https://app1.com", "https://app2.com"]).')
+param allowedOrigins array = []
+
 // ---------------------------------------------------------------------------
 // Variables
 // ---------------------------------------------------------------------------
@@ -109,6 +112,7 @@ module functionsModule 'modules/functions.bicep' = {
     uniqueSuffix: uniqueSuffix
     appInsightsConnectionString: appInsightsModule.outputs.connectionString
     storageAccountNameForPhotos: storageModule.outputs.storageAccountName
+    allowedOrigins: allowedOrigins
   }
 }
 

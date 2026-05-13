@@ -372,3 +372,90 @@ export interface PlayerScoreInput {
   playerId: number;
   holeScores: PlayerHoleScoreInput[];
 }
+
+// ── Statistics ───────────────────────────────────────────────────────────────
+
+export interface HoleStatistics {
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+  averageGrossStrokes: number;
+  averageNetStrokes: number;
+  averageGrossStablefordPoints: number;
+  averageNetStablefordPoints: number;
+  averageScoreToPar: number;
+  totalScoresRecorded: number;
+  eagleOrBetterCount: number;
+  birdieCount: number;
+  parCount: number;
+  bogeyCount: number;
+  doubleBogeyOrWorseCount: number;
+  difficultyRank: number;
+}
+
+export interface CourseStatistics {
+  courseId: number;
+  courseName: string;
+  courseRating: number;
+  slopeRating: number;
+  totalRoundsPlayed: number;
+  totalScorecardsRecorded: number;
+  averageTotalGrossStrokes: number | null;
+  averageTotalNetStrokes: number | null;
+  averageTotalGrossStablefordPoints: number | null;
+  averageTotalNetStablefordPoints: number | null;
+  averageScoreToPar: number | null;
+  holeStatistics: HoleStatistics[];
+}
+
+export interface ScoringDistribution {
+  eagleOrBetterCount: number;
+  birdieCount: number;
+  parCount: number;
+  bogeyCount: number;
+  doubleBogeyOrWorseCount: number;
+  totalHolesPlayed: number;
+}
+
+export interface BestWorstRound {
+  roundId: number;
+  roundDate: string;
+  courseName: string;
+  grossStrokes: number | null;
+  netStrokes: number | null;
+  grossStablefordPoints: number | null;
+  netStablefordPoints: number | null;
+}
+
+export interface PlayerHoleAverage {
+  holeNumber: number;
+  par: number;
+  averageGrossStrokes: number;
+  averageNetStrokes: number;
+  averageScoreToPar: number;
+  timesPlayed: number;
+}
+
+export interface PlayerStatistics {
+  playerId: number;
+  playerName: string;
+  totalRoundsPlayed: number;
+  totalRoundsFinalized: number;
+  averageGrossStrokes: number | null;
+  averageNetStrokes: number | null;
+  averageGrossStablefordPoints: number | null;
+  averageNetStablefordPoints: number | null;
+  averageScoreToPar: number | null;
+  bestGrossStrokes: number | null;
+  worstGrossStrokes: number | null;
+  bestNetStablefordPoints: number | null;
+  worstNetStablefordPoints: number | null;
+  bestGrossRound: BestWorstRound | null;
+  bestNetPointsRound: BestWorstRound | null;
+  scoringDistribution: ScoringDistribution;
+  holeAverages: PlayerHoleAverage[];
+  handicapTrend: number | null;
+  totalBirdiesOrBetter: number;
+  totalPars: number;
+  parOrBetterPercentage: number | null;
+}

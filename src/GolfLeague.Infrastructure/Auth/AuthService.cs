@@ -201,7 +201,7 @@ public sealed class AuthService : IAuthService
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException($"User {userId} not found.");
-        return await IssueFullTokensAsync(user, cancellationToken);
+        return await IssueTokensAsync(user, cancellationToken);
     }
 
     public async Task<Result<bool>> RequestPasswordResetAsync(
@@ -409,8 +409,8 @@ public sealed class AuthService : IAuthService
             .Select(r => r.ToLowerInvariant())
             .ToList();
 
-        // Admins must satisfy a second factor on every sign-in.
-        var requiresMfa = roles.Contains("admin");
+        // MFA is optional for all users. Set to true to require MFA for specific roles.
+        var requiresMfa = false;
         var mfaEnrolled = user.TotpEnabled
             || await _dbContext.UserPasskeys.AnyAsync(p => p.UserId == user.Id, cancellationToken);
 

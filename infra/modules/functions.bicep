@@ -27,6 +27,9 @@ param appInsightsConnectionString string
 @description('Name of the storage account that holds player photos (for BLOB_STORAGE_ACCOUNT app setting).')
 param storageAccountNameForPhotos string
 
+@description('Array of allowed CORS origins (e.g., ["https://app1.com", "https://app2.com"]).')
+param allowedOrigins array = []
+
 // ---------------------------------------------------------------------------
 // Resources
 // ---------------------------------------------------------------------------
@@ -92,6 +95,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     httpsOnly: true
     siteConfig: {
       netFrameworkVersion: 'v8.0'
+      cors: {
+        allowedOrigins: allowedOrigins
+        supportCredentials: true
+      }
       appSettings: [
         {
           name: 'FUNCTIONS_EXTENSION_VERSION'

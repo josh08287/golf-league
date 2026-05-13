@@ -11,6 +11,7 @@ const publicLinks = [
   { to: '/flights', label: 'Flights' },
   { to: '/rounds', label: 'Rounds' },
   { to: '/players', label: 'Players' },
+  { to: '/statistics', label: 'Statistics' },
 ];
 
 const authedLinks = [

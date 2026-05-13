@@ -1,11 +1,12 @@
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { useState } from 'react';
 import { usePlayer, useHandicapHistory, usePlayerRounds } from '@/hooks/usePlayers';
+import { usePlayerStatistics } from '@/hooks/useStatistics';
 import { useSetTeeTimePreference } from '@/hooks/useTeeTimes';
 import { useAuthStore } from '@/store/authStore';
 import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '@/types/api';
-import type { TeeTimeSlotName } from '@/types/api';
+import type { TeeTimeSlotName, PlayerStatistics } from '@/types/api';
 import {
   Card,
   CardContent,
@@ -16,6 +17,7 @@ import {
   Table,
   TableBody,
   TableCell,
+  TableHead,
   TableHeader,
   TableRow,
 } from '@/components/ui/Table';
@@ -92,6 +94,295 @@ function TeeTimePreferenceSelector({ playerId, currentMask }: { playerId: number
         </div>
       )}
     </div>
+  );
+}
+
+function ScoringDistributionBar({ stats }: { stats: PlayerStatistics }) {
+  const { scoringDistribution: dist } = stats;
+  const total = dist.totalHolesPlayed;
+  if (total === 0) return null;
+
+  const segments = [
+    { label: 'Eagle+', count: dist.eagleOrBetterCount, color: 'bg-blue-500' },
+    { label: 'Birdie', count: dist.birdieCount, color: 'bg-green-500' },
+    { label: 'Par', count: dist.parCount, color: 'bg-gray-400' },
+    { label: 'Bogey', count: dist.bogeyCount, color: 'bg-amber-500' },
+    { label: 'Dbl+', count: dist.doubleBogeyOrWorseCount, color: 'bg-red-500' },
+  ];
+
+  return (
+    <div className="space-y-2">
+      <div className="flex h-6 w-full overflow-hidden rounded-full">
+        {segments.map((s) =>
+          s.count > 0 ? (
+            <div
+              key={s.label}
+              className={`${s.color} transition-all`}
+              style={{ width: `${(s.count / total) * 100}%` }}
+              title={`${s.label}: ${s.count} (${((s.count / total) * 100).toFixed(0)}%)`}
+            />
+          ) : null,
+        )}
+      </div>
+      <div className="flex flex-wrap gap-3 text-xs text-gray-500">
+        {segments.map((s) => (
+          <span key={s.label} className="flex items-center gap-1">
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${s.color}`} />
+            {s.label}: {s.count} ({total > 0 ? ((s.count / total) * 100).toFixed(0) : 0}%)
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PlayerStatsSection({ playerId }: { playerId: string }) {
+  const playerStats = usePlayerStatistics(playerId);
+
+  if (!playerId) return null;
+  if (playerStats.isPending) return null;
+  if (playerStats.isError) return null;
+
+  const stats = playerStats.data;
+  if (!stats || stats.totalRoundsFinalized === 0) return null;
+
+  const scoreToParLabel = (val: number | null) => {
+    if (val == null) return '—';
+    if (val > 0) return `+${val.toFixed(1)}`;
+    if (val === 0) return 'E';
+    return val.toFixed(1);
+  };
+
+  return (
+    <section className="space-y-4">
+      <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+        <Target className="h-5 w-5 text-primary-700" />
+        Performance Statistics
+      </h2>
+
+      {/* Key metrics row */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Rounds Finalized
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary-900">{stats.totalRoundsFinalized}</p>
+            <p className="text-xs text-gray-400 mt-1">of {stats.totalRoundsPlayed} total</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Avg Score to Par
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary-900">
+              {scoreToParLabel(stats.averageScoreToPar)}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Gross: {stats.averageGrossStrokes?.toFixed(1) ?? '—'} |
+              Net: {stats.averageNetStrokes?.toFixed(1) ?? '—'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Avg Net Stableford Pts
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary-900">
+              {stats.averageNetStablefordPoints?.toFixed(1) ?? '—'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              Gross: {stats.averageGrossStablefordPoints?.toFixed(1) ?? '—'}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-500">
+              Par or Better %
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary-900">
+              {stats.parOrBetterPercentage != null
+                ? `${stats.parOrBetterPercentage}%`
+                : '—'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">
+              {stats.totalBirdiesOrBetter} birdies+ | {stats.totalPars} pars
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Best/worst and handicap trend */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1 text-sm font-medium text-green-600">
+              <TrendingDown className="h-4 w-4" />
+              Best Gross Round
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.bestGrossRound ? (
+              <>
+                <p className="text-2xl font-bold text-primary-900">
+                  {stats.bestGrossRound.grossStrokes}
+                </p>
+                <Link
+                  to={`/rounds/${stats.bestGrossRound.roundId}`}
+                  className="text-xs text-primary-700 hover:underline"
+                >
+                  {stats.bestGrossRound.courseName} — {formatShortDate(stats.bestGrossRound.roundDate)}
+                </Link>
+              </>
+            ) : (
+              <p className="text-gray-400">—</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1 text-sm font-medium text-blue-600">
+              <Trophy className="h-4 w-4" />
+              Best Net Points Round
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {stats.bestNetPointsRound ? (
+              <>
+                <p className="text-2xl font-bold text-primary-900">
+                  {stats.bestNetPointsRound.netStablefordPoints} pts
+                </p>
+                <Link
+                  to={`/rounds/${stats.bestNetPointsRound.roundId}`}
+                  className="text-xs text-primary-700 hover:underline"
+                >
+                  {stats.bestNetPointsRound.courseName} — {formatShortDate(stats.bestNetPointsRound.roundDate)}
+                </Link>
+              </>
+            ) : (
+              <p className="text-gray-400">—</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1 text-sm font-medium text-gray-500">
+              {stats.handicapTrend != null && stats.handicapTrend < 0 ? (
+                <TrendingDown className="h-4 w-4 text-green-600" />
+              ) : (
+                <TrendingUp className="h-4 w-4 text-red-600" />
+              )}
+              Handicap Trend
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold text-primary-900">
+              {stats.handicapTrend != null
+                ? `${stats.handicapTrend > 0 ? '+' : ''}${stats.handicapTrend.toFixed(1)}`
+                : '—'}
+            </p>
+            <p className="text-xs text-gray-400 mt-1">change since first record</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Stroke range */}
+      {stats.bestGrossStrokes != null && stats.worstGrossStrokes != null && (
+        <div className="rounded-lg border border-gray-200 bg-white px-5 py-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Gross stroke range</span>
+            <span className="font-semibold tabular-nums text-primary-900">
+              {stats.bestGrossStrokes} – {stats.worstGrossStrokes}
+            </span>
+          </div>
+          {stats.bestNetStablefordPoints != null && stats.worstNetStablefordPoints != null && (
+            <div className="flex items-center justify-between text-sm mt-1">
+              <span className="text-gray-500">Net Stableford pts range</span>
+              <span className="font-semibold tabular-nums text-primary-900">
+                {stats.worstNetStablefordPoints} – {stats.bestNetStablefordPoints}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Scoring distribution */}
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">
+          Scoring Distribution (Gross)
+        </h3>
+        <ScoringDistributionBar stats={stats} />
+      </div>
+
+      {/* Per-hole averages */}
+      {stats.holeAverages.length > 0 && (
+        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b border-gray-100">
+            <h3 className="text-sm font-semibold text-gray-700">
+              Hole-by-Hole Averages
+            </h3>
+          </div>
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                <TableHead className="w-16 text-center">Hole</TableHead>
+                <TableHead className="w-16 text-center">Par</TableHead>
+                <TableHead className="text-right">Avg Gross</TableHead>
+                <TableHead className="text-right">Avg Net</TableHead>
+                <TableHead className="text-right">Avg to Par</TableHead>
+                <TableHead className="text-right w-16">Played</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {stats.holeAverages.map((h) => (
+                <TableRow key={h.holeNumber}>
+                  <TableCell className="text-center font-semibold">{h.holeNumber}</TableCell>
+                  <TableCell className="text-center">{h.par}</TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {h.averageGrossStrokes.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">
+                    {h.averageNetStrokes.toFixed(1)}
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-medium">
+                    <span
+                      className={
+                        h.averageScoreToPar > 0
+                          ? 'text-red-600'
+                          : h.averageScoreToPar < 0
+                            ? 'text-green-600'
+                            : 'text-gray-600'
+                      }
+                    >
+                      {scoreToParLabel(h.averageScoreToPar)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right text-gray-500 tabular-nums">
+                    {h.timesPlayed}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -187,6 +478,9 @@ export function PlayerProfilePage() {
           </div>
         </>
       )}
+
+      {/* Player Statistics Section */}
+      <PlayerStatsSection playerId={playerId ?? ''} />
 
       {/* Handicap chart */}
       <section>
