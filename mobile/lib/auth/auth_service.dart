@@ -5,10 +5,17 @@ import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 const _accessTokenKey = 'access_token';
 const _refreshTokenKey = 'refresh_token';
 
-// Custom-scheme redirect for the OS-native browser callback. This must be
-// registered as an intent-filter on Android and as a CFBundleURLScheme on iOS,
-// AND configured on the API side as an allowed redirect URI for Google/Facebook.
-const _externalRedirectUri = 'com.golfleague.app://auth';
+// Google OAuth 2.0 Android client ID (registered in Google Cloud Console).
+// Used by the backend to validate the ID token audience.
+const googleClientId =
+    '99124513187-hlvp2u9rh6381osoc2v5noluvmpmo1pt.apps.googleusercontent.com';
+
+// The backend relay endpoint receives Google's https:// redirect, then
+// immediately bounces to the custom scheme so flutter_web_auth_2 can capture it.
+// The https:// URL must be registered in the Google web OAuth client's
+// Authorized redirect URIs.
+const _externalRedirectUri =
+    'https://golf-league-fn-g5vkqe.azurewebsites.net/api/v1/auth/external/google/mobile-callback';
 const _externalCallbackScheme = 'com.golfleague.app';
 
 class AuthService {

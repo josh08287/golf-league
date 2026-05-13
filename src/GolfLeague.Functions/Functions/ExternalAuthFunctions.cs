@@ -66,6 +66,38 @@ public sealed class ExternalAuthFunctions
         return new OkObjectResult(new { data = result.Value });
     }
 
+    /// <summary>
+    /// GET /v1/auth/external/{provider}/mobile-callback
+    /// Google redirects here (https://) after the user consents.
+    /// This relay immediately redirects the browser to the app's custom scheme
+    /// so flutter_web_auth_2 can capture the code and state.
+    /// Register https://golf-league-fn-g5vkqe.azurewebsites.net/api/v1/auth/external/google/mobile-callback
+    /// as an Authorized redirect URI on the Google web OAuth client.
+    /// </summary>
+    [Function("ExternalAuthMobileCallback")]
+    public IActionResult MobileCallback(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/auth/external/{provider}/mobile-callback")] HttpRequest req,
+        string provider)
+    {
+        var code  = req.Query["code"].FirstOrDefault();
+        var state = req.Query["state"].FirstOrDefault();
+        var error = req.Query["error"].FirstOrDefault();
+
+        const string appScheme = "com.golfleague.app";
+
+        if (!string.IsNullOrEmpty(error))
+        {
+            var errorRedirect = $"{appScheme}://auth?error={Uri.EscapeDataString(error)}";
+            return new RedirectResult(errorRedirect, permanent: false);
+        }
+
+        if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
+            return new BadRequestObjectResult(new { error = "Missing code or state." });
+
+        var deepLink = $"{appScheme}://auth?code={Uri.EscapeDataString(code)}&state={Uri.EscapeDataString(state)}";
+        return new RedirectResult(deepLink, permanent: false);
+    }
+
     private sealed record StartRequest(string RedirectUri);
     private sealed record CallbackRequest(string State, string Code, string RedirectUri);
 }
