@@ -138,7 +138,7 @@ function ScorecardTable({ scorecard }: { scorecard: RoundScorecard }) {
           Net Pts: <strong>{scorecard.netPoints ?? '—'}</strong>
         </span>
         <span>
-          CH: <strong>{scorecard.courseHandicap}</strong>
+          9H CH: <strong>{scorecard.courseHandicap}</strong>
         </span>
       </div>
     </div>
@@ -218,7 +218,7 @@ export function RoundDetailPage() {
                           {sc.playerName}
                         </Link>
                         <span className="text-sm text-gray-500 whitespace-nowrap">
-                          CH {sc.courseHandicap}
+                          9H CH {sc.courseHandicap}
                         </span>
                       </div>
                       <div className="flex items-center gap-4">
