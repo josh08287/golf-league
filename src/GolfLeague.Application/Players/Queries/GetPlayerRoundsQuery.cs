@@ -56,7 +56,7 @@ public sealed class GetPlayerRoundsQueryHandler
             {
                 double? scoreDifferential = null;
                 double? nineHoleScoreDifferential = null;
-                if (rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
+                if (!rp.SkippedWeek && rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
                 {
                     scoreDifferential = Math.Round(
                         StablefordScoringService.ScoreDifferential(

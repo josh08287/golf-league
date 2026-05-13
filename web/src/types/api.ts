@@ -225,11 +225,32 @@ export interface FlightSkins {
   allHoleResults: HoleSkin[];
 }
 
+export interface GrossPar3Skin {
+  holeNumber: number;
+  par: number;
+  skinValue: number;
+  winnerPlayerId: number;
+  winnerPlayerName: string;
+  winnerFlightId: number;
+  winnerFlightName: string;
+  winningGrossScore: number;
+  wasCarryover: boolean;
+}
+
+export interface GrossPar3SkinsSummary {
+  totalHolesWithSkins: number;
+  totalSkinValueAwarded: number;
+  par3HoleCount: number;
+  holeResults: GrossPar3Skin[];
+  playerSummaries: PlayerSkinSummary[];
+}
+
 export interface RoundSkins {
   roundId: number;
   roundDate: string;
   courseName: string;
   flightSkins: FlightSkins[];
+  grossPar3Skins: GrossPar3SkinsSummary | null;
 }
 
 export interface CourseHole {

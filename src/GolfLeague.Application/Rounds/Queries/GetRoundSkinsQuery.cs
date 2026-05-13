@@ -39,13 +39,38 @@ public sealed record FlightSkinsDto(
     List<HoleSkinDto> AllHoleResults);
 
 /// <summary>
+/// Represents a gross skin won on a par 3 hole (all flights combined).
+/// </summary>
+public sealed record GrossPar3SkinDto(
+    int HoleNumber,
+    int Par,
+    int SkinValue,
+    int WinnerPlayerId,
+    string WinnerPlayerName,
+    int WinnerFlightId,
+    string WinnerFlightName,
+    int WinningGrossScore,
+    bool WasCarryover);
+
+/// <summary>
+/// Summary of gross par 3 skins for the entire round.
+/// </summary>
+public sealed record GrossPar3SkinsSummaryDto(
+    int TotalHolesWithSkins,
+    int TotalSkinValueAwarded,
+    int Par3HoleCount,
+    List<GrossPar3SkinDto> HoleResults,
+    List<PlayerSkinSummaryDto> PlayerSummaries);
+
+/// <summary>
 /// Complete skins result for a round, grouped by flight.
 /// </summary>
 public sealed record RoundSkinsDto(
     int RoundId,
     string RoundDate,
     string CourseName,
-    List<FlightSkinsDto> FlightSkins);
+    List<FlightSkinsDto> FlightSkins,
+    GrossPar3SkinsSummaryDto? GrossPar3Skins);
 
 public sealed record GetRoundSkinsQuery(int RoundId) : IRequest<Result<RoundSkinsDto>>;
 
@@ -95,11 +120,21 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             flightSkinsList.Add(flightSkins);
         }
 
+        // Build flight name lookup for par-3 skins
+        var flightNameLookup = flights.ToDictionary(f => f.Id, f => f.Name);
+
+        // Calculate gross par-3 skins across all flights
+        var allParticipants = participants
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
+            .ToList();
+        var grossPar3Skins = CalculateGrossPar3Skins(allParticipants, flightNameLookup);
+
         var result = new RoundSkinsDto(
             round.Id,
             round.RoundDate.ToString("yyyy-MM-dd"),
             course?.Name ?? "Unknown Course",
-            flightSkinsList);
+            flightSkinsList,
+            grossPar3Skins);
 
         return Result<RoundSkinsDto>.Ok(result);
     }
@@ -211,6 +246,125 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             totalSkinValueAwarded,
             playerSummaries,
             allHoleResults);
+    }
+
+    private static GrossPar3SkinsSummaryDto? CalculateGrossPar3Skins(
+        List<RoundParticipant> allParticipants,
+        Dictionary<int, string> flightNameLookup)
+    {
+        // Get all par 3 hole scores across all participants
+        var par3HoleScores = allParticipants
+            .SelectMany(p => p.HoleScores.Where(h => h.Par == 3).Select(h => new
+            {
+                p.PlayerId,
+                p.Player.FullName,
+                p.FlightId,
+                HoleScore = h
+            }))
+            .ToList();
+
+        if (par3HoleScores.Count == 0)
+            return null;
+
+        // Group by hole number
+        var holesPlayed = par3HoleScores
+            .Select(x => x.HoleScore.HoleNumber)
+            .Distinct()
+            .OrderBy(h => h)
+            .ToList();
+
+        var holeResults = new List<GrossPar3SkinDto>();
+        var playerSkinCounts = new Dictionary<int, PlayerSkinAccumulator>();
+
+        int carryoverSkins = 0;
+
+        foreach (var holeNumber in holesPlayed)
+        {
+            // Get all gross scores for this par 3 hole
+            var holeScores = par3HoleScores
+                .Where(x => x.HoleScore.HoleNumber == holeNumber)
+                .Select(x => new
+                {
+                    x.PlayerId,
+                    x.FullName,
+                    x.FlightId,
+                    x.HoleScore.GrossStrokes,
+                    x.HoleScore.Par
+                })
+                .ToList();
+
+            if (holeScores.Count == 0)
+                continue;
+
+            // Find the lowest gross score
+            var minGrossScore = holeScores.Min(h => h.GrossStrokes);
+            var lowestScorers = holeScores.Where(h => h.GrossStrokes == minGrossScore).ToList();
+
+            int skinValue = 1 + carryoverSkins;
+
+            if (lowestScorers.Count == 1)
+            {
+                var winner = lowestScorers[0];
+                var flightName = flightNameLookup.TryGetValue(winner.FlightId, out var fn) ? fn : "Unknown";
+
+                var holeSkin = new GrossPar3SkinDto(
+                    holeNumber,
+                    winner.Par,
+                    skinValue,
+                    winner.PlayerId,
+                    winner.FullName,
+                    winner.FlightId,
+                    flightName,
+                    winner.GrossStrokes,
+                    carryoverSkins > 0);
+
+                holeResults.Add(holeSkin);
+
+                if (!playerSkinCounts.ContainsKey(winner.PlayerId))
+                    playerSkinCounts[winner.PlayerId] = new PlayerSkinAccumulator(winner.PlayerId, winner.FullName);
+                playerSkinCounts[winner.PlayerId].AddSkin(new HoleSkinDto(holeNumber, skinValue, winner.PlayerId, winner.FullName, winner.GrossStrokes, carryoverSkins > 0));
+
+                carryoverSkins = 0;
+            }
+            else
+            {
+                carryoverSkins += 1;
+
+                holeResults.Add(new GrossPar3SkinDto(
+                    holeNumber,
+                    3, // par 3
+                    0,
+                    0,
+                    string.Empty,
+                    0,
+                    string.Empty,
+                    minGrossScore,
+                    false));
+            }
+        }
+
+        var playerSummaries = playerSkinCounts
+            .Select(x => x.Value)
+            .Where(p => p.TotalSkinsWon > 0)
+            .OrderByDescending(p => p.TotalSkinValue)
+            .ThenByDescending(p => p.TotalSkinsWon)
+            .Select(p => new PlayerSkinSummaryDto(
+                p.PlayerId,
+                p.PlayerName,
+                p.TotalSkinsWon,
+                p.TotalSkinValue,
+                p.HolesWon))
+            .ToList();
+
+        var totalHolesWithSkins = holeResults.Count(h => h.SkinValue > 0);
+        var totalSkinValueAwarded = playerSummaries.Sum(p => p.TotalSkinValue);
+
+        return new GrossPar3SkinsSummaryDto(
+            totalHolesWithSkins,
+            totalSkinValueAwarded,
+            holesPlayed.Count,
+            holeResults,
+            playerSummaries);
     }
 
     private class PlayerSkinAccumulator
