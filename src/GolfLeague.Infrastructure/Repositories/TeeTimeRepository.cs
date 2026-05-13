@@ -25,7 +25,8 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
 
     public Task<RoundTeeTime?> GetByIdAsync(int teeTimeId, CancellationToken cancellationToken = default)
         => _context.RoundTeeTimes
-            .Include(t => t.Participants)
+            .Include(t => t.Participants).ThenInclude(p => p.Player)
+            .Include(t => t.Participants).ThenInclude(p => p.Flight)
             .FirstOrDefaultAsync(t => t.Id == teeTimeId, cancellationToken);
 
     public async Task<IReadOnlyList<RoundTeeTime>> EnsureSlotsAsync(int roundId, int count, CancellationToken cancellationToken = default)
