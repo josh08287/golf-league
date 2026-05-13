@@ -96,6 +96,7 @@ export interface PlayerRoundSummary {
   totalNetStablefordPoints: number | null;
   isWithdrawn: boolean;
   skippedWeek: boolean;
+  scoreDifferential: number | null;
   nineHoleScoreDifferential: number | null;
 }
 

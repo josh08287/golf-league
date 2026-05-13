@@ -54,14 +54,23 @@ public sealed class GetPlayerRoundsQueryHandler
         var dtos = participants
             .Select(rp =>
             {
-                double? differential = null;
+                double? scoreDifferential = null;
+                double? nineHoleScoreDifferential = null;
                 if (rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
-                    differential = Math.Round(
+                {
+                    scoreDifferential = Math.Round(
+                        StablefordScoringService.ScoreDifferential(
+                            rp.TotalGrossStrokes.Value,
+                            rp.Round.Course.CourseRating / 2,
+                            rp.Round.Course.SlopeRating),
+                        1, MidpointRounding.ToEven);
+                    nineHoleScoreDifferential = Math.Round(
                         StablefordScoringService.NineHoleScoreDifferential(
                             rp.TotalGrossStrokes.Value,
                             rp.Round.Course.CourseRating,
                             rp.Round.Course.SlopeRating),
                         1, MidpointRounding.ToEven);
+                }
 
                 return new PlayerRoundSummaryDto(
                     rp.Round.Id,
@@ -76,7 +85,8 @@ public sealed class GetPlayerRoundsQueryHandler
                     rp.TotalNetStablefordPoints,
                     rp.IsWithdrawn,
                     rp.SkippedWeek,
-                    differential);
+                    scoreDifferential,
+                    nineHoleScoreDifferential);
             })
             .ToList();
 
