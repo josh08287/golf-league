@@ -78,7 +78,12 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
 
         foreach (var input in request.HoleScores)
         {
-            var hole = courseHoles.First(h => h.HoleNumber == input.HoleNumber);
+            var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
+            if (hole is null)
+            {
+                return Result<ScorecardDto>.Fail(
+                    $"Hole {input.HoleNumber} not found for this round's {round.NineHoleSide} nine.");
+            }
 
             var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);

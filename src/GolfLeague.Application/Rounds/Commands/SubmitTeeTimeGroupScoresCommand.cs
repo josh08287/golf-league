@@ -130,7 +130,12 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
             var holeScoreEntities = new List<HoleScore>();
             foreach (var input in playerScoreInput.HoleScores)
             {
-                var hole = relevantHoles.First(h => h.HoleNumber == input.HoleNumber);
+                var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
+                if (hole is null)
+                {
+                    return Result<TeeTimeGroupScoresResultDto>.Fail(
+                        $"Player {participant.Player.FullName}: Hole {input.HoleNumber} not found for this round's 9-hole side.");
+                }
 
                 var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex);
                 var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
