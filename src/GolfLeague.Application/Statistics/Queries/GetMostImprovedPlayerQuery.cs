@@ -42,8 +42,9 @@ public sealed class GetMostImprovedPlayerQueryHandler
 {
     /// <summary>
     /// Minimum finalized rounds a player must have in the half to qualify.
+    /// A player needs at least 2 rounds so we can compare first vs last.
     /// </summary>
-    private const int MinRounds = 3;
+    private const int MinRounds = 2;
 
     private readonly ISeasonRepository _seasonRepository;
     private readonly IRoundRepository _roundRepository;
