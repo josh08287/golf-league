@@ -36,7 +36,8 @@ class RoundDetailScreen extends ConsumerWidget {
             // Round header
             roundAsync.when(
               loading: () => const _LoadingCard(),
-              error: (e, _) => const _ErrorCard(message: 'Could not load round details.'),
+              error: (e, _) =>
+                  const _ErrorCard(message: 'Could not load round details.'),
               data: (round) => _RoundHeader(round: round),
             ),
             const SizedBox(height: 20),
@@ -54,7 +55,8 @@ class RoundDetailScreen extends ConsumerWidget {
             ),
             scorecardsAsync.when(
               loading: () => const _LoadingCard(),
-              error: (e, _) => const _ErrorCard(message: 'Could not load scorecards.'),
+              error: (e, _) =>
+                  const _ErrorCard(message: 'Could not load scorecards.'),
               data: (cards) {
                 if (cards.isEmpty) {
                   return const Padding(
@@ -67,10 +69,12 @@ class RoundDetailScreen extends ConsumerWidget {
                 }
                 return Column(
                   children: cards
-                      .map((sc) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _ScorecardCard(scorecard: sc),
-                          ))
+                      .map(
+                        (sc) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _ScorecardCard(scorecard: sc),
+                        ),
+                      )
                       .toList(),
                 );
               },
@@ -123,14 +127,15 @@ class _RoundHeader extends StatelessWidget {
             style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
           ),
           const SizedBox(height: 4),
-          Text(
-            round.flightName,
-            style: const TextStyle(
-              fontSize: 13,
-              color: Color(0xFF6B7280),
-              fontWeight: FontWeight.w500,
+          if (round.flightName != null)
+            Text(
+              round.flightName!,
+              style: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF6B7280),
+                fontWeight: FontWeight.w500,
+              ),
             ),
-          ),
           if (round.participantCount > 0) ...[
             const SizedBox(height: 8),
             Text(
@@ -212,7 +217,10 @@ class _ScorecardCardState extends State<_ScorecardCard> {
                       if (sc.points != null)
                         Container(
                           margin: const EdgeInsets.only(left: 6),
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFF3F4F6),
                             borderRadius: BorderRadius.circular(12),
@@ -230,8 +238,11 @@ class _ScorecardCardState extends State<_ScorecardCard> {
                       AnimatedRotation(
                         turns: _expanded ? 0.5 : 0,
                         duration: const Duration(milliseconds: 200),
-                        child: const Icon(Icons.keyboard_arrow_down,
-                            size: 20, color: Color(0xFF9CA3AF)),
+                        child: const Icon(
+                          Icons.keyboard_arrow_down,
+                          size: 20,
+                          color: Color(0xFF9CA3AF),
+                        ),
                       ),
                     ],
                   ),
@@ -354,9 +365,9 @@ class _HoleTable extends StatelessWidget {
     final diff = h.strokes - h.par;
     if (diff <= -2) return const Color(0xFFFACC15); // eagle
     if (diff == -1) return const Color(0xFF22C55E); // birdie
-    if (diff == 0) return Colors.white;              // par
-    if (diff == 1) return const Color(0xFFE5E7EB);  // bogey
-    return const Color(0xFFEF4444);                  // double+
+    if (diff == 0) return Colors.white; // par
+    if (diff == 1) return const Color(0xFFE5E7EB); // bogey
+    return const Color(0xFFEF4444); // double+
   }
 
   Color _textColor(HoleScore h) {
@@ -393,7 +404,8 @@ class _HoleTable extends StatelessWidget {
             decoration: const BoxDecoration(color: Color(0xFFF9FAFB)),
             children: [
               _LabelCell('Par'),
-              for (final h in holes) _DataCell('${h.par}', Colors.white, const Color(0xFF6B7280)),
+              for (final h in holes)
+                _DataCell('${h.par}', Colors.white, const Color(0xFF6B7280)),
               _DataCell('$totalPar', Colors.white, const Color(0xFF6B7280)),
             ],
           ),
@@ -403,8 +415,12 @@ class _HoleTable extends StatelessWidget {
               _LabelCell('Gross'),
               for (final h in holes)
                 _DataCell('${h.strokes}', _bgColor(h), _textColor(h)),
-              _DataCell('$totalGross', Colors.white, const Color(0xFF111827),
-                  bold: true),
+              _DataCell(
+                '$totalGross',
+                Colors.white,
+                const Color(0xFF111827),
+                bold: true,
+              ),
             ],
           ),
           // Net row
@@ -412,7 +428,11 @@ class _HoleTable extends StatelessWidget {
             children: [
               _LabelCell('Net'),
               for (final h in holes)
-                _DataCell('${h.netStrokes}', Colors.white, const Color(0xFF6B7280)),
+                _DataCell(
+                  '${h.netStrokes}',
+                  Colors.white,
+                  const Color(0xFF6B7280),
+                ),
               _DataCell('$totalNet', Colors.white, const Color(0xFF6B7280)),
             ],
           ),

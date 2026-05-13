@@ -16,12 +16,17 @@ class DashboardScreen extends ConsumerWidget {
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         title: const Text('Golf League'),
+        leading: IconButton(
+          icon: const Icon(Icons.menu),
+          onPressed: () => Scaffold.of(context).openDrawer(),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () {
               ref.invalidate(flightsProvider);
               ref.invalidate(roundsProvider);
+              ref.invalidate(myTodaysTeeTimeProvider);
             },
           ),
         ],
@@ -30,11 +35,14 @@ class DashboardScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(flightsProvider);
           ref.invalidate(roundsProvider);
+          ref.invalidate(myTodaysTeeTimeProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: const [
             _HeroBanner(),
+            SizedBox(height: 24),
+            _TodaysTeeTimeSection(),
             SizedBox(height: 24),
             _FlightsSection(),
             SizedBox(height: 24),
@@ -120,7 +128,10 @@ class _FlightsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(icon: Icons.emoji_events, title: 'Flights & Standings'),
+        const _SectionHeader(
+          icon: Icons.emoji_events,
+          title: 'Flights & Standings',
+        ),
         const SizedBox(height: 12),
         flightsAsync.when(
           loading: () => const Center(
@@ -134,10 +145,12 @@ class _FlightsSection extends ConsumerWidget {
               ? const _EmptyCard(message: 'No flights found.')
               : Column(
                   children: flights
-                      .map((f) => Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: _FlightCard(flight: f),
-                          ))
+                      .map(
+                        (f) => Padding(
+                          padding: const EdgeInsets.only(bottom: 10),
+                          child: _FlightCard(flight: f),
+                        ),
+                      )
                       .toList(),
                 ),
         ),
@@ -162,7 +175,8 @@ class _FlightCard extends StatelessWidget {
     return 'Up to ${_fmt(max!)}';
   }
 
-  String _fmt(double v) => v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+  String _fmt(double v) =>
+      v == v.truncateToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
 
   @override
   Widget build(BuildContext context) {
@@ -236,7 +250,10 @@ class _RecentRoundsSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionHeader(icon: Icons.calendar_today, title: 'Recent Rounds'),
+        const _SectionHeader(
+          icon: Icons.calendar_today,
+          title: 'Recent Rounds',
+        ),
         const SizedBox(height: 12),
         roundsAsync.when(
           loading: () => const Center(
@@ -248,13 +265,16 @@ class _RecentRoundsSection extends ConsumerWidget {
           error: (e, _) => _ErrorCard(message: 'Could not load rounds.'),
           data: (rounds) {
             final latest = rounds.take(3).toList();
-            if (latest.isEmpty) return const _EmptyCard(message: 'No rounds scheduled yet.');
+            if (latest.isEmpty)
+              return const _EmptyCard(message: 'No rounds scheduled yet.');
             return Column(
               children: latest
-                  .map((r) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: _RoundRow(round: r),
-                      ))
+                  .map(
+                    (r) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: _RoundRow(round: r),
+                    ),
+                  )
                   .toList(),
             );
           },
@@ -321,6 +341,122 @@ class _RoundRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TodaysTeeTimeSection extends ConsumerWidget {
+  const _TodaysTeeTimeSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final teeTimeAsync = ref.watch(myTodaysTeeTimeProvider);
+
+    return teeTimeAsync.when(
+      loading: () => const SizedBox.shrink(),
+      error: (_, __) => const SizedBox.shrink(),
+      data: (teeTime) {
+        if (teeTime == null) return const SizedBox.shrink();
+
+        return Card(
+          elevation: 0,
+          color: const Color(0xFFFFF8E1),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: Colors.amber.shade200),
+          ),
+          child: InkWell(
+            onTap: teeTime.canEnterScores
+                ? () => context.push(
+                    '/tee-times/${teeTime.teeTimeId}/enter-scores',
+                  )
+                : null,
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_calendar,
+                        color: Colors.amber.shade700,
+                        size: 24,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Today\'s Round: Enter Scores',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.amber.shade900,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat(
+                                'EEEE, MMM d',
+                              ).format(teeTime.roundDate),
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: Color(0xFF6B7280),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '${teeTime.courseName} · ${teeTime.nineHoleSide} 9 · Tee Time: ${teeTime.scheduledTimeFormatted}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF374151),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (teeTime.canEnterScores)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => context.push(
+                          '/tee-times/${teeTime.teeTimeId}/enter-scores',
+                        ),
+                        icon: const Icon(Icons.edit, size: 18),
+                        label: const Text('Enter Scores'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber.shade600,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Scores have already been submitted for this round.',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

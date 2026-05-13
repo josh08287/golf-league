@@ -295,6 +295,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasIndex(e => e.ParticipantId);
             entity.Property(e => e.Putts);
             entity.Property(e => e.FirstPuttDistanceFeet);
+            entity.Property(e => e.FairwayHit);
+            entity.Property(e => e.Gir);
         });
     }
 
