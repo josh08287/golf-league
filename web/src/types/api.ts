@@ -185,6 +185,7 @@ export interface RoundScorecard {
   playerId: number;
   playerName: string;
   flightId: number;
+  flightName: string;
   courseName: string;
   scheduledDate: string;
   handicapAtTime: number;
@@ -194,6 +195,41 @@ export interface RoundScorecard {
   grossPoints: number | null;
   netPoints: number | null;
   holes: RoundScorecardHole[];
+}
+
+// ── Skins ──────────────────────────────────────────────────────────────────────
+
+export interface HoleSkin {
+  holeNumber: number;
+  skinValue: number;
+  winnerPlayerId: number;
+  winnerPlayerName: string;
+  winningNetScore: number;
+  wasCarryover: boolean;
+}
+
+export interface PlayerSkinSummary {
+  playerId: number;
+  playerName: string;
+  totalSkinsWon: number;
+  totalSkinValue: number;
+  holesWon: HoleSkin[];
+}
+
+export interface FlightSkins {
+  flightId: number;
+  flightName: string;
+  totalHolesWithSkins: number;
+  totalSkinValueAwarded: number;
+  playerSummaries: PlayerSkinSummary[];
+  allHoleResults: HoleSkin[];
+}
+
+export interface RoundSkins {
+  roundId: number;
+  roundDate: string;
+  courseName: string;
+  flightSkins: FlightSkins[];
 }
 
 export interface CourseHole {

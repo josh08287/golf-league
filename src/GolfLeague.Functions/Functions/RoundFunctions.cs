@@ -140,6 +140,19 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetRoundSkins")]
+    public async Task<IActionResult> GetRoundSkins(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{id}/skins")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var result = await _mediator.Send(new GetRoundSkinsQuery(roundId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("GetRoundParticipants")]
     public async Task<IActionResult> GetRoundParticipants(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{id}/participants")] HttpRequest req,

@@ -18,6 +18,7 @@ public sealed record RoundScorecardDto(
     int PlayerId,
     string PlayerName,
     int FlightId,
+    string FlightName,
     string CourseName,
     DateOnly ScheduledDate,
     double HandicapAtTime,
@@ -35,6 +36,7 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
 {
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly IFlightRepository _flightRepository;
 
     /// <summary>
     /// Default sort: flight then player name (the natural scorecard listing).
@@ -56,10 +58,14 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
         .Add("netPts", s => s.NetPoints)
         .Add("netPoints", s => s.NetPoints);
 
-    public GetRoundScorecardsQueryHandler(IRoundRepository roundRepository, ICourseRepository courseRepository)
+    public GetRoundScorecardsQueryHandler(
+        IRoundRepository roundRepository,
+        ICourseRepository courseRepository,
+        IFlightRepository flightRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
+        _flightRepository = flightRepository;
     }
 
     public async Task<Result<PagedResult<RoundScorecardDto>>> Handle(GetRoundScorecardsQuery request, CancellationToken cancellationToken)
@@ -70,7 +76,11 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
 
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
+        var flights = await _flightRepository.GetByHalfAsync(round.HalfId, cancellationToken);
         var courseName = course?.Name ?? string.Empty;
+
+        // Build flight name lookup
+        var flightNameLookup = flights.ToDictionary(f => f.Id, f => f.Name);
 
         var dtos = participants.Select(p =>
         {
@@ -86,11 +96,14 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
                     h.NetStablefordPoints))
                 .ToList();
 
+            var flightName = flightNameLookup.TryGetValue(p.FlightId, out var name) ? name : string.Empty;
+
             return new RoundScorecardDto(
                 p.RoundId,
                 p.PlayerId,
                 p.Player.FullName,
                 p.FlightId,
+                flightName,
                 courseName,
                 round.RoundDate,
                 p.HandicapIndex,

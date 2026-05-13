@@ -5,6 +5,7 @@ import type {
   Round,
   Scorecard,
   RoundScorecard,
+  RoundSkins,
   PagedResponse,
 } from '@/types/api';
 
@@ -20,6 +21,7 @@ export const roundKeys = {
     [...roundKeys.all, 'scorecard', roundId, playerId] as const,
   scorecards: (roundId: string, sort?: TableSort) =>
     [...roundKeys.all, 'scorecards', roundId, { sort: sort ?? null }] as const,
+  skins: (roundId: string) => [...roundKeys.all, 'skins', roundId] as const,
 };
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -76,6 +78,17 @@ export function useRoundScorecards(roundId: string, sort?: TableSort) {
         `/rounds/${roundId}/scorecards`,
         { params },
       );
+      return response.data;
+    },
+    enabled: Boolean(roundId),
+  });
+}
+
+export function useRoundSkins(roundId: string) {
+  return useQuery({
+    queryKey: roundKeys.skins(roundId),
+    queryFn: async () => {
+      const response = await apiClient.get<RoundSkins>(`/rounds/${roundId}/skins`);
       return response.data;
     },
     enabled: Boolean(roundId),
