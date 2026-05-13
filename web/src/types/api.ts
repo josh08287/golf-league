@@ -188,6 +188,7 @@ export interface RoundScorecard {
   courseName: string;
   scheduledDate: string;
   handicapAtTime: number;
+  courseHandicap: number;
   grossScore: number | null;
   netScore: number | null;
   grossPoints: number | null;
