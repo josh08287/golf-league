@@ -322,6 +322,63 @@ function PlayerStatsSection({ playerId }: { playerId: string }) {
         </div>
       )}
 
+      {/* Strokes Gained: Putting */}
+      {stats.strokesGainedPutting && (
+        <div className="rounded-lg border border-gray-200 bg-white p-5">
+          <h3 className="text-sm font-semibold text-gray-700 mb-3">
+            Strokes Gained: Putting (vs Flight)
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="text-center">
+              <p
+                className={`text-2xl font-bold ${
+                  stats.strokesGainedPutting.perHoleAverage > 0
+                    ? 'text-green-600'
+                    : stats.strokesGainedPutting.perHoleAverage < 0
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                }`}
+              >
+                {stats.strokesGainedPutting.perHoleAverage > 0 ? '+' : ''}
+                {stats.strokesGainedPutting.perHoleAverage.toFixed(3)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">SG per hole</p>
+            </div>
+            <div className="text-center">
+              <p
+                className={`text-2xl font-bold ${
+                  stats.strokesGainedPutting.totalStrokesGained > 0
+                    ? 'text-green-600'
+                    : stats.strokesGainedPutting.totalStrokesGained < 0
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                }`}
+              >
+                {stats.strokesGainedPutting.totalStrokesGained > 0 ? '+' : ''}
+                {stats.strokesGainedPutting.totalStrokesGained.toFixed(2)}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Total SG Putting</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-primary-900">
+                {stats.strokesGainedPutting.averagePuttsPerHole?.toFixed(2) ?? '—'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Avg putts/hole
+                {stats.strokesGainedPutting.flightAveragePuttsPerHole != null && (
+                  <span className="text-gray-400">
+                    {' '}(flight: {stats.strokesGainedPutting.flightAveragePuttsPerHole.toFixed(2)})
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-3 text-center">
+            Based on {stats.strokesGainedPutting.holesWithPuttData} holes with putt data recorded
+          </p>
+        </div>
+      )}
+
       {/* Scoring distribution */}
       <div className="rounded-lg border border-gray-200 bg-white p-5">
         <h3 className="text-sm font-semibold text-gray-700 mb-3">

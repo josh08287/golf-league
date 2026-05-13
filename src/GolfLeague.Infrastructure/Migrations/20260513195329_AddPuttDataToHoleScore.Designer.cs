@@ -4,6 +4,7 @@ using GolfLeague.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfLeague.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260513195329_AddPuttDataToHoleScore")]
+    partial class AddPuttDataToHoleScore
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -143,7 +146,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("AuditLogs", (string)null);
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Course", b =>
@@ -167,7 +170,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Courses", (string)null);
+                    b.ToTable("Courses");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.CourseHole", b =>
@@ -196,7 +199,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("CourseId");
 
-                    b.ToTable("CourseHoles", null, t =>
+                    b.ToTable("CourseHoles", t =>
                         {
                             t.HasCheckConstraint("CK_CourseHole_Par", "Par BETWEEN 3 AND 5");
                         });
@@ -230,7 +233,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("HalfId", "DisplayOrder");
 
-                    b.ToTable("Flights", (string)null);
+                    b.ToTable("Flights");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.FlightMembership", b =>
@@ -267,7 +270,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("PlayerId", "HalfId")
                         .IsUnique();
 
-                    b.ToTable("FlightMemberships", (string)null);
+                    b.ToTable("FlightMemberships");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Handicap", b =>
@@ -300,7 +303,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("PlayerId", "EffectiveDate");
 
-                    b.ToTable("Handicaps", (string)null);
+                    b.ToTable("Handicaps");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.HoleScore", b =>
@@ -351,7 +354,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("ParticipantId");
 
-                    b.ToTable("HoleScores", (string)null);
+                    b.ToTable("HoleScores");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Player", b =>
@@ -391,7 +394,7 @@ namespace GolfLeague.Infrastructure.Migrations
                         .IsUnique()
                         .HasFilter("[AppUserId] IS NOT NULL");
 
-                    b.ToTable("Players", (string)null);
+                    b.ToTable("Players");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerInvite", b =>
@@ -456,7 +459,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("PlayerInvites", (string)null);
+                    b.ToTable("PlayerInvites");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.RefreshToken", b =>
@@ -489,7 +492,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Round", b =>
@@ -538,7 +541,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("HalfId", "WeekNumber")
                         .IsUnique();
 
-                    b.ToTable("Rounds", (string)null);
+                    b.ToTable("Rounds");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.RoundParticipant", b =>
@@ -598,7 +601,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("RoundId", "PlayerId")
                         .IsUnique();
 
-                    b.ToTable("RoundParticipants", (string)null);
+                    b.ToTable("RoundParticipants");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.RoundTeeTime", b =>
@@ -626,7 +629,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("RoundId", "TeeTimeNumber")
                         .IsUnique();
 
-                    b.ToTable("RoundTeeTimes", (string)null);
+                    b.ToTable("RoundTeeTimes");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Season", b =>
@@ -659,7 +662,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Seasons", (string)null);
+                    b.ToTable("Seasons");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.SeasonHalf", b =>
@@ -695,7 +698,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("SeasonId", "HalfNumber")
                         .IsUnique();
 
-                    b.ToTable("SeasonHalves", (string)null);
+                    b.ToTable("SeasonHalves");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.UserPasskey", b =>
@@ -740,7 +743,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UserPasskeys", (string)null);
+                    b.ToTable("UserPasskeys");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>

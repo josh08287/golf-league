@@ -321,6 +321,8 @@ export interface TeeTimePlayerHoleScore {
   netStrokes: number | null;
   grossStablefordPoints: number | null;
   netStablefordPoints: number | null;
+  putts: number | null;
+  firstPuttDistanceFeet: number | null;
 }
 
 export interface TeeTimePlayerScore {
@@ -366,6 +368,8 @@ export interface TeeTimeGroupScoresResult {
 export interface PlayerHoleScoreInput {
   holeNumber: number;
   grossStrokes: number;
+  putts?: number | null;
+  firstPuttDistanceFeet?: number | null;
 }
 
 export interface PlayerScoreInput {
@@ -436,6 +440,14 @@ export interface PlayerHoleAverage {
   timesPlayed: number;
 }
 
+export interface StrokesGainedPutting {
+  totalStrokesGained: number;
+  perHoleAverage: number;
+  holesWithPuttData: number;
+  averagePuttsPerHole: number | null;
+  flightAveragePuttsPerHole: number | null;
+}
+
 export interface PlayerStatistics {
   playerId: number;
   playerName: string;
@@ -458,4 +470,5 @@ export interface PlayerStatistics {
   totalBirdiesOrBetter: number;
   totalPars: number;
   parOrBetterPercentage: number | null;
+  strokesGainedPutting: StrokesGainedPutting | null;
 }

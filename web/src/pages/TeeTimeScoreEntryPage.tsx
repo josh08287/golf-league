@@ -78,15 +78,55 @@ function ScoreInput({ label, value, onChange, disabled, maxScore }: ScoreInputPr
   );
 }
 
+interface PuttData {
+  putts: number | '';
+  firstPuttDistanceFeet: number | '';
+}
+
 interface HoleViewProps {
   hole: TeeTimeHoleInfo;
   players: TeeTimePlayerScore[];
-  scores: Record<number, Record<number, number | ''>>; // playerId -> holeNumber -> score
+  scores: Record<number, Record<number, number | ''>>;
+  puttDataMap: Record<number, Record<number, PuttData>>;
   onScoreChange: (playerId: number, value: number | '') => void;
+  onPuttChange: (playerId: number, field: keyof PuttData, value: number | '') => void;
   canEdit: boolean;
 }
 
-function HoleView({ hole, players, scores, onScoreChange, canEdit }: HoleViewProps) {
+function PuttInput({ label, value, onChange, disabled, min, max, step, placeholder }: {
+  label: string;
+  value: number | '';
+  onChange: (value: number | '') => void;
+  disabled?: boolean;
+  min?: number;
+  max?: number;
+  step?: string;
+  placeholder?: string;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-1">
+      <label className="text-[10px] font-medium text-gray-400">{label}</label>
+      <input
+        type="number"
+        min={min ?? 0}
+        max={max ?? 99}
+        step={step}
+        value={value === '' ? '' : value}
+        disabled={disabled}
+        placeholder={placeholder}
+        onChange={(e) => {
+          const v = e.target.value;
+          if (v === '') { onChange(''); return; }
+          const n = step ? parseFloat(v) : parseInt(v, 10);
+          if (!isNaN(n) && n >= (min ?? 0)) onChange(n);
+        }}
+        className="h-10 w-14 rounded-lg border border-gray-200 text-center text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-100 disabled:text-gray-400"
+      />
+    </div>
+  );
+}
+
+function HoleView({ hole, players, scores, puttDataMap, onScoreChange, onPuttChange, canEdit }: HoleViewProps) {
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-primary-50 px-4 py-3">
@@ -109,6 +149,7 @@ function HoleView({ hole, players, scores, onScoreChange, canEdit }: HoleViewPro
       <div className="space-y-3">
         {players.map((player) => {
           const playerScore = scores[player.playerId]?.[hole.holeNumber] ?? '';
+          const puttData = puttDataMap[player.playerId]?.[hole.holeNumber];
           const maxScore = hole.par + 2 + calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
           const isSkipped = player.skippedWeek;
 
@@ -127,13 +168,34 @@ function HoleView({ hole, players, scores, onScoreChange, canEdit }: HoleViewPro
                       HCP {formatHandicapPair(player.handicapIndex)} · CH {player.courseHandicap}
                     </p>
                   </div>
-                  <ScoreInput
-                    label="Gross"
-                    value={isSkipped ? '' : playerScore}
-                    onChange={(v) => onScoreChange(player.playerId, v)}
-                    disabled={!canEdit || isSkipped}
-                    maxScore={maxScore}
-                  />
+                  <div className="flex items-end gap-2">
+                    <ScoreInput
+                      label="Gross"
+                      value={isSkipped ? '' : playerScore}
+                      onChange={(v) => onScoreChange(player.playerId, v)}
+                      disabled={!canEdit || isSkipped}
+                      maxScore={maxScore}
+                    />
+                    <PuttInput
+                      label="Putts"
+                      value={isSkipped ? '' : (puttData?.putts ?? '')}
+                      onChange={(v) => onPuttChange(player.playerId, 'putts', v)}
+                      disabled={!canEdit || isSkipped}
+                      min={0}
+                      max={9}
+                      placeholder="—"
+                    />
+                    <PuttInput
+                      label="1st Putt (ft)"
+                      value={isSkipped ? '' : (puttData?.firstPuttDistanceFeet ?? '')}
+                      onChange={(v) => onPuttChange(player.playerId, 'firstPuttDistanceFeet', v)}
+                      disabled={!canEdit || isSkipped}
+                      min={0}
+                      max={200}
+                      step="1"
+                      placeholder="—"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -296,6 +358,7 @@ export function TeeTimeScoreEntryPage() {
 
   const [currentHoleIndex, setCurrentHoleIndex] = useState(0);
   const [scores, setScores] = useState<Record<number, Record<number, number | ''>>>({});
+  const [puttDataMap, setPuttDataMap] = useState<Record<number, Record<number, PuttData>>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
@@ -308,15 +371,22 @@ export function TeeTimeScoreEntryPage() {
     if (!scorecard) return;
 
     const initialScores: Record<number, Record<number, number | ''>> = {};
+    const initialPutts: Record<number, Record<number, PuttData>> = {};
     scorecard.players.forEach((player) => {
       initialScores[player.playerId] = {};
+      initialPutts[player.playerId] = {};
       player.holeScores.forEach((holeScore) => {
         if (holeScore.grossStrokes != null) {
           initialScores[player.playerId][holeScore.holeNumber] = holeScore.grossStrokes;
         }
+        initialPutts[player.playerId][holeScore.holeNumber] = {
+          putts: holeScore.putts ?? '',
+          firstPuttDistanceFeet: holeScore.firstPuttDistanceFeet ?? '',
+        };
       });
     });
     setScores(initialScores);
+    setPuttDataMap(initialPutts);
   }, [scorecard]);
 
   const handleScoreChange = useCallback((playerId: number, holeNumber: number, value: number | '') => {
@@ -325,6 +395,19 @@ export function TeeTimeScoreEntryPage() {
       [playerId]: {
         ...prev[playerId],
         [holeNumber]: value,
+      },
+    }));
+  }, []);
+
+  const handlePuttChange = useCallback((playerId: number, holeNumber: number, field: keyof PuttData, value: number | '') => {
+    setPuttDataMap((prev) => ({
+      ...prev,
+      [playerId]: {
+        ...prev[playerId],
+        [holeNumber]: {
+          ...(prev[playerId]?.[holeNumber] ?? { putts: '', firstPuttDistanceFeet: '' }),
+          [field]: value,
+        },
       },
     }));
   }, []);
@@ -350,10 +433,15 @@ export function TeeTimeScoreEntryPage() {
       .filter((p) => !p.skippedWeek)
       .map((player) => ({
         playerId: player.playerId,
-        holeScores: holes.map((hole) => ({
-          holeNumber: hole.holeNumber,
-          grossStrokes: scores[player.playerId]?.[hole.holeNumber] as number || 0,
-        })),
+        holeScores: holes.map((hole) => {
+          const pd = puttDataMap[player.playerId]?.[hole.holeNumber];
+          return {
+            holeNumber: hole.holeNumber,
+            grossStrokes: scores[player.playerId]?.[hole.holeNumber] as number || 0,
+            putts: pd?.putts !== '' && pd?.putts != null ? pd.putts as number : null,
+            firstPuttDistanceFeet: pd?.firstPuttDistanceFeet !== '' && pd?.firstPuttDistanceFeet != null ? pd.firstPuttDistanceFeet as number : null,
+          };
+        }),
       }));
 
     try {
@@ -483,8 +571,12 @@ export function TeeTimeScoreEntryPage() {
           hole={currentHole}
           players={players}
           scores={scores}
+          puttDataMap={puttDataMap}
           onScoreChange={(playerId, value) =>
             handleScoreChange(playerId, currentHole.holeNumber, value)
+          }
+          onPuttChange={(playerId, field, value) =>
+            handlePuttChange(playerId, currentHole.holeNumber, field, value)
           }
           canEdit={canEdit}
         />

@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Statistics.Queries;
@@ -33,6 +34,13 @@ public sealed record PlayerHoleAverageDto(
     double AverageScoreToPar,
     int TimesPlayed);
 
+public sealed record StrokesGainedPuttingDto(
+    double TotalStrokesGained,
+    double PerHoleAverage,
+    int HolesWithPuttData,
+    double? AveragePuttsPerHole,
+    double? FlightAveragePuttsPerHole);
+
 public sealed record PlayerStatisticsDto(
     int PlayerId,
     string PlayerName,
@@ -54,7 +62,8 @@ public sealed record PlayerStatisticsDto(
     double? HandicapTrend,
     int TotalBirdiesOrBetter,
     int TotalPars,
-    double? ParOrBetterPercentage);
+    double? ParOrBetterPercentage,
+    StrokesGainedPuttingDto? StrokesGainedPutting);
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
@@ -163,6 +172,43 @@ public sealed class GetPlayerStatisticsQueryHandler
             ? Math.Round(100.0 * parOrBetter / allHoleScores.Count, 1)
             : null;
 
+        // Strokes Gained: Putting vs flight
+        StrokesGainedPuttingDto? sgPutting = null;
+        var playerPuttScores = allHoleScores.Where(h => h.Putts.HasValue).ToList();
+        if (playerPuttScores.Count > 0)
+        {
+            // Gather flight hole scores for the same flight(s) this player was in
+            var flightIds = finalized.Select(p => p.FlightId).Distinct().ToList();
+            var flightHoleScores = new List<HoleScore>();
+            foreach (var rp in finalized)
+            {
+                var roundParticipants = await _roundRepository.GetParticipantsAsync(rp.RoundId, cancellationToken);
+                foreach (var otherP in roundParticipants)
+                {
+                    if (otherP.PlayerId == request.PlayerId) continue;
+                    if (!flightIds.Contains(otherP.FlightId)) continue;
+                    if (otherP.IsWithdrawn || otherP.SkippedWeek) continue;
+                    var otherScores = await _roundRepository.GetHoleScoresAsync(otherP.Id, cancellationToken);
+                    flightHoleScores.AddRange(otherScores);
+                }
+            }
+
+            var sgResult = StrokesGainedPuttingService.Calculate(allHoleScores, flightHoleScores);
+
+            var playerAvgPutts = playerPuttScores.Average(h => h.Putts!.Value);
+            var flightPuttScores = flightHoleScores.Where(h => h.Putts.HasValue).ToList();
+            double? flightAvgPutts = flightPuttScores.Count > 0
+                ? flightPuttScores.Average(h => h.Putts!.Value)
+                : null;
+
+            sgPutting = new StrokesGainedPuttingDto(
+                Math.Round(sgResult.TotalStrokesGained, 2),
+                Math.Round(sgResult.PerHoleAverage, 3),
+                sgResult.HolesWithPuttData,
+                Math.Round(playerAvgPutts, 2),
+                flightAvgPutts.HasValue ? Math.Round(flightAvgPutts.Value, 2) : null);
+        }
+
         var dto = new PlayerStatisticsDto(
             player.Id,
             player.FullName,
@@ -189,7 +235,8 @@ public sealed class GetPlayerStatisticsQueryHandler
             handicapTrend,
             eagleOrBetter + birdies,
             pars,
-            parOrBetterPct);
+            parOrBetterPct,
+            sgPutting);
 
         return Result<PlayerStatisticsDto>.Ok(dto);
     }

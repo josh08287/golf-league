@@ -35,7 +35,9 @@ public sealed record TeeTimeHoleScoreDto(
     int? GrossStrokes,
     int? NetStrokes,
     int? GrossStablefordPoints,
-    int? NetStablefordPoints);
+    int? NetStablefordPoints,
+    int? Putts,
+    double? FirstPuttDistanceFeet);
 
 /// <summary>
 /// Complete scorecard for a tee time group including all players and their scores.
@@ -124,7 +126,9 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
                     h.GrossStrokes,
                     h.NetStrokes,
                     h.GrossStablefordPoints,
-                    h.NetStablefordPoints))
+                    h.NetStablefordPoints,
+                    h.Putts,
+                    h.FirstPuttDistanceFeet))
                 .ToList();
 
             playerDtos.Add(new TeeTimePlayerScoreDto(

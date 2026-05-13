@@ -8,7 +8,11 @@ using MediatR;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
-public sealed record HoleScoreInput(int HoleNumber, int GrossStrokes);
+public sealed record HoleScoreInput(
+    int HoleNumber,
+    int GrossStrokes,
+    int? Putts = null,
+    double? FirstPuttDistanceFeet = null);
 
 public sealed record SubmitHoleScoresCommand(
     int RoundId,
@@ -105,6 +109,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 GrossStablefordPoints = grossPoints,
                 NetStablefordPoints = netPoints,
                 IsMaxScore = isMaxScore,
+                Putts = input.Putts,
+                FirstPuttDistanceFeet = input.FirstPuttDistanceFeet,
             });
         }
 

@@ -14,5 +14,15 @@ public class HoleScore
     public int NetStablefordPoints { get; set; }
     public bool IsMaxScore { get; set; }
 
+    /// <summary>
+    /// Optional: number of putts taken on this hole (used for strokes gained putting).
+    /// </summary>
+    public int? Putts { get; set; }
+
+    /// <summary>
+    /// Optional: distance of the first putt in feet (used for strokes gained putting).
+    /// </summary>
+    public double? FirstPuttDistanceFeet { get; set; }
+
     public RoundParticipant Participant { get; set; } = null!;
 }

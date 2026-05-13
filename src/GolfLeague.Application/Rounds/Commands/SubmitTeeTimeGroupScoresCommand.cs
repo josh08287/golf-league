@@ -157,6 +157,8 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                     GrossStablefordPoints = grossPoints,
                     NetStablefordPoints = netPoints,
                     IsMaxScore = isMaxScore,
+                    Putts = input.Putts,
+                    FirstPuttDistanceFeet = input.FirstPuttDistanceFeet,
                 });
             }
 
