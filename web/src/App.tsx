@@ -19,6 +19,7 @@ import { ForgotPasswordPage } from '@/pages/ForgotPasswordPage';
 import { ResetPasswordPage } from '@/pages/ResetPasswordPage';
 import { AcceptInvitePage } from '@/pages/AcceptInvitePage';
 import { TeeTimesNextPage, TeeTimesRoundPage } from '@/pages/TeeTimesPage';
+import { TeeTimeScoreEntryPage } from '@/pages/TeeTimeScoreEntryPage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
 function NavigatorInjector() {
@@ -50,6 +51,7 @@ export default function App() {
           <Route path="accept-invite" element={<AcceptInvitePage />} />
           <Route path="tee-times" element={<TeeTimesNextPage />} />
           <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
+          <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
           {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

@@ -1,9 +1,11 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Trophy, Calendar } from 'lucide-react';
+import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
 import { useRounds, useRoundScorecards } from '@/hooks/useRounds';
+import { useMyTodaysTeeTime } from '@/hooks/useTeeTimeScoreEntry';
+import { useAuthStore } from '@/store/authStore';
 import {
   Card,
   CardContent,
@@ -36,6 +38,53 @@ function statusVariant(status: RoundStatus) {
     case 'Scheduled':           return 'blue' as const;
     case 'Cancelled':           return 'neutral' as const;
   }
+}
+
+interface TodaysTeeTimeCardProps {
+  teeTime: import('@/types/api').MyTodaysTeeTime;
+}
+
+function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
+  const roundDate = new Date(teeTime.roundDate);
+  const formattedDate = roundDate.toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return (
+    <Card className="border-amber-200 bg-amber-50">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Edit3 className="h-5 w-5 text-amber-600" />
+            <CardTitle className="text-base text-amber-900">
+              Today's Round: Enter Scores
+            </CardTitle>
+          </div>
+          <Badge variant="amber">
+            {formattedDate}
+          </Badge>
+        </div>
+        <CardDescription className="text-amber-700">
+          {teeTime.courseName} · {teeTime.nineHoleSide} 9 · Tee Time: {teeTime.scheduledTimeFormatted}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {teeTime.canEnterScores ? (
+          <Button variant="primary" asChild className="w-full bg-amber-600 hover:bg-amber-700">
+            <Link to={`/tee-times/${teeTime.teeTimeId}/enter-scores`}>
+              Enter Scores for Your Group
+            </Link>
+          </Button>
+        ) : (
+          <div className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
+            Scores have already been submitted for this round. An admin will finalize shortly.
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 /**
@@ -211,12 +260,16 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
 export function HomePage() {
   const flights = useFlights();
   const rounds = useRounds(1);
+  const isAuthed = useAuthStore((s) => !!s.user);
+  const todaysTeeTime = useMyTodaysTeeTime(isAuthed);
 
   const allRounds = rounds.data?.data ?? [];
   const featured = pickFeaturedRound(allRounds);
   const olderRounds = featured
     ? allRounds.filter((r) => r.id !== featured.id).slice(0, 3)
     : [];
+
+  const hasTodaysTeeTime = todaysTeeTime.data != null;
 
   return (
     <div className="space-y-10">
@@ -240,6 +293,11 @@ export function HomePage() {
           </Button>
         </div>
       </section>
+
+      {/* Today's Tee Time Score Entry Card */}
+      {hasTodaysTeeTime && (
+        <TodaysTeeTimeCard teeTime={todaysTeeTime.data!} />
+      )}
 
       {/* Latest round — expanded by flight */}
       <section>

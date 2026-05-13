@@ -290,3 +290,85 @@ export interface RoundTeeTimeSchedule {
   slots: TeeTimeSlot[];
   currentUserPreferredSlots: TeeTimeSlotPreference;
 }
+
+// ── Tee Time Score Entry ───────────────────────────────────────────────────────
+
+export interface MyTodaysTeeTime {
+  roundId: number;
+  roundDate: string; // ISO-8601 date
+  courseName: string;
+  courseId: number;
+  nineHoleSide: NineHoleSide;
+  roundStatus: RoundStatus;
+  teeTimeId: number;
+  scheduledTime: string; // "HH:mm"
+  scheduledTimeFormatted: string; // "15:28"
+  teeTimeNumber: number;
+  canEnterScores: boolean;
+}
+
+export interface TeeTimeHoleInfo {
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+}
+
+export interface TeeTimePlayerHoleScore {
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+  grossStrokes: number | null;
+  netStrokes: number | null;
+  grossStablefordPoints: number | null;
+  netStablefordPoints: number | null;
+}
+
+export interface TeeTimePlayerScore {
+  participantId: number;
+  playerId: number;
+  playerName: string;
+  playerInitials: string;
+  flightId: number;
+  flightName: string;
+  handicapIndex: number;
+  courseHandicap: number;
+  isWithdrawn: boolean;
+  skippedWeek: boolean;
+  holeScores: TeeTimePlayerHoleScore[];
+  totalGrossStrokes: number | null;
+  totalNetStrokes: number | null;
+  totalGrossStablefordPoints: number | null;
+  totalNetStablefordPoints: number | null;
+}
+
+export interface TeeTimeGroupScorecard {
+  roundId: number;
+  roundDate: string; // ISO-8601 date
+  courseName: string;
+  courseId: number;
+  nineHoleSide: NineHoleSide;
+  roundStatus: RoundStatus;
+  teeTimeId: number;
+  scheduledTimeFormatted: string; // "HH:mm"
+  teeTimeNumber: number;
+  holes: TeeTimeHoleInfo[];
+  players: TeeTimePlayerScore[];
+}
+
+export interface TeeTimeGroupScoresResult {
+  teeTimeId: number;
+  roundId: number;
+  playersSubmitted: number;
+  totalHolesSubmitted: number;
+  message: string;
+}
+
+export interface PlayerHoleScoreInput {
+  holeNumber: number;
+  grossStrokes: number;
+}
+
+export interface PlayerScoreInput {
+  playerId: number;
+  holeScores: PlayerHoleScoreInput[];
+}

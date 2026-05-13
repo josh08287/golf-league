@@ -1,6 +1,9 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Rounds.Commands;
+using GolfLeague.Application.Rounds.Queries;
 using GolfLeague.Functions.Helpers;
+using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -12,15 +15,18 @@ public sealed class TeeTimeFunctions
 {
     private readonly ITeeTimeService _service;
     private readonly ITeeTimeAutofillService _autofill;
+    private readonly IMediator _mediator;
     private readonly ILogger<TeeTimeFunctions> _logger;
 
     public TeeTimeFunctions(
         ITeeTimeService service,
         ITeeTimeAutofillService autofill,
+        IMediator mediator,
         ILogger<TeeTimeFunctions> logger)
     {
         _service = service;
         _autofill = autofill;
+        _mediator = mediator;
         _logger = logger;
     }
 
@@ -122,4 +128,94 @@ public sealed class TeeTimeFunctions
             ? new OkObjectResult(new { data = result.Value })
             : new BadRequestObjectResult(new { error = result.Error });
     }
+
+    /// <summary>
+    /// GET /v1/players/me/todays-tee-time — Returns today's tee time info for
+    /// the authenticated player (if they have a round today with a tee time assignment).
+    /// Returns 404 if no round today or player not assigned to a tee time.
+    /// </summary>
+    [Function("GetMyTodaysTeeTime")]
+    public async Task<IActionResult> GetMyTodaysTeeTime(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/me/todays-tee-time")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var result = await _mediator.Send(new GetMyTodaysTeeTimeQuery(playerId.Value, today), cancellationToken);
+
+        if (!result.IsSuccess)
+            return new BadRequestObjectResult(new { error = result.Error });
+
+        if (result.Value is null)
+            return new NotFoundObjectResult(new { error = "No tee time found for today." });
+
+        return new OkObjectResult(new { data = result.Value });
+    }
+
+    /// <summary>
+    /// GET /v1/tee-times/{id}/group-scorecard — Returns the complete scorecard
+    /// for all players in a tee time group, including current hole scores.
+    /// Any authenticated user can view; players in the group can submit scores.
+    /// </summary>
+    [Function("GetTeeTimeGroupScorecard")]
+    public async Task<IActionResult> GetTeeTimeGroupScorecard(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tee-times/{id:int}/group-scorecard")] HttpRequest req,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var callingPlayerId = req.GetPlayerId();
+        var result = await _mediator.Send(new GetTeeTimeGroupScorecardQuery(id, callingPlayerId), cancellationToken);
+
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new NotFoundObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// POST /v1/tee-times/{id}/submit-scores — Submit scores for all players
+    /// in a tee time group. Does NOT finalize the round; scores are pre-populated
+    /// for admin review. Any player in the tee time group can submit.
+    /// </summary>
+    [Function("SubmitTeeTimeGroupScores")]
+    public async Task<IActionResult> SubmitTeeTimeGroupScores(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tee-times/{id:int}/submit-scores")] HttpRequest req,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SubmitTeeTimeGroupScoresRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var playerScores = body.PlayerScores?.Select(p => new PlayerHoleScoresInput(
+            p.PlayerId,
+            p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes)).ToList() ?? [])).ToList() ?? [];
+
+        var command = new SubmitTeeTimeGroupScoresCommand(id, playerId.Value, playerScores, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes);
+    private sealed record PlayerScoreInputDto(int PlayerId, List<HoleScoreInputDto>? HoleScores);
+    private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
 }
