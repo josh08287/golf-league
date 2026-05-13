@@ -323,6 +323,8 @@ export interface TeeTimePlayerHoleScore {
   netStablefordPoints: number | null;
   putts: number | null;
   firstPuttDistanceFeet: number | null;
+  fairwayHit: boolean | null;
+  gir: boolean | null;
 }
 
 export interface TeeTimePlayerScore {
@@ -370,6 +372,7 @@ export interface PlayerHoleScoreInput {
   grossStrokes: number;
   putts?: number | null;
   firstPuttDistanceFeet?: number | null;
+  fairwayHit?: boolean | null;
 }
 
 export interface PlayerScoreInput {

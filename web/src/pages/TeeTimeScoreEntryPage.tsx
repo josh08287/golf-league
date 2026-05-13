@@ -78,18 +78,19 @@ function ScoreInput({ label, value, onChange, disabled, maxScore }: ScoreInputPr
   );
 }
 
-interface PuttData {
+interface HoleData {
   putts: number | '';
   firstPuttDistanceFeet: number | '';
+  fairwayHit: boolean | null;
 }
 
 interface HoleViewProps {
   hole: TeeTimeHoleInfo;
   players: TeeTimePlayerScore[];
   scores: Record<number, Record<number, number | ''>>;
-  puttDataMap: Record<number, Record<number, PuttData>>;
+  holeDataMap: Record<number, Record<number, HoleData>>;
   onScoreChange: (playerId: number, value: number | '') => void;
-  onPuttChange: (playerId: number, field: keyof PuttData, value: number | '') => void;
+  onHoleDataChange: (playerId: number, field: keyof HoleData, value: number | '' | boolean | null) => void;
   canEdit: boolean;
 }
 
@@ -126,7 +127,10 @@ function PuttInput({ label, value, onChange, disabled, min, max, step, placehold
   );
 }
 
-function HoleView({ hole, players, scores, puttDataMap, onScoreChange, onPuttChange, canEdit }: HoleViewProps) {
+function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDataChange, canEdit }: HoleViewProps) {
+  // Fairway is relevant for par 4 and 5 holes only
+  const showFairway = hole.par >= 4;
+
   return (
     <div className="space-y-4">
       <div className="rounded-lg bg-primary-50 px-4 py-3">
@@ -149,9 +153,15 @@ function HoleView({ hole, players, scores, puttDataMap, onScoreChange, onPuttCha
       <div className="space-y-3">
         {players.map((player) => {
           const playerScore = scores[player.playerId]?.[hole.holeNumber] ?? '';
-          const puttData = puttDataMap[player.playerId]?.[hole.holeNumber];
+          const holeData = holeDataMap[player.playerId]?.[hole.holeNumber];
           const maxScore = hole.par + 2 + calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
           const isSkipped = player.skippedWeek;
+
+          // Calculate GIR locally for display (matches backend logic)
+          const putts = holeData?.putts;
+          const gir = putts !== '' && putts != null && playerScore !== '' && playerScore !== 0
+            ? (playerScore as number - (putts as number)) <= (hole.par - 1)
+            : null;
 
           return (
             <Card key={player.playerId} className={isSkipped ? 'opacity-50' : ''}>
@@ -178,8 +188,8 @@ function HoleView({ hole, players, scores, puttDataMap, onScoreChange, onPuttCha
                     />
                     <PuttInput
                       label="Putts"
-                      value={isSkipped ? '' : (puttData?.putts ?? '')}
-                      onChange={(v) => onPuttChange(player.playerId, 'putts', v)}
+                      value={isSkipped ? '' : (holeData?.putts ?? '')}
+                      onChange={(v) => onHoleDataChange(player.playerId, 'putts', v)}
                       disabled={!canEdit || isSkipped}
                       min={0}
                       max={9}
@@ -187,14 +197,43 @@ function HoleView({ hole, players, scores, puttDataMap, onScoreChange, onPuttCha
                     />
                     <PuttInput
                       label="1st Putt (ft)"
-                      value={isSkipped ? '' : (puttData?.firstPuttDistanceFeet ?? '')}
-                      onChange={(v) => onPuttChange(player.playerId, 'firstPuttDistanceFeet', v)}
+                      value={isSkipped ? '' : (holeData?.firstPuttDistanceFeet ?? '')}
+                      onChange={(v) => onHoleDataChange(player.playerId, 'firstPuttDistanceFeet', v)}
                       disabled={!canEdit || isSkipped}
                       min={0}
                       max={200}
                       step="1"
                       placeholder="—"
                     />
+                    {showFairway && (
+                      <div className="flex flex-col items-center gap-1">
+                        <label className="text-[10px] font-medium text-gray-400">Fairway</label>
+                        <button
+                          type="button"
+                          disabled={!canEdit || isSkipped}
+                          onClick={() => onHoleDataChange(player.playerId, 'fairwayHit', !holeData?.fairwayHit)}
+                          className={`h-10 w-14 rounded-lg border text-sm font-medium transition-colors ${
+                            holeData?.fairwayHit
+                              ? 'border-green-500 bg-green-50 text-green-700'
+                              : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                          } disabled:bg-gray-100 disabled:text-gray-400`}
+                        >
+                          {holeData?.fairwayHit ? 'Yes' : 'No'}
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex flex-col items-center gap-1">
+                      <label className="text-[10px] font-medium text-gray-400">GIR</label>
+                      <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                        gir === true
+                          ? 'bg-green-100 text-green-700'
+                          : gir === false
+                          ? 'bg-gray-100 text-gray-500'
+                          : 'bg-gray-50 text-gray-300'
+                      }`}>
+                        {gir === true ? '✓' : gir === false ? '✗' : '—'}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -358,7 +397,7 @@ export function TeeTimeScoreEntryPage() {
 
   const [currentHoleIndex, setCurrentHoleIndex] = useState(0);
   const [scores, setScores] = useState<Record<number, Record<number, number | ''>>>({});
-  const [puttDataMap, setPuttDataMap] = useState<Record<number, Record<number, PuttData>>>({});
+  const [holeDataMap, setHoleDataMap] = useState<Record<number, Record<number, HoleData>>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
@@ -371,22 +410,23 @@ export function TeeTimeScoreEntryPage() {
     if (!scorecard) return;
 
     const initialScores: Record<number, Record<number, number | ''>> = {};
-    const initialPutts: Record<number, Record<number, PuttData>> = {};
+    const initialHoleData: Record<number, Record<number, HoleData>> = {};
     scorecard.players.forEach((player) => {
       initialScores[player.playerId] = {};
-      initialPutts[player.playerId] = {};
+      initialHoleData[player.playerId] = {};
       player.holeScores.forEach((holeScore) => {
         if (holeScore.grossStrokes != null) {
           initialScores[player.playerId][holeScore.holeNumber] = holeScore.grossStrokes;
         }
-        initialPutts[player.playerId][holeScore.holeNumber] = {
+        initialHoleData[player.playerId][holeScore.holeNumber] = {
           putts: holeScore.putts ?? '',
           firstPuttDistanceFeet: holeScore.firstPuttDistanceFeet ?? '',
+          fairwayHit: holeScore.fairwayHit ?? null,
         };
       });
     });
     setScores(initialScores);
-    setPuttDataMap(initialPutts);
+    setHoleDataMap(initialHoleData);
   }, [scorecard]);
 
   const handleScoreChange = useCallback((playerId: number, holeNumber: number, value: number | '') => {
@@ -399,13 +439,13 @@ export function TeeTimeScoreEntryPage() {
     }));
   }, []);
 
-  const handlePuttChange = useCallback((playerId: number, holeNumber: number, field: keyof PuttData, value: number | '') => {
-    setPuttDataMap((prev) => ({
+  const handleHoleDataChange = useCallback((playerId: number, holeNumber: number, field: keyof HoleData, value: number | '' | boolean | null) => {
+    setHoleDataMap((prev) => ({
       ...prev,
       [playerId]: {
         ...prev[playerId],
         [holeNumber]: {
-          ...(prev[playerId]?.[holeNumber] ?? { putts: '', firstPuttDistanceFeet: '' }),
+          ...(prev[playerId]?.[holeNumber] ?? { putts: '', firstPuttDistanceFeet: '', fairwayHit: null }),
           [field]: value,
         },
       },
@@ -434,12 +474,13 @@ export function TeeTimeScoreEntryPage() {
       .map((player) => ({
         playerId: player.playerId,
         holeScores: holes.map((hole) => {
-          const pd = puttDataMap[player.playerId]?.[hole.holeNumber];
+          const hd = holeDataMap[player.playerId]?.[hole.holeNumber];
           return {
             holeNumber: hole.holeNumber,
             grossStrokes: scores[player.playerId]?.[hole.holeNumber] as number || 0,
-            putts: pd?.putts !== '' && pd?.putts != null ? pd.putts as number : null,
-            firstPuttDistanceFeet: pd?.firstPuttDistanceFeet !== '' && pd?.firstPuttDistanceFeet != null ? pd.firstPuttDistanceFeet as number : null,
+            putts: hd?.putts !== '' && hd?.putts != null ? hd.putts as number : null,
+            firstPuttDistanceFeet: hd?.firstPuttDistanceFeet !== '' && hd?.firstPuttDistanceFeet != null ? hd.firstPuttDistanceFeet as number : null,
+            fairwayHit: hole.par >= 4 ? hd?.fairwayHit ?? null : null,
           };
         }),
       }));
@@ -571,12 +612,12 @@ export function TeeTimeScoreEntryPage() {
           hole={currentHole}
           players={players}
           scores={scores}
-          puttDataMap={puttDataMap}
+          holeDataMap={holeDataMap}
           onScoreChange={(playerId, value) =>
             handleScoreChange(playerId, currentHole.holeNumber, value)
           }
-          onPuttChange={(playerId, field, value) =>
-            handlePuttChange(playerId, currentHole.holeNumber, field, value)
+          onHoleDataChange={(playerId, field, value) =>
+            handleHoleDataChange(playerId, currentHole.holeNumber, field, value)
           }
           canEdit={canEdit}
         />

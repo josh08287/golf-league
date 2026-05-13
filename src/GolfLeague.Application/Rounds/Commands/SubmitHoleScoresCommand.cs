@@ -12,7 +12,8 @@ public sealed record HoleScoreInput(
     int HoleNumber,
     int GrossStrokes,
     int? Putts = null,
-    double? FirstPuttDistanceFeet = null);
+    double? FirstPuttDistanceFeet = null,
+    bool? FairwayHit = null);
 
 public sealed record SubmitHoleScoresCommand(
     int RoundId,
@@ -97,6 +98,12 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
             var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, actualGross);
 
+            // Calculate GIR: on the green putting for birdie means (strokes - putts) <= (par - 1)
+            // Only calculable if we have putts data
+            var gir = input.Putts.HasValue
+                ? (actualGross - input.Putts.Value) <= (hole.Par - 1)
+                : (bool?)null;
+
             holeScoreEntities.Add(new HoleScore
             {
                 ParticipantId = participant.Id,
@@ -111,6 +118,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 IsMaxScore = isMaxScore,
                 Putts = input.Putts,
                 FirstPuttDistanceFeet = input.FirstPuttDistanceFeet,
+                FairwayHit = input.FairwayHit,
+                Gir = gir,
             });
         }
 
@@ -144,7 +153,11 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 h.NetStrokes,
                 h.GrossStablefordPoints,
                 h.NetStablefordPoints,
-                h.IsMaxScore))
+                h.IsMaxScore,
+                h.Putts,
+                h.FirstPuttDistanceFeet,
+                h.FairwayHit,
+                h.Gir))
             .ToList();
 
         var participantDto = new ParticipantDto(

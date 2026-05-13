@@ -24,5 +24,16 @@ public class HoleScore
     /// </summary>
     public double? FirstPuttDistanceFeet { get; set; }
 
+    /// <summary>
+    /// Whether the player hit the fairway off the tee (relevant for par 4s and 5s).
+    /// </summary>
+    public bool? FairwayHit { get; set; }
+
+    /// <summary>
+    /// Greens in Regulation - true if on the green putting for birdie (gross strokes - putts <= par - 1).
+    /// Calculated automatically based on score and putts.
+    /// </summary>
+    public bool? Gir { get; set; }
+
     public RoundParticipant Participant { get; set; } = null!;
 }

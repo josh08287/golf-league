@@ -55,7 +55,11 @@ public sealed class GetPlayerScorecardQueryHandler : IRequestHandler<GetPlayerSc
                 h.NetStrokes,
                 h.GrossStablefordPoints,
                 h.NetStablefordPoints,
-                h.IsMaxScore))
+                h.IsMaxScore,
+                h.Putts,
+                h.FirstPuttDistanceFeet,
+                h.FairwayHit,
+                h.Gir))
             .ToList();
 
         var participantDto = new ParticipantDto(

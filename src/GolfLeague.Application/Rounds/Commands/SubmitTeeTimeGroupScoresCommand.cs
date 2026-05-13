@@ -145,6 +145,12 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
                 var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, actualGross);
 
+                // Calculate GIR: on the green putting for birdie means (strokes - putts) <= (par - 1)
+                // Only calculable if we have putts data
+                var gir = input.Putts.HasValue
+                    ? (actualGross - input.Putts.Value) <= (hole.Par - 1)
+                    : (bool?)null;
+
                 holeScoreEntities.Add(new HoleScore
                 {
                     ParticipantId = participant.Id,
@@ -159,6 +165,8 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                     IsMaxScore = isMaxScore,
                     Putts = input.Putts,
                     FirstPuttDistanceFeet = input.FirstPuttDistanceFeet,
+                    FairwayHit = input.FairwayHit,
+                    Gir = gir,
                 });
             }
 

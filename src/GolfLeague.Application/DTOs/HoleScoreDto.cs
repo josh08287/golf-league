@@ -10,4 +10,8 @@ public sealed record HoleScoreDto(
     int NetStrokes,
     int GrossStablefordPoints,
     int NetStablefordPoints,
-    bool IsMaxScore);
+    bool IsMaxScore,
+    int? Putts = null,
+    double? FirstPuttDistanceFeet = null,
+    bool? FairwayHit = null,
+    bool? Gir = null);
