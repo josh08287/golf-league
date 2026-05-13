@@ -8,19 +8,40 @@ public interface IHandicapRepository
     Task<IReadOnlyList<Handicap>> GetHistoryAsync(int playerId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The player's last 20 9-hole score differentials, newest first. Derived
-    /// from finalized round participants (TotalGrossStrokes + the course's
-    /// rating/slope). Returns fewer than 20 if the player hasn't played that
-    /// many.
+    /// The player's most-recent N 9-hole score differentials (newest first),
+    /// restricted to finalized rounds on or before <paramref name="asOfDate"/>.
+    /// Pass <c>null</c> for <paramref name="asOfDate"/> to include all rounds.
     /// </summary>
-    Task<IReadOnlyList<double>> GetLast20NineHoleDifferentialsAsync(int playerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<double>> GetLastNNineHoleDifferentialsAsync(
+        int playerId,
+        int count,
+        DateOnly? asOfDate = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The player's lowest handicap index across all Handicap rows with an
-    /// EffectiveDate within the last 365 days. Used for WHS soft / hard cap.
-    /// Returns null when the player has no qualifying history.
+    /// Removes all Handicap rows for <paramref name="playerId"/> whose
+    /// <see cref="Handicap.Source"/> is <see cref="HandicapSource.Calculated"/>.
     /// </summary>
-    Task<double?> GetLowIndexInLast365DaysAsync(int playerId, DateOnly asOf, CancellationToken cancellationToken = default);
+    Task DeleteCalculatedAsync(int playerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes every Handicap row with Source = Calculated across all players.
+    /// Used by the admin bulk-recalculation command.
+    /// </summary>
+    Task DeleteAllCalculatedAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the distinct player IDs that have at least one finalized round
+    /// participation (excluding withdrawals and skipped-week stubs).
+    /// </summary>
+    Task<IReadOnlyList<int>> GetAllPlayerIdsWithFinalizedRoundsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the dates of all finalized rounds that <paramref name="playerId"/>
+    /// participated in (not withdrawn, not skipped, has gross strokes recorded),
+    /// ordered oldest-first.
+    /// </summary>
+    Task<IReadOnlyList<DateOnly>> GetFinalizedRoundDatesForPlayerAsync(int playerId, CancellationToken cancellationToken = default);
 
     Task AddAsync(Handicap handicap, CancellationToken cancellationToken = default);
 }

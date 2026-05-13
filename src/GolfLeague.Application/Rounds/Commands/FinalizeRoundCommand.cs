@@ -67,7 +67,11 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
     private async Task RecalculateAndPersistAsync(int playerId, DateOnly roundDate, CancellationToken cancellationToken)
     {
         var differentials = await _handicapRepository
-            .GetLast20NineHoleDifferentialsAsync(playerId, cancellationToken);
+            .GetLastNNineHoleDifferentialsAsync(
+                playerId,
+                HandicapCalculationService.RollingWindowSize,
+                asOfDate: roundDate,
+                cancellationToken);
 
         if (differentials.Count == 0)
         {
@@ -77,16 +81,11 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             return;
         }
 
-        var low365 = await _handicapRepository
-            .GetLowIndexInLast365DaysAsync(playerId, roundDate, cancellationToken);
-
-        var newIndex = HandicapCalculationService.CalculateNewIndex(differentials, low365);
+        var newIndex = HandicapCalculationService.CalculateNewIndex(differentials);
 
         var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
         if (current is not null && Math.Abs(current.HandicapIndex - newIndex) < 0.05)
         {
-            // No meaningful change; don't pollute the history table with
-            // duplicate rows for every round.
             return;
         }
 
@@ -100,7 +99,7 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         }, cancellationToken);
 
         _logger.LogInformation(
-            "Recalculated handicap for player {PlayerId}: {OldIndex} -> {NewIndex} (over {Count} differentials, 365-day low {Low})",
-            playerId, current?.HandicapIndex, newIndex, differentials.Count, low365);
+            "Recalculated handicap for player {PlayerId}: {OldIndex} -> {NewIndex} (over {Count} differentials)",
+            playerId, current?.HandicapIndex, newIndex, differentials.Count);
     }
 }

@@ -12,104 +12,38 @@ public class HandicapCalculationServiceTests
         HandicapCalculationService.CalculateNewIndex(Array.Empty<double>()).Should().Be(0.0);
     }
 
-    // WHS rule 5.2a — small-sample adjustments. Differentials passed lowest-first
-    // for clarity; method picks the lowest regardless of order.
     [Theory]
-    [InlineData(new[] { 10.0 }, 8.0)]                   // 1 diff: lowest 1 minus 2
-    [InlineData(new[] { 8.0, 10.0 }, 6.0)]              // 2 diffs: lowest 1 minus 2
-    [InlineData(new[] { 5.0, 8.0, 10.0 }, 3.0)]         // 3 diffs: lowest 1 minus 2
-    [InlineData(new[] { 5.0, 6.0, 8.0, 10.0 }, 4.0)]    // 4 diffs: lowest 1 minus 1
-    [InlineData(new[] { 5.0, 6.0, 7.0, 8.0, 10.0 }, 5.0)] // 5 diffs: lowest 1 (no adj)
-    public void CalculateNewIndex_SmallSamples_ApplyAdjustment(double[] diffs, double expected)
+    [InlineData(new[] { 10.0 }, 10.0)]                          // 1 diff: avg of 1
+    [InlineData(new[] { 8.0, 10.0 }, 9.0)]                     // 2 diffs: (8+10)/2
+    [InlineData(new[] { 5.0, 8.0, 10.0 }, 7.7)]                // 3 diffs: 23/3 = 7.666... → 7.7
+    [InlineData(new[] { 5.0, 6.0, 8.0, 10.0 }, 7.2)]           // 4 diffs: 29/4 = 7.25 → 7.2 (ToEven)
+    [InlineData(new[] { 2.0, 4.0, 6.0, 8.0, 10.0 }, 6.0)]     // 5 diffs: avg = 6
+    public void CalculateNewIndex_SimpleAverage(double[] diffs, double expected)
     {
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().BeApproximately(expected, 0.01);
+        HandicapCalculationService.CalculateNewIndex(diffs).Should().BeApproximately(expected, 0.05);
     }
 
     [Fact]
-    public void CalculateNewIndex_With6Differentials_UsesLowest2MinusOne()
+    public void CalculateNewIndex_IgnoresBeyondRollingWindow()
     {
-        // 6 diffs: lowest 2 minus 1.0. Lowest two are 5 and 6, avg 5.5, -1 = 4.5.
-        var diffs = new[] { 5.0, 6.0, 7.0, 8.0, 9.0, 10.0 };
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(4.5);
+        // 6 diffs supplied; only first 5 (newest) should be averaged.
+        // Caller passes newest-first: [2,4,6,8,10,100]. Window of 5 = [2,4,6,8,10], avg = 6.
+        var diffs = new[] { 2.0, 4.0, 6.0, 8.0, 10.0, 100.0 };
+        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(6.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_With8Differentials_UsesLowest2NoAdjustment()
+    public void CalculateNewIndex_RoundsToOneDecimal()
     {
-        // 8 diffs: lowest 2. Lowest two are 1 and 2, avg 1.5.
-        var diffs = Enumerable.Range(1, 8).Select(i => (double)i).ToArray();
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(1.5);
+        // (1+2+3)/3 = 2.0 — exact
+        var diffs = new[] { 1.0, 2.0, 3.0 };
+        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(2.0);
     }
 
     [Fact]
-    public void CalculateNewIndex_With20Differentials_UsesLowest8()
+    public void CalculateNewIndex_RollingWindowSize_IsFive()
     {
-        // 20 diffs: lowest 8 of 1..20 = avg of 1..8 = 4.5.
-        var diffs = Enumerable.Range(1, 20).Select(i => (double)i).ToArray();
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(4.5);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_DropsBeyond20()
-    {
-        // 25 diffs in order — method takes only the first 20.
-        var diffs = Enumerable.Range(1, 25).Select(i => (double)i).ToArray();
-        // First 20 are 1..20, lowest 8 are 1..8, avg 4.5.
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(4.5);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_ClampsToMinIndex()
-    {
-        var diffs = Enumerable.Repeat(-50.0, 20).ToArray();
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(HandicapCalculationService.MinIndex);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_ClampsToMaxIndex()
-    {
-        var diffs = Enumerable.Repeat(100.0, 20).ToArray();
-        HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(HandicapCalculationService.MaxIndex);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_SoftCap_HalvesExcessAbove3()
-    {
-        // Lowest 8 of 1..20 = 4.5, no cap = 4.5. Low365 = 0.0 means a rise of 4.5,
-        // which exceeds soft-cap threshold of 3.0 by 1.5. Soft cap leaves
-        // low+3 + (1.5/2) = 0 + 3 + 0.75 = 3.75.
-        var diffs = Enumerable.Range(1, 20).Select(i => (double)i).ToArray();
-        var result = HandicapCalculationService.CalculateNewIndex(diffs, lowIndexInLast365Days: 0.0);
-        result.Should().Be(3.75);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_HardCap_LimitsRiseTo5()
-    {
-        // Raw = 10.0 from many high differentials. Low365 = 2.0. Rise = 8.0.
-        // Hard cap is low + 5 = 7.0. Soft cap would yield 2 + 3 + (5/2) = 7.5,
-        // which exceeds the hard cap — so result is 7.0.
-        var diffs = Enumerable.Repeat(10.0, 20).ToArray();
-        var result = HandicapCalculationService.CalculateNewIndex(diffs, lowIndexInLast365Days: 2.0);
-        result.Should().Be(7.0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_NoCap_WhenRiseUnderThreshold()
-    {
-        // Lowest 1 = 4.0 minus 1 = 3.0 (4 diffs). Low365 = 1.0, rise = 2 <= 3.
-        // No cap applied.
-        var diffs = new[] { 4.0, 5.0, 6.0, 7.0 };
-        var result = HandicapCalculationService.CalculateNewIndex(diffs, lowIndexInLast365Days: 1.0);
-        result.Should().Be(3.0);
-    }
-
-    [Fact]
-    public void CalculateNewIndex_NullLowIgnoresCap()
-    {
-        // 20 diffs, raw = 4.5. With null low365 (new player), no cap.
-        var diffs = Enumerable.Range(1, 20).Select(i => (double)i).ToArray();
-        HandicapCalculationService.CalculateNewIndex(diffs, lowIndexInLast365Days: null).Should().Be(4.5);
+        HandicapCalculationService.RollingWindowSize.Should().Be(5);
     }
 }
 

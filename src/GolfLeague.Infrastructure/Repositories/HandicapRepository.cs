@@ -30,19 +30,28 @@ public sealed class HandicapRepository : IHandicapRepository
             .ThenByDescending(h => h.Id)
             .ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<double>> GetLast20NineHoleDifferentialsAsync(int playerId, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<double>> GetLastNNineHoleDifferentialsAsync(
+        int playerId,
+        int count,
+        DateOnly? asOfDate = null,
+        CancellationToken cancellationToken = default)
     {
-        var participants = await _context.RoundParticipants
+        var query = _context.RoundParticipants
             .Include(rp => rp.Round).ThenInclude(r => r.Course)
             .Where(rp =>
                 rp.PlayerId == playerId &&
                 !rp.IsWithdrawn &&
                 !rp.SkippedWeek &&
                 rp.TotalGrossStrokes.HasValue &&
-                rp.Round.Status == RoundStatus.Finalized)
+                rp.Round.Status == RoundStatus.Finalized);
+
+        if (asOfDate.HasValue)
+            query = query.Where(rp => rp.Round.RoundDate <= asOfDate.Value);
+
+        var participants = await query
             .OrderByDescending(rp => rp.Round.RoundDate)
             .ThenByDescending(rp => rp.Id)
-            .Take(20)
+            .Take(count)
             .ToListAsync(cancellationToken);
 
         return participants
@@ -54,17 +63,55 @@ public sealed class HandicapRepository : IHandicapRepository
             .ToList();
     }
 
-    public async Task<double?> GetLowIndexInLast365DaysAsync(int playerId, DateOnly asOf, CancellationToken cancellationToken = default)
+    public async Task DeleteCalculatedAsync(int playerId, CancellationToken cancellationToken = default)
     {
-        var cutoff = asOf.AddDays(-365);
-        var values = await _context.Handicaps
-            .Where(h => h.PlayerId == playerId && h.EffectiveDate >= cutoff && h.EffectiveDate <= asOf)
-            .Select(h => h.HandicapIndex)
+        var rows = await _context.Handicaps
+            .Where(h => h.PlayerId == playerId && h.Source == HandicapSource.Calculated)
             .ToListAsync(cancellationToken);
 
-        if (values.Count == 0) return null;
-        return values.Min();
+        if (rows.Count > 0)
+        {
+            _context.Handicaps.RemoveRange(rows);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
+
+    public async Task DeleteAllCalculatedAsync(CancellationToken cancellationToken = default)
+    {
+        var rows = await _context.Handicaps
+            .Where(h => h.Source == HandicapSource.Calculated)
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count > 0)
+        {
+            _context.Handicaps.RemoveRange(rows);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<int>> GetAllPlayerIdsWithFinalizedRoundsAsync(CancellationToken cancellationToken = default)
+        => await _context.RoundParticipants
+            .Where(rp =>
+                !rp.IsWithdrawn &&
+                !rp.SkippedWeek &&
+                rp.TotalGrossStrokes.HasValue &&
+                rp.Round.Status == RoundStatus.Finalized)
+            .Select(rp => rp.PlayerId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<DateOnly>> GetFinalizedRoundDatesForPlayerAsync(int playerId, CancellationToken cancellationToken = default)
+        => await _context.RoundParticipants
+            .Where(rp =>
+                rp.PlayerId == playerId &&
+                !rp.IsWithdrawn &&
+                !rp.SkippedWeek &&
+                rp.TotalGrossStrokes.HasValue &&
+                rp.Round.Status == RoundStatus.Finalized)
+            .Select(rp => rp.Round.RoundDate)
+            .Distinct()
+            .OrderBy(d => d)
+            .ToListAsync(cancellationToken);
 
     public async Task AddAsync(Handicap handicap, CancellationToken cancellationToken = default)
     {
