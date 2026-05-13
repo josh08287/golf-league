@@ -19,4 +19,5 @@ public sealed record PlayerRoundSummaryDto(
     int? TotalGrossStablefordPoints,
     int? TotalNetStablefordPoints,
     bool IsWithdrawn,
-    bool SkippedWeek);
+    bool SkippedWeek,
+    double? NineHoleScoreDifferential = null);

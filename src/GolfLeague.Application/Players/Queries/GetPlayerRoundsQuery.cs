@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Players.Queries;
@@ -51,19 +52,32 @@ public sealed class GetPlayerRoundsQueryHandler
             request.PlayerId, cancellationToken);
 
         var dtos = participants
-            .Select(rp => new PlayerRoundSummaryDto(
-                rp.Round.Id,
-                rp.Round.RoundDate,
-                rp.Round.WeekNumber,
-                rp.Round.Course?.Name ?? string.Empty,
-                rp.Round.NineHoleSide,
-                rp.Round.Status,
-                rp.TotalGrossStrokes,
-                rp.TotalNetStrokes,
-                rp.TotalGrossStablefordPoints,
-                rp.TotalNetStablefordPoints,
-                rp.IsWithdrawn,
-                rp.SkippedWeek))
+            .Select(rp =>
+            {
+                double? differential = null;
+                if (rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
+                    differential = Math.Round(
+                        StablefordScoringService.NineHoleScoreDifferential(
+                            rp.TotalGrossStrokes.Value,
+                            rp.Round.Course.CourseRating,
+                            rp.Round.Course.SlopeRating),
+                        1, MidpointRounding.ToEven);
+
+                return new PlayerRoundSummaryDto(
+                    rp.Round.Id,
+                    rp.Round.RoundDate,
+                    rp.Round.WeekNumber,
+                    rp.Round.Course?.Name ?? string.Empty,
+                    rp.Round.NineHoleSide,
+                    rp.Round.Status,
+                    rp.TotalGrossStrokes,
+                    rp.TotalNetStrokes,
+                    rp.TotalGrossStablefordPoints,
+                    rp.TotalNetStablefordPoints,
+                    rp.IsWithdrawn,
+                    rp.SkippedWeek,
+                    differential);
+            })
             .ToList();
 
         var sorted = SortMap.Apply(dtos, request.Sort);
