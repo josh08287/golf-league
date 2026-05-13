@@ -159,7 +159,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
             .OrderByDescending(p => p.ImprovementFactor)
             .ToList();
 
-        var winner = leaderboard.FirstOrDefault(p => p.ImprovementFactor > 1.0);
+        var winner = leaderboard.FirstOrDefault();
 
         return Result<MostImprovedResultDto>.Ok(new MostImprovedResultDto(
             winner, leaderboard, currentHalf.Name, MinRounds));

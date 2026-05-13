@@ -72,7 +72,7 @@ public sealed class GetCourseStatisticsQueryHandler
 
         // Gather all participants + hole scores from finalized rounds on this course
         var allHoleScores = new List<Domain.Entities.HoleScore>();
-        var allParticipants = new List<Domain.Entities.RoundParticipant>();
+        var participantWithRound = new List<(Domain.Entities.RoundParticipant Participant, Domain.Entities.Round Round)>();
 
         foreach (var round in courseRounds)
         {
@@ -80,7 +80,7 @@ public sealed class GetCourseStatisticsQueryHandler
             foreach (var p in participants)
             {
                 if (p.IsWithdrawn || p.SkippedWeek) continue;
-                allParticipants.Add(p);
+                participantWithRound.Add((p, round));
                 var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
                 allHoleScores.AddRange(scores);
             }
@@ -138,11 +138,20 @@ public sealed class GetCourseStatisticsQueryHandler
             .ToList();
 
         // Aggregate course-level stats
-        var validParticipants = allParticipants
-            .Where(p => p.TotalGrossStrokes.HasValue)
+        var validEntries = participantWithRound
+            .Where(e => e.Participant.TotalGrossStrokes.HasValue)
             .ToList();
 
-        var totalPar = holes.Sum(h => h.Par);
+        // Pre-compute 9-hole par for each side
+        var frontPar = holes.Where(h => h.HoleNumber <= 9).Sum(h => h.Par);
+        var backPar = holes.Where(h => h.HoleNumber > 9).Sum(h => h.Par);
+        var fullPar = holes.Sum(h => h.Par);
+
+        int NineHolePar(Domain.Entities.Round r) => r.NineHoleSide switch
+        {
+            NineHoleSide.Back => backPar,
+            _ => frontPar, // Front or NotApplicable defaults to front
+        };
 
         var dto = new CourseStatisticsDto(
             course.Id,
@@ -150,12 +159,12 @@ public sealed class GetCourseStatisticsQueryHandler
             course.CourseRating,
             course.SlopeRating,
             courseRounds.Count,
-            validParticipants.Count,
-            validParticipants.Count > 0 ? Math.Round(validParticipants.Average(p => p.TotalGrossStrokes!.Value), 1) : null,
-            validParticipants.Count > 0 ? Math.Round(validParticipants.Average(p => p.TotalNetStrokes ?? 0), 1) : null,
-            validParticipants.Count > 0 ? Math.Round(validParticipants.Average(p => p.TotalGrossStablefordPoints ?? 0), 1) : null,
-            validParticipants.Count > 0 ? Math.Round(validParticipants.Average(p => p.TotalNetStablefordPoints ?? 0), 1) : null,
-            validParticipants.Count > 0 ? Math.Round(validParticipants.Average(p => p.TotalGrossStrokes!.Value - totalPar), 1) : null,
+            validEntries.Count,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStrokes!.Value), 1) : null,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalNetStrokes ?? 0), 1) : null,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStablefordPoints ?? 0), 1) : null,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalNetStablefordPoints ?? 0), 1) : null,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStrokes!.Value - NineHolePar(e.Round)), 1) : null,
             ranked);
 
         return Result<CourseStatisticsDto>.Ok(dto);
