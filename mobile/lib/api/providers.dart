@@ -12,8 +12,9 @@ List<T> _extractList<T>(
   if (responseData == null) return [];
   if (responseData is Map) {
     final data = responseData['data'];
-    if (data is List)
+    if (data is List) {
       return data.map((e) => fromJson(e as Map<String, dynamic>)).toList();
+    }
   }
   if (responseData is List) {
     return responseData

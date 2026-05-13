@@ -288,8 +288,9 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
             title: const Text('Sign Out', style: TextStyle(color: Colors.red)),
             onTap: () async {
               final auth = ref.read(authServiceProvider);
+              final router = GoRouter.of(context);
               await auth.signOut();
-              if (context.mounted) context.go('/login');
+              router.go('/login');
             },
           ),
         ],

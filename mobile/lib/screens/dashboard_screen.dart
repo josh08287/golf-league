@@ -265,8 +265,9 @@ class _RecentRoundsSection extends ConsumerWidget {
           error: (e, _) => _ErrorCard(message: 'Could not load rounds.'),
           data: (rounds) {
             final latest = rounds.take(3).toList();
-            if (latest.isEmpty)
+            if (latest.isEmpty) {
               return const _EmptyCard(message: 'No rounds scheduled yet.');
+            }
             return Column(
               children: latest
                   .map(
@@ -354,7 +355,7 @@ class _TodaysTeeTimeSection extends ConsumerWidget {
 
     return teeTimeAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (_, __) => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
       data: (teeTime) {
         if (teeTime == null) return const SizedBox.shrink();
 

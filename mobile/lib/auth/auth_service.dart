@@ -12,11 +12,9 @@ const _externalRedirectUri = 'com.golfleague.app://auth';
 const _externalCallbackScheme = 'com.golfleague.app';
 
 class AuthService {
-  AuthService({
-    required Dio dio,
-    FlutterSecureStorage? storage,
-  })  : _dio = dio,
-        _storage = storage ?? const FlutterSecureStorage();
+  AuthService({required Dio dio, FlutterSecureStorage? storage})
+    : _dio = dio,
+      _storage = storage ?? const FlutterSecureStorage();
 
   final Dio _dio;
   final FlutterSecureStorage _storage;
@@ -47,8 +45,8 @@ class AuthService {
       data: {
         'email': email,
         'password': password,
-        if (firstName != null) 'firstName': firstName,
-        if (lastName != null) 'lastName': lastName,
+        'firstName': ?firstName,
+        'lastName': ?lastName,
       },
     );
     return _handleAuthResponse(response.data);
@@ -61,7 +59,8 @@ class AuthService {
       '/auth/external/$provider/start',
       data: {'redirectUri': _externalRedirectUri},
     );
-    final startData = (start.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+    final startData =
+        (start.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
     final authorizeUrl = startData['authorizeUrl'] as String;
     final state = startData['state'] as String;
 
@@ -79,11 +78,7 @@ class AuthService {
 
     final complete = await _dio.post<dynamic>(
       '/auth/external/$provider/callback',
-      data: {
-        'state': state,
-        'code': code,
-        'redirectUri': _externalRedirectUri,
-      },
+      data: {'state': state, 'code': code, 'redirectUri': _externalRedirectUri},
     );
     return _handleAuthResponse(complete.data);
   }
@@ -91,7 +86,10 @@ class AuthService {
   /// Exchange an MFA-challenge token + 6-digit code for full tokens. Mobile
   /// admins still complete TOTP on a desktop today, but this lets us close
   /// the loop without adding a passkey/authenticator integration.
-  Future<AuthResult> verifyTotp({required String mfaToken, required String code}) async {
+  Future<AuthResult> verifyTotp({
+    required String mfaToken,
+    required String code,
+  }) async {
     final response = await _dio.post<dynamic>(
       '/auth/mfa/totp/verify',
       data: {'mfaToken': mfaToken, 'code': code},
@@ -125,7 +123,10 @@ class AuthService {
     final refreshToken = await _storage.read(key: _refreshTokenKey);
     if (refreshToken != null) {
       try {
-        await _dio.post<dynamic>('/auth/logout', data: {'refreshToken': refreshToken});
+        await _dio.post<dynamic>(
+          '/auth/logout',
+          data: {'refreshToken': refreshToken},
+        );
       } catch (_) {
         // Best-effort — clear local storage regardless.
       }
@@ -134,7 +135,8 @@ class AuthService {
   }
 
   Future<AuthResult> _handleAuthResponse(dynamic responseData) async {
-    final data = (responseData as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+    final data =
+        (responseData as Map<String, dynamic>)['data'] as Map<String, dynamic>;
     final accessToken = data['accessToken'] as String;
     final refreshToken = (data['refreshToken'] as String?) ?? '';
     final role = data['role'] as String;

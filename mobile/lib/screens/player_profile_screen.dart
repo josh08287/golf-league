@@ -36,7 +36,7 @@ class PlayerProfileScreen extends ConsumerWidget {
           children: [
             playerAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) =>
+              error: (_, _) =>
                   const _ErrorCard('Could not load player profile.'),
               data: (player) => _PlayerHeader(player: player),
             ),
@@ -52,7 +52,7 @@ class PlayerProfileScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             handicapHistoryAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) =>
+              error: (_, _) =>
                   const _ErrorCard('Could not load handicap history.'),
               data: (history) => _HandicapHistoryList(history: history),
             ),
@@ -68,7 +68,7 @@ class PlayerProfileScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             roundsAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const _ErrorCard('Could not load rounds.'),
+              error: (_, _) => const _ErrorCard('Could not load rounds.'),
               data: (rounds) => _RoundsList(rounds: rounds),
             ),
           ],

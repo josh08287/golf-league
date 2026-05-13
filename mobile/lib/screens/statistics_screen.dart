@@ -29,7 +29,7 @@ class StatisticsScreen extends ConsumerWidget {
             // Most Improved Section
             mostImprovedAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, __) => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
               data: (result) => result != null && result.winner != null
                   ? _MostImprovedCard(result: result)
                   : const SizedBox.shrink(),
@@ -79,7 +79,11 @@ class _MostImprovedCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(Icons.emoji_events, color: Colors.amber.shade700, size: 28),
+                Icon(
+                  Icons.emoji_events,
+                  color: Colors.amber.shade700,
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -207,10 +211,12 @@ class _CourseStatisticsListState extends State<_CourseStatisticsList> {
         if (_selectedCourseId != null)
           Consumer(
             builder: (context, ref, _) {
-              final statsAsync = ref.watch(courseStatisticsProvider(_selectedCourseId!));
+              final statsAsync = ref.watch(
+                courseStatisticsProvider(_selectedCourseId!),
+              );
               return statsAsync.when(
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (_, __) => const _ErrorCard('Could not load statistics.'),
+                error: (_, _) => const _ErrorCard('Could not load statistics.'),
                 data: (stats) => stats != null
                     ? _CourseStatsDetail(stats: stats)
                     : const SizedBox.shrink(),
@@ -275,10 +281,7 @@ class _CourseStatsDetail extends StatelessWidget {
               children: [
                 const Text(
                   'Hole Statistics',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 15,
-                  ),
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
                 ),
                 const SizedBox(height: 12),
                 if (stats.holeStatistics.isEmpty)
@@ -287,7 +290,9 @@ class _CourseStatsDetail extends StatelessWidget {
                     style: TextStyle(color: Color(0xFF6B7280)),
                   )
                 else
-                  ...stats.holeStatistics.map((hole) => _HoleStatRow(hole: hole)),
+                  ...stats.holeStatistics.map(
+                    (hole) => _HoleStatRow(hole: hole),
+                  ),
               ],
             ),
           ),
@@ -298,11 +303,7 @@ class _CourseStatsDetail extends StatelessWidget {
 }
 
 class _StatCard extends StatelessWidget {
-  const _StatCard({
-    required this.label,
-    required this.value,
-    this.subtitle,
-  });
+  const _StatCard({required this.label, required this.value, this.subtitle});
 
   final String label;
   final String value;
@@ -331,19 +332,13 @@ class _StatCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               label,
-              style: const TextStyle(
-                fontSize: 12,
-                color: Color(0xFF6B7280),
-              ),
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
             ),
             if (subtitle != null) ...[
               const SizedBox(height: 2),
               Text(
                 subtitle!,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey[500],
-                ),
+                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
               ),
             ],
           ],
@@ -396,9 +391,7 @@ class _HoleStatRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   'Avg: ${hole.averageGrossStrokes.toStringAsFixed(1)} gross · ${hole.averageNetStablefordPoints.toStringAsFixed(1)} pts',
-                  style: const TextStyle(
-                    fontSize: 13,
-                  ),
+                  style: const TextStyle(fontSize: 13),
                 ),
               ],
             ),

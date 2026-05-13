@@ -130,7 +130,7 @@ class _FlightLeaderboardPreview extends ConsumerWidget {
               padding: EdgeInsets.all(16),
               child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
             ),
-            error: (_, __) => const SizedBox.shrink(),
+            error: (_, _) => const SizedBox.shrink(),
             data: (standings) {
               if (standings.isEmpty) {
                 return const Padding(

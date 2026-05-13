@@ -1,6 +1,7 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, Clock, Trophy } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Clock, Trophy, Grid3X3 } from 'lucide-react';
 import * as Accordion from '@radix-ui/react-accordion';
+import * as Collapsible from '@radix-ui/react-collapsible';
 import { useRound, useRoundScorecards, useRoundSkins } from '@/hooks/useRounds';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -250,6 +251,136 @@ function FlightSkinsSummary({ flightSkins }: FlightSkinsSummaryProps) {
   );
 }
 
+interface FlightScorecardsGridProps {
+  scorecards: RoundScorecard[];
+  flightSkins: FlightSkins;
+}
+
+function FlightScorecardsGrid({ scorecards, flightSkins }: FlightScorecardsGridProps) {
+  // Get all holes sorted
+  const allHoles = scorecards
+    .flatMap(sc => sc.holes)
+    .map(h => h.holeNumber)
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => a - b);
+
+  // Build skins lookup by hole number
+  const skinsByHole = new Map<number, { playerId: number; playerName: string; skinValue: number; wasCarryover: boolean }>();
+  for (const holeResult of flightSkins.allHoleResults) {
+    if (holeResult.skinValue > 0) {
+      skinsByHole.set(holeResult.holeNumber, {
+        playerId: holeResult.winnerPlayerId,
+        playerName: holeResult.winnerPlayerName,
+        skinValue: holeResult.skinValue,
+        wasCarryover: holeResult.wasCarryover,
+      });
+    }
+  }
+
+  // Sort scorecards by total net points descending (best performers first)
+  const sortedScorecards = [...scorecards].sort((a, b) => {
+    const netDiff = (b.netPoints ?? 0) - (a.netPoints ?? 0);
+    if (netDiff !== 0) return netDiff;
+    return (a.grossScore ?? 999) - (b.grossScore ?? 999);
+  });
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="px-2 py-2 text-left font-semibold text-gray-700 sticky left-0 bg-gray-100 z-10 min-w-[140px]">
+              Player
+            </th>
+            {allHoles.map(holeNum => {
+              const skin = skinsByHole.get(holeNum);
+              return (
+                <th
+                  key={holeNum}
+                  className={cn(
+                    'px-2 py-2 text-center font-semibold min-w-[48px]',
+                    skin ? 'bg-amber-100 text-amber-800' : 'text-gray-600'
+                  )}
+                  title={skin ? `Skin to ${skin.playerName} (value: ${skin.skinValue})` : undefined}
+                >
+                  <div className="flex flex-col items-center">
+                    <span>{holeNum}</span>
+                    {skin && (
+                      <Trophy className={cn('h-3 w-3', skin.wasCarryover ? 'text-amber-600' : 'text-amber-500')} />
+                    )}
+                  </div>
+                </th>
+              );
+            })}
+            <th className="px-2 py-2 text-center font-semibold text-gray-700 min-w-[50px]">Gross</th>
+            <th className="px-2 py-2 text-center font-semibold text-gray-700 min-w-[50px]">Net</th>
+            <th className="px-2 py-2 text-center font-semibold text-[#1B5E20] min-w-[50px]">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedScorecards.map((sc, idx) => (
+            <tr
+              key={sc.playerId}
+              className={cn('border-b border-gray-100', idx % 2 === 1 && 'bg-gray-50')}
+            >
+              <td className="px-2 py-2 sticky left-0 bg-white z-10 border-r border-gray-200">
+                <Link
+                  to={`/players/${sc.playerId}`}
+                  className="font-medium text-primary-900 hover:underline"
+                >
+                  {sc.playerName}
+                </Link>
+              </td>
+              {allHoles.map(holeNum => {
+                const hole = sc.holes.find(h => h.holeNumber === holeNum);
+                const skin = skinsByHole.get(holeNum);
+                const isSkinWinner = skin?.playerId === sc.playerId;
+
+                return (
+                  <td
+                    key={holeNum}
+                    className={cn(
+                      'px-1 py-1 text-center',
+                      isSkinWinner && 'bg-amber-100 font-semibold'
+                    )}
+                    title={isSkinWinner ? `Skin winner! Value: ${skin.skinValue}` : undefined}
+                  >
+                    {hole ? (
+                      <span className={cn(
+                        'inline-flex items-center justify-center w-7 h-6 rounded text-xs',
+                        isSkinWinner
+                          ? 'bg-amber-500 text-white'
+                          : hole.strokes === hole.par
+                            ? 'bg-white text-gray-700'
+                            : hole.strokes < hole.par
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-600'
+                      )}>
+                        {hole.strokes}
+                      </span>
+                    ) : (
+                      <span className="text-gray-300">—</span>
+                    )}
+                  </td>
+                );
+              })}
+              <td className="px-2 py-2 text-center font-medium text-gray-700">
+                {sc.grossScore ?? '—'}
+              </td>
+              <td className="px-2 py-2 text-center font-medium text-gray-700">
+                {sc.netScore ?? '—'}
+              </td>
+              <td className="px-2 py-2 text-center font-semibold text-[#1B5E20]">
+                {sc.netPoints ?? '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function RoundDetailPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const navigate = useNavigate();
@@ -348,6 +479,27 @@ export function RoundDetailPage() {
                       <div className="bg-gray-50 rounded-lg p-4">
                         <FlightSkinsSummary flightSkins={flightSkins} />
                       </div>
+                    )}
+
+                    {/* Flight Scorecards Grid - Collapsed by default */}
+                    {flightGroup.scorecards.length > 0 && flightSkins && (
+                      <Collapsible.Root defaultOpen={false}>
+                        <Collapsible.Trigger asChild>
+                          <button className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors py-2">
+                            <Grid3X3 className="h-4 w-4" />
+                            <span>View Flight Scorecard Grid</span>
+                            <ChevronDown className="h-4 w-4 transition-transform data-[state=open]:rotate-180" />
+                          </button>
+                        </Collapsible.Trigger>
+                        <Collapsible.Content>
+                          <div className="mt-2 border border-gray-200 rounded-lg overflow-hidden">
+                            <FlightScorecardsGrid
+                              scorecards={flightGroup.scorecards}
+                              flightSkins={flightSkins}
+                            />
+                          </div>
+                        </Collapsible.Content>
+                      </Collapsible.Root>
                     )}
 
                     {/* Scorecards for this flight */}

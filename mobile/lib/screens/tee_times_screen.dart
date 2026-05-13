@@ -190,7 +190,7 @@ class _TeeTimesView extends ConsumerWidget {
         if (isParticipant && myPlayerId != null)
           _TeeTimePreferenceSection(
             playerId: myPlayerId!,
-            currentMask: schedule.currentUserPreferredSlots ?? 0,
+            currentMask: schedule.currentUserPreferredSlots,
           ),
       ],
     );
