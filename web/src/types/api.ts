@@ -241,6 +241,7 @@ export interface GrossPar3SkinsSummary {
   totalHolesWithSkins: number;
   totalSkinValueAwarded: number;
   par3HoleCount: number;
+  incomingCarryover: number;
   holeResults: GrossPar3Skin[];
   playerSummaries: PlayerSkinSummary[];
 }

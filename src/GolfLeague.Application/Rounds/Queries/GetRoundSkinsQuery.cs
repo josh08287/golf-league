@@ -59,6 +59,7 @@ public sealed record GrossPar3SkinsSummaryDto(
     int TotalHolesWithSkins,
     int TotalSkinValueAwarded,
     int Par3HoleCount,
+    int IncomingCarryover,
     List<GrossPar3SkinDto> HoleResults,
     List<PlayerSkinSummaryDto> PlayerSummaries);
 
@@ -127,7 +128,11 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
         var allParticipants = participants
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
             .ToList();
-        var grossPar3Skins = CalculateGrossPar3Skins(allParticipants, flightNameLookup);
+
+        // Check for carryover from previous round
+        int incomingCarryover = await CalculateIncomingPar3CarryoverAsync(round, flightNameLookup, cancellationToken);
+
+        var grossPar3Skins = CalculateGrossPar3Skins(allParticipants, flightNameLookup, incomingCarryover);
 
         var result = new RoundSkinsDto(
             round.Id,
@@ -137,6 +142,48 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             grossPar3Skins);
 
         return Result<RoundSkinsDto>.Ok(result);
+    }
+
+    private async Task<int> CalculateIncomingPar3CarryoverAsync(Round round, Dictionary<int, string> flightNameLookup, CancellationToken cancellationToken)
+    {
+        // Get the previous round in this half
+        var previousRound = await _roundRepository.GetPreviousRoundAsync(round.HalfId, round.WeekNumber, cancellationToken);
+        if (previousRound is null)
+            return 0;
+
+        // Get participants from previous round
+        var previousParticipants = previousRound.Participants
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
+            .ToList();
+
+        if (previousParticipants.Count == 0)
+            return 0;
+
+        // Calculate par-3 skins for previous round to find ending carryover
+        var previousPar3Skins = CalculateGrossPar3Skins(previousParticipants, flightNameLookup, 0);
+
+        // Count how many holes ended in a tie (skinValue = 0) at the end
+        // These represent the carryover going into the next round
+        if (previousPar3Skins is null)
+            return 0;
+
+        // Find the last par 3 hole and check if it was a tie
+        var lastHoleResult = previousPar3Skins.HoleResults.LastOrDefault();
+        if (lastHoleResult?.SkinValue == 0)
+        {
+            // Count consecutive ties from the end
+            int carryover = 0;
+            for (int i = previousPar3Skins.HoleResults.Count - 1; i >= 0; i--)
+            {
+                if (previousPar3Skins.HoleResults[i].SkinValue == 0)
+                    carryover++;
+                else
+                    break;
+            }
+            return carryover;
+        }
+
+        return 0;
     }
 
     private static FlightSkinsDto CalculateFlightSkins(Flight flight, List<RoundParticipant> participants)
@@ -250,7 +297,8 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
     private static GrossPar3SkinsSummaryDto? CalculateGrossPar3Skins(
         List<RoundParticipant> allParticipants,
-        Dictionary<int, string> flightNameLookup)
+        Dictionary<int, string> flightNameLookup,
+        int incomingCarryover = 0)
     {
         // Get all par 3 hole scores across all participants
         var par3HoleScores = allParticipants
@@ -276,7 +324,8 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
         var holeResults = new List<GrossPar3SkinDto>();
         var playerSkinCounts = new Dictionary<int, PlayerSkinAccumulator>();
 
-        int carryoverSkins = 0;
+        // Start with any carryover from the previous round
+        int carryoverSkins = incomingCarryover;
 
         foreach (var holeNumber in holesPlayed)
         {
@@ -363,6 +412,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             totalHolesWithSkins,
             totalSkinValueAwarded,
             holesPlayed.Count,
+            incomingCarryover,
             holeResults,
             playerSummaries);
     }

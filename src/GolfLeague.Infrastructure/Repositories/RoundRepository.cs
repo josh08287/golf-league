@@ -163,4 +163,14 @@ public sealed class RoundRepository : IRoundRepository
             .Where(rp => rp.PlayerId == playerId)
             .OrderBy(rp => rp.Round.RoundDate)
             .ToListAsync(cancellationToken);
+
+    public Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Half)
+            .Include(r => r.Participants).ThenInclude(rp => rp.Player)
+            .Include(r => r.Participants).ThenInclude(rp => rp.HoleScores)
+            .Where(r => r.HalfId == halfId && r.WeekNumber < currentWeekNumber)
+            .OrderByDescending(r => r.WeekNumber)
+            .FirstOrDefaultAsync(cancellationToken);
 }

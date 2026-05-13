@@ -279,6 +279,11 @@ function GrossPar3SkinsDisplay({ grossPar3Skins }: GrossPar3SkinsDisplayProps) {
           <span className="font-semibold text-gray-900">Par 3 Gross Skins</span>
           <span className="text-sm text-gray-500">
             ({grossPar3Skins.totalHolesWithSkins}/{grossPar3Skins.par3HoleCount} holes awarded)
+            {grossPar3Skins.incomingCarryover > 0 && (
+              <span className="ml-2 text-amber-700 font-medium" title={`${grossPar3Skins.incomingCarryover} skin(s) carried over from previous round`}>
+                ↻ {grossPar3Skins.incomingCarryover}
+              </span>
+            )}
           </span>
         </div>
         <span className="text-sm text-amber-700 font-medium">
