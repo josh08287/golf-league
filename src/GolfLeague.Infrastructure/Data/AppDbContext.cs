@@ -293,6 +293,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.ParticipantId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.ParticipantId);
+            entity.Property(e => e.Putts);
+            entity.Property(e => e.FirstPuttDistanceFeet);
         });
     }
 
