@@ -6,6 +6,8 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
+using System.Globalization;
+
 namespace GolfLeague.Functions.Functions;
 
 public sealed class SeasonFunctions
@@ -40,8 +42,8 @@ public sealed class SeasonFunctions
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
-        if (!DateOnly.TryParse(body.StartDate, out var startDate) ||
-            !DateOnly.TryParse(body.EndDate, out var endDate))
+        if (!DateOnly.TryParseExact(body.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate) ||
+            !DateOnly.TryParseExact(body.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endDate))
             return new BadRequestObjectResult(new { error = "startDate and endDate must be valid dates (yyyy-MM-dd)." });
 
         var userId = req.GetUserId() ?? "unknown";

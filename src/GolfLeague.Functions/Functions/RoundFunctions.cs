@@ -278,9 +278,9 @@ public sealed class RoundFunctions
         string? NineHoleSide)
     {
         public DateOnly ResolvedDate => ScheduledDate is not null
-            ? DateOnly.Parse(ScheduledDate)
+            ? DateOnly.ParseExact(ScheduledDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
             : RoundDate is not null
-                ? DateOnly.Parse(RoundDate)
+                ? DateOnly.ParseExact(RoundDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
                 : DateOnly.FromDateTime(DateTime.UtcNow);
 
         public NineHoleSide? ResolvedNineHoleSide => NineHoleSide?.ToLowerInvariant() switch
@@ -296,7 +296,8 @@ public sealed class RoundFunctions
         List<string> WeekDates,
         string? StartingSide)
     {
-        public List<DateOnly> ResolvedWeekDates => WeekDates.Select(DateOnly.Parse).ToList();
+        public List<DateOnly> ResolvedWeekDates => WeekDates.Select(d =>
+            DateOnly.ParseExact(d, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)).ToList();
 
         public NineHoleSide ResolvedStartingSide => StartingSide?.ToLowerInvariant() switch
         {
