@@ -33,7 +33,7 @@ export function useMyTodaysTeeTime(enabled: boolean = true) {
     queryKey: teeTimeScoreEntryKeys.myTodaysTeeTime(),
     queryFn: async () => {
       try {
-        const res = await apiClient.get('/players/me/todays-tee-time');
+        const res = await apiClient.get('/me/todays-tee-time');
         return unwrap<MyTodaysTeeTime>(res.data);
       } catch (error: unknown) {
         // 404 means no tee time today - return null instead of throwing

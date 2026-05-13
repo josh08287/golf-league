@@ -225,6 +225,7 @@ export function RoundsPage() {
         description={`Permanently delete the round on ${deleteTarget ? new Date(deleteTarget.scheduledDate).toLocaleDateString() : ''}? This cannot be undone.`}
         confirmLabel="Delete"
         destructive
+        isLoading={deleteRound.isPending}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

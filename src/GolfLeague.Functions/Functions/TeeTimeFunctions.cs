@@ -130,13 +130,13 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
-    /// GET /v1/players/me/todays-tee-time — Returns today's tee time info for
+    /// GET /v1/me/todays-tee-time — Returns today's tee time info for
     /// the authenticated player (if they have a round today with a tee time assignment).
     /// Returns 404 if no round today or player not assigned to a tee time.
     /// </summary>
     [Function("GetMyTodaysTeeTime")]
     public async Task<IActionResult> GetMyTodaysTeeTime(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/me/todays-tee-time")] HttpRequest req,
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/me/todays-tee-time")] HttpRequest req,
         CancellationToken cancellationToken)
     {
         var authError = req.RequireAuthenticated();

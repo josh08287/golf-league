@@ -7,6 +7,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  isLoading?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   destructive = false,
+  isLoading = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -28,7 +30,7 @@ export function ConfirmDialog({
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40"
-        onClick={onCancel}
+        onClick={isLoading ? undefined : onCancel}
         aria-hidden="true"
       />
 
@@ -38,14 +40,15 @@ export function ConfirmDialog({
         <p className="mb-6 text-sm text-gray-600">{description}</p>
 
         <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={onCancel}>
+          <Button variant="ghost" onClick={onCancel} disabled={isLoading}>
             {cancelLabel}
           </Button>
           <Button
             variant={destructive ? 'destructive' : 'primary'}
             onClick={onConfirm}
+            disabled={isLoading}
           >
-            {confirmLabel}
+            {isLoading ? 'Processing...' : confirmLabel}
           </Button>
         </div>
       </div>

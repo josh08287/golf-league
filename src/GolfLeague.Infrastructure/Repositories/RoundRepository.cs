@@ -94,7 +94,38 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task DeleteAsync(int roundId, CancellationToken cancellationToken = default)
     {
-        // Single-statement delete avoids the tracked-load round trip.
+        // Clear TeeTimeId for all participants in this round to avoid FK constraint
+        await _context.RoundParticipants
+            .Where(rp => rp.RoundId == roundId && rp.TeeTimeId != null)
+            .ExecuteUpdateAsync(
+                u => u.SetProperty(rp => rp.TeeTimeId, (int?)null),
+                cancellationToken);
+
+        // Delete all tee times for this round
+        await _context.RoundTeeTimes
+            .Where(rt => rt.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // Get all participant IDs for this round
+        var participantIds = await _context.RoundParticipants
+            .Where(rp => rp.RoundId == roundId)
+            .Select(rp => rp.Id)
+            .ToListAsync(cancellationToken);
+
+        // Delete hole scores for all participants
+        if (participantIds.Count > 0)
+        {
+            await _context.HoleScores
+                .Where(hs => participantIds.Contains(hs.ParticipantId))
+                .ExecuteDeleteAsync(cancellationToken);
+        }
+
+        // Delete all participants for this round
+        await _context.RoundParticipants
+            .Where(rp => rp.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        // Delete the round
         await _context.Rounds
             .Where(r => r.Id == roundId)
             .ExecuteDeleteAsync(cancellationToken);
