@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom';
-import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight } from 'lucide-react';
+import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight, Calculator, AlertTriangle } from 'lucide-react';
 import { usePlayers } from '@/hooks/usePlayers';
 import { useRounds } from '@/hooks/useRounds';
+import { useRecalculateRounds } from '@/hooks/admin/useRecalculateRounds';
 import { Spinner } from '@/components/ui/Spinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { isRoundInProgress, isRoundScheduled, isRoundFinalized } from '@/lib/enumUtils';
 
 interface StatCardProps {
@@ -52,8 +54,9 @@ function QuickLink({ to, label, description, icon }: QuickLinkProps) {
 export function AdminDashboardPage() {
   const { data: playersPage, isLoading: playersLoading } = usePlayers();
   const { data: roundsPage, isLoading: roundsLoading } = useRounds();
+  const recalculateRounds = useRecalculateRounds();
 
-  const isLoading = playersLoading || roundsLoading;
+  const isLoading = playersLoading || roundsLoading || recalculateRounds.isPending;
 
   if (isLoading) {
     return (
@@ -133,6 +136,68 @@ export function AdminDashboardPage() {
             icon={<Users className="h-5 w-5" />}
           />
         </div>
+      </div>
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-gray-500">
+          Data Maintenance
+        </h2>
+        <Card className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Recalculate All Rounds</p>
+                <p className="text-sm text-gray-500">
+                  Re-applies course handicaps and recalculates all net scores for finalized rounds.
+                  Use this if handicap calculations have changed or historical data needs correction.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => recalculateRounds.mutate()}
+              disabled={recalculateRounds.isPending}
+              className="shrink-0"
+            >
+              {recalculateRounds.isPending ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Recalculate All
+                </>
+              )}
+            </Button>
+          </div>
+
+          {recalculateRounds.isSuccess && (
+            <div className="mt-4 rounded-lg bg-green-50 p-4 text-sm text-green-800">
+              <p className="font-medium">Recalculation complete!</p>
+              <ul className="mt-1 list-inside list-disc">
+                <li>{recalculateRounds.data.roundsProcessed} rounds processed</li>
+                <li>{recalculateRounds.data.participantsProcessed} participants updated</li>
+                <li>{recalculateRounds.data.holeScoresUpdated} hole scores recalculated</li>
+              </ul>
+            </div>
+          )}
+
+          {recalculateRounds.isError && (
+            <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-800">
+              <p className="font-medium">Error recalculating rounds</p>
+              <p className="mt-1">
+                {recalculateRounds.error instanceof Error
+                  ? recalculateRounds.error.message
+                  : 'An unexpected error occurred'}
+              </p>
+            </div>
+          )}
+        </Card>
       </div>
     </div>
   );

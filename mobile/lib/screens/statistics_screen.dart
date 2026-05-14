@@ -259,8 +259,8 @@ class _CourseStatsDetail extends StatelessWidget {
               child: _StatCard(
                 label: 'Avg to Par',
                 value: _scoreToParLabel(stats.averageScoreToPar),
-                subtitle: stats.averageTotalGrossStrokes != null
-                    ? '${stats.averageTotalGrossStrokes!.toStringAsFixed(1)} gross'
+                subtitle: stats.averageTotalNetStrokes != null
+                    ? '${stats.averageTotalNetStrokes!.toStringAsFixed(1)} net'
                     : null,
               ),
             ),

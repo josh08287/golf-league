@@ -47,4 +47,17 @@ public sealed class AdminFunctions
         var result = await _mediator.Send(new RecalculateAllHandicapsCommand(userId), cancellationToken);
         return result.ToOkResult();
     }
+
+    [Function("RecalculateAllRounds")]
+    public async Task<IActionResult> RecalculateAllRounds(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/admin/rounds/recalculate")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new RecalculateAllRoundsCommand(userId), cancellationToken);
+        return result.ToOkResult();
+    }
 }
