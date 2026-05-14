@@ -37,9 +37,9 @@ export function HandicapChart({ history }: HandicapChartProps) {
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  const indices = chronological.map((h) => h.handicapIndex);
-  const minIndex = Math.min(...indices);
-  const maxIndex = Math.max(...indices);
+  const allValues = chronological.flatMap((h) => [h.handicapIndex, h.nineHoleHandicapIndex]);
+  const minIndex = Math.min(...allValues);
+  const maxIndex = Math.max(...allValues);
   const yPad = Math.max((maxIndex - minIndex) * 0.1, 0.5);
   const yMin = minIndex - yPad;
   const yMax = maxIndex + yPad;
@@ -50,8 +50,12 @@ export function HandicapChart({ history }: HandicapChartProps) {
   const yFor = (v: number) =>
     padding.top + ((yMax - v) / (yMax - yMin)) * innerH;
 
-  const linePath = chronological
+  const linePath18 = chronological
     .map((h, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(h.handicapIndex).toFixed(1)}`)
+    .join(' ');
+
+  const linePath9 = chronological
+    .map((h, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i).toFixed(1)} ${yFor(h.nineHoleHandicapIndex).toFixed(1)}`)
     .join(' ');
 
   // Five horizontal grid lines at evenly spaced handicap values
@@ -72,6 +76,17 @@ export function HandicapChart({ history }: HandicapChartProps) {
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-3">
+      {/* Legend */}
+      <div className="flex items-center gap-4 mb-2 px-1">
+        <span className="flex items-center gap-1.5 text-xs text-gray-600">
+          <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#1B5E20" strokeWidth="2" /></svg>
+          18-Hole
+        </span>
+        <span className="flex items-center gap-1.5 text-xs text-gray-600">
+          <svg width="20" height="4"><line x1="0" y1="2" x2="20" y2="2" stroke="#2563EB" strokeWidth="2" strokeDasharray="4 2" /></svg>
+          9-Hole
+        </span>
+      </div>
       <svg
         viewBox={`0 0 ${width} ${height}`}
         className="w-full h-auto"
@@ -118,21 +133,24 @@ export function HandicapChart({ history }: HandicapChartProps) {
           </text>
         ))}
 
-        {/* Line */}
-        <path d={linePath} fill="none" stroke="#1B5E20" strokeWidth={2} />
+        {/* 9-hole line (dashed, behind 18-hole) */}
+        <path d={linePath9} fill="none" stroke="#2563EB" strokeWidth={2} strokeDasharray="5 3" />
 
-        {/* Points with tooltips */}
+        {/* 18-hole line */}
+        <path d={linePath18} fill="none" stroke="#1B5E20" strokeWidth={2} />
+
+        {/* 9-hole dots */}
         {chronological.map((h, i) => (
-          <g key={`p-${i}`}>
-            <circle
-              cx={xFor(i)}
-              cy={yFor(h.handicapIndex)}
-              r={3.5}
-              fill="#1B5E20"
-            >
-              <title>{`${formatDate(h.effectiveDate)} — ${h.handicapIndex.toFixed(1)} (${h.source})`}</title>
-            </circle>
-          </g>
+          <circle key={`p9-${i}`} cx={xFor(i)} cy={yFor(h.nineHoleHandicapIndex)} r={3} fill="#2563EB">
+            <title>{`${formatDate(h.effectiveDate)} — 9-hole: ${h.nineHoleHandicapIndex.toFixed(1)}`}</title>
+          </circle>
+        ))}
+
+        {/* 18-hole dots */}
+        {chronological.map((h, i) => (
+          <circle key={`p18-${i}`} cx={xFor(i)} cy={yFor(h.handicapIndex)} r={3.5} fill="#1B5E20">
+            <title>{`${formatDate(h.effectiveDate)} — 18-hole: ${h.handicapIndex.toFixed(1)} (${h.source})`}</title>
+          </circle>
         ))}
       </svg>
     </div>
