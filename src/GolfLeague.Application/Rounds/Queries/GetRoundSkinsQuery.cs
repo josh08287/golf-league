@@ -146,44 +146,43 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
     private async Task<int> CalculateIncomingPar3CarryoverAsync(Round round, Dictionary<int, string> flightNameLookup, CancellationToken cancellationToken)
     {
-        // Get the previous round in this half
-        var previousRound = await _roundRepository.GetPreviousRoundAsync(round.HalfId, round.WeekNumber, cancellationToken);
-        if (previousRound is null)
-            return 0;
+        // Walk every prior round in the half (chronological order) and feed each round's
+        // ending carryover into the next, so unresolved par-3 ties accumulate across rounds.
+        var previousRounds = await _roundRepository.GetPreviousRoundsAsync(round.HalfId, round.WeekNumber, cancellationToken);
 
-        // Get participants from previous round
-        var previousParticipants = previousRound.Participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
-            .ToList();
-
-        if (previousParticipants.Count == 0)
-            return 0;
-
-        // Calculate par-3 skins for previous round to find ending carryover
-        var previousPar3Skins = CalculateGrossPar3Skins(previousParticipants, flightNameLookup, 0);
-
-        // Count how many holes ended in a tie (skinValue = 0) at the end
-        // These represent the carryover going into the next round
-        if (previousPar3Skins is null)
-            return 0;
-
-        // Find the last par 3 hole and check if it was a tie
-        var lastHoleResult = previousPar3Skins.HoleResults.LastOrDefault();
-        if (lastHoleResult?.SkinValue == 0)
+        int carryover = 0;
+        foreach (var prev in previousRounds)
         {
-            // Count consecutive ties from the end
-            int carryover = 0;
-            for (int i = previousPar3Skins.HoleResults.Count - 1; i >= 0; i--)
-            {
-                if (previousPar3Skins.HoleResults[i].SkinValue == 0)
-                    carryover++;
-                else
-                    break;
-            }
-            return carryover;
+            var prevParticipants = prev.Participants
+                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
+                .ToList();
+
+            if (prevParticipants.Count == 0)
+                continue;
+
+            var prevSkins = CalculateGrossPar3Skins(prevParticipants, flightNameLookup, carryover);
+            if (prevSkins is null)
+                continue;
+
+            carryover = ComputeEndingCarryover(prevSkins.HoleResults, carryover);
         }
 
-        return 0;
+        return carryover;
+    }
+
+    private static int ComputeEndingCarryover(List<GrossPar3SkinDto> holeResults, int incomingCarryover)
+    {
+        // Replay the per-hole outcomes to find what's still carrying after the last par 3.
+        // A win clears the running carryover; a tie adds 1.
+        int running = incomingCarryover;
+        foreach (var hole in holeResults)
+        {
+            if (hole.SkinValue > 0)
+                running = 0;
+            else
+                running += 1;
+        }
+        return running;
     }
 
     private static FlightSkinsDto CalculateFlightSkins(Flight flight, List<RoundParticipant> participants)
