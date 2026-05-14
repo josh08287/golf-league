@@ -567,9 +567,6 @@ export function PlayerProfilePage() {
                   <SortableTableHead column="date" sort={handicapSort.sort} onSort={handicapSort.cycle}>
                     Date
                   </SortableTableHead>
-                  <SortableTableHead column="source" sort={handicapSort.sort} onSort={handicapSort.cycle}>
-                    Source
-                  </SortableTableHead>
                   <SortableTableHead column="index" sort={handicapSort.sort} onSort={handicapSort.cycle} className="text-right">
                     18-Hole
                   </SortableTableHead>
@@ -582,7 +579,6 @@ export function PlayerProfilePage() {
                 {history.map((h, i) => (
                   <TableRow key={`${h.effectiveDate}-${i}`}>
                     <TableCell>{formatShortDate(h.effectiveDate)}</TableCell>
-                    <TableCell className="text-gray-500">{h.source}</TableCell>
                     <TableCell className="text-right font-semibold tabular-nums">
                       {h.handicapIndex.toFixed(1)}
                     </TableCell>
