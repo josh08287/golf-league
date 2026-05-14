@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Flag pole -->
+  <rect x="45" y="15" width="4" height="70" fill="#8B4513" rx="1"/>
+  <!-- Flag -->
+  <path d="M49 15 L85 28 L49 41 Z" fill="#228B22"/>
+  <!-- Ground -->
+  <ellipse cx="50" cy="88" rx="25" ry="8" fill="#32CD32"/>
+</svg>
