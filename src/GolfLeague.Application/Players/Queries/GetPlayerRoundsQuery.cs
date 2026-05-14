@@ -61,7 +61,7 @@ public sealed class GetPlayerRoundsQueryHandler
                     scoreDifferential = Math.Round(
                         StablefordScoringService.ScoreDifferential(
                             rp.TotalGrossStrokes.Value,
-                            rp.Round.Course.CourseRating / 2,
+                            rp.Round.Course.CourseRating,
                             rp.Round.Course.SlopeRating),
                         1, MidpointRounding.ToEven);
                     nineHoleScoreDifferential = Math.Round(
