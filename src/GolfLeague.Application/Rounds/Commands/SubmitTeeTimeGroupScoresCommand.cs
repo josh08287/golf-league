@@ -137,7 +137,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                         $"Player {participant.Player.FullName}: Hole {input.HoleNumber} not found for this round's 9-hole side.");
                 }
 
-                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex);
+                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, RoundType.NineHole);
                 var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
                 var actualGross = Math.Min(input.GrossStrokes, maxGross);
                 var isMaxScore = input.GrossStrokes >= maxGross;

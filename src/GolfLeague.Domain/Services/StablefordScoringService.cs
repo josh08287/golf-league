@@ -10,8 +10,11 @@ public static class StablefordScoringService
         return roundType == RoundType.NineHole ? (int)Math.Round(fullCourseHandicap / 2.0, MidpointRounding.AwayFromZero) : fullCourseHandicap;
     }
 
-    public static int StrokesOnHole(int courseHandicap, int strokeIndex)
-        => (int)Math.Floor(courseHandicap / 18.0) + (strokeIndex <= courseHandicap % 18 ? 1 : 0);
+    public static int StrokesOnHole(int courseHandicap, int strokeIndex, RoundType roundType = RoundType.EighteenHole)
+    {
+        var divisor = roundType == RoundType.NineHole ? 9 : 18;
+        return (int)Math.Floor(courseHandicap / (double)divisor) + (strokeIndex <= courseHandicap % divisor ? 1 : 0);
+    }
 
     public static int NetStrokes(int grossStrokes, int strokesOnHole)
         => grossStrokes - strokesOnHole;
