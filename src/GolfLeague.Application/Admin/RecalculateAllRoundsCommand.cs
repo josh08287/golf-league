@@ -66,6 +66,7 @@ public sealed class RecalculateAllRoundsCommandHandler
                     var relevantHoles = round.NineHoleSide == NineHoleSide.Back
                         ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
                         : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
+                    var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
 
                     var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
                     var activeParticipants = participants
@@ -115,7 +116,7 @@ public sealed class RecalculateAllRoundsCommandHandler
                                 }
 
                                 // Recalculate handicap strokes and net strokes
-                                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, courseHole.StrokeIndex, RoundType.NineHole);
+                                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, courseHole.StrokeIndex, allStrokeIndicesInNine);
                                 var maxGross = StablefordScoringService.MaxGross(courseHole.Par, strokesOnHole);
                                 var actualGross = Math.Min(holeScore.GrossStrokes, maxGross);
                                 var isMaxScore = holeScore.GrossStrokes >= maxGross;

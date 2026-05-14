@@ -128,6 +128,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
             await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
 
             var holeScoreEntities = new List<HoleScore>();
+            var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
             foreach (var input in playerScoreInput.HoleScores)
             {
                 var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
@@ -137,7 +138,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                         $"Player {participant.Player.FullName}: Hole {input.HoleNumber} not found for this round's 9-hole side.");
                 }
 
-                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, RoundType.NineHole);
+                var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndicesInNine);
                 var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
                 var actualGross = Math.Min(input.GrossStrokes, maxGross);
                 var isMaxScore = input.GrossStrokes >= maxGross;

@@ -80,6 +80,7 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
 
         var holeScoreEntities = new List<HoleScore>();
+        var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
 
         foreach (var input in request.HoleScores)
         {
@@ -90,7 +91,7 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                     $"Hole {input.HoleNumber} not found for this round's {round.NineHoleSide} nine.");
             }
 
-            var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, RoundType.NineHole);
+            var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndicesInNine);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
             var actualGross = Math.Min(input.GrossStrokes, maxGross);
             var isMaxScore = input.GrossStrokes >= maxGross;
