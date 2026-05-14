@@ -98,7 +98,6 @@ export interface PlayerRoundSummary {
   isWithdrawn: boolean;
   skippedWeek: boolean;
   scoreDifferential: number | null;
-  nineHoleScoreDifferential: number | null;
 }
 
 export interface Round {

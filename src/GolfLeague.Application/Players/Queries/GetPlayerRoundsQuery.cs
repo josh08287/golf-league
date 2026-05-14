@@ -55,17 +55,14 @@ public sealed class GetPlayerRoundsQueryHandler
             .Select(rp =>
             {
                 double? scoreDifferential = null;
-                double? nineHoleScoreDifferential = null;
                 if (!rp.SkippedWeek && rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
                 {
-                    nineHoleScoreDifferential = Math.Round(
+                    scoreDifferential = Math.Round(
                         StablefordScoringService.NineHoleScoreDifferential(
                             rp.TotalGrossStrokes.Value,
                             rp.Round.Course.CourseRating,
                             rp.Round.Course.SlopeRating),
                         1, MidpointRounding.ToEven);
-                    // 18-hole equivalent = 2× the 9-hole differential (USGA method)
-                    scoreDifferential = Math.Round(nineHoleScoreDifferential.Value * 2, 1, MidpointRounding.ToEven);
                 }
 
                 return new PlayerRoundSummaryDto(
@@ -81,8 +78,7 @@ public sealed class GetPlayerRoundsQueryHandler
                     rp.TotalNetStablefordPoints,
                     rp.IsWithdrawn,
                     rp.SkippedWeek,
-                    scoreDifferential,
-                    nineHoleScoreDifferential);
+                    scoreDifferential);
             })
             .ToList();
 

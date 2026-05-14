@@ -635,7 +635,7 @@ export function PlayerProfilePage() {
                     Net
                   </SortableTableHead>
                   <SortableTableHead column="differential" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-right">
-                    18/9 Diff
+                    Diff
                   </SortableTableHead>
                   <SortableTableHead column="grossPts" sort={roundsSort.sort} onSort={roundsSort.cycle} className="text-right">
                     Gross Pts
@@ -682,9 +682,7 @@ export function PlayerProfilePage() {
                         {r.totalNetStrokes ?? '—'}
                       </TableCell>
                       <TableCell className="text-right tabular-nums text-gray-600">
-                        {r.scoreDifferential != null && r.nineHoleScoreDifferential != null
-                          ? `${r.scoreDifferential.toFixed(1)}/${r.nineHoleScoreDifferential.toFixed(1)}`
-                          : '—'}
+                        {r.scoreDifferential != null ? r.scoreDifferential.toFixed(1) : '—'}
                       </TableCell>
                       <TableCell className="text-right tabular-nums">
                         {r.totalGrossStablefordPoints ?? '—'}
