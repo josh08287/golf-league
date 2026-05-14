@@ -81,7 +81,10 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             return;
         }
 
-        var newIndex = HandicapCalculationService.CalculateNewIndex(differentials);
+        // CalculateNewIndex returns the average 9-hole differential.
+        // HandicapIndex stores the full 18-hole index = 9-hole diff × 2.
+        var nineHoleIndex = HandicapCalculationService.CalculateNewIndex(differentials);
+        var newIndex = Math.Round(nineHoleIndex * 2, 1, MidpointRounding.ToEven);
 
         var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
         if (current is not null && Math.Abs(current.HandicapIndex - newIndex) < 0.05)
