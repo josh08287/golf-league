@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:fl_chart/fl_chart.dart';
 
 import '../api/providers.dart';
 import '../models/models.dart';
@@ -231,9 +232,11 @@ class _HandicapHistoryList extends StatelessWidget {
     }
 
     return Column(
-      children: history
-          .map((entry) => _HandicapHistoryRow(entry: entry))
-          .toList(),
+      children: [
+        _HandicapChart(history: history),
+        const SizedBox(height: 16),
+        ...history.map((entry) => _HandicapHistoryRow(entry: entry)),
+      ],
     );
   }
 }
@@ -299,6 +302,200 @@ class _HandicapHistoryRow extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HandicapChart extends StatelessWidget {
+  const _HandicapChart({required this.history});
+
+  final List<HandicapHistoryEntry> history;
+
+  @override
+  Widget build(BuildContext context) {
+    final sorted = history.toList()
+      ..sort((a, b) => a.effectiveDate.compareTo(b.effectiveDate));
+
+    final minDate = sorted.first.effectiveDate;
+    final maxDate = sorted.last.effectiveDate;
+    final dateRange = maxDate.difference(minDate).inDays.toDouble();
+    final dateSpan = dateRange < 1 ? 1.0 : dateRange;
+
+    final allValues = sorted
+        .expand((e) => [e.handicapIndex, e.nineHoleHandicapIndex])
+        .toList();
+    final minVal = allValues.reduce((a, b) => a < b ? a : b);
+    final maxVal = allValues.reduce((a, b) => a > b ? a : b);
+    final padding = (maxVal - minVal) * 0.1;
+    final yMin = ((minVal - padding).clamp(0, double.infinity)).toDouble();
+    final yMax = (maxVal + padding).toDouble();
+
+    final eighteenHoleSpots = sorted.map((e) {
+      final x = e.effectiveDate.difference(minDate).inDays.toDouble();
+      return FlSpot(x, e.handicapIndex);
+    }).toList();
+
+    final nineHoleSpots = sorted.map((e) {
+      final x = e.effectiveDate.difference(minDate).inDays.toDouble();
+      return FlSpot(x, e.nineHoleHandicapIndex);
+    }).toList();
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _LegendItem(
+                  color: const Color(0xFF1a5c38),
+                  label: '18-Hole HCP',
+                ),
+                const SizedBox(width: 24),
+                _LegendItem(
+                  color: const Color(0xFF059669),
+                  label: '9-Hole HCP',
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 200,
+              child: LineChart(
+                LineChartData(
+                  gridData: FlGridData(
+                    show: true,
+                    drawVerticalLine: false,
+                    getDrawingHorizontalLine: (value) {
+                      return FlLine(
+                        color: const Color(0xFFE5E7EB),
+                        strokeWidth: 1,
+                      );
+                    },
+                  ),
+                  titlesData: FlTitlesData(
+                    leftTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        reservedSize: 40,
+                        getTitlesWidget: (value, meta) {
+                          return Text(
+                            value.toStringAsFixed(0),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF6B7280),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    bottomTitles: AxisTitles(
+                      sideTitles: SideTitles(
+                        showTitles: true,
+                        getTitlesWidget: (value, meta) {
+                          final date = minDate.add(
+                            Duration(days: value.toInt()),
+                          );
+                          return Text(
+                            DateFormat('MMM d').format(date),
+                            style: const TextStyle(
+                              fontSize: 10,
+                              color: Color(0xFF6B7280),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                    topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false),
+                    ),
+                  ),
+                  borderData: FlBorderData(show: false),
+                  minX: 0,
+                  maxX: dateSpan,
+                  minY: yMin,
+                  maxY: yMax,
+                  lineTouchData: LineTouchData(
+                    touchTooltipData: LineTouchTooltipData(
+                      getTooltipColor: (touchedSpot) => const Color(0xFF1F2937),
+                      tooltipRoundedRadius: 8,
+                      getTooltipItems: (touchedSpots) {
+                        return touchedSpots.map((touchedSpot) {
+                          final isEighteen = touchedSpot.barIndex == 0;
+                          final date = minDate.add(
+                            Duration(days: touchedSpot.x.toInt()),
+                          );
+                          return LineTooltipItem(
+                            '${isEighteen ? '18' : '9'}-Hole: ${touchedSpot.y.toStringAsFixed(1)}\n${DateFormat('MMM d, y').format(date)}',
+                            const TextStyle(
+                              color: Color(0xFF6EE7B7),
+                              fontSize: 12,
+                            ),
+                          );
+                        }).toList();
+                      },
+                    ),
+                  ),
+                  lineBarsData: [
+                    LineChartBarData(
+                      spots: eighteenHoleSpots,
+                      isCurved: true,
+                      color: const Color(0xFF1a5c38),
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(show: false),
+                    ),
+                    LineChartBarData(
+                      spots: nineHoleSpots,
+                      isCurved: true,
+                      color: const Color(0xFF059669),
+                      barWidth: 3,
+                      isStrokeCapRound: true,
+                      dotData: const FlDotData(show: true),
+                      belowBarData: BarAreaData(show: false),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _LegendItem extends StatelessWidget {
+  const _LegendItem({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+        ),
+      ],
     );
   }
 }
