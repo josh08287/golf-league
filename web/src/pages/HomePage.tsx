@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
-import { useRounds, useRoundScorecards } from '@/hooks/useRounds';
+import { useRounds, useRoundScorecards, useRoundSkins } from '@/hooks/useRounds';
+import { GrossPar3SkinsDisplay } from '@/components/GrossPar3SkinsDisplay';
 import { useMyTodaysTeeTime } from '@/hooks/useTeeTimeScoreEntry';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -186,8 +187,7 @@ interface FeaturedRoundProps {
 
 function FeaturedRound({ round }: FeaturedRoundProps) {
   const scorecards = useRoundScorecards(String(round.id));
-  // Top-level flights list gives us names + display order; we look each
-  // scorecard's flightId up against it.
+  const skins = useRoundSkins(String(round.id));
   const flights = useFlights();
 
   const cards = (scorecards.data?.data ?? []).reduce<Map<number, RoundScorecard[]>>(
@@ -229,6 +229,10 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
           <ArrowRight className="h-4 w-4 text-gray-400" />
         </div>
       </Link>
+
+      {skins.data?.grossPar3Skins && (
+        <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} />
+      )}
 
       {scorecards.isPending && (
         <div className="flex justify-center py-8">
