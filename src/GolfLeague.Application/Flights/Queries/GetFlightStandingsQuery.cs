@@ -76,10 +76,18 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
             var totalPoints = request.UseGrossPoints ? totalGross : totalNet;
 
             var roundsPlayed = group.Count();
-            var avgPoints = roundsPlayed > 0 ? (double)totalPoints / roundsPlayed : 0.0;
 
-            var grossScores = group.Where(rp => rp.TotalGrossStrokes.HasValue).ToList();
-            var netScores = group.Where(rp => rp.TotalNetStrokes.HasValue).ToList();
+            // Skipped weeks count as 0 pts for total/ranking but must not deflate the average.
+            var scoredRounds = group.Where(rp => !rp.SkippedWeek).ToList();
+            var scoredCount = scoredRounds.Count;
+            var avgPoints = scoredCount > 0
+                ? (double)(request.UseGrossPoints
+                    ? scoredRounds.Sum(rp => rp.TotalGrossStablefordPoints ?? 0)
+                    : scoredRounds.Sum(rp => rp.TotalNetStablefordPoints ?? 0)) / scoredCount
+                : 0.0;
+
+            var grossScores = scoredRounds.Where(rp => rp.TotalGrossStrokes.HasValue).ToList();
+            var netScores = scoredRounds.Where(rp => rp.TotalNetStrokes.HasValue).ToList();
             var scoreList = request.UseGrossPoints ? grossScores : netScores;
             double? avgScore = scoreList.Count > 0
                 ? Math.Round(
