@@ -146,8 +146,18 @@ class AuthService {
         (responseData as Map<String, dynamic>)['data'] as Map<String, dynamic>;
     final accessToken = data['accessToken'] as String;
     final refreshToken = (data['refreshToken'] as String?) ?? '';
-    final role = data['role'] as String;
     final mfaRequired = data['mfaRequired'] as bool? ?? false;
+
+    // Backend returns a 'roles' list; derive the highest-privilege role.
+    final rawRoles = data['roles'];
+    final List<String> roles = rawRoles is List
+        ? rawRoles.map((e) => e.toString()).toList()
+        : [(data['role'] as String?) ?? 'player'];
+    const rolePriority = ['admin', 'scorer', 'player'];
+    final role = rolePriority.firstWhere(
+      (r) => roles.contains(r),
+      orElse: () => roles.isNotEmpty ? roles.first : 'player',
+    );
 
     if (mfaRequired) {
       // Don't store the challenge token — caller must complete MFA first.

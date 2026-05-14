@@ -73,21 +73,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _passwordLogin() {
-    return _runAuth(() => ref
-        .read(authServiceProvider)
-        .loginWithPassword(_emailController.text.trim(), _passwordController.text));
+    return _runAuth(
+      () => ref
+          .read(authServiceProvider)
+          .loginWithPassword(
+            _emailController.text.trim(),
+            _passwordController.text,
+          ),
+    );
   }
 
   Future<void> _socialLogin(String provider) {
-    return _runAuth(() => ref.read(authServiceProvider).loginWithSocial(provider));
+    return _runAuth(
+      () => ref.read(authServiceProvider).loginWithSocial(provider),
+    );
   }
 
   Future<void> _verifyMfa() {
     final token = _mfaToken;
     if (token == null) return Future.value();
-    return _runAuth(() => ref
-        .read(authServiceProvider)
-        .verifyTotp(mfaToken: token, code: _mfaCodeController.text.trim()));
+    return _runAuth(
+      () => ref
+          .read(authServiceProvider)
+          .verifyTotp(mfaToken: token, code: _mfaCodeController.text.trim()),
+    );
   }
 
   @override
@@ -109,8 +118,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   Text(
                     isMfa ? 'Two-step verification' : 'Sign in',
                     style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 24),
                   if (_error != null)
@@ -118,7 +127,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: Text(
                         _error!,
-                        style: TextStyle(color: Theme.of(context).colorScheme.error),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -161,16 +172,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: FilledButton(
             onPressed: _loading ? null : _passwordLogin,
             child: _loading
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Sign in'),
           ),
         ),
         const SizedBox(height: 24),
-        const Row(children: [
-          Expanded(child: Divider()),
-          Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('or')),
-          Expanded(child: Divider()),
-        ]),
+        const Row(
+          children: [
+            Expanded(child: Divider()),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 12),
+              child: Text('or'),
+            ),
+            Expanded(child: Divider()),
+          ],
+        ),
         const SizedBox(height: 16),
         SizedBox(
           width: double.infinity,
@@ -179,16 +199,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             onPressed: _loading ? null : () => _socialLogin('google'),
             icon: const Icon(Icons.g_mobiledata),
             label: const Text('Continue with Google'),
-          ),
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          width: double.infinity,
-          height: 48,
-          child: OutlinedButton.icon(
-            onPressed: _loading ? null : () => _socialLogin('facebook'),
-            icon: const Icon(Icons.facebook),
-            label: const Text('Continue with Facebook'),
           ),
         ),
       ],
@@ -220,7 +230,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           child: FilledButton(
             onPressed: _loading ? null : _verifyMfa,
             child: _loading
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Verify'),
           ),
         ),
@@ -228,9 +242,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           onPressed: _loading
               ? null
               : () => setState(() {
-                    _mfaToken = null;
-                    _mfaCodeController.clear();
-                  }),
+                  _mfaToken = null;
+                  _mfaCodeController.clear();
+                }),
           child: const Text('Back'),
         ),
       ],
@@ -242,7 +256,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     try {
       final response = dynamicError.response;
       final data = response?.data;
-      if (data is Map && data['error'] is String) return data['error'] as String;
+      if (data is Map && data['error'] is String) {
+        return data['error'] as String;
+      }
     } catch (_) {}
     return 'Sign-in failed. Please try again.';
   }
