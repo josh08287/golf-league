@@ -553,3 +553,43 @@ export interface MostImprovedResult {
   seasonHalfName: string;
   minRoundsRequired: number;
 }
+
+// ── League Leaderboards ──────────────────────────────────────────────────────
+
+export interface PlayerGrossLeaderboardEntry {
+  playerId: number;
+  playerName: string;
+  bestGrossScore: number;
+  roundDate: string;
+  courseName: string;
+}
+
+export interface PlayerNetLeaderboardEntry {
+  playerId: number;
+  playerName: string;
+  bestNetScore: number;
+  roundDate: string;
+  courseName: string;
+}
+
+export interface PlayerBirdiesEagles {
+  playerId: number;
+  playerName: string;
+  totalBirdies: number;
+  totalEaglesOrBetter: number;
+  total: number;
+}
+
+export interface PlayerPar3Skins {
+  playerId: number;
+  playerName: string;
+  totalSkinsWon: number;
+  totalSkinValue: number;
+}
+
+export interface LeagueLeaderboards {
+  lowGross: PlayerGrossLeaderboardEntry[];
+  lowNet: PlayerNetLeaderboardEntry[];
+  birdiesEagles: PlayerBirdiesEagles[];
+  par3Skins: PlayerPar3Skins[];
+}

@@ -50,4 +50,13 @@ public sealed class StatisticsFunctions
         var result = await _mediator.Send(new GetMostImprovedPlayerQuery(), cancellationToken);
         return result.ToOkResult();
     }
+
+    [Function("GetLeagueLeaderboards")]
+    public async Task<IActionResult> GetLeagueLeaderboards(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/statistics/leaderboards")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetLeagueLeaderboardsQuery(), cancellationToken);
+        return result.ToOkResult();
+    }
 }

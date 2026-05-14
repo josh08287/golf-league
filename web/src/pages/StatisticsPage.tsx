@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp } from 'lucide-react';
-import { useCourses, useCourseStatistics, useMostImproved } from '@/hooks/useStatistics';
+import { useCourses, useCourseStatistics, useMostImproved, useLeagueLeaderboards } from '@/hooks/useStatistics';
 import { Link } from 'react-router-dom';
 import {
   Card,
@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/Badge';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
-import type { HoleStatistics, MostImprovedPlayer } from '@/types/api';
+import type { HoleStatistics, MostImprovedPlayer, LeagueLeaderboards } from '@/types/api';
 
 function scoreToParLabel(val: number | null) {
   if (val == null) return '—';
@@ -209,6 +209,172 @@ function MostImprovedSection() {
   );
 }
 
+function LeaderboardTable({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
+      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function LeagueLeaderboardsSection() {
+  const { data, isPending, isError } = useLeagueLeaderboards();
+
+  if (isPending) return null;
+  if (isError || !data) return <ErrorMessage message="Could not load league leaderboards." />;
+
+  const { lowGross, lowNet, birdiesEagles, par3Skins } = data as LeagueLeaderboards;
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      {/* Low Overall Gross */}
+      <LeaderboardTable title="Low Overall Gross Score">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead>Player</TableHead>
+              <TableHead className="text-right">Score</TableHead>
+              <TableHead className="text-right">Date</TableHead>
+              <TableHead>Course</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lowGross.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
+              </TableRow>
+            ) : (
+              lowGross.map((entry, i) => (
+                <TableRow key={entry.playerId}>
+                  <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
+                  <TableCell>
+                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                      {entry.playerName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.bestGrossScore}</TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-500 text-xs">{entry.roundDate}</TableCell>
+                  <TableCell className="text-gray-500 text-xs">{entry.courseName}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </LeaderboardTable>
+
+      {/* Low Overall Net */}
+      <LeaderboardTable title="Low Overall Net Score">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead>Player</TableHead>
+              <TableHead className="text-right">Score</TableHead>
+              <TableHead className="text-right">Date</TableHead>
+              <TableHead>Course</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {lowNet.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
+              </TableRow>
+            ) : (
+              lowNet.map((entry, i) => (
+                <TableRow key={entry.playerId}>
+                  <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
+                  <TableCell>
+                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                      {entry.playerName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.bestNetScore}</TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-500 text-xs">{entry.roundDate}</TableCell>
+                  <TableCell className="text-gray-500 text-xs">{entry.courseName}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </LeaderboardTable>
+
+      {/* Birdies + Eagles */}
+      <LeaderboardTable title="Birdies & Eagles">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead>Player</TableHead>
+              <TableHead className="text-right">Eagles+</TableHead>
+              <TableHead className="text-right">Birdies</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {birdiesEagles.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
+              </TableRow>
+            ) : (
+              birdiesEagles.map((entry, i) => (
+                <TableRow key={entry.playerId}>
+                  <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
+                  <TableCell>
+                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                      {entry.playerName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums text-blue-600">{entry.totalEaglesOrBetter}</TableCell>
+                  <TableCell className="text-right tabular-nums text-green-600">{entry.totalBirdies}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.total}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </LeaderboardTable>
+
+      {/* Par-3 Gross Skins */}
+      <LeaderboardTable title="Par-3 Gross Skins">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-50">
+              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead>Player</TableHead>
+              <TableHead className="text-right">Skins Won</TableHead>
+              <TableHead className="text-right">Total Value</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {par3Skins.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={4} className="text-center text-gray-400">No data yet</TableCell>
+              </TableRow>
+            ) : (
+              par3Skins.map((entry, i) => (
+                <TableRow key={entry.playerId}>
+                  <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
+                  <TableCell>
+                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                      {entry.playerName}
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-right tabular-nums">{entry.totalSkinsWon}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.totalSkinValue}</TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </LeaderboardTable>
+    </div>
+  );
+}
+
 export function StatisticsPage() {
   const courses = useCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
@@ -249,6 +415,9 @@ export function StatisticsPage() {
 
       {/* Most Improved Player */}
       <MostImprovedSection />
+
+      {/* League-wide leaderboards */}
+      <LeagueLeaderboardsSection />
 
       {/* Course picker */}
       {courses.isPending && <FullPageSpinner />}

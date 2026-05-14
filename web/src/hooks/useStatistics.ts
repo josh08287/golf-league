@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult } from '@/types/api';
+import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult, LeagueLeaderboards } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
 export const statisticsKeys = {
@@ -11,6 +11,7 @@ export const statisticsKeys = {
   player: (playerId: number | string) =>
     [...statisticsKeys.all, 'player', String(playerId)] as const,
   mostImproved: () => [...statisticsKeys.all, 'most-improved'] as const,
+  leaderboards: () => [...statisticsKeys.all, 'leaderboards'] as const,
 };
 
 export function useCourses() {
@@ -57,6 +58,18 @@ export function useMostImproved() {
     queryFn: async () => {
       const response = await apiClient.get<MostImprovedResult>(
         '/statistics/most-improved',
+      );
+      return response.data;
+    },
+  });
+}
+
+export function useLeagueLeaderboards() {
+  return useQuery({
+    queryKey: statisticsKeys.leaderboards(),
+    queryFn: async () => {
+      const response = await apiClient.get<LeagueLeaderboards>(
+        '/statistics/leaderboards',
       );
       return response.data;
     },
