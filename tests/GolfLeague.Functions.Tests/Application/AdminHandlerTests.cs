@@ -156,20 +156,6 @@ public class RecalculateAllRoundsCommandHandlerTests
             StrokeIndex = i
         }).ToList();
 
-        var participant = new RoundParticipant
-        {
-            Id = 1,
-            RoundId = 1,
-            PlayerId = 1,
-            FlightId = 1,
-            HandicapIndex = 18.0,
-            CourseHandicap = 9,
-            TotalGrossStrokes = 45,
-            TotalNetStrokes = 36,
-            IsWithdrawn = false,
-            SkippedWeek = false
-        };
-
         var holeScores = courseHoles.Select(h => new HoleScore
         {
             Id = h.HoleNumber,
@@ -184,6 +170,21 @@ public class RecalculateAllRoundsCommandHandlerTests
             NetStablefordPoints = 2
         }).ToList();
 
+        var participant = new RoundParticipant
+        {
+            Id = 1,
+            RoundId = 1,
+            PlayerId = 1,
+            FlightId = 1,
+            HandicapIndex = 18.0,
+            CourseHandicap = 9,
+            TotalGrossStrokes = 45,
+            TotalNetStrokes = 36,
+            IsWithdrawn = false,
+            SkippedWeek = false,
+            HoleScores = holeScores  // Set HoleScores directly on participant
+        };
+
         _roundRepo.Setup(r => r.GetAllAsync(default))
             .ReturnsAsync(new List<Round> { round });
 
@@ -195,9 +196,6 @@ public class RecalculateAllRoundsCommandHandlerTests
 
         _roundRepo.Setup(r => r.GetParticipantsAsync(1, default))
             .ReturnsAsync(new List<RoundParticipant> { participant });
-
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(1, default))
-            .ReturnsAsync(holeScores);
 
         var result = await _handler.Handle(new RecalculateAllRoundsCommand("admin"), default);
 
