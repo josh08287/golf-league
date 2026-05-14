@@ -559,17 +559,15 @@ export interface MostImprovedResult {
 export interface PlayerGrossLeaderboardEntry {
   playerId: number;
   playerName: string;
-  bestGrossScore: number;
-  roundDate: string;
-  courseName: string;
+  averageGrossScore: number;
+  roundsPlayed: number;
 }
 
 export interface PlayerNetLeaderboardEntry {
   playerId: number;
   playerName: string;
-  bestNetScore: number;
-  roundDate: string;
-  courseName: string;
+  averageNetScore: number;
+  roundsPlayed: number;
 }
 
 export interface PlayerBirdiesEagles {

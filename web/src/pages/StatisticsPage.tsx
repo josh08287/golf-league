@@ -209,46 +209,80 @@ function MostImprovedSection() {
   );
 }
 
-function LeaderboardTable({ title, children }: { title: string; children: React.ReactNode }) {
+const PAGE_SIZE = 5;
+
+function LeaderboardTable({
+  title,
+  total,
+  expanded,
+  onToggle,
+  children,
+}: {
+  title: string;
+  total: number;
+  expanded: boolean;
+  onToggle?: () => void;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <h3 className="mb-2 text-sm font-semibold text-gray-700">{title}</h3>
       <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
         {children}
       </div>
+      {onToggle && total > PAGE_SIZE && (
+        <button
+          onClick={onToggle}
+          className="mt-1.5 flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {expanded ? 'Show less' : `Show all ${total} players`}
+        </button>
+      )}
     </div>
   );
 }
 
 function LeagueLeaderboardsSection() {
   const { data, isPending, isError } = useLeagueLeaderboards();
+  const [grossExpanded, setGrossExpanded] = useState(false);
+  const [netExpanded, setNetExpanded] = useState(false);
+  const [birdiesExpanded, setBirdiesExpanded] = useState(false);
 
   if (isPending) return null;
   if (isError || !data) return <ErrorMessage message="Could not load league leaderboards." />;
 
   const { lowGross, lowNet, birdiesEagles, par3Skins } = data as LeagueLeaderboards;
 
+  const visibleGross = grossExpanded ? lowGross : lowGross.slice(0, PAGE_SIZE);
+  const visibleNet = netExpanded ? lowNet : lowNet.slice(0, PAGE_SIZE);
+  const visibleBirdies = birdiesExpanded ? birdiesEagles : birdiesEagles.slice(0, PAGE_SIZE);
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      {/* Low Overall Gross */}
-      <LeaderboardTable title="Low Overall Gross Score">
+      {/* Avg Overall Gross */}
+      <LeaderboardTable
+        title="Avg Overall Gross Score"
+        total={lowGross.length}
+        expanded={grossExpanded}
+        onToggle={() => setGrossExpanded((v) => !v)}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>Player</TableHead>
-              <TableHead className="text-right">Score</TableHead>
-              <TableHead className="text-right">Date</TableHead>
-              <TableHead>Course</TableHead>
+              <TableHead className="text-right">Avg Score</TableHead>
+              <TableHead className="text-right">Rounds</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lowGross.length === 0 ? (
+            {visibleGross.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
+                <TableCell colSpan={4} className="text-center text-gray-400">No data yet</TableCell>
               </TableRow>
             ) : (
-              lowGross.map((entry, i) => (
+              visibleGross.map((entry, i) => (
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
@@ -256,9 +290,8 @@ function LeagueLeaderboardsSection() {
                       {entry.playerName}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">{entry.bestGrossScore}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-500 text-xs">{entry.roundDate}</TableCell>
-                  <TableCell className="text-gray-500 text-xs">{entry.courseName}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.averageGrossScore.toFixed(1)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-500">{entry.roundsPlayed}</TableCell>
                 </TableRow>
               ))
             )}
@@ -266,25 +299,29 @@ function LeagueLeaderboardsSection() {
         </Table>
       </LeaderboardTable>
 
-      {/* Low Overall Net */}
-      <LeaderboardTable title="Low Overall Net Score">
+      {/* Avg Overall Net */}
+      <LeaderboardTable
+        title="Avg Overall Net Score"
+        total={lowNet.length}
+        expanded={netExpanded}
+        onToggle={() => setNetExpanded((v) => !v)}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
               <TableHead className="w-10 text-center">#</TableHead>
               <TableHead>Player</TableHead>
-              <TableHead className="text-right">Score</TableHead>
-              <TableHead className="text-right">Date</TableHead>
-              <TableHead>Course</TableHead>
+              <TableHead className="text-right">Avg Score</TableHead>
+              <TableHead className="text-right">Rounds</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {lowNet.length === 0 ? (
+            {visibleNet.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
+                <TableCell colSpan={4} className="text-center text-gray-400">No data yet</TableCell>
               </TableRow>
             ) : (
-              lowNet.map((entry, i) => (
+              visibleNet.map((entry, i) => (
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
@@ -292,9 +329,8 @@ function LeagueLeaderboardsSection() {
                       {entry.playerName}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-right tabular-nums font-semibold">{entry.bestNetScore}</TableCell>
-                  <TableCell className="text-right tabular-nums text-gray-500 text-xs">{entry.roundDate}</TableCell>
-                  <TableCell className="text-gray-500 text-xs">{entry.courseName}</TableCell>
+                  <TableCell className="text-right tabular-nums font-semibold">{entry.averageNetScore.toFixed(1)}</TableCell>
+                  <TableCell className="text-right tabular-nums text-gray-500">{entry.roundsPlayed}</TableCell>
                 </TableRow>
               ))
             )}
@@ -303,7 +339,12 @@ function LeagueLeaderboardsSection() {
       </LeaderboardTable>
 
       {/* Birdies + Eagles */}
-      <LeaderboardTable title="Birdies & Eagles">
+      <LeaderboardTable
+        title="Birdies & Eagles"
+        total={birdiesEagles.length}
+        expanded={birdiesExpanded}
+        onToggle={() => setBirdiesExpanded((v) => !v)}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
@@ -315,12 +356,12 @@ function LeagueLeaderboardsSection() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {birdiesEagles.length === 0 ? (
+            {visibleBirdies.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={5} className="text-center text-gray-400">No data yet</TableCell>
               </TableRow>
             ) : (
-              birdiesEagles.map((entry, i) => (
+              visibleBirdies.map((entry, i) => (
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
@@ -339,7 +380,11 @@ function LeagueLeaderboardsSection() {
       </LeaderboardTable>
 
       {/* Par-3 Gross Skins */}
-      <LeaderboardTable title="Par-3 Gross Skins">
+      <LeaderboardTable
+        title="Par-3 Gross Skins"
+        total={par3Skins.length}
+        expanded={true}
+      >
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">

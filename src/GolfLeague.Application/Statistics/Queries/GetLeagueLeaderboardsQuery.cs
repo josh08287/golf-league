@@ -10,16 +10,14 @@ namespace GolfLeague.Application.Statistics.Queries;
 public sealed record PlayerGrossLeaderboardEntryDto(
     int PlayerId,
     string PlayerName,
-    int BestGrossScore,
-    string RoundDate,
-    string CourseName);
+    double AverageGrossScore,
+    int RoundsPlayed);
 
 public sealed record PlayerNetLeaderboardEntryDto(
     int PlayerId,
     string PlayerName,
-    int BestNetScore,
-    string RoundDate,
-    string CourseName);
+    double AverageNetScore,
+    int RoundsPlayed);
 
 public sealed record PlayerBirdiesEaglesDto(
     int PlayerId,
@@ -69,8 +67,8 @@ public sealed class GetLeagueLeaderboardsQueryHandler
             .ToList();
 
         // Accumulate per-player data
-        var grossByPlayer = new Dictionary<int, (string Name, int Score, string Date, string Course)>();
-        var netByPlayer = new Dictionary<int, (string Name, int Score, string Date, string Course)>();
+        var grossByPlayer = new Dictionary<int, (string Name, long TotalStrokes, int Rounds)>();
+        var netByPlayer = new Dictionary<int, (string Name, long TotalStrokes, int Rounds)>();
         var birdiesByPlayer = new Dictionary<int, (string Name, int Birdies, int Eagles)>();
         var skinsByPlayer = new Dictionary<int, (string Name, int Count, int Value)>();
 
@@ -92,30 +90,26 @@ public sealed class GetLeagueLeaderboardsQueryHandler
                 participantScores.Add((p, holeScores));
             }
 
-            // Low gross / low net
+            // Avg gross / avg net / birdies + eagles
             foreach (var (p, holeScores) in participantScores)
             {
                 if (!p.TotalGrossStrokes.HasValue) continue;
 
                 var playerName = p.Player?.FullName ?? string.Empty;
-                var dateStr = round.RoundDate.ToString("yyyy-MM-dd");
-                var courseName = round.Course?.Name ?? string.Empty;
 
-                // Low gross — keep best (lowest) gross per player
-                if (!grossByPlayer.TryGetValue(p.PlayerId, out var currentGross) ||
-                    p.TotalGrossStrokes.Value < currentGross.Score)
-                {
-                    grossByPlayer[p.PlayerId] = (playerName, p.TotalGrossStrokes.Value, dateStr, courseName);
-                }
+                // Avg gross — accumulate total strokes and round count
+                if (!grossByPlayer.TryGetValue(p.PlayerId, out var currentGross))
+                    grossByPlayer[p.PlayerId] = (playerName, p.TotalGrossStrokes.Value, 1);
+                else
+                    grossByPlayer[p.PlayerId] = (playerName, currentGross.TotalStrokes + p.TotalGrossStrokes.Value, currentGross.Rounds + 1);
 
-                // Low net — keep best (lowest) net per player
+                // Avg net — accumulate total strokes and round count
                 if (p.TotalNetStrokes.HasValue)
                 {
-                    if (!netByPlayer.TryGetValue(p.PlayerId, out var currentNet) ||
-                        p.TotalNetStrokes.Value < currentNet.Score)
-                    {
-                        netByPlayer[p.PlayerId] = (playerName, p.TotalNetStrokes.Value, dateStr, courseName);
-                    }
+                    if (!netByPlayer.TryGetValue(p.PlayerId, out var currentNet))
+                        netByPlayer[p.PlayerId] = (playerName, p.TotalNetStrokes.Value, 1);
+                    else
+                        netByPlayer[p.PlayerId] = (playerName, currentNet.TotalStrokes + p.TotalNetStrokes.Value, currentNet.Rounds + 1);
                 }
 
                 // Birdies + eagles
@@ -142,15 +136,19 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
         var lowGross = grossByPlayer
             .Select(kv => new PlayerGrossLeaderboardEntryDto(
-                kv.Key, kv.Value.Name, kv.Value.Score, kv.Value.Date, kv.Value.Course))
-            .OrderBy(x => x.BestGrossScore)
+                kv.Key, kv.Value.Name,
+                Math.Round((double)kv.Value.TotalStrokes / kv.Value.Rounds, 1),
+                kv.Value.Rounds))
+            .OrderBy(x => x.AverageGrossScore)
             .ThenBy(x => x.PlayerName)
             .ToList();
 
         var lowNet = netByPlayer
             .Select(kv => new PlayerNetLeaderboardEntryDto(
-                kv.Key, kv.Value.Name, kv.Value.Score, kv.Value.Date, kv.Value.Course))
-            .OrderBy(x => x.BestNetScore)
+                kv.Key, kv.Value.Name,
+                Math.Round((double)kv.Value.TotalStrokes / kv.Value.Rounds, 1),
+                kv.Value.Rounds))
+            .OrderBy(x => x.AverageNetScore)
             .ThenBy(x => x.PlayerName)
             .ToList();
 
