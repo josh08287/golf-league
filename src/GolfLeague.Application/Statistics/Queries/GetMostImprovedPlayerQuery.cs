@@ -96,9 +96,10 @@ public sealed class GetMostImprovedPlayerQueryHandler
                 null, [], currentHalf.Name, MinRounds));
         }
 
-        // Count finalized rounds per player and collect names
+        // Count finalized rounds per player and track their first round date
         var roundsPerPlayer = new Dictionary<int, int>();
         var playerNames = new Dictionary<int, string>();
+        var firstRoundDatePerPlayer = new Dictionary<int, DateOnly>();
 
         foreach (var round in finalizedRounds)
         {
@@ -110,6 +111,13 @@ public sealed class GetMostImprovedPlayerQueryHandler
 
                 roundsPerPlayer[p.PlayerId] = roundsPerPlayer.GetValueOrDefault(p.PlayerId) + 1;
                 playerNames.TryAdd(p.PlayerId, p.Player?.FullName ?? $"Player #{p.PlayerId}");
+
+                // Track earliest round date for each player in this half
+                if (!firstRoundDatePerPlayer.TryGetValue(p.PlayerId, out var existing) ||
+                    round.RoundDate < existing)
+                {
+                    firstRoundDatePerPlayer[p.PlayerId] = round.RoundDate;
+                }
             }
         }
 
@@ -138,14 +146,16 @@ public sealed class GetMostImprovedPlayerQueryHandler
 
             var ordered = history.OrderBy(h => h.EffectiveDate).ThenBy(h => h.Id).ToList();
 
-            // Starting HI: the most recent handicap on or before the half start date
+            // Starting HI: the most recent handicap recorded before the player's
+            // first round in this half (not the half start date).
+            var firstRoundDate = firstRoundDatePerPlayer[playerId];
             var startingRecord = ordered
-                .Where(h => h.EffectiveDate < halfStartDate)
+                .Where(h => h.EffectiveDate < firstRoundDate)
                 .OrderByDescending(h => h.EffectiveDate)
                 .ThenByDescending(h => h.Id)
                 .FirstOrDefault();
 
-            // If no handicap existed before the half started, use the earliest one
+            // If no handicap existed before their first round, use the earliest one
             startingRecord ??= ordered.First();
 
             // Current HI: the player's latest handicap record
