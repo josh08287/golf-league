@@ -27,7 +27,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
-    public DbSet<UserPasskey> UserPasskeys => Set<UserPasskey>();
+    public new DbSet<UserPasskey> UserPasskeys => Set<UserPasskey>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
