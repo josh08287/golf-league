@@ -140,7 +140,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
 
             // Starting HI: the most recent handicap on or before the half start date
             var startingRecord = ordered
-                .Where(h => h.EffectiveDate <= halfStartDate)
+                .Where(h => h.EffectiveDate < halfStartDate)
                 .OrderByDescending(h => h.EffectiveDate)
                 .ThenByDescending(h => h.Id)
                 .FirstOrDefault();

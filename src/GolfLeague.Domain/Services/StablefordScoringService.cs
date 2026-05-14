@@ -29,5 +29,5 @@ public static class StablefordScoringService
         => (grossStrokes - courseRating) * 113.0 / slopeRating;
 
     public static double NineHoleScoreDifferential(int grossStrokes, double courseRating, int slopeRating)
-        => (grossStrokes - (courseRating / 2)) * 113.0 / slopeRating;
+        => (grossStrokes - (courseRating / 2)) * (113.0 / slopeRating);
 }
