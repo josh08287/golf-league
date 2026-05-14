@@ -141,6 +141,9 @@ public sealed class RecalculateAllRoundsCommandHandler
                             participant.TotalGrossStablefordPoints = holeScores.Sum(h => h.GrossStablefordPoints);
                             participant.TotalNetStablefordPoints = holeScores.Sum(h => h.NetStablefordPoints);
 
+                            // Detach Player to avoid EF Core tracking conflicts across rounds
+                            participant.Player = null!;
+
                             await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
                             participantsProcessed++;
                         }
