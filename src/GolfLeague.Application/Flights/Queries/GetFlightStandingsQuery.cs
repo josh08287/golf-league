@@ -35,6 +35,8 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
         .Add("totalPoints", s => s.TotalPoints)
         .Add("avg", s => s.AveragePoints)
         .Add("averagePoints", s => s.AveragePoints)
+        .Add("score", s => s.AverageScore ?? double.MaxValue)
+        .Add("averageScore", s => s.AverageScore ?? double.MaxValue)
         .Add("hcp", s => s.CurrentHandicapIndex)
         .Add("currentHandicapIndex", s => s.CurrentHandicapIndex);
 
@@ -76,6 +78,16 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
             var roundsPlayed = group.Count();
             var avgPoints = roundsPlayed > 0 ? (double)totalPoints / roundsPlayed : 0.0;
 
+            var grossScores = group.Where(rp => rp.TotalGrossStrokes.HasValue).ToList();
+            var netScores = group.Where(rp => rp.TotalNetStrokes.HasValue).ToList();
+            var scoreList = request.UseGrossPoints ? grossScores : netScores;
+            double? avgScore = scoreList.Count > 0
+                ? Math.Round(
+                    (double)(request.UseGrossPoints
+                        ? scoreList.Sum(rp => rp.TotalGrossStrokes!.Value)
+                        : scoreList.Sum(rp => rp.TotalNetStrokes!.Value)) / scoreList.Count, 1)
+                : null;
+
             var currentHandicap = await _handicapRepository.GetCurrentAsync(group.Key, cancellationToken);
 
             dtos.Add(new StandingDto(
@@ -86,7 +98,8 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
                 RoundsPlayed: roundsPlayed,
                 TotalPoints: totalPoints,
                 AveragePoints: Math.Round(avgPoints, 2),
-                CurrentHandicapIndex: currentHandicap?.HandicapIndex ?? 0.0));
+                CurrentHandicapIndex: currentHandicap?.HandicapIndex ?? 0.0,
+                AverageScore: avgScore));
         }
 
         // Position is the league rank based on the default ordering — assign

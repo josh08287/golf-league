@@ -8,4 +8,5 @@ public sealed record StandingDto(
     int RoundsPlayed,
     int TotalPoints,
     double AveragePoints,
-    double CurrentHandicapIndex);
+    double CurrentHandicapIndex,
+    double? AverageScore);

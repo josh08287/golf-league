@@ -61,6 +61,9 @@ function StandingsRow({ standing, highlight }: StandingsRowProps) {
       <TableCell className="text-center">{standing.roundsPlayed}</TableCell>
       <TableCell className="text-center font-semibold">{standing.totalPoints}</TableCell>
       <TableCell className="text-center">{standing.averagePoints.toFixed(1)}</TableCell>
+      <TableCell className="text-center tabular-nums">
+        {standing.averageScore != null ? standing.averageScore.toFixed(1) : '—'}
+      </TableCell>
     </TableRow>
   );
 }
@@ -166,7 +169,10 @@ export function FlightLeaderboardPage() {
                       {useGross ? 'Gross Pts' : 'Net Pts'}
                     </SortableTableHead>
                     <SortableTableHead column="avg" sort={sort} onSort={cycle} className="text-center">
-                      Avg
+                      Avg Pts
+                    </SortableTableHead>
+                    <SortableTableHead column="score" sort={sort} onSort={cycle} className="text-center">
+                      Avg {useGross ? 'Gross' : 'Net'}
                     </SortableTableHead>
                   </TableRow>
                 </TableHeader>

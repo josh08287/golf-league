@@ -78,6 +78,7 @@ export interface Standing {
   totalPoints: number;
   averagePoints: number;
   currentHandicapIndex: number;
+  averageScore: number | null;
 }
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
