@@ -11,10 +11,15 @@ on:
       - 'mobile/**'
       - '.github/workflows/mobile-android.yml'
   workflow_dispatch:
+  release:
+    types: [published]
+
+env:
+  FLUTTER_VERSION: '3.41.8'
 
 jobs:
   build:
-    name: Build APK
+    name: Build & Test
     runs-on: ubuntu-latest
 
     steps:
@@ -27,7 +32,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.8'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
 
@@ -56,8 +61,36 @@ jobs:
         working-directory: mobile
         run: flutter build apk --release
 
+      - name: Decode keystore
+        working-directory: mobile/android/app
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+
+      - name: Create key.properties
+        working-directory: mobile/android
+        run: |
+          echo "storeFile=app/keystore.jks" > key.properties
+          echo "storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" >> key.properties
+          echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}" >> key.properties
+          echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}" >> key.properties
+
+      - name: Build App Bundle
+        working-directory: mobile
+        run: flutter build appbundle --release
+
+      - name: Cleanup keystore
+        if: always()
+        working-directory: mobile/android/app
+        run: rm -f keystore.jks
+
       - uses: actions/upload-artifact@v4
         with:
-          name: app-release
+          name: app-release-apk
           path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: mobile/build/app/outputs/bundle/release/app-release.aab
           retention-days: 14
