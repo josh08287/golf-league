@@ -11,6 +11,7 @@ import {
   Trophy,
   Mail,
   Clock,
+  Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -25,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/admin/players', label: 'Players', icon: Users },
   { to: '/admin/invites', label: 'Invites', icon: Mail },
+  { to: '/admin/seasons', label: 'Seasons', icon: Layers },
   { to: '/admin/flights', label: 'Flights', icon: Trophy },
   { to: '/admin/rounds', label: 'Rounds', icon: CalendarDays },
   { to: '/admin/tee-times', label: 'Tee Times', icon: Clock },
