@@ -5,7 +5,7 @@ import type { TableSort } from '@/hooks/useSortableTable';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  header: React.ReactNode;
   render: (row: T) => React.ReactNode;
   /**
    * Set true to make this column header click-to-sort. The column key is

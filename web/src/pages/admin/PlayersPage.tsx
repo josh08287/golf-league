@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { usePlayers } from '../../hooks/usePlayers';
 import { useSortableTable } from '../../hooks/useSortableTable';
@@ -13,6 +13,9 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { AddPlayerForm } from '../../components/admin/AddPlayerForm';
 import { useDeactivatePlayer, useDeletePlayer } from '../../hooks/admin/usePlayerMutations';
+import { apiClient } from '@/lib/api';
+import { playerKeys } from '../../hooks/usePlayers';
+import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { AdministratorsTable } from '../../components/admin/AdministratorsTable';
 import type { Player } from '../../types/api';
@@ -34,9 +37,12 @@ export function PlayersPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Player | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkPending, setBulkPending] = useState(false);
 
   const deactivate = useDeactivatePlayer(String(deactivateTarget?.id ?? ''));
   const deletePlayer = useDeletePlayer();
+  const qc = useQueryClient();
 
   async function handleDeactivate() {
     if (!deactivateTarget) return;
@@ -48,6 +54,40 @@ export function PlayersPage() {
     if (!deleteTarget) return;
     await deletePlayer.mutateAsync(String(deleteTarget.id));
     setDeleteTarget(null);
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === players.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(players.map((p) => p.id)));
+    }
+  }
+
+  async function handleBulkAssignPlayerRole() {
+    setBulkPending(true);
+    try {
+      await Promise.all(
+        [...selectedIds].map((id) => {
+          const player = players.find((p) => p.id === id);
+          const existing = player?.roles ?? [];
+          if (existing.includes('player')) return Promise.resolve();
+          return apiClient.patch(`/players/${id}`, { roles: [...existing, 'player'] });
+        })
+      );
+      await qc.invalidateQueries({ queryKey: playerKeys.all });
+    } finally {
+      setBulkPending(false);
+      setSelectedIds(new Set());
+    }
   }
 
   if (isLoading) {
@@ -62,7 +102,33 @@ export function PlayersPage() {
     return <ErrorMessage message="Failed to load players." />;
   }
 
+  const allSelected = players.length > 0 && selectedIds.size === players.length;
+  const someSelected = selectedIds.size > 0 && selectedIds.size < players.length;
+
   const columns = [
+    {
+      key: 'select',
+      header: (
+        <input
+          type="checkbox"
+          checked={allSelected}
+          ref={(el) => { if (el) el.indeterminate = someSelected; }}
+          onChange={toggleSelectAll}
+          className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+          aria-label="Select all"
+        />
+      ),
+      render: (p: Player) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(p.id)}
+          onChange={() => toggleSelect(p.id)}
+          onClick={(e) => e.stopPropagation()}
+          className="h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+          aria-label={`Select ${p.fullName}`}
+        />
+      ),
+    },
     {
       key: 'name',
       header: 'Name',
@@ -168,6 +234,29 @@ export function PlayersPage() {
           Add Player
         </Button>
       </PageHeader>
+
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-2.5">
+          <span className="text-sm font-medium text-green-800">
+            {selectedIds.size} player{selectedIds.size !== 1 ? 's' : ''} selected
+          </span>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={bulkPending}
+            onClick={handleBulkAssignPlayerRole}
+          >
+            <Users className="mr-1.5 h-3.5 w-3.5" />
+            {bulkPending ? 'Assigning…' : 'Assign Player Role'}
+          </Button>
+          <button
+            className="ml-auto text-xs text-green-700 hover:underline"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear selection
+          </button>
+        </div>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
         <DataTable
