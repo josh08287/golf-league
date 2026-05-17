@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Seasons.Queries;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
@@ -19,20 +20,26 @@ public sealed class CreateSeasonCommandHandler : IRequestHandler<CreateSeasonCom
 {
     private readonly ISeasonRepository _seasonRepository;
     private readonly IFlightRepository _flightRepository;
+    private readonly ILeagueContext _leagueContext;
 
-    public CreateSeasonCommandHandler(ISeasonRepository seasonRepository, IFlightRepository flightRepository)
+    public CreateSeasonCommandHandler(ISeasonRepository seasonRepository, IFlightRepository flightRepository, ILeagueContext leagueContext)
     {
         _seasonRepository = seasonRepository;
         _flightRepository = flightRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<SeasonDto>> Handle(CreateSeasonCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<SeasonDto>.Fail("No league context.");
+
         if (request.EndDate <= request.StartDate)
             return Result<SeasonDto>.Fail("Season end date must be after start date.");
 
         var season = new Season
         {
+            LeagueId = _leagueContext.LeagueId.Value,
             Name = request.Name,
             Year = request.Year,
             StartDate = request.StartDate,

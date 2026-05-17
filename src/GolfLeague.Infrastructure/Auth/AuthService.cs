@@ -363,6 +363,7 @@ public sealed class AuthService : IAuthService
             {
                 player = new Player
                 {
+                    LeagueId = invite.LeagueId,
                     FirstName = firstName,
                     LastName = lastName,
                     Email = user.Email!,

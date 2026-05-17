@@ -14,9 +14,17 @@ namespace GolfLeague.Tests.Application;
 
 public class CreateInvitesCommandHandlerTests
 {
+    private static ILeagueContext MakeLeagueContext(int leagueId = 1)
+    {
+        var ctx = new Mock<ILeagueContext>();
+        ctx.Setup(c => c.LeagueId).Returns(leagueId);
+        return ctx.Object;
+    }
+
     private static Player MakePlayer(int id = 1) => new()
     {
         Id = id,
+        LeagueId = 1,
         FirstName = "John",
         LastName = "Doe",
         Email = "john@example.com",
@@ -35,7 +43,7 @@ public class CreateInvitesCommandHandlerTests
         playerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player>());
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object);
+        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
         var command = new CreateInvitesCommand(
             new[] { "new@example.com" },
             "admin-1",
@@ -69,7 +77,7 @@ public class CreateInvitesCommandHandlerTests
         playerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player>());
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object);
+        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
         var command = new CreateInvitesCommand(
             new[] { "new@example.com" },
             "admin-1",
@@ -100,7 +108,7 @@ public class CreateInvitesCommandHandlerTests
         playerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player> { existingPlayer });
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object);
+        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
         var command = new CreateInvitesCommand(
             new[] { "john@example.com" },
             "admin-1",

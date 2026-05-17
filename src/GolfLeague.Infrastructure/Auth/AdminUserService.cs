@@ -20,6 +20,7 @@ public sealed class AdminUserService : IAdminUserService
     private readonly IUserRoleService _roleService;
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly ILeagueContext _leagueContext;
     private readonly ILogger<AdminUserService> _logger;
 
     public AdminUserService(
@@ -28,6 +29,7 @@ public sealed class AdminUserService : IAdminUserService
         IUserRoleService roleService,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
+        ILeagueContext leagueContext,
         ILogger<AdminUserService> logger)
     {
         _userManager = userManager;
@@ -35,6 +37,7 @@ public sealed class AdminUserService : IAdminUserService
         _roleService = roleService;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _leagueContext = leagueContext;
         _logger = logger;
     }
 
@@ -175,6 +178,9 @@ public sealed class AdminUserService : IAdminUserService
         if (string.IsNullOrWhiteSpace(firstName) || string.IsNullOrWhiteSpace(lastName))
             return Result<PlayerDto>.Fail("First and last name are required.");
 
+        if (_leagueContext.LeagueId is null)
+            return Result<PlayerDto>.Fail("No league context.");
+
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null) return Result<PlayerDto>.Fail("User not found.");
 
@@ -214,6 +220,7 @@ public sealed class AdminUserService : IAdminUserService
         {
             player = new Player
             {
+                LeagueId = _leagueContext.LeagueId.Value,
                 FirstName = firstName,
                 LastName = lastName,
                 Email = user.Email,
