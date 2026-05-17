@@ -39,7 +39,9 @@ export function AppRoute() {
   // If the active league changed and the JWT doesn't match, re-issue the token
   // before rendering protected content.
   useEffect(() => {
-    if (!activeLeague || !user) return;
+    // tokenSyncing is checked inside to bail out early without depending on the
+    // state value in the deps array (which would cause an extra re-run).
+    if (!activeLeague) return;
     const tokenLeagueId = getTokenLeagueId();
     if (tokenLeagueId === activeLeague.leagueId) return;
 
@@ -56,14 +58,20 @@ export function AppRoute() {
             playerId: me.playerId != null ? String(me.playerId) : null,
             isSuperAdmin: me.isSuperAdmin ?? false,
           });
+          // Clear cached query data so everything refetches with the new
+          // league-scoped token. Use a soft navigate instead of a hard reload
+          // so the interceptor in-memory state is preserved.
           queryClient.clear();
-          window.location.replace('/');
+          navigate('/', { replace: true });
         }
       } finally {
         setTokenSyncing(false);
       }
     })();
-  }, [activeLeague, user, setUser, queryClient, navigate]);
+    // Only re-run when the active league changes, not when user/setUser changes
+    // (setUser is called inside this same effect, which would cause a loop).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLeague?.leagueId]);
 
   useEffect(() => {
     if (!bootstrapping && !user) {
