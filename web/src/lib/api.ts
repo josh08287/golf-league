@@ -51,6 +51,10 @@ apiClient.interceptors.request.use(
 // if the retry itself returns 401.
 let pendingRefresh: Promise<string | null> | null = null;
 
+// Track whether we've already kicked off a logout navigation so multiple
+// concurrent 401s from failing requests don't each trigger a separate redirect.
+let redirectingToLogin = false;
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
@@ -78,16 +82,34 @@ apiClient.interceptors.response.use(
     }
 
     // Refresh failed — sign the user out and redirect to /login unless already there.
+    // Guard against multiple simultaneous 401s all trying to redirect.
+    if (redirectingToLogin) return Promise.reject(error);
+    redirectingToLogin = true;
+
     clearAuth();
     const path = window.location.pathname;
     const publicPaths = ['/login', '/register', '/accept-invite', '/auth/'];
     const onPublicPage = publicPaths.some((p) => path === p || path.startsWith(p));
     if (!onPublicPage) {
+      // Always use the React Router navigator if available. If it's not set
+      // yet (race during initial mount), wait one tick for effects to flush
+      // before falling back to a hard reload.
       if (_navigate) {
+        redirectingToLogin = false;
         _navigate('/login');
       } else {
-        window.location.href = '/login';
+        // Delay slightly so NavigatorInjector's useEffect has time to run.
+        setTimeout(() => {
+          redirectingToLogin = false;
+          if (_navigate) {
+            _navigate('/login');
+          } else {
+            window.location.href = '/login';
+          }
+        }, 50);
       }
+    } else {
+      redirectingToLogin = false;
     }
     return Promise.reject(error);
   },

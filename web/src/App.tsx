@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import { setNavigator } from '@/lib/api';
 import { RootLayout } from '@/components/layout/RootLayout';
 import { AppRoute } from '@/components/AppRoute';
@@ -27,7 +27,10 @@ import { adminRoutes } from '@/routes/adminRoutes';
 
 function NavigatorInjector() {
   const navigate = useNavigate();
-  useEffect(() => { setNavigator(navigate); }, [navigate]);
+  // useLayoutEffect fires synchronously after DOM mutations — before any child
+  // components' effects run — so _navigate is set before React Query fires
+  // its first requests and before any 401 response interceptor could trigger.
+  useLayoutEffect(() => { setNavigator(navigate); }, [navigate]);
   return null;
 }
 
