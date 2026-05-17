@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
@@ -26,7 +26,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
 
-  const { data: playersPage } = usePlayers(1, undefined, 200);
+  const { data: playersPage, isLoading: playersLoading } = usePlayers(1, undefined, 200);
   const allPlayers: Player[] = playersPage?.data?.filter((p) => p.isActive) ?? [];
 
   const { data: coursesPage } = useQuery<{ data: Course[] }>({
@@ -41,6 +41,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [playersInitialized, setPlayersInitialized] = useState(false);
 
   // Auto-generate default matchups whenever selected players change
   const regenerateMatchups = useCallback((players: SelectedPlayer[]) => {
@@ -53,6 +54,19 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     }
     setMatchups(pairs);
   }, []);
+
+  // Pre-populate all active players once the list loads
+  useEffect(() => {
+    if (playersInitialized || allPlayers.length === 0) return;
+    const initial = allPlayers.map((p) => ({
+      id: p.id,
+      fullName: p.fullName,
+      currentHandicap: p.currentHandicap,
+    }));
+    setSelectedPlayers(initial);
+    regenerateMatchups(initial);
+    setPlayersInitialized(true);
+  }, [allPlayers, playersInitialized, regenerateMatchups]);
 
   function addPlayer(playerId: number) {
     const player = allPlayers.find((p) => p.id === playerId);
@@ -130,7 +144,13 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
       <FormField label="Season">
         <input
           readOnly
-          value={activeSeason ? String(activeSeason.year) : '— No active season —'}
+          value={
+            activeSeason
+              ? String(activeSeason.year)
+              : seasons === undefined
+                ? 'Loading…'
+                : '— No active season —'
+          }
           className={inputClass + ' bg-gray-50 text-gray-500'}
         />
       </FormField>
@@ -169,27 +189,35 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
 
       {/* Player Selection */}
       <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Players <span className="text-red-500">*</span>
-        </label>
-        <div className="flex gap-2">
-          <select
-            className={selectClass}
-            defaultValue=""
-            onChange={(e) => {
-              const val = Number(e.target.value);
-              if (val) addPlayer(val);
-              e.target.value = '';
-            }}
-          >
-            <option value="">+ Add player…</option>
-            {availablePlayers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.fullName} (HCP {p.currentHandicap?.toFixed(1) ?? '—'})
-              </option>
-            ))}
-          </select>
+        <div className="mb-1 flex items-center justify-between">
+          <label className="block text-sm font-medium text-gray-700">
+            Players <span className="text-red-500">*</span>
+            {playersLoading && (
+              <span className="ml-2 text-xs font-normal text-gray-400">Loading…</span>
+            )}
+          </label>
+          <span className="text-xs text-gray-400">{selectedPlayers.length} selected</span>
         </div>
+        {availablePlayers.length > 0 && (
+          <div className="flex gap-2">
+            <select
+              className={selectClass}
+              defaultValue=""
+              onChange={(e) => {
+                const val = Number(e.target.value);
+                if (val) addPlayer(val);
+                e.target.value = '';
+              }}
+            >
+              <option value="">+ Add removed player…</option>
+              {availablePlayers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.fullName} (HCP {p.currentHandicap?.toFixed(1) ?? '—'})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {selectedPlayers.length > 0 && (
           <ul className="mt-2 space-y-1">
             {selectedPlayers
