@@ -29,7 +29,7 @@ export function Modal({ open, title, onClose, children, maxWidth = 'md' }: Modal
 
       {/* Panel */}
       <div
-        className={`relative z-10 w-full ${MAX_WIDTH_CLASSES[maxWidth]} rounded-xl bg-white shadow-xl`}
+        className={`relative z-10 flex w-full flex-col ${MAX_WIDTH_CLASSES[maxWidth]} max-h-[90vh] rounded-xl bg-white shadow-xl`}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
@@ -49,7 +49,7 @@ export function Modal({ open, title, onClose, children, maxWidth = 'md' }: Modal
         </div>
 
         {/* Content */}
-        <div className="px-6 py-5">{children}</div>
+        <div className="overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>
   );

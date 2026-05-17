@@ -224,7 +224,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
           </div>
         )}
         {selectedPlayers.length > 0 && (
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto rounded-md border border-gray-100 p-1">
             {selectedPlayers
               .slice()
               .sort((a, b) => (a.currentHandicap ?? 99) - (b.currentHandicap ?? 99))
@@ -258,7 +258,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
             <span className="text-sm font-medium text-gray-700">Matchups</span>
             <span className="text-xs text-gray-400">(drag players between slots to re-pair)</span>
           </div>
-          <div className="space-y-2">
+          <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-gray-100 p-1">
             {matchups.map((m, idx) => (
               <div
                 key={idx}
