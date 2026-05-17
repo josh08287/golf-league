@@ -8,6 +8,8 @@ public interface ILeagueContext
 {
     int? LeagueId { get; }
     bool IsSuperAdmin { get; }
+    /// <summary>True once LeagueContextMiddleware has called Set() for this request.</summary>
+    bool IsSet { get; }
 
     void Set(int? leagueId, bool isSuperAdmin);
 }

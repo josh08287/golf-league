@@ -38,17 +38,22 @@ export function LeagueSlugRoute() {
         // If the user is logged in but their token is scoped to a different
         // league, silently re-issue the token for this league so all API
         // requests filter to the correct dataset.
-        if (isAuthenticated() && getTokenLeagueId() !== l.id) {
+        const currentLeagueId = getTokenLeagueId();
+        if (isAuthenticated() && currentLeagueId !== l.id) {
           const newToken = await refresh(leagueSlug);
           if (newToken) {
-            const me = await getCurrentUser();
-            setUser({
-              name: me.email,
-              email: me.email,
-              roles: me.roles ?? [],
-              playerId: me.playerId != null ? String(me.playerId) : null,
-              isSuperAdmin: me.isSuperAdmin ?? false,
-            });
+            // Only update the store if the new token actually has this league's
+            // id — if it's still null the user has no membership here.
+            if (getTokenLeagueId() === l.id) {
+              const me = await getCurrentUser();
+              setUser({
+                name: me.email,
+                email: me.email,
+                roles: me.roles ?? [],
+                playerId: me.playerId != null ? String(me.playerId) : null,
+                isSuperAdmin: me.isSuperAdmin ?? false,
+              });
+            }
           }
         }
 

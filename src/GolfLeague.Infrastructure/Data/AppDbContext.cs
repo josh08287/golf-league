@@ -502,33 +502,33 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
 
     private void ApplyGlobalQueryFilters(ModelBuilder modelBuilder)
     {
-        // Global filters scope league-owned entities to the current request's
-        // league. SuperAdmin bypasses filters (ILeagueContext.IsSuperAdmin=true).
-        // Migrations and background jobs that run without an ILeagueContext
-        // (leagueId=null, isSuperAdmin=false) will also bypass to avoid startup
-        // failures.
+        // Bypass filter when running outside an HTTP request (migrations, startup
+        // jobs) — _leagueContext is null or IsSet is false in those cases.
+        // When middleware HAS run (IsSet=true), LeagueId=null means the user has
+        // no league membership for this request, so return nothing (false).
+        // SuperAdmin always bypasses to allow cross-league operations.
         modelBuilder.Entity<Season>()
             .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
                 || _leagueContext.IsSuperAdmin
-                || _leagueContext.LeagueId == null
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<Player>()
             .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
                 || _leagueContext.IsSuperAdmin
-                || _leagueContext.LeagueId == null
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<PlayerInvite>()
             .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
                 || _leagueContext.IsSuperAdmin
-                || _leagueContext.LeagueId == null
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<AuditLog>()
             .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
                 || _leagueContext.IsSuperAdmin
-                || _leagueContext.LeagueId == null
                 || e.LeagueId == null
                 || e.LeagueId == _leagueContext.LeagueId);
     }
