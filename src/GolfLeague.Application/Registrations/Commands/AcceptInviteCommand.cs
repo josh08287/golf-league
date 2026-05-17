@@ -69,6 +69,7 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
 
         var player = new Player
         {
+            LeagueId = invite.LeagueId,
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
