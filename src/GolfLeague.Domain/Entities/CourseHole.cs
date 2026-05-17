@@ -9,4 +9,5 @@ public class CourseHole
     public int StrokeIndex { get; set; }
 
     public Course Course { get; set; } = null!;
+    public ICollection<HoleTeeBox> HoleTeeBoxes { get; set; } = [];
 }

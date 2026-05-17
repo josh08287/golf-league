@@ -24,10 +24,22 @@ public sealed class GetCourseByIdQueryHandler : IRequestHandler<GetCourseByIdQue
 
         var holeDtos = course.Holes
             .OrderBy(h => h.HoleNumber)
-            .Select(h => new CourseHoleDto(h.HoleNumber, h.Par, h.StrokeIndex))
+            .Select(h => new CourseHoleDto(h.Id, h.HoleNumber, h.Par, h.StrokeIndex))
             .ToList();
 
-        var dto = new CourseDto(course.Id, course.Name, course.CourseRating, course.SlopeRating, holeDtos.Count, holeDtos);
+        var teeBoxDtos = course.TeeBoxes
+            .OrderBy(t => t.TotalYardage) // Longest/Shortest doesn't matter much, let's just sort
+            .Select(t => new TeeBoxDto(
+                t.Id,
+                t.Name,
+                t.CourseRating,
+                t.SlopeRating,
+                t.TotalYardage,
+                t.Par,
+                t.HoleTeeBoxes.Select(ht => new HoleTeeBoxDto(ht.CourseHoleId, ht.Yardage, ht.Par)).ToList()
+            )).ToList();
+
+        var dto = new CourseDto(course.Id, course.Name, course.CourseRating, course.SlopeRating, holeDtos.Count, holeDtos, teeBoxDtos);
         return Result<CourseDto>.Ok(dto);
     }
 }

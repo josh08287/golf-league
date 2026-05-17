@@ -265,6 +265,7 @@ export interface RoundSkins {
 }
 
 export interface CourseHole {
+  id: number;
   holeNumber: number;
   par: number;
   strokeIndex: number;
@@ -278,8 +279,25 @@ export interface Course {
   holeCount: number;
 }
 
+export interface HoleTeeBox {
+  courseHoleId: number;
+  yardage: number;
+  par: number;
+}
+
+export interface TeeBox {
+  id: number;
+  name: string;
+  courseRating: number;
+  slopeRating: number;
+  totalYardage: number;
+  par: number;
+  holes: HoleTeeBox[];
+}
+
 export interface CourseDetail extends Course {
   holeDetails: CourseHole[];
+  teeBoxes: TeeBox[];
 }
 
 export type InviteStatus = 'Pending' | 'Accepted' | 'Revoked';

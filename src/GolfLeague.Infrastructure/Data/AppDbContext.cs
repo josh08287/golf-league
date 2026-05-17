@@ -27,6 +27,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<Handicap> Handicaps => Set<Handicap>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseHole> CourseHoles => Set<CourseHole>();
+    public DbSet<TeeBox> TeeBoxes => Set<TeeBox>();
+    public DbSet<HoleTeeBox> HoleTeeBoxes => Set<HoleTeeBox>();
     public DbSet<Round> Rounds => Set<Round>();
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
@@ -53,6 +55,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureHandicaps(modelBuilder);
         ConfigureCourses(modelBuilder);
         ConfigureCourseHoles(modelBuilder);
+        ConfigureTeeBoxes(modelBuilder);
+        ConfigureHoleTeeBoxes(modelBuilder);
         ConfigureRounds(modelBuilder);
         ConfigureRoundParticipants(modelBuilder);
         ConfigureTournamentMatchups(modelBuilder);
@@ -255,6 +259,40 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.CourseId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.ToTable(tb => tb.HasCheckConstraint("CK_CourseHole_Par", "Par BETWEEN 3 AND 5"));
+        });
+    }
+
+    private static void ConfigureTeeBoxes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TeeBox>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.CourseRating).IsRequired();
+            entity.Property(e => e.SlopeRating).IsRequired();
+            entity.Property(e => e.TotalYardage).IsRequired();
+            entity.Property(e => e.Par).IsRequired();
+            entity.HasOne(e => e.Course)
+                  .WithMany(c => c.TeeBoxes)
+                  .HasForeignKey(e => e.CourseId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.CourseId, e.Name });
+        });
+    }
+
+    private static void ConfigureHoleTeeBoxes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<HoleTeeBox>(entity =>
+        {
+            entity.HasKey(e => new { e.TeeBoxId, e.CourseHoleId });
+            entity.HasOne(e => e.TeeBox)
+                  .WithMany(t => t.HoleTeeBoxes)
+                  .HasForeignKey(e => e.TeeBoxId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.CourseHole)
+                  .WithMany(h => h.HoleTeeBoxes)
+                  .HasForeignKey(e => e.CourseHoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

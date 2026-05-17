@@ -14,6 +14,7 @@ import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { CourseHolesEditor } from '../../components/admin/CourseHolesEditor';
+import { TeeBoxesEditor } from '../../components/admin/TeeBoxesEditor';
 import type { Course, CourseDetail } from '../../types/api';
 
 // ── Schema ─────────────────────────────────────────────────────────────────
@@ -139,16 +140,29 @@ function CourseRow({ course, onDelete }: CourseRowProps) {
         </div>
       </div>
 
-      {/* Holes editor (expanded) */}
+      {/* Holes & TeeBoxes editor (expanded) */}
       {expanded && (
-        <div className="border-t border-gray-100 px-5 py-4">
+        <div className="border-t border-gray-100 px-5 py-4 space-y-8">
           {isLoading ? (
             <Spinner />
           ) : (
-            <CourseHolesEditor
-              courseId={String(course.id)}
-              initialHoles={detail?.holeDetails ?? []}
-            />
+            <>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Holes</h3>
+                <CourseHolesEditor
+                  courseId={String(course.id)}
+                  initialHoles={detail?.holeDetails ?? []}
+                />
+              </div>
+
+              <div className="border-t border-gray-100 pt-6">
+                <TeeBoxesEditor 
+                  courseId={String(course.id)} 
+                  courseHoles={detail?.holeDetails ?? []} 
+                  teeBoxes={detail?.teeBoxes ?? []} 
+                />
+              </div>
+            </>
           )}
         </div>
       )}

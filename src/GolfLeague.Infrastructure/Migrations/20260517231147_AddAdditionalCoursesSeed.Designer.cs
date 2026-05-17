@@ -4,6 +4,7 @@ using GolfLeague.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfLeague.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260517231147_AddAdditionalCoursesSeed")]
+    partial class AddAdditionalCoursesSeed
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -373,27 +376,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("ParticipantId");
 
                     b.ToTable("HoleScores");
-                });
-
-            modelBuilder.Entity("GolfLeague.Domain.Entities.HoleTeeBox", b =>
-                {
-                    b.Property<int>("TeeBoxId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CourseHoleId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Par")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Yardage")
-                        .HasColumnType("int");
-
-                    b.HasKey("TeeBoxId", "CourseHoleId");
-
-                    b.HasIndex("CourseHoleId");
-
-                    b.ToTable("HoleTeeBoxes");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.League", b =>
@@ -840,11 +822,17 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CourseHoleId")
+                        .HasColumnType("int");
+
                     b.Property<int>("CourseId")
                         .HasColumnType("int");
 
                     b.Property<double>("CourseRating")
                         .HasColumnType("float");
+
+                    b.Property<int?>("HoleYardage")
+                        .HasColumnType("int");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -861,6 +849,8 @@ namespace GolfLeague.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CourseHoleId");
 
                     b.HasIndex("CourseId", "Name");
 
@@ -1227,25 +1217,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Participant");
                 });
 
-            modelBuilder.Entity("GolfLeague.Domain.Entities.HoleTeeBox", b =>
-                {
-                    b.HasOne("GolfLeague.Domain.Entities.CourseHole", "CourseHole")
-                        .WithMany("HoleTeeBoxes")
-                        .HasForeignKey("CourseHoleId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("GolfLeague.Domain.Entities.TeeBox", "TeeBox")
-                        .WithMany("HoleTeeBoxes")
-                        .HasForeignKey("TeeBoxId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("CourseHole");
-
-                    b.Navigation("TeeBox");
-                });
-
             modelBuilder.Entity("GolfLeague.Domain.Entities.LeagueMembership", b =>
                 {
                     b.HasOne("GolfLeague.Domain.Entities.League", "League")
@@ -1419,6 +1390,11 @@ namespace GolfLeague.Infrastructure.Migrations
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.TeeBox", b =>
                 {
+                    b.HasOne("GolfLeague.Domain.Entities.CourseHole", "CourseHole")
+                        .WithMany("TeeBoxes")
+                        .HasForeignKey("CourseHoleId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.HasOne("GolfLeague.Domain.Entities.Course", "Course")
                         .WithMany("TeeBoxes")
                         .HasForeignKey("CourseId")
@@ -1426,6 +1402,8 @@ namespace GolfLeague.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Course");
+
+                    b.Navigation("CourseHole");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.TournamentHoleExtra", b =>
@@ -1581,7 +1559,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.CourseHole", b =>
                 {
-                    b.Navigation("HoleTeeBoxes");
+                    b.Navigation("TeeBoxes");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Flight", b =>
@@ -1640,11 +1618,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Flights");
 
                     b.Navigation("Rounds");
-                });
-
-            modelBuilder.Entity("GolfLeague.Domain.Entities.TeeBox", b =>
-                {
-                    b.Navigation("HoleTeeBoxes");
                 });
 #pragma warning restore 612, 618
         }

@@ -17,6 +17,8 @@ public sealed class CourseRepository : ICourseRepository
     public Task<Course?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => _context.Courses
             .Include(c => c.Holes)
+            .Include(c => c.TeeBoxes)
+                .ThenInclude(t => t.HoleTeeBoxes)
             .FirstOrDefaultAsync(c => c.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Course>> GetAllAsync(CancellationToken cancellationToken = default)
@@ -63,5 +65,29 @@ public sealed class CourseRepository : ICourseRepository
         await _context.Courses
             .Where(c => c.Id == courseId)
             .ExecuteDeleteAsync(cancellationToken);
+    }
+
+    public async Task AddTeeBoxAsync(TeeBox teeBox, CancellationToken cancellationToken = default)
+    {
+        await _context.TeeBoxes.AddAsync(teeBox, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateHoleTeeBoxesAsync(int teeBoxId, IEnumerable<HoleTeeBox> holeTeeBoxes, CancellationToken cancellationToken = default)
+    {
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+
+            await _context.HoleTeeBoxes
+                .Where(h => h.TeeBoxId == teeBoxId)
+                .ExecuteDeleteAsync(cancellationToken);
+
+            await _context.HoleTeeBoxes.AddRangeAsync(holeTeeBoxes, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await tx.CommitAsync(cancellationToken);
+        });
     }
 }

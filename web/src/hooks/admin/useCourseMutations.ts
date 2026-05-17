@@ -38,6 +38,24 @@ export interface UpdateCourseHolesPayload {
   holes: HoleSpec[];
 }
 
+export interface AddTeeBoxPayload {
+  name: string;
+  courseRating: number;
+  slopeRating: number;
+  totalYardage: number;
+  par: number;
+}
+
+export interface HoleTeeBoxInput {
+  courseHoleId: number;
+  yardage: number;
+  par: number;
+}
+
+export interface UpdateHoleTeeBoxesPayload {
+  holes: HoleTeeBoxInput[];
+}
+
 // ── Hooks ──────────────────────────────────────────────────────────────────
 
 export function useCreateCourse() {
@@ -73,6 +91,30 @@ export function useDeleteCourse() {
       apiClient.delete(`/courses/${courseId}`).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: courseKeys.all });
+    },
+  });
+}
+
+export function useAddTeeBox(courseId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: AddTeeBoxPayload) =>
+      apiClient.post(`/courses/${courseId}/teeboxes`, payload).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: courseKeys.detail(courseId) });
+    },
+  });
+}
+
+export function useUpdateHoleTeeBoxes(courseId: string, teeBoxId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: UpdateHoleTeeBoxesPayload) =>
+      apiClient.put(`/courses/${courseId}/teeboxes/${teeBoxId}/holes`, payload).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: courseKeys.detail(courseId) });
     },
   });
 }

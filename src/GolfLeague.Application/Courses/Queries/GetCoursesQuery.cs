@@ -40,6 +40,7 @@ public sealed class GetCoursesQueryHandler : IRequestHandler<GetCoursesQuery, Re
             c.SlopeRating,
             c.Holes.Count,
             c.Holes.OrderBy(h => h.HoleNumber).Select(h => new CourseHoleDto(
+                h.Id,
                 h.HoleNumber,
                 h.Par,
                 h.StrokeIndex)).ToList()

@@ -38,7 +38,7 @@ public sealed class UpdateCourseHolesCommandHandler : IRequestHandler<UpdateCour
 
         await _courseRepository.UpdateHolesAsync(request.CourseId, holes, cancellationToken);
 
-        var holeDtos = holes.Select(h => new CourseHoleDto(h.HoleNumber, h.Par, h.StrokeIndex)).ToList();
+        var holeDtos = holes.Select(h => new CourseHoleDto(h.Id, h.HoleNumber, h.Par, h.StrokeIndex)).ToList();
         var dto = new CourseDto(course.Id, course.Name, course.CourseRating, course.SlopeRating, holes.Count, holeDtos);
         return Result<CourseDto>.Ok(dto);
     }

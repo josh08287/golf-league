@@ -98,7 +98,57 @@ public sealed class CourseFunctions
         return result.ToOkResult();
     }
 
+    [Function("AddTeeBox")]
+    public async Task<IActionResult> AddTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/courses/{id}/teeboxes")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var courseId))
+            return new BadRequestObjectResult(new { error = "Invalid course ID." });
+
+        var body = await req.TryDeserializeAsync<AddTeeBoxRequest>(cancellationToken);
+
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new AddTeeBoxCommand(courseId, body.Name, body.CourseRating, body.SlopeRating, body.TotalYardage, body.Par, userId), cancellationToken);
+        return result.ToCreatedResult($"/api/v1/courses/{courseId}");
+    }
+
+    [Function("UpdateHoleTeeBoxes")]
+    public async Task<IActionResult> UpdateHoleTeeBoxes(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/courses/{id}/teeboxes/{teeBoxId}/holes")] HttpRequest req,
+        string id,
+        string teeBoxId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var courseId) || !int.TryParse(teeBoxId, out var parsedTeeBoxId))
+            return new BadRequestObjectResult(new { error = "Invalid course ID or teebox ID." });
+
+        var body = await req.TryDeserializeAsync<UpdateHoleTeeBoxesRequest>(cancellationToken);
+
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var holes = body.Holes.Select(h => new HoleTeeBoxInput(h.CourseHoleId, h.Yardage, h.Par)).ToList();
+        var result = await _mediator.Send(new UpdateHoleTeeBoxesCommand(courseId, parsedTeeBoxId, holes, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateCourseRequest(string Name, double Rating, int Slope);
     private sealed record HoleDto(int HoleNumber, int Par, int StrokeIndex);
     private sealed record UpdateHolesRequest(List<HoleDto> Holes);
+
+    private sealed record AddTeeBoxRequest(string Name, double CourseRating, int SlopeRating, int TotalYardage, int Par);
+    private sealed record HoleTeeBoxDto(int CourseHoleId, int Yardage, int Par);
+    private sealed record UpdateHoleTeeBoxesRequest(List<HoleTeeBoxDto> Holes);
 }

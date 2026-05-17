@@ -8,5 +8,6 @@ public class Course
     public int SlopeRating { get; set; }
 
     public ICollection<CourseHole> Holes { get; set; } = [];
+    public ICollection<TeeBox> TeeBoxes { get; set; } = [];
     public ICollection<Round> Rounds { get; set; } = [];
 }
