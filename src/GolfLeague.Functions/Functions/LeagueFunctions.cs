@@ -17,18 +17,21 @@ public sealed class LeagueFunctions
     }
 
     /// <summary>
-    /// GET /v1/leagues — SuperAdmin only. Lists all leagues.
+    /// GET /v1/leagues — Public. Returns active leagues for anonymous callers;
+    /// SuperAdmin gets all leagues including inactive ones.
     /// </summary>
     [Function("GetLeagues")]
     public async Task<IActionResult> GetLeagues(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/leagues")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var authError = req.RequireSuperAdmin();
-        if (authError is not null) return authError;
-
+        var isSuperAdmin = req.IsSuperAdmin();
         var leagues = await _leagueRepository.GetAllAsync(cancellationToken);
-        var data = leagues.Select(l => new LeagueDto(l.Id, l.Name, l.Slug, l.IsActive, l.CreatedAt));
+
+        var data = leagues
+            .Where(l => isSuperAdmin || l.IsActive)
+            .Select(l => new LeagueDto(l.Id, l.Name, l.Slug, l.IsActive, l.CreatedAt));
+
         return new OkObjectResult(new { data });
     }
 

@@ -24,9 +24,7 @@ import { TeeTimeScoreEntryPage } from '@/pages/TeeTimeScoreEntryPage';
 import { StatisticsPage } from '@/pages/StatisticsPage';
 import { TournamentResultsPage } from '@/pages/TournamentResultsPage';
 import { adminRoutes } from '@/routes/adminRoutes';
-
-const DEFAULT_LEAGUE_SLUG =
-  (import.meta.env.VITE_DEFAULT_LEAGUE_SLUG as string | undefined) ?? 'capital';
+import { LeaguePickerPage } from '@/pages/LeaguePickerPage';
 
 function NavigatorInjector() {
   const navigate = useNavigate();
@@ -39,8 +37,8 @@ export default function App() {
     <BrowserRouter>
       <NavigatorInjector />
       <Routes>
-        {/* Apex path redirects to the default league */}
-        <Route index element={<Navigate to={`/${DEFAULT_LEAGUE_SLUG}`} replace />} />
+        {/* Apex path shows the league picker */}
+        <Route index element={<LeaguePickerPage />} />
 
         {/* All league-scoped routes live under /:leagueSlug */}
         <Route path=":leagueSlug" element={<LeagueSlugRoute />}>
@@ -70,8 +68,8 @@ export default function App() {
           </Route>
         </Route>
 
-        {/* Fallback for anything else */}
-        <Route path="*" element={<Navigate to={`/${DEFAULT_LEAGUE_SLUG}`} replace />} />
+        {/* Fallback for anything else — back to the picker */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );
