@@ -16,10 +16,12 @@ public sealed class InviteRepository : IInviteRepository
     }
 
     public Task<PlayerInvite?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
-        => _context.PlayerInvites.FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
+        => _context.PlayerInvites.IgnoreQueryFilters().FirstOrDefaultAsync(i => i.Id == id, cancellationToken);
 
+    // Token is a cryptographically random secret — it is self-authorizing and must
+    // be resolvable without a league context (e.g. invite emails contain no slug).
     public Task<PlayerInvite?> GetByTokenAsync(string token, CancellationToken cancellationToken = default)
-        => _context.PlayerInvites.FirstOrDefaultAsync(i => i.Token == token, cancellationToken);
+        => _context.PlayerInvites.IgnoreQueryFilters().Include(i => i.League).FirstOrDefaultAsync(i => i.Token == token, cancellationToken);
 
     public async Task<IReadOnlyList<PlayerInvite>> GetByStatusAsync(InviteStatus status, CancellationToken cancellationToken = default)
         => await _context.PlayerInvites
@@ -29,6 +31,7 @@ public sealed class InviteRepository : IInviteRepository
 
     public async Task<IReadOnlyList<PlayerInvite>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.PlayerInvites
+            .Include(i => i.League)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
 
@@ -38,8 +41,11 @@ public sealed class InviteRepository : IInviteRepository
                 i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending && i.ExpiresAt > DateTime.UtcNow,
                 cancellationToken);
 
+    // Email-based invite lookup is used during social auth where no league context
+    // is available. Email is validated against the authenticated social profile.
     public Task<PlayerInvite?> GetPendingByEmailAsync(string email, CancellationToken cancellationToken = default)
         => _context.PlayerInvites
+            .IgnoreQueryFilters()
             .OrderByDescending(i => i.CreatedAt)
             .FirstOrDefaultAsync(
                 i => i.Email == email.ToLower() && i.Status == InviteStatus.Pending && i.ExpiresAt > DateTime.UtcNow,

@@ -42,11 +42,12 @@ export function AcceptInvitePage() {
   });
 
   useEffect(() => {
-    if (accept.isSuccess) {
-      const timer = setTimeout(() => navigate('/', { replace: true }), 100);
+    if (accept.isSuccess && invite) {
+      const dest = invite.leagueSlug ? `/${invite.leagueSlug}` : '/';
+      const timer = setTimeout(() => navigate(dest, { replace: true }), 100);
       return () => clearTimeout(timer);
     }
-  }, [accept.isSuccess, navigate]);
+  }, [accept.isSuccess, invite, navigate]);
 
   if (!token) return <InvalidInvite message="No invite token found in this link." />;
 

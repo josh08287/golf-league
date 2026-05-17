@@ -39,9 +39,14 @@ public sealed class GetInvitesQueryHandler : IRequestHandler<GetInvitesQuery, Re
         return Result<List<InviteDto>>.Ok(sorted.ToList());
     }
 
-    internal static InviteDto ToDto(Domain.Entities.PlayerInvite i, string baseUrl) =>
-        new(i.Id, i.Email, i.Token, i.Status.ToString(),
+    internal static InviteDto ToDto(Domain.Entities.PlayerInvite i, string baseUrl)
+    {
+        var slug = i.League?.Slug ?? string.Empty;
+        var link = string.IsNullOrEmpty(slug)
+            ? $"{baseUrl.TrimEnd('/')}/accept-invite?token={i.Token}"
+            : $"{baseUrl.TrimEnd('/')}/{slug}/accept-invite?token={i.Token}";
+        return new(i.Id, i.Email, i.Token, i.Status.ToString(),
             i.CreatedAt, i.ExpiresAt, i.AcceptedAt, i.PlayerId,
-            $"{baseUrl.TrimEnd('/')}/accept-invite?token={i.Token}",
-            i.Role.ToString().ToLowerInvariant());
+            link, i.Role.ToString().ToLowerInvariant(), slug);
+    }
 }

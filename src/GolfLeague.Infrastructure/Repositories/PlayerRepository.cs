@@ -29,11 +29,13 @@ public sealed class PlayerRepository : IPlayerRepository
             .ThenBy(p => p.FirstName)
             .ToListAsync(cancellationToken);
 
+    // AppUser↔Player linkage is 1:1 across all leagues — must be resolvable
+    // without a league context (e.g. during invite acceptance with no slug).
     public Task<Player?> GetByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default)
-        => _context.Players.FirstOrDefaultAsync(p => p.AppUserId == appUserId, cancellationToken);
+        => _context.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.AppUserId == appUserId, cancellationToken);
 
     public Task<Player?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
-        => _context.Players.FirstOrDefaultAsync(p => p.Email == email, cancellationToken);
+        => _context.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Email == email, cancellationToken);
 
     public async Task<IReadOnlyList<Player>> GetUnlinkedActiveAsync(CancellationToken cancellationToken = default)
         => await _context.Players

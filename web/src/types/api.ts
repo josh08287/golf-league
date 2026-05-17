@@ -295,6 +295,7 @@ export interface Invite {
   playerId: number | null;
   inviteLink: string;
   role: 'admin' | 'scorer' | 'player';
+  leagueSlug: string;
 }
 
 export interface CreateInvitesResult {

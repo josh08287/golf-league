@@ -10,4 +10,5 @@ public sealed record InviteDto(
     DateTime? AcceptedAt,
     int? PlayerId,
     string InviteLink,
-    string Role);
+    string Role,
+    string LeagueSlug);
