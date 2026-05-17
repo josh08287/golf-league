@@ -56,9 +56,9 @@ export default function App() {
           <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
           <Route path="statistics" element={<StatisticsPage />} />
           <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
+          {adminRoutes}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-        {adminRoutes}
       </Routes>
     </BrowserRouter>
   );
