@@ -41,6 +41,7 @@ export function PlayersPage() {
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkPending, setBulkPending] = useState(false);
+  const [bulkSkipped, setBulkSkipped] = useState(0);
 
   const deactivate = useDeactivatePlayer(String(deactivateTarget?.id ?? ''));
   const deletePlayer = useDeletePlayer();
@@ -76,16 +77,23 @@ export function PlayersPage() {
 
   async function handleBulkAssignPlayerRole() {
     setBulkPending(true);
+    setBulkSkipped(0);
+    let skipped = 0;
     try {
       await Promise.all(
         [...selectedIds].map((id) => {
           const player = players.find((p) => p.id === id);
           const existing = player?.roles ?? [];
           if (existing.includes('player')) return Promise.resolve();
+          if (!player?.appUserId) {
+            skipped++;
+            return Promise.resolve();
+          }
           return apiClient.patch(`/players/${id}`, { roles: [...existing, 'player'] });
         })
       );
       await qc.invalidateQueries({ queryKey: playerKeys.all });
+      setBulkSkipped(skipped);
     } finally {
       setBulkPending(false);
       setSelectedIds(new Set());
@@ -256,6 +264,20 @@ export function PlayersPage() {
             onClick={() => setSelectedIds(new Set())}
           >
             Clear selection
+          </button>
+        </div>
+      )}
+
+      {bulkSkipped > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-2.5">
+          <span className="text-sm text-yellow-800">
+            {bulkSkipped} player{bulkSkipped !== 1 ? 's were' : ' was'} skipped — they haven&apos;t claimed their account yet and cannot be assigned a role until they do.
+          </span>
+          <button
+            className="ml-4 text-xs text-yellow-700 hover:underline"
+            onClick={() => setBulkSkipped(0)}
+          >
+            Dismiss
           </button>
         </div>
       )}
