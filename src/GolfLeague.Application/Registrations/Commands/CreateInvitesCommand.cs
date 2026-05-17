@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Registrations.Queries;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
@@ -33,16 +34,22 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
     private readonly IEmailService _emailService;
+    private readonly ILeagueContext _leagueContext;
 
-    public CreateInvitesCommandHandler(IInviteRepository inviteRepo, IPlayerRepository playerRepo, IEmailService emailService)
+    public CreateInvitesCommandHandler(IInviteRepository inviteRepo, IPlayerRepository playerRepo, IEmailService emailService, ILeagueContext leagueContext)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
         _emailService = emailService;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<CreateInvitesResult>> Handle(CreateInvitesCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<CreateInvitesResult>.Fail("No league context.");
+
+        var leagueId = _leagueContext.LeagueId.Value;
         var created = new List<PlayerInvite>();
         var skipped = new List<string>();
 
@@ -89,6 +96,7 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
 
             created.Add(new PlayerInvite
             {
+                LeagueId = leagueId,
                 Email = email,
                 Token = GenerateToken(),
                 Status = InviteStatus.Pending,
