@@ -27,7 +27,6 @@ export function NavBar() {
     if (!found) return;
     setPickerOpen(false);
     setActiveLeague({ leagueId: found.leagueId, name: found.name, slug: found.slug });
-    navigate('/', { replace: true });
   }
 
   const publicLinks = [

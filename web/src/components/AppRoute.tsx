@@ -57,12 +57,13 @@ export function AppRoute() {
             isSuperAdmin: me.isSuperAdmin ?? false,
           });
           queryClient.clear();
+          navigate('/', { replace: true });
         }
       } finally {
         setTokenSyncing(false);
       }
     })();
-  }, [activeLeague, user, setUser, queryClient]);
+  }, [activeLeague, user, setUser, queryClient, navigate]);
 
   useEffect(() => {
     if (!bootstrapping && !user) {
