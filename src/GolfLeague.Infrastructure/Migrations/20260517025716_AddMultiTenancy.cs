@@ -11,25 +11,31 @@ namespace GolfLeague.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // All DDL statements are wrapped in IF NOT EXISTS guards so this
-            // migration is safe to re-run if it previously failed mid-way.
+            // Each Sql() call is a separate batch so SQL Server parses each
+            // statement only after the previous batch has already executed.
+            // This is required because SQL Server validates column/table
+            // references at parse time for the entire batch.
 
+            // Batch 1: add columns (idempotent)
             migrationBuilder.Sql(@"
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Seasons') AND name = 'LeagueId')
-                    ALTER TABLE Seasons ADD LeagueId int NOT NULL DEFAULT 0;
+                BEGIN ALTER TABLE Seasons ADD LeagueId int NOT NULL DEFAULT 0; END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Players') AND name = 'LeagueId')
-                    ALTER TABLE Players ADD LeagueId int NOT NULL DEFAULT 0;
+                BEGIN ALTER TABLE Players ADD LeagueId int NOT NULL DEFAULT 0; END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('PlayerInvites') AND name = 'LeagueId')
-                    ALTER TABLE PlayerInvites ADD LeagueId int NOT NULL DEFAULT 0;
+                BEGIN ALTER TABLE PlayerInvites ADD LeagueId int NOT NULL DEFAULT 0; END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('AuditLogs') AND name = 'LeagueId')
-                    ALTER TABLE AuditLogs ADD LeagueId int NULL;
+                BEGIN ALTER TABLE AuditLogs ADD LeagueId int NULL; END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('AspNetUsers') AND name = 'IsSuperAdmin')
-                    ALTER TABLE AspNetUsers ADD IsSuperAdmin bit NOT NULL DEFAULT 0;
+                BEGIN ALTER TABLE AspNetUsers ADD IsSuperAdmin bit NOT NULL DEFAULT 0; END
+            ");
 
+            // Batch 2: create Leagues table (idempotent)
+            migrationBuilder.Sql(@"
                 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Leagues')
                 BEGIN
                     CREATE TABLE Leagues (
@@ -42,7 +48,10 @@ namespace GolfLeague.Infrastructure.Migrations
                     );
                     CREATE UNIQUE INDEX IX_Leagues_Slug ON Leagues (Slug);
                 END
+            ");
 
+            // Batch 3: create LeagueMemberships table (idempotent)
+            migrationBuilder.Sql(@"
                 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LeagueMemberships')
                 BEGIN
                     CREATE TABLE LeagueMemberships (
@@ -60,20 +69,25 @@ namespace GolfLeague.Infrastructure.Migrations
                     CREATE UNIQUE INDEX IX_LeagueMemberships_LeagueId_UserId ON LeagueMemberships (LeagueId, UserId);
                     CREATE INDEX IX_LeagueMemberships_UserId ON LeagueMemberships (UserId);
                 END
+            ");
 
+            // Batch 4: indexes on LeagueId columns (columns now guaranteed to exist)
+            migrationBuilder.Sql(@"
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Seasons') AND name = 'IX_Seasons_LeagueId')
-                    CREATE INDEX IX_Seasons_LeagueId ON Seasons (LeagueId);
+                BEGIN CREATE INDEX IX_Seasons_LeagueId ON Seasons (LeagueId); END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Players') AND name = 'IX_Players_LeagueId')
-                    CREATE INDEX IX_Players_LeagueId ON Players (LeagueId);
+                BEGIN CREATE INDEX IX_Players_LeagueId ON Players (LeagueId); END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('PlayerInvites') AND name = 'IX_PlayerInvites_LeagueId')
-                    CREATE INDEX IX_PlayerInvites_LeagueId ON PlayerInvites (LeagueId);
+                BEGIN CREATE INDEX IX_PlayerInvites_LeagueId ON PlayerInvites (LeagueId); END
 
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('AuditLogs') AND name = 'IX_AuditLogs_LeagueId')
-                    CREATE INDEX IX_AuditLogs_LeagueId ON AuditLogs (LeagueId);
+                BEGIN CREATE INDEX IX_AuditLogs_LeagueId ON AuditLogs (LeagueId); END
+            ");
 
-                -- Seed the default league and stamp existing rows before adding FK constraints.
+            // Batch 5: seed default league and stamp existing rows
+            migrationBuilder.Sql(@"
                 DECLARE @LeagueId INT;
                 IF NOT EXISTS (SELECT 1 FROM Leagues WHERE Slug = 'capital')
                 BEGIN
@@ -88,30 +102,39 @@ namespace GolfLeague.Infrastructure.Migrations
                 UPDATE Seasons       SET LeagueId = @LeagueId WHERE LeagueId = 0;
                 UPDATE Players       SET LeagueId = @LeagueId WHERE LeagueId = 0;
                 UPDATE PlayerInvites SET LeagueId = @LeagueId WHERE LeagueId = 0;
+            ");
 
+            // Batch 6: FK constraints (rows now stamped, safe to enforce)
+            migrationBuilder.Sql(@"
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.foreign_keys
                     WHERE name = 'FK_PlayerInvites_Leagues_LeagueId'
                       AND parent_object_id = OBJECT_ID('PlayerInvites'))
+                BEGIN
                     ALTER TABLE PlayerInvites
                         ADD CONSTRAINT FK_PlayerInvites_Leagues_LeagueId
                         FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
+                END
 
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.foreign_keys
                     WHERE name = 'FK_Players_Leagues_LeagueId'
                       AND parent_object_id = OBJECT_ID('Players'))
+                BEGIN
                     ALTER TABLE Players
                         ADD CONSTRAINT FK_Players_Leagues_LeagueId
                         FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
+                END
 
                 IF NOT EXISTS (
                     SELECT 1 FROM sys.foreign_keys
                     WHERE name = 'FK_Seasons_Leagues_LeagueId'
                       AND parent_object_id = OBJECT_ID('Seasons'))
+                BEGIN
                     ALTER TABLE Seasons
                         ADD CONSTRAINT FK_Seasons_Leagues_LeagueId
                         FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
+                END
             ");
         }
 
