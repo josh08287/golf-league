@@ -12,12 +12,6 @@ export function setNavigator(fn: (path: string) => void) {
   _navigate = fn;
 }
 
-// Module-level league slug — set by LeagueSlugRoute when a league is resolved
-// so anonymous requests carry X-League-Slug for backend query filter scoping.
-let _leagueSlug: string | null = null;
-export function setLeagueSlug(slug: string | null) {
-  _leagueSlug = slug;
-}
 
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
@@ -38,9 +32,6 @@ export const api = apiClient;
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const headers = config.headers ?? new AxiosHeaders();
-    if (_leagueSlug) {
-      (headers as AxiosHeaders).set('X-League-Slug', _leagueSlug);
-    }
     let token = getAccessToken();
     if (token && isTokenExpired()) {
       token = await refresh();
@@ -86,24 +77,16 @@ apiClient.interceptors.response.use(
       return apiClient.request(config);
     }
 
-    // Refresh failed — sign the user out and redirect, unless we're already
-    // on a public auth page. With path-based league routing, paths are
-    // /:leagueSlug/login etc. — match the segment after the slug.
+    // Refresh failed — sign the user out and redirect to /login unless already there.
     clearAuth();
     const path = window.location.pathname;
-    const publicAuthSegments = ['login', 'register', 'accept-invite', 'auth'];
-    const pathSegments = path.split('/').filter(Boolean);
-    // pathSegments[0] = leagueSlug, pathSegments[1] = page
-    const onPublicAuthPage = pathSegments.length >= 2
-      && publicAuthSegments.some((s) => pathSegments[1] === s || pathSegments[1]?.startsWith(s));
-    if (!onPublicAuthPage) {
-      // Navigate to /:leagueSlug/login, preserving the current league slug
-      const slug = pathSegments[0] ?? '';
-      const loginPath = slug ? `/${slug}/login` : '/';
+    const publicPaths = ['/login', '/register', '/accept-invite', '/auth/'];
+    const onPublicPage = publicPaths.some((p) => path === p || path.startsWith(p));
+    if (!onPublicPage) {
       if (_navigate) {
-        _navigate(loginPath);
+        _navigate('/login');
       } else {
-        window.location.href = loginPath;
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

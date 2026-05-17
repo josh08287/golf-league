@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs.Auth;
+using GolfLeague.Application.DTOs;
 
 namespace GolfLeague.Application.Interfaces;
 
@@ -26,12 +27,20 @@ public interface IAuthService
     Task<Result<AuthResponseDto>> LoginAsync(
         string email,
         string password,
-        string? leagueSlug = null,
+        int? leagueId = null,
         CancellationToken cancellationToken = default);
 
     Task<Result<AuthResponseDto>> RefreshAsync(
         string refreshToken,
-        string? leagueSlug = null,
+        int? leagueId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns all leagues the given user is a member of, plus a flag
+    /// indicating whether the user is a SuperAdmin (who can access all leagues).
+    /// </summary>
+    Task<Result<UserLeaguesDto>> GetMyLeaguesAsync(
+        Guid userId,
         CancellationToken cancellationToken = default);
 
     Task<Result<bool>> LogoutAsync(

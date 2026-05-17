@@ -1,33 +1,47 @@
 import { useState } from 'react';
-import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
-import { Menu, X, LogOut, User } from 'lucide-react';
+import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Menu, X, LogOut, User, ChevronDown, Check } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInvites } from '@/hooks/admin/useInvites';
 import { useLeagueName } from '@/context/LeagueContext';
+import { useMyLeagues } from '@/hooks/useMyLeagues';
+import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
 
 export function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { leagueSlug = '' } = useParams<{ leagueSlug: string }>();
-  const leagueName = useLeagueName(leagueSlug);
-  const base = `/${leagueSlug}`;
+  const leagueName = useLeagueName();
+  const activeLeague = useActiveLeagueStore((s) => s.activeLeague);
+  const setActiveLeague = useActiveLeagueStore((s) => s.setActiveLeague);
+  const { data: leaguesData } = useMyLeagues(!!user);
+
+  const leagues = leaguesData?.leagues ?? [];
+  const showPicker = leagues.length > 1 || (leaguesData?.isSuperAdmin ?? false);
+
+  function switchLeague(leagueId: number) {
+    const found = leagues.find((l) => l.leagueId === leagueId);
+    if (!found) return;
+    setPickerOpen(false);
+    setActiveLeague({ leagueId: found.leagueId, name: found.name, slug: found.slug });
+    navigate('/', { replace: true });
+  }
 
   const publicLinks = [
-    { to: base, label: 'Home' },
-    { to: `${base}/flights`, label: 'Flights' },
-    { to: `${base}/rounds`, label: 'Rounds' },
-    { to: `${base}/players`, label: 'Players' },
-    { to: `${base}/statistics`, label: 'Statistics' },
+    { to: '/', label: 'Home' },
+    { to: '/flights', label: 'Flights' },
+    { to: '/rounds', label: 'Rounds' },
+    { to: '/players', label: 'Players' },
+    { to: '/statistics', label: 'Statistics' },
   ];
 
   const authedLinks = [
-    { to: `${base}/tee-times`, label: 'Tee Times' },
+    { to: '/tee-times', label: 'Tee Times' },
   ];
 
-  // Pending invite count for admin badge — only fetched when admin is logged in
   const isAdmin = user?.roles?.includes('admin') ?? false;
   const { data: invites } = useInvites();
   const pendingInviteCount = isAdmin
@@ -42,32 +56,62 @@ export function NavBar() {
         : 'text-gray-600 hover:text-primary-900',
     );
 
-  function handleLogin() {
-    navigate(`${base}/login`);
-  }
-
   const links = [
     ...publicLinks,
     ...(user ? authedLinks : []),
-    ...(isAdmin ? [{ to: `${base}/admin`, label: 'Admin' }] : []),
+    ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
   ];
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white shadow-sm">
       <div className="container flex h-16 max-w-screen-xl items-center justify-between px-4">
-        {/* Logo */}
-        <Link
-          to={base}
-          className="flex items-center gap-2 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
-        >
-          <span className="text-2xl" role="img" aria-label="golf flag">⛳</span>
-          <span className="hidden sm:inline">{leagueName}</span>
-        </Link>
+        {/* Logo / League name with optional picker */}
+        <div className="relative flex items-center gap-2">
+          <Link
+            to="/"
+            className="flex items-center gap-2 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
+          >
+            <span className="text-2xl" role="img" aria-label="golf flag">⛳</span>
+            <span className="hidden sm:inline">{leagueName || 'Golf League'}</span>
+          </Link>
+          {showPicker && user && (
+            <div className="relative">
+              <button
+                onClick={() => setPickerOpen((o) => !o)}
+                className="ml-1 flex items-center gap-0.5 text-gray-400 hover:text-primary-900 transition-colors"
+                aria-label="Switch league"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {pickerOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setPickerOpen(false)} />
+                  <div className="absolute left-0 top-7 z-20 min-w-[200px] rounded-lg border border-gray-200 bg-white shadow-lg py-1">
+                    {leagues.map((l) => (
+                      <button
+                        key={l.leagueId}
+                        onClick={() => switchLeague(l.leagueId)}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        {activeLeague?.leagueId === l.leagueId && (
+                          <Check className="h-4 w-4 text-primary-900 shrink-0" />
+                        )}
+                        <span className={activeLeague?.leagueId === l.leagueId ? 'ml-0' : 'ml-6'}>
+                          {l.name}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
           {links.map((link) => (
-            <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === base}>
+            <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === '/'}>
               <span className="relative">
                 {link.label}
                 {link.to === '/admin' && pendingInviteCount > 0 && (
@@ -86,7 +130,7 @@ export function NavBar() {
             <div className="flex items-center gap-3">
               {user.playerId ? (
                 <Link
-                  to={`${base}/players/${user.playerId}`}
+                  to={`/players/${user.playerId}`}
                   className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary-900 transition-colors"
                 >
                   <User className="h-4 w-4" />
@@ -105,7 +149,7 @@ export function NavBar() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={handleLogin}>
+              <Button size="sm" onClick={() => navigate('/login')}>
                 Sign in
               </Button>
             </div>
@@ -138,27 +182,42 @@ export function NavBar() {
                       : 'text-gray-700 hover:bg-gray-50',
                   )
                 }
-                end={link.to === base}
+                end={link.to === '/'}
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label}
               </NavLink>
             ))}
+            {showPicker && user && leagues.length > 1 && (
+              <div className="mt-2 border-t border-gray-100 pt-2">
+                <p className="px-3 text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">Switch league</p>
+                {leagues.map((l) => (
+                  <button
+                    key={l.leagueId}
+                    onClick={() => { setMobileOpen(false); switchLeague(l.leagueId); }}
+                    className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    {activeLeague?.leagueId === l.leagueId && <Check className="h-4 w-4 text-primary-900" />}
+                    <span className={activeLeague?.leagueId === l.leagueId ? '' : 'ml-6'}>{l.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </nav>
           <div className="mt-3 border-t border-gray-100 pt-3">
             {user ? (
               <div className="flex flex-col gap-2">
                 {user.playerId ? (
-                <Link
-                  to={`${base}/players/${user.playerId}`}
-                  className="text-sm text-gray-700 px-3 hover:text-primary-900 transition-colors"
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {user.name}
-                </Link>
-              ) : (
-                <span className="text-sm text-gray-500 px-3">{user.name}</span>
-              )}
+                  <Link
+                    to={`/players/${user.playerId}`}
+                    className="text-sm text-gray-700 px-3 hover:text-primary-900 transition-colors"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    {user.name}
+                  </Link>
+                ) : (
+                  <span className="text-sm text-gray-500 px-3">{user.name}</span>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -173,7 +232,7 @@ export function NavBar() {
               <Button
                 size="sm"
                 className="w-full"
-                onClick={() => { setMobileOpen(false); handleLogin(); }}
+                onClick={() => { setMobileOpen(false); navigate('/login'); }}
               >
                 Sign in
               </Button>

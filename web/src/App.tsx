@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { useEffect } from 'react';
 import { setNavigator } from '@/lib/api';
 import { RootLayout } from '@/components/layout/RootLayout';
-import { LeagueSlugRoute } from '@/components/LeagueSlugRoute';
+import { AppRoute } from '@/components/AppRoute';
 
 import { HomePage } from '@/pages/HomePage';
 import { FlightsPage } from '@/pages/FlightsPage';
@@ -24,7 +24,6 @@ import { TeeTimeScoreEntryPage } from '@/pages/TeeTimeScoreEntryPage';
 import { StatisticsPage } from '@/pages/StatisticsPage';
 import { TournamentResultsPage } from '@/pages/TournamentResultsPage';
 import { adminRoutes } from '@/routes/adminRoutes';
-import { LeaguePickerPage } from '@/pages/LeaguePickerPage';
 
 function NavigatorInjector() {
   const navigate = useNavigate();
@@ -37,14 +36,18 @@ export default function App() {
     <BrowserRouter>
       <NavigatorInjector />
       <Routes>
-        {/* Apex path shows the league picker */}
-        <Route index element={<LeaguePickerPage />} />
-
-        {/* Root-level OAuth callback — redirectUri registered with Google must match this exactly */}
+        {/* Public auth routes — no league context needed */}
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="accept-invite" element={<AcceptInvitePage />} />
         <Route path="auth/callback" element={<AuthCallbackPage />} />
+        <Route path="auth/mfa" element={<MfaPage />} />
+        <Route path="auth/mfa/enroll" element={<MfaEnrollPage />} />
+        <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="auth/reset-password" element={<ResetPasswordPage />} />
 
-        {/* All league-scoped routes live under /:leagueSlug */}
-        <Route path=":leagueSlug" element={<LeagueSlugRoute />}>
+        {/* Protected routes — require auth + league context */}
+        <Route element={<AppRoute />}>
           <Route element={<RootLayout />}>
             <Route index element={<HomePage />} />
             <Route path="flights" element={<FlightsPage />} />
@@ -53,25 +56,15 @@ export default function App() {
             <Route path="rounds/:roundId" element={<RoundDetailPage />} />
             <Route path="players" element={<PlayersPage />} />
             <Route path="players/:playerId" element={<PlayerProfilePage />} />
-            <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
-            <Route path="auth/mfa" element={<MfaPage />} />
-            <Route path="auth/mfa/enroll" element={<MfaEnrollPage />} />
-            <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
-            <Route path="auth/reset-password" element={<ResetPasswordPage />} />
-            <Route path="accept-invite" element={<AcceptInvitePage />} />
             <Route path="tee-times" element={<TeeTimesNextPage />} />
             <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
             <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
             <Route path="statistics" element={<StatisticsPage />} />
             <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
             {adminRoutes}
-            <Route path="*" element={<Navigate to="" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Route>
-
-        {/* Fallback for anything else — back to the picker */}
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

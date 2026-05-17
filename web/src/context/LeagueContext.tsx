@@ -1,37 +1,28 @@
 import { createContext, useContext } from 'react';
+import type { ActiveLeague } from '@/store/activeLeagueStore';
 
-export interface LeagueInfo {
-  leagueId: number;
-  slug: string;
-  name: string;
-}
+export type { ActiveLeague as LeagueInfo };
 
 interface LeagueContextValue {
-  league: LeagueInfo | null;
-  /** true while the league is being resolved from the API */
+  league: ActiveLeague | null;
   loading: boolean;
-  /** true when the slug in the URL does not match any known league */
-  notFound: boolean;
 }
 
 export const LeagueContext = createContext<LeagueContextValue>({
   league: null,
-  loading: true,
-  notFound: false,
+  loading: false,
 });
 
 export function useLeague(): LeagueContextValue {
   return useContext(LeagueContext);
 }
 
-/** Returns just the league name, falling back to the slug while loading. */
-export function useLeagueName(slug?: string): string {
+export function useLeagueName(): string {
   const { league } = useLeague();
-  return league?.name ?? slug ?? '';
+  return league?.name ?? '';
 }
 
-/** Returns the /:leagueSlug prefix for building absolute links, e.g. "/capital". */
+/** No-op prefix — kept for any remaining call sites during migration. */
 export function useLeaguePrefix(): string {
-  const { league } = useLeague();
-  return league ? `/${league.slug}` : '';
+  return '';
 }

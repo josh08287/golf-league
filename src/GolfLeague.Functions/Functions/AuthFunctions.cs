@@ -59,7 +59,7 @@ public sealed class AuthFunctions
         if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Password))
             return new BadRequestObjectResult(new { error = "Email and password are required." });
 
-        var result = await _authService.LoginAsync(body.Email, body.Password, body.LeagueSlug, cancellationToken);
+        var result = await _authService.LoginAsync(body.Email, body.Password, body.LeagueId, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
 
@@ -75,9 +75,32 @@ public sealed class AuthFunctions
         if (body is null || string.IsNullOrWhiteSpace(body.RefreshToken))
             return new BadRequestObjectResult(new { error = "Refresh token is required." });
 
-        var result = await _authService.RefreshAsync(body.RefreshToken, body.LeagueSlug, cancellationToken);
+        var result = await _authService.RefreshAsync(body.RefreshToken, body.LeagueId, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
+
+        return new OkObjectResult(new { data = result.Value });
+    }
+
+    /// <summary>
+    /// GET /v1/auth/me/leagues — returns all leagues the calling user is a member of.
+    /// Used by the frontend to populate the league picker and determine auto-selection.
+    /// </summary>
+    [Function("GetMyLeagues")]
+    public async Task<IActionResult> GetMyLeagues(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/auth/me/leagues")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var userIdStr = req.GetUserId();
+        if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
+            return new UnauthorizedResult();
+
+        var result = await _authService.GetMyLeaguesAsync(userId, cancellationToken);
+        if (!result.IsSuccess)
+            return new NotFoundObjectResult(new { error = result.Error });
 
         return new OkObjectResult(new { data = result.Value });
     }
@@ -155,9 +178,9 @@ public sealed class AuthFunctions
         return new OkObjectResult(new { data = new { reset = true } });
     }
 
-    private sealed record RegisterRequest(string Email, string Password, string InviteToken, string? FirstName, string? LastName, string? LeagueSlug);
-    private sealed record LoginRequest(string Email, string Password, string? LeagueSlug);
-    private sealed record RefreshRequest(string RefreshToken, string? LeagueSlug);
+    private sealed record RegisterRequest(string Email, string Password, string InviteToken, string? FirstName, string? LastName);
+    private sealed record LoginRequest(string Email, string Password, int? LeagueId);
+    private sealed record RefreshRequest(string RefreshToken, int? LeagueId);
     private sealed record PasswordResetRequestBody(string Email);
     private sealed record PasswordResetConfirmBody(string Email, string Token, string NewPassword);
 }

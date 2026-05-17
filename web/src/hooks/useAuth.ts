@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
+import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import {
   clearAuth,
   getCurrentUser,
@@ -17,8 +18,6 @@ export function useAuth() {
   const clearUser = useAuthStore((s) => s.clearUser);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  // leagueSlug may be undefined when useAuth is called outside a league route
-  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
 
   const [bootstrapping, setBootstrapping] = useState(() => isAuthed() && !user);
 
@@ -52,8 +51,6 @@ export function useAuth() {
     return () => { cancelled = true; };
   }, [user, setUser]);
 
-  const prefix = leagueSlug ? `/${leagueSlug}` : '';
-
   const handleLoginSuccess = useCallback(async (resp: AuthResponse) => {
     if (resp.mfaRequired) {
       sessionStorage.setItem('golf-league-mfa-token', resp.accessToken);
@@ -61,10 +58,7 @@ export function useAuth() {
         'golf-league-mfa-enrollment-required',
         resp.mfaEnrollmentRequired ? '1' : '0',
       );
-      navigate(
-        resp.mfaEnrollmentRequired ? `${prefix}/auth/mfa/enroll` : `${prefix}/auth/mfa`,
-        { replace: true },
-      );
+      navigate(resp.mfaEnrollmentRequired ? '/auth/mfa/enroll' : '/auth/mfa', { replace: true });
       return;
     }
     const me = await getCurrentUser();
@@ -76,20 +70,21 @@ export function useAuth() {
       isSuperAdmin: me.isSuperAdmin ?? false,
     });
     await queryClient.invalidateQueries();
-  }, [navigate, setUser, queryClient, prefix]);
+  }, [navigate, setUser, queryClient]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const resp = await loginApi(email, password, leagueSlug);
+  const login = useCallback(async (email: string, password: string, leagueId?: number) => {
+    const resp = await loginApi(email, password, leagueId);
     await handleLoginSuccess(resp);
     return resp;
-  }, [handleLoginSuccess, leagueSlug]);
+  }, [handleLoginSuccess]);
 
   const logout = useCallback(async () => {
     await logoutApi();
     clearUser();
+    useActiveLeagueStore.getState().setActiveLeague(null);
     queryClient.clear();
-    navigate(leagueSlug ? `/${leagueSlug}/login` : '/', { replace: true });
-  }, [clearUser, navigate, queryClient, prefix]);
+    navigate('/login', { replace: true });
+  }, [clearUser, navigate, queryClient]);
 
   return {
     user,

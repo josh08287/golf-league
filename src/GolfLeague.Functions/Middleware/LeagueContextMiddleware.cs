@@ -1,20 +1,15 @@
 using GolfLeague.Application.Interfaces;
-using GolfLeague.Domain.Interfaces;
-using GolfLeague.Infrastructure.Data;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Middleware;
 using Microsoft.Extensions.DependencyInjection;
-using System.Security.Claims;
 
 namespace GolfLeague.Functions.Middleware;
 
 /// <summary>
-/// Populates ILeagueContext for the duration of the request.
-/// The X-League-Slug header (always sent by the frontend, derived from the URL path)
-/// is the sole source of which league's data to return. The JWT leagueId claim is
-/// intentionally ignored here — it only reflects the league the token was issued for,
-/// not the league the user is currently viewing. IsSuperAdmin still comes from the JWT.
-/// Must run after AuthMiddleware so the ClaimsPrincipal is already populated.
+/// Populates ILeagueContext for the duration of the request from the JWT claims.
+/// The leagueId claim on the token is the sole source of league scope — no slug
+/// header or database lookup required. Must run after AuthMiddleware so the
+/// ClaimsPrincipal is already populated.
 /// </summary>
 public sealed class LeagueContextMiddleware : IFunctionsWorkerMiddleware
 {
@@ -30,19 +25,9 @@ public sealed class LeagueContextMiddleware : IFunctionsWorkerMiddleware
                 var isSuperAdmin = user.FindFirst("superAdmin")?.Value == "true";
 
                 int? leagueId = null;
-
-                // Always resolve league from the X-League-Slug header so the data
-                // scope follows the URL the user is viewing, not the JWT's leagueId.
-                var slugHeader = httpContext.Request.Headers["X-League-Slug"].FirstOrDefault();
-                if (!string.IsNullOrWhiteSpace(slugHeader))
-                {
-                    var leagueRepo = httpContext.RequestServices.GetService<ILeagueRepository>();
-                    if (leagueRepo is not null)
-                    {
-                        var league = await leagueRepo.GetBySlugAsync(slugHeader, CancellationToken.None);
-                        leagueId = league?.Id;
-                    }
-                }
+                var leagueIdClaim = user.FindFirst("leagueId")?.Value;
+                if (int.TryParse(leagueIdClaim, out var parsedId))
+                    leagueId = parsedId;
 
                 leagueCtx.Set(leagueId, isSuperAdmin);
             }

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,7 +15,6 @@ type FormValues = z.infer<typeof schema>;
 export function ResetPasswordPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
   const email = params.get('email') ?? '';
   const token = params.get('token') ?? '';
 
@@ -43,7 +42,7 @@ export function ResetPasswordPage() {
             This password reset link is missing required information. Request a new one.
           </p>
           <p className="mt-4 text-sm">
-            <Link to="../forgot-password" className="text-primary-900 font-medium hover:underline">
+            <Link to="/auth/forgot-password" className="text-primary-900 font-medium hover:underline">
               Send a new reset link
             </Link>
           </p>
@@ -57,7 +56,7 @@ export function ResetPasswordPage() {
     try {
       await confirmPasswordReset({ email, token, newPassword: values.newPassword });
       setDone(true);
-      setTimeout(() => navigate(leagueSlug ? `/${leagueSlug}/login` : '/login', { replace: true }), 1500);
+      setTimeout(() => navigate('/login', { replace: true }), 1500);
     } catch (err) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error

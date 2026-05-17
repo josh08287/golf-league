@@ -1,5 +1,6 @@
 using System.Text;
 using GolfLeague.Application.Common;
+using GolfLeague.Application.DTOs;
 using GolfLeague.Application.DTOs.Auth;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
@@ -94,7 +95,7 @@ public sealed class AuthService : IAuthService
     public async Task<Result<AuthResponseDto>> LoginAsync(
         string email,
         string password,
-        string? leagueSlug = null,
+        int? leagueId = null,
         CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email);
@@ -122,14 +123,14 @@ public sealed class AuthService : IAuthService
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueSlug, cancellationToken);
-        var response = await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
+        var (resolvedLeagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId, cancellationToken);
+        var response = await IssueTokensAsync(user, cancellationToken, resolvedLeagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
     }
 
     public async Task<Result<AuthResponseDto>> RefreshAsync(
         string refreshToken,
-        string? leagueSlug = null,
+        int? leagueId = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
@@ -148,9 +149,31 @@ public sealed class AuthService : IAuthService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var user = stored.User!;
-        var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueSlug, cancellationToken);
-        var response = await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
+        var (resolvedLeagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId, cancellationToken);
+        var response = await IssueTokensAsync(user, cancellationToken, resolvedLeagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
+    }
+
+    public async Task<Result<UserLeaguesDto>> GetMyLeaguesAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user is null)
+            return Result<UserLeaguesDto>.Fail("User not found.");
+
+        if (user.IsSuperAdmin)
+        {
+            var all = await _leagueRepository.GetAllAsync(cancellationToken);
+            var dtos = all.Select(l => new UserLeagueDto(l.Id, l.Name, l.Slug, "admin")).ToList();
+            return Result<UserLeaguesDto>.Ok(new UserLeaguesDto(dtos, IsSuperAdmin: true));
+        }
+
+        var memberships = await _leagueRepository.GetMembershipsForUserAsync(userId, cancellationToken);
+        var memberDtos = memberships
+            .Select(m => new UserLeagueDto(m.LeagueId, m.League.Name, m.League.Slug, m.Role.ToString().ToLowerInvariant()))
+            .ToList();
+        return Result<UserLeaguesDto>.Ok(new UserLeaguesDto(memberDtos, IsSuperAdmin: false));
     }
 
     public async Task<Result<bool>> LogoutAsync(
@@ -410,36 +433,39 @@ public sealed class AuthService : IAuthService
     }
 
     /// <summary>
-    /// Resolves the league context for token issuance. If the user is a SuperAdmin
-    /// they always bypass league membership checks. Otherwise looks up the league
-    /// by slug and returns the user's role in that league (or null if not a member).
+    /// Resolves league scope for token issuance by leagueId.
+    /// SuperAdmin with a leagueId gets a league-scoped token with admin role.
+    /// Regular users must be a member of the requested league.
+    /// When leagueId is null and the user belongs to exactly one league,
+    /// that league is auto-selected.
     /// </summary>
     private async Task<(int? leagueId, string? leagueRole)> ResolveLeagueAsync(
         AppUser user,
-        string? leagueSlug,
+        int? leagueId,
         CancellationToken cancellationToken)
     {
         if (user.IsSuperAdmin)
         {
-            // SuperAdmin can operate across all leagues; no specific leagueId needed in token.
-            if (!string.IsNullOrWhiteSpace(leagueSlug))
+            if (leagueId.HasValue)
             {
-                var league = await _leagueRepository.GetBySlugAsync(leagueSlug, cancellationToken);
-                return (league?.Id, "admin");
+                var league = await _leagueRepository.GetByIdAsync(leagueId.Value, cancellationToken);
+                return league is not null ? (league.Id, "admin") : (null, null);
             }
             return (null, null);
         }
 
-        if (string.IsNullOrWhiteSpace(leagueSlug))
+        // Auto-select when no leagueId requested and user has exactly one membership.
+        if (!leagueId.HasValue)
+        {
+            var memberships = await _leagueRepository.GetMembershipsForUserAsync(user.Id, cancellationToken);
+            if (memberships.Count == 1)
+                return (memberships[0].LeagueId, memberships[0].Role.ToString().ToLowerInvariant());
             return (null, null);
+        }
 
-        var targetLeague = await _leagueRepository.GetBySlugAsync(leagueSlug, cancellationToken);
-        if (targetLeague is null)
-            return (null, null);
-
-        var membership = await _leagueRepository.GetMembershipAsync(targetLeague.Id, user.Id, cancellationToken);
+        var membership = await _leagueRepository.GetMembershipAsync(leagueId.Value, user.Id, cancellationToken);
         return membership is not null
-            ? (targetLeague.Id, membership.Role.ToString().ToLowerInvariant())
+            ? (leagueId.Value, membership.Role.ToString().ToLowerInvariant())
             : (null, null);
     }
 

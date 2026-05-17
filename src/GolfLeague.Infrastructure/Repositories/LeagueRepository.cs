@@ -29,6 +29,12 @@ public sealed class LeagueRepository : ILeagueRepository
         => _context.LeagueMemberships
             .FirstOrDefaultAsync(m => m.LeagueId == leagueId && m.UserId == userId, cancellationToken);
 
+    public async Task<IReadOnlyList<LeagueMembership>> GetMembershipsForUserAsync(Guid userId, CancellationToken cancellationToken = default)
+        => await _context.LeagueMemberships
+            .Include(m => m.League)
+            .Where(m => m.UserId == userId)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(League league, CancellationToken cancellationToken = default)
     {
         await _context.Leagues.AddAsync(league, cancellationToken);

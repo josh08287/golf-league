@@ -11,20 +11,13 @@ export function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
   const ran = useRef(false);
 
-  // The league slug was saved to sessionStorage before the OAuth redirect so
-  // we can use a single fixed redirectUri with Google (no per-league registration).
-  const leagueSlug = sessionStorage.getItem('golf-league-oauth-league-slug') ?? '';
-  const base = leagueSlug ? `/${leagueSlug}` : '';
-
   useEffect(() => {
-    if (ran.current) return; // React StrictMode double-invoke guard
+    if (ran.current) return;
     ran.current = true;
 
     const state = params.get('state');
     const code = params.get('code');
     const providerError = params.get('error');
-
-    sessionStorage.removeItem('golf-league-oauth-league-slug');
 
     if (providerError) {
       setError(`Social sign-in cancelled or failed (${providerError}).`);
@@ -39,7 +32,7 @@ export function AuthCallbackPage() {
       try {
         const resp = await completeExternalLogin(state, code);
         await onLoginSuccess(resp);
-        if (!resp.mfaRequired) navigate(base || '/', { replace: true });
+        if (!resp.mfaRequired) navigate('/', { replace: true });
       } catch (err) {
         const message =
           (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -47,16 +40,16 @@ export function AuthCallbackPage() {
         setError(message);
       }
     })();
-  }, [params, navigate, onLoginSuccess, base]);
+  }, [params, navigate, onLoginSuccess]);
 
   if (error) {
     return (
-      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-center bg-gray-50">
         <h1 className="text-xl font-bold text-gray-900">Sign-in error</h1>
         <p className="text-sm text-red-600">{error}</p>
         <button
           className="text-sm text-primary-900 underline"
-          onClick={() => navigate(base ? `${base}/login` : '/', { replace: true })}
+          onClick={() => navigate('/login', { replace: true })}
         >
           Back to sign in
         </button>
@@ -65,7 +58,7 @@ export function AuthCallbackPage() {
   }
 
   return (
-    <div className="flex min-h-[60vh] items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center">
       <Spinner />
     </div>
   );

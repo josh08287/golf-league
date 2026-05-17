@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,11 +17,10 @@ type FormValues = z.infer<typeof schema>;
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isAuthenticated) {
-    navigate(leagueSlug ? `/${leagueSlug}` : '/', { replace: true });
+    navigate('/', { replace: true });
   }
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -45,7 +44,7 @@ export function LoginPage() {
     'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]';
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
           <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
@@ -68,7 +67,7 @@ export function LoginPage() {
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </Button>
           <p className="text-right text-xs">
-            <Link to="auth/forgot-password" className="text-gray-500 hover:text-primary-900 hover:underline">
+            <Link to="/auth/forgot-password" className="text-gray-500 hover:text-primary-900 hover:underline">
               Forgot password?
             </Link>
           </p>
@@ -85,12 +84,10 @@ export function LoginPage() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => void startExternalLogin('google', leagueSlug)}
+            onClick={() => void startExternalLogin('google')}
           >
             Sign in with Google
           </Button>
-          {/* Facebook sign-in disabled in UI; backend support remains so the
-              button can be re-added later without touching server code. */}
         </div>
 
         <p className="mt-6 text-center text-xs text-gray-400">

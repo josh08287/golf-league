@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useLeagueName } from '@/context/LeagueContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -18,23 +18,15 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-/**
- * Invite-only registration. The token must be supplied via ?token=… (the link
- * embedded in the invite email points here). Without a token we render a
- * "this is invite-only" page instead of the form.
- */
 export function RegisterPage() {
   const leagueName = useLeagueName();
   const { onLoginSuccess } = useAuth();
   const navigate = useNavigate();
-  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
 
   const { data: invite, isLoading, error: inviteError } = useInviteByToken(token || null);
 
-  // Defensive: any stale tokens here mean the user is trying to register
-  // a new account; the existing session is irrelevant.
   useEffect(() => { clearAuth(); }, []);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -77,7 +69,7 @@ export function RegisterPage() {
         inviteToken: token,
       });
       await onLoginSuccess(resp);
-      if (!resp.mfaRequired) navigate(leagueSlug ? `/${leagueSlug}` : '/', { replace: true });
+      if (!resp.mfaRequired) navigate('/', { replace: true });
     } catch (err) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -90,11 +82,11 @@ export function RegisterPage() {
     'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]';
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
           <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Join {leagueName}</h1>
+          <h1 className="mt-4 text-2xl font-bold text-gray-900">Join {leagueName || 'the League'}</h1>
           <p className="mt-1 text-sm text-gray-500">Invite for <strong>{invite.email}</strong></p>
         </div>
 
@@ -141,8 +133,6 @@ export function RegisterPage() {
           >
             Continue with Google
           </Button>
-          {/* Facebook sign-in disabled in UI; backend support remains so the
-              button can be re-added later without touching server code. */}
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-400">
@@ -151,7 +141,7 @@ export function RegisterPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Already joined?{' '}
-          <Link to="../login" className="text-primary-900 font-medium hover:underline">Sign in</Link>
+          <Link to="/login" className="text-primary-900 font-medium hover:underline">Sign in</Link>
         </p>
       </div>
     </div>
@@ -160,13 +150,13 @@ export function RegisterPage() {
 
 function InviteOnlyNotice({ message }: { message: string }) {
   return (
-    <div className="flex min-h-[70vh] items-center justify-center">
+    <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md text-center">
         <span className="text-5xl" role="img" aria-label="locked">🔒</span>
         <h1 className="mt-4 text-xl font-bold text-gray-900">Invite required</h1>
         <p className="mt-3 text-sm text-gray-500">{message}</p>
         <p className="mt-4 text-sm">
-          <Link to="../login" className="text-primary-900 font-medium hover:underline">
+          <Link to="/login" className="text-primary-900 font-medium hover:underline">
             Back to sign in
           </Link>
         </p>

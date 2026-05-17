@@ -121,8 +121,8 @@ function unwrap<T>(envelope: { data?: T } | T): T {
   return envelope as T;
 }
 
-export async function login(email: string, password: string, leagueSlug?: string): Promise<AuthResponse> {
-  const res = await authClient.post('/auth/login', { email, password, leagueSlug });
+export async function login(email: string, password: string, leagueId?: number): Promise<AuthResponse> {
+  const res = await authClient.post('/auth/login', { email, password, leagueId });
   const data = unwrap<AuthResponse>(res.data);
   storeAuthResponse(data);
   return data;
@@ -141,11 +141,11 @@ export async function register(input: {
   return data;
 }
 
-export async function refresh(leagueSlug?: string): Promise<string | null> {
+export async function refresh(leagueId?: number): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
   try {
-    const res = await authClient.post('/auth/refresh', { refreshToken, leagueSlug });
+    const res = await authClient.post('/auth/refresh', { refreshToken, leagueId });
     const data = unwrap<AuthResponse>(res.data);
     storeAuthResponse(data);
     return data.accessToken;
@@ -178,14 +178,12 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 
 interface StartResponse { authorizeUrl: string; state: string }
 
-export async function startExternalLogin(provider: Provider, leagueSlug?: string): Promise<void> {
+export async function startExternalLogin(provider: Provider): Promise<void> {
   const redirectUri = `${window.location.origin}/auth/callback`;
   const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri });
   const { authorizeUrl } = unwrap<StartResponse>(res.data);
   sessionStorage.setItem('golf-league-oauth-provider', provider);
   sessionStorage.setItem('golf-league-oauth-redirect-uri', redirectUri);
-  if (leagueSlug) sessionStorage.setItem('golf-league-oauth-league-slug', leagueSlug);
-  else sessionStorage.removeItem('golf-league-oauth-league-slug');
   window.location.assign(authorizeUrl);
 }
 
