@@ -22,6 +22,7 @@ var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(workerApp =>
     {
         workerApp.UseMiddleware<AuthMiddleware>();
+        workerApp.UseMiddleware<LeagueContextMiddleware>();
     })
     .ConfigureServices((context, services) =>
     {
@@ -105,10 +106,12 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
         await dbContext.Database.MigrateAsync();
     });
 
-    logger.LogInformation("Startup: migrations applied. Seeding roles + active season if missing.");
+    logger.LogInformation("Startup: migrations applied. Seeding roles + default league + active season if missing.");
     await SeedRolesAsync(scope.ServiceProvider, logger);
-    await SeedActiveSeasonAsync(dbContext);
+    var defaultLeague = await SeedDefaultLeagueAsync(dbContext, scope.ServiceProvider.GetRequiredService<IConfiguration>());
+    await SeedActiveSeasonAsync(dbContext, defaultLeague.Id);
     await BootstrapAdminAsync(scope.ServiceProvider, logger);
+    await BootstrapSuperAdminAsync(scope.ServiceProvider, logger);
     logger.LogInformation("Startup: seed complete.");
 }
 
@@ -130,9 +133,27 @@ static async Task SeedRolesAsync(IServiceProvider services, ILogger logger)
     }
 }
 
-static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
+static async Task<GolfLeague.Domain.Entities.League> SeedDefaultLeagueAsync(AppDbContext dbContext, IConfiguration config)
 {
-    var hasActiveSeason = await dbContext.Seasons.AnyAsync(s => s.IsActive);
+    var defaultSlug = config["DEFAULT_LEAGUE_SLUG"] ?? "default";
+    var existing = await dbContext.Leagues.FirstOrDefaultAsync(l => l.Slug == defaultSlug);
+    if (existing is not null) return existing;
+
+    var league = new GolfLeague.Domain.Entities.League
+    {
+        Name = config["DEFAULT_LEAGUE_NAME"] ?? "Golf League",
+        Slug = defaultSlug,
+        IsActive = true,
+        CreatedAt = DateTime.UtcNow,
+    };
+    dbContext.Leagues.Add(league);
+    await dbContext.SaveChangesAsync();
+    return league;
+}
+
+static async Task SeedActiveSeasonAsync(AppDbContext dbContext, int leagueId)
+{
+    var hasActiveSeason = await dbContext.Seasons.AnyAsync(s => s.IsActive && s.LeagueId == leagueId);
     if (hasActiveSeason) return;
 
     var year = DateTime.UtcNow.Year;
@@ -142,6 +163,7 @@ static async Task SeedActiveSeasonAsync(AppDbContext dbContext)
 
     var season = new GolfLeague.Domain.Entities.Season
     {
+        LeagueId = leagueId,
         Name = $"{year} Season",
         Year = year,
         StartDate = start,
@@ -256,4 +278,32 @@ static async Task BootstrapAdminAsync(IServiceProvider services, ILogger logger)
         "Startup: created bootstrap admin {Email} (no password set). " +
         "Use the password-reset flow to complete account setup.",
         bootstrapEmail);
+}
+
+static async Task BootstrapSuperAdminAsync(IServiceProvider services, ILogger logger)
+{
+    var userManager = services.GetRequiredService<UserManager<AppUser>>();
+    const string superAdminEmail = "josh.b.blaine@gmail.com";
+
+    var user = await userManager.FindByEmailAsync(superAdminEmail);
+    if (user is null)
+    {
+        logger.LogInformation("Startup: super-admin account {Email} not found; skipping.", superAdminEmail);
+        return;
+    }
+
+    if (user.IsSuperAdmin)
+    {
+        logger.LogInformation("Startup: {Email} is already super-admin.", superAdminEmail);
+        return;
+    }
+
+    user.IsSuperAdmin = true;
+    var result = await userManager.UpdateAsync(user);
+    if (result.Succeeded)
+        logger.LogWarning("Startup: granted IsSuperAdmin to {Email}.", superAdminEmail);
+    else
+        logger.LogError(
+            "Startup: failed to set IsSuperAdmin on {Email}: {Errors}",
+            superAdminEmail, string.Join("; ", result.Errors.Select(e => e.Description)));
 }

@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useLeagueName } from '@/context/LeagueContext';
 import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
@@ -262,6 +263,7 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
 }
 
 export function HomePage() {
+  const leagueName = useLeagueName();
   const flights = useFlights();
   const rounds = useRounds(1);
   const isAuthed = useAuthStore((s) => !!s.user);
@@ -280,7 +282,7 @@ export function HomePage() {
       {/* Hero */}
       <section className="rounded-2xl bg-primary-900 px-8 py-12 text-white text-center">
         <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl">
-          ⛳ Capital Golf League
+          ⛳ {leagueName}
         </h1>
         <p className="mt-4 text-primary-100 text-lg max-w-xl mx-auto">
           Track standings, scores, and handicaps all season long.

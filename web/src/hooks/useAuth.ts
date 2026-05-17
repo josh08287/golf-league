@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import {
@@ -17,12 +17,11 @@ export function useAuth() {
   const clearUser = useAuthStore((s) => s.clearUser);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  // leagueSlug may be undefined when useAuth is called outside a league route
+  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
 
   const [bootstrapping, setBootstrapping] = useState(() => isAuthed() && !user);
 
-  // On first mount, if we have a stored token but no user object, hydrate from
-  // the current-user endpoint. Also runs when the access token changes (e.g.
-  // after a refresh) but skips if the store already has the right user.
   useEffect(() => {
     if (!isAuthed()) {
       setBootstrapping(false);
@@ -52,17 +51,17 @@ export function useAuth() {
     return () => { cancelled = true; };
   }, [user, setUser]);
 
+  const prefix = leagueSlug ? `/${leagueSlug}` : '';
+
   const handleLoginSuccess = useCallback(async (resp: AuthResponse) => {
     if (resp.mfaRequired) {
-      // Caller must handle the MFA path; we just stash the challenge token
-      // for the /auth/mfa page.
       sessionStorage.setItem('golf-league-mfa-token', resp.accessToken);
       sessionStorage.setItem(
         'golf-league-mfa-enrollment-required',
         resp.mfaEnrollmentRequired ? '1' : '0',
       );
       navigate(
-        resp.mfaEnrollmentRequired ? '/auth/mfa/enroll' : '/auth/mfa',
+        resp.mfaEnrollmentRequired ? `${prefix}/auth/mfa/enroll` : `${prefix}/auth/mfa`,
         { replace: true },
       );
       return;
@@ -75,20 +74,20 @@ export function useAuth() {
       playerId: me.playerId != null ? String(me.playerId) : null,
     });
     await queryClient.invalidateQueries();
-  }, [navigate, setUser, queryClient]);
+  }, [navigate, setUser, queryClient, prefix]);
 
   const login = useCallback(async (email: string, password: string) => {
-    const resp = await loginApi(email, password);
+    const resp = await loginApi(email, password, leagueSlug);
     await handleLoginSuccess(resp);
     return resp;
-  }, [handleLoginSuccess]);
+  }, [handleLoginSuccess, leagueSlug]);
 
   const logout = useCallback(async () => {
     await logoutApi();
     clearUser();
     queryClient.clear();
-    navigate('/login', { replace: true });
-  }, [clearUser, navigate, queryClient]);
+    navigate(`${prefix}/login`, { replace: true });
+  }, [clearUser, navigate, queryClient, prefix]);
 
   return {
     user,

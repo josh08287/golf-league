@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useLeagueName } from '@/context/LeagueContext';
 import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight, Calculator, AlertTriangle } from 'lucide-react';
 import { usePlayers } from '@/hooks/usePlayers';
 import { useRounds } from '@/hooks/useRounds';
@@ -52,6 +53,7 @@ function QuickLink({ to, label, description, icon }: QuickLinkProps) {
 }
 
 export function AdminDashboardPage() {
+  const leagueName = useLeagueName();
   const { data: playersPage, isLoading: playersLoading } = usePlayers();
   const { data: roundsPage, isLoading: roundsLoading } = useRounds();
   const recalculateRounds = useRecalculateRounds();
@@ -77,7 +79,7 @@ export function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Dashboard" subtitle="Capital Golf League Admin" />
+      <PageHeader title="Dashboard" subtitle={`${leagueName} Admin`} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard

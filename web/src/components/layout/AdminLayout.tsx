@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useParams } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
+import { useLeagueName } from '@/context/LeagueContext';
 
 interface NavItem {
   to: string;
@@ -22,27 +23,30 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/players', label: 'Players', icon: Users },
-  { to: '/admin/invites', label: 'Invites', icon: Mail },
-  { to: '/admin/seasons', label: 'Seasons', icon: Layers },
-  { to: '/admin/flights', label: 'Flights', icon: Trophy },
-  { to: '/admin/rounds', label: 'Rounds', icon: CalendarDays },
-  { to: '/admin/tee-times', label: 'Tee Times', icon: Clock },
-  { to: '/admin/courses', label: 'Courses', icon: MapPin },
-  { to: '/admin/settings', label: 'Settings', icon: Settings },
-  { to: '/admin/audit-log', label: 'Audit Log', icon: ClipboardList },
-];
-
 export function AdminLayout() {
   const user = useAuthStore((s) => s.user);
   const clearUser = useAuthStore((s) => s.clearUser);
   const navigate = useNavigate();
+  const { leagueSlug = '' } = useParams<{ leagueSlug: string }>();
+  const leagueName = useLeagueName(leagueSlug);
+  const base = `/${leagueSlug}`;
+
+  const NAV_ITEMS: NavItem[] = [
+    { to: `${base}/admin`, label: 'Dashboard', icon: LayoutDashboard },
+    { to: `${base}/admin/players`, label: 'Players', icon: Users },
+    { to: `${base}/admin/invites`, label: 'Invites', icon: Mail },
+    { to: `${base}/admin/seasons`, label: 'Seasons', icon: Layers },
+    { to: `${base}/admin/flights`, label: 'Flights', icon: Trophy },
+    { to: `${base}/admin/rounds`, label: 'Rounds', icon: CalendarDays },
+    { to: `${base}/admin/tee-times`, label: 'Tee Times', icon: Clock },
+    { to: `${base}/admin/courses`, label: 'Courses', icon: MapPin },
+    { to: `${base}/admin/settings`, label: 'Settings', icon: Settings },
+    { to: `${base}/admin/audit-log`, label: 'Audit Log', icon: ClipboardList },
+  ];
 
   function handleLogout() {
     clearUser();
-    navigate('/login');
+    navigate(`${base}/login`);
   }
 
   return (
@@ -52,7 +56,7 @@ export function AdminLayout() {
         {/* Logo / Brand */}
         <div className="flex h-16 items-center gap-2 border-b border-green-700 px-6">
           <Flag className="h-6 w-6 text-green-300" />
-          <span className="text-lg font-bold tracking-tight">Capital Golf League</span>
+          <span className="text-lg font-bold tracking-tight">{leagueName}</span>
         </div>
 
         {/* Navigation */}
@@ -62,7 +66,7 @@ export function AdminLayout() {
               <li key={to}>
                 <NavLink
                   to={to}
-                  end={to === '/admin'}
+                  end={to === `${base}/admin`}
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',

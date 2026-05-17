@@ -59,7 +59,7 @@ public sealed class AuthFunctions
         if (string.IsNullOrWhiteSpace(body.Email) || string.IsNullOrWhiteSpace(body.Password))
             return new BadRequestObjectResult(new { error = "Email and password are required." });
 
-        var result = await _authService.LoginAsync(body.Email, body.Password, cancellationToken);
+        var result = await _authService.LoginAsync(body.Email, body.Password, body.LeagueSlug, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
 
@@ -75,7 +75,7 @@ public sealed class AuthFunctions
         if (body is null || string.IsNullOrWhiteSpace(body.RefreshToken))
             return new BadRequestObjectResult(new { error = "Refresh token is required." });
 
-        var result = await _authService.RefreshAsync(body.RefreshToken, cancellationToken);
+        var result = await _authService.RefreshAsync(body.RefreshToken, body.LeagueSlug, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
 
@@ -155,9 +155,9 @@ public sealed class AuthFunctions
         return new OkObjectResult(new { data = new { reset = true } });
     }
 
-    private sealed record RegisterRequest(string Email, string Password, string InviteToken, string? FirstName, string? LastName);
-    private sealed record LoginRequest(string Email, string Password);
-    private sealed record RefreshRequest(string RefreshToken);
+    private sealed record RegisterRequest(string Email, string Password, string InviteToken, string? FirstName, string? LastName, string? LeagueSlug);
+    private sealed record LoginRequest(string Email, string Password, string? LeagueSlug);
+    private sealed record RefreshRequest(string RefreshToken, string? LeagueSlug);
     private sealed record PasswordResetRequestBody(string Email);
     private sealed record PasswordResetConfirmBody(string Email, string Token, string NewPassword);
 }

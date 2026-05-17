@@ -26,10 +26,12 @@ public interface IAuthService
     Task<Result<AuthResponseDto>> LoginAsync(
         string email,
         string password,
+        string? leagueSlug = null,
         CancellationToken cancellationToken = default);
 
     Task<Result<AuthResponseDto>> RefreshAsync(
         string refreshToken,
+        string? leagueSlug = null,
         CancellationToken cancellationToken = default);
 
     Task<Result<bool>> LogoutAsync(

@@ -108,8 +108,8 @@ function unwrap<T>(envelope: { data?: T } | T): T {
   return envelope as T;
 }
 
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  const res = await authClient.post('/auth/login', { email, password });
+export async function login(email: string, password: string, leagueSlug?: string): Promise<AuthResponse> {
+  const res = await authClient.post('/auth/login', { email, password, leagueSlug });
   const data = unwrap<AuthResponse>(res.data);
   storeAuthResponse(data);
   return data;
@@ -128,11 +128,11 @@ export async function register(input: {
   return data;
 }
 
-export async function refresh(): Promise<string | null> {
+export async function refresh(leagueSlug?: string): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
   try {
-    const res = await authClient.post('/auth/refresh', { refreshToken });
+    const res = await authClient.post('/auth/refresh', { refreshToken, leagueSlug });
     const data = unwrap<AuthResponse>(res.data);
     storeAuthResponse(data);
     return data.accessToken;

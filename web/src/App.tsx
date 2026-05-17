@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-route
 import { useEffect } from 'react';
 import { setNavigator } from '@/lib/api';
 import { RootLayout } from '@/components/layout/RootLayout';
+import { LeagueSlugRoute } from '@/components/LeagueSlugRoute';
 
 import { HomePage } from '@/pages/HomePage';
 import { FlightsPage } from '@/pages/FlightsPage';
@@ -24,6 +25,9 @@ import { StatisticsPage } from '@/pages/StatisticsPage';
 import { TournamentResultsPage } from '@/pages/TournamentResultsPage';
 import { adminRoutes } from '@/routes/adminRoutes';
 
+const DEFAULT_LEAGUE_SLUG =
+  (import.meta.env.VITE_DEFAULT_LEAGUE_SLUG as string | undefined) ?? 'capital';
+
 function NavigatorInjector() {
   const navigate = useNavigate();
   useEffect(() => { setNavigator(navigate); }, [navigate]);
@@ -35,30 +39,39 @@ export default function App() {
     <BrowserRouter>
       <NavigatorInjector />
       <Routes>
-        <Route element={<RootLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="flights" element={<FlightsPage />} />
-          <Route path="flights/:flightId" element={<FlightLeaderboardPage />} />
-          <Route path="rounds" element={<RoundsPage />} />
-          <Route path="rounds/:roundId" element={<RoundDetailPage />} />
-          <Route path="players" element={<PlayersPage />} />
-          <Route path="players/:playerId" element={<PlayerProfilePage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="auth/callback" element={<AuthCallbackPage />} />
-          <Route path="auth/mfa" element={<MfaPage />} />
-          <Route path="auth/mfa/enroll" element={<MfaEnrollPage />} />
-          <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="auth/reset-password" element={<ResetPasswordPage />} />
-          <Route path="accept-invite" element={<AcceptInvitePage />} />
-          <Route path="tee-times" element={<TeeTimesNextPage />} />
-          <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
-          <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
-          <Route path="statistics" element={<StatisticsPage />} />
-          <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
-          {adminRoutes}
-          <Route path="*" element={<Navigate to="/" replace />} />
+        {/* Apex path redirects to the default league */}
+        <Route index element={<Navigate to={`/${DEFAULT_LEAGUE_SLUG}`} replace />} />
+
+        {/* All league-scoped routes live under /:leagueSlug */}
+        <Route path=":leagueSlug" element={<LeagueSlugRoute />}>
+          <Route element={<RootLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="flights" element={<FlightsPage />} />
+            <Route path="flights/:flightId" element={<FlightLeaderboardPage />} />
+            <Route path="rounds" element={<RoundsPage />} />
+            <Route path="rounds/:roundId" element={<RoundDetailPage />} />
+            <Route path="players" element={<PlayersPage />} />
+            <Route path="players/:playerId" element={<PlayerProfilePage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="auth/callback" element={<AuthCallbackPage />} />
+            <Route path="auth/mfa" element={<MfaPage />} />
+            <Route path="auth/mfa/enroll" element={<MfaEnrollPage />} />
+            <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="auth/reset-password" element={<ResetPasswordPage />} />
+            <Route path="accept-invite" element={<AcceptInvitePage />} />
+            <Route path="tee-times" element={<TeeTimesNextPage />} />
+            <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
+            <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
+            <Route path="statistics" element={<StatisticsPage />} />
+            <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
+            {adminRoutes}
+            <Route path="*" element={<Navigate to="" replace />} />
+          </Route>
         </Route>
+
+        {/* Fallback for anything else */}
+        <Route path="*" element={<Navigate to={`/${DEFAULT_LEAGUE_SLUG}`} replace />} />
       </Routes>
     </BrowserRouter>
   );

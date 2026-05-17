@@ -12,9 +12,7 @@ public static class HttpRequestExtensions
            ?? request.HttpContext.User.FindFirst("sub")?.Value;
 
     /// <summary>
-    /// Returns the calling user's linked Player id from the "playerId" JWT
-    /// claim (set by JwtTokenService when the AppUser has a Player). Returns
-    /// null when the user has no linked Player or no valid claim.
+    /// Returns the calling user's linked Player id from the "playerId" JWT claim.
     /// </summary>
     public static int? GetPlayerId(this HttpRequest request)
     {
@@ -22,6 +20,26 @@ public static class HttpRequestExtensions
         return int.TryParse(raw, out var id) ? id : null;
     }
 
+    /// <summary>
+    /// Returns the active league id from the "leagueId" JWT claim.
+    /// </summary>
+    public static int? GetLeagueId(this HttpRequest request)
+    {
+        var raw = request.HttpContext.User.FindFirst("leagueId")?.Value;
+        return int.TryParse(raw, out var id) ? id : null;
+    }
+
+    /// <summary>
+    /// Returns true when the JWT carries the "superAdmin" claim.
+    /// SuperAdmins bypass all league-scoped authorization.
+    /// </summary>
+    public static bool IsSuperAdmin(this HttpRequest request)
+        => request.HttpContext.User.FindFirst("superAdmin")?.Value == "true";
+
+    /// <summary>
+    /// Requires the user to hold one of the given roles OR be a SuperAdmin.
+    /// Returns null on success, an IActionResult on failure.
+    /// </summary>
     public static IActionResult? RequireRole(this HttpRequest request, params string[] allowedRoles)
     {
         var user = request.HttpContext.User;
@@ -29,9 +47,12 @@ public static class HttpRequestExtensions
         if (user.Identity is null || !user.Identity.IsAuthenticated)
             return new UnauthorizedResult();
 
-        // Get all role claims (case-insensitive comparison)
+        // SuperAdmin bypasses all role checks
+        if (request.IsSuperAdmin())
+            return null;
+
         var userRoles = user.Claims
-            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
+            .Where(c => c.Type == ClaimTypes.Role || c.Type == "roles" || c.Type == "role")
             .Select(c => c.Value?.ToLowerInvariant())
             .ToList();
 
@@ -39,6 +60,19 @@ public static class HttpRequestExtensions
         if (!hasRole)
             return new ObjectResult(new { error = "Forbidden: insufficient role." }) { StatusCode = 403 };
 
+        return null;
+    }
+
+    /// <summary>
+    /// Requires the caller to be a SuperAdmin. Returns null on success.
+    /// </summary>
+    public static IActionResult? RequireSuperAdmin(this HttpRequest request)
+    {
+        var user = request.HttpContext.User;
+        if (user.Identity is null || !user.Identity.IsAuthenticated)
+            return new UnauthorizedResult();
+        if (!request.IsSuperAdmin())
+            return new ObjectResult(new { error = "Forbidden: super-admin access required." }) { StatusCode = 403 };
         return null;
     }
 

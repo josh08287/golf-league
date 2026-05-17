@@ -1,3 +1,4 @@
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using Microsoft.AspNetCore.Identity;
@@ -8,10 +9,16 @@ namespace GolfLeague.Infrastructure.Data;
 
 public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
+    private readonly ILeagueContext? _leagueContext;
+
+    public AppDbContext(DbContextOptions<AppDbContext> options, ILeagueContext? leagueContext = null)
+        : base(options)
     {
+        _leagueContext = leagueContext;
     }
 
+    public DbSet<League> Leagues => Set<League>();
+    public DbSet<LeagueMembership> LeagueMemberships => Set<LeagueMembership>();
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<SeasonHalf> SeasonHalves => Set<SeasonHalf>();
     public DbSet<Flight> Flights => Set<Flight>();
@@ -35,6 +42,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     {
         base.OnModelCreating(modelBuilder);
 
+        ConfigureLeagues(modelBuilder);
+        ConfigureLeagueMemberships(modelBuilder);
         ConfigureSeasons(modelBuilder);
         ConfigureSeasonHalves(modelBuilder);
         ConfigureFlights(modelBuilder);
@@ -54,6 +63,41 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureAppUsers(modelBuilder);
         ConfigureRefreshTokens(modelBuilder);
         ConfigureUserPasskeys(modelBuilder);
+
+        ApplyGlobalQueryFilters(modelBuilder);
+    }
+
+    private static void ConfigureLeagues(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<League>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.Slug).IsUnique();
+        });
+    }
+
+    private static void ConfigureLeagueMemberships(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LeagueMembership>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Role)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<PlayerRole>(v))
+                  .HasMaxLength(20);
+            entity.HasOne(e => e.League)
+                  .WithMany(l => l.Memberships)
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.User)
+                  .WithMany()
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.LeagueId, e.UserId }).IsUnique();
+        });
     }
 
     private static void ConfigureSeasons(ModelBuilder modelBuilder)
@@ -63,6 +107,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
             entity.Property(e => e.IsActive).IsRequired();
+            entity.HasOne(e => e.League)
+                  .WithMany(l => l.Seasons)
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 
@@ -109,11 +157,12 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.FirstName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.LastName).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Email).HasMaxLength(256);
-            // Player has at most one AppUser; AppUser has at most one Player.
-            // SetNull on delete so deleting an AppUser doesn't cascade-wipe
-            // the player history.
             entity.Property(e => e.PreferredTeeTimeSlots)
                   .HasConversion<int>();
+            entity.HasOne(e => e.League)
+                  .WithMany(l => l.Players)
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.AppUser)
                   .WithOne(u => u.Player)
                   .HasForeignKey<Player>(e => e.AppUserId)
@@ -362,6 +411,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.EntityType).IsRequired().HasMaxLength(100);
             entity.Property(e => e.EntityId).IsRequired().HasMaxLength(50);
             entity.Property(e => e.UserId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.LeagueId);
+            entity.HasIndex(e => e.LeagueId);
         });
     }
 
@@ -371,6 +422,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Email).IsRequired().HasMaxLength(256);
+            entity.HasOne(e => e.League)
+                  .WithMany()
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.Property(e => e.Token).IsRequired().HasMaxLength(64);
             entity.Property(e => e.InvitedByUserId).IsRequired().HasMaxLength(128);
             entity.Property(e => e.Status)
@@ -409,8 +464,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         modelBuilder.Entity<AppUser>(entity =>
         {
             entity.Property(e => e.TotpSecret).HasMaxLength(64);
-            // PlayerId FK is configured on the Player side (1:1 inverse).
-            // Roles live in AspNetUserRoles (Identity's built-in join table).
+            entity.Property(e => e.IsSuperAdmin).HasDefaultValue(false);
         });
     }
 
@@ -444,5 +498,38 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasIndex(e => e.CredentialId).IsUnique();
             entity.HasIndex(e => e.UserId);
         });
+    }
+
+    private void ApplyGlobalQueryFilters(ModelBuilder modelBuilder)
+    {
+        // Global filters scope league-owned entities to the current request's
+        // league. SuperAdmin bypasses filters (ILeagueContext.IsSuperAdmin=true).
+        // Migrations and background jobs that run without an ILeagueContext
+        // (leagueId=null, isSuperAdmin=false) will also bypass to avoid startup
+        // failures.
+        modelBuilder.Entity<Season>()
+            .HasQueryFilter(e => _leagueContext == null
+                || _leagueContext.IsSuperAdmin
+                || _leagueContext.LeagueId == null
+                || e.LeagueId == _leagueContext.LeagueId);
+
+        modelBuilder.Entity<Player>()
+            .HasQueryFilter(e => _leagueContext == null
+                || _leagueContext.IsSuperAdmin
+                || _leagueContext.LeagueId == null
+                || e.LeagueId == _leagueContext.LeagueId);
+
+        modelBuilder.Entity<PlayerInvite>()
+            .HasQueryFilter(e => _leagueContext == null
+                || _leagueContext.IsSuperAdmin
+                || _leagueContext.LeagueId == null
+                || e.LeagueId == _leagueContext.LeagueId);
+
+        modelBuilder.Entity<AuditLog>()
+            .HasQueryFilter(e => _leagueContext == null
+                || _leagueContext.IsSuperAdmin
+                || _leagueContext.LeagueId == null
+                || e.LeagueId == null
+                || e.LeagueId == _leagueContext.LeagueId);
     }
 }

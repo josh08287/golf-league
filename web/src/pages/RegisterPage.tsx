@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useLeagueName } from '@/context/LeagueContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ type FormValues = z.infer<typeof schema>;
  * "this is invite-only" page instead of the form.
  */
 export function RegisterPage() {
+  const leagueName = useLeagueName();
   const { onLoginSuccess } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
@@ -91,7 +93,7 @@ export function RegisterPage() {
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
           <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Join Capital Golf League</h1>
+          <h1 className="mt-4 text-2xl font-bold text-gray-900">Join {leagueName}</h1>
           <p className="mt-1 text-sm text-gray-500">Invite for <strong>{invite.email}</strong></p>
         </div>
 

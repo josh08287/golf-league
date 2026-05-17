@@ -5,6 +5,9 @@ namespace GolfLeague.Domain.Entities;
 public class PlayerInvite
 {
     public int Id { get; set; }
+    public int LeagueId { get; set; }
+    public League League { get; set; } = null!;
+
     public string Email { get; set; } = string.Empty;
 
     // Opaque token embedded in the invite link — cryptographically random, URL-safe

@@ -3,6 +3,9 @@ namespace GolfLeague.Domain.Entities;
 public class Season
 {
     public int Id { get; set; }
+    public int LeagueId { get; set; }
+    public League League { get; set; } = null!;
+
     public string Name { get; set; } = string.Empty;
     public int Year { get; set; }
     public DateOnly StartDate { get; set; }

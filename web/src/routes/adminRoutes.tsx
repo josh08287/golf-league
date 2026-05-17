@@ -1,17 +1,3 @@
-/**
- * Admin route tree.
- *
- * Usage — add this inside your <Routes> (or router config):
- *
- *   import { adminRoutes } from './routes/adminRoutes';
- *   ...
- *   {adminRoutes}
- *
- * Or with createBrowserRouter / createRoutesFromElements:
- *
- *   import { adminRouteObjects } from './routes/adminRoutes';
- */
-
 import { Route } from 'react-router-dom';
 import { RequireAdmin } from '../components/admin/RequireAdmin';
 import { AdminLayout } from '../components/layout/AdminLayout';
@@ -30,12 +16,9 @@ import {
   TeeTimesAdminPage,
 } from '../pages/admin';
 
-/**
- * JSX route tree — use inside <Routes>.
- */
 export const adminRoutes = (
   <Route element={<RequireAdmin />}>
-    <Route path="/admin" element={<AdminLayout />}>
+    <Route path="admin" element={<AdminLayout />}>
       <Route index element={<AdminDashboardPage />} />
       <Route path="players" element={<PlayersPage />} />
       <Route path="players/:id" element={<PlayerDetailPage />} />

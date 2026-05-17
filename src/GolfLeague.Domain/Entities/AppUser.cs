@@ -10,6 +10,8 @@ public sealed class AppUser : IdentityUser<Guid>
     public string? TotpSecret { get; set; }
     public bool TotpEnabled { get; set; }
 
+    public bool IsSuperAdmin { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 

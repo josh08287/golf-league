@@ -76,20 +76,23 @@ apiClient.interceptors.response.use(
     }
 
     // Refresh failed — sign the user out and redirect, unless we're already
-    // on a public auth page. Public auth pages (login, register, password
-    // reset, social callback, MFA, invite acceptance) must never trigger an
-    // auth redirect from a background 401, or the user gets bounced mid-flow.
+    // on a public auth page. With path-based league routing, paths are
+    // /:leagueSlug/login etc. — match the segment after the slug.
     clearAuth();
     const path = window.location.pathname;
-    const publicAuthPaths = ['/login', '/register', '/accept-invite', '/auth/'];
-    const onPublicAuthPage = publicAuthPaths.some((p) =>
-      p.endsWith('/') ? path.startsWith(p) : path === p,
-    );
+    const publicAuthSegments = ['login', 'register', 'accept-invite', 'auth'];
+    const pathSegments = path.split('/').filter(Boolean);
+    // pathSegments[0] = leagueSlug, pathSegments[1] = page
+    const onPublicAuthPage = pathSegments.length >= 2
+      && publicAuthSegments.some((s) => pathSegments[1] === s || pathSegments[1]?.startsWith(s));
     if (!onPublicAuthPage) {
+      // Navigate to /:leagueSlug/login, preserving the current league slug
+      const slug = pathSegments[0] ?? '';
+      const loginPath = slug ? `/${slug}/login` : '/login';
       if (_navigate) {
-        _navigate('/login');
+        _navigate(loginPath);
       } else {
-        window.location.href = '/login';
+        window.location.href = loginPath;
       }
     }
     return Promise.reject(error);

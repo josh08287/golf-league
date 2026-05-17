@@ -46,8 +46,8 @@ public sealed class JwtTokenService : ITokenService
         };
     }
 
-    public AccessTokenResult IssueAccessToken(AppUser user, IEnumerable<string> roles)
-        => Issue(user, roles.Select(r => r.ToLowerInvariant()), AccessTokenLifetime);
+    public AccessTokenResult IssueAccessToken(AppUser user, IEnumerable<string> roles, int? leagueId, bool isSuperAdmin)
+        => Issue(user, roles.Select(r => r.ToLowerInvariant()), AccessTokenLifetime, leagueId, isSuperAdmin);
 
     public AccessTokenResult IssueMfaChallengeToken(AppUser user)
         => Issue(user, [MfaPendingRole], MfaChallengeLifetime);
@@ -84,7 +84,8 @@ public sealed class JwtTokenService : ITokenService
         }
     }
 
-    private AccessTokenResult Issue(AppUser user, IEnumerable<string> roles, TimeSpan lifetime)
+    private AccessTokenResult Issue(AppUser user, IEnumerable<string> roles, TimeSpan lifetime,
+        int? leagueId = null, bool isSuperAdmin = false)
     {
         var now = DateTime.UtcNow;
         var expires = now.Add(lifetime);
@@ -97,13 +98,17 @@ public sealed class JwtTokenService : ITokenService
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
         };
 
-        // Emit one "role" claim per assigned role. ASP.NET Core authorization
-        // (RequireRole, ClaimsPrincipal.IsInRole) walks all of them.
         foreach (var role in roles)
             claims.Add(new Claim("role", role));
 
         if (user.PlayerId is int playerId)
             claims.Add(new Claim("playerId", playerId.ToString()));
+
+        if (leagueId.HasValue)
+            claims.Add(new Claim("leagueId", leagueId.Value.ToString()));
+
+        if (isSuperAdmin)
+            claims.Add(new Claim("superAdmin", "true"));
 
         var jwt = new JwtSecurityToken(
             issuer: Issuer,

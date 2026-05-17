@@ -1,27 +1,31 @@
 import { useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
+import { Link, NavLink, useNavigate, useParams } from 'react-router-dom';
 import { Menu, X, LogOut, User } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInvites } from '@/hooks/admin/useInvites';
+import { useLeagueName } from '@/context/LeagueContext';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
-
-const publicLinks = [
-  { to: '/', label: 'Home' },
-  { to: '/flights', label: 'Flights' },
-  { to: '/rounds', label: 'Rounds' },
-  { to: '/players', label: 'Players' },
-  { to: '/statistics', label: 'Statistics' },
-];
-
-const authedLinks = [
-  { to: '/tee-times', label: 'Tee Times' },
-];
 
 export function NavBar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { leagueSlug = '' } = useParams<{ leagueSlug: string }>();
+  const leagueName = useLeagueName(leagueSlug);
+  const base = `/${leagueSlug}`;
+
+  const publicLinks = [
+    { to: base, label: 'Home' },
+    { to: `${base}/flights`, label: 'Flights' },
+    { to: `${base}/rounds`, label: 'Rounds' },
+    { to: `${base}/players`, label: 'Players' },
+    { to: `${base}/statistics`, label: 'Statistics' },
+  ];
+
+  const authedLinks = [
+    { to: `${base}/tee-times`, label: 'Tee Times' },
+  ];
 
   // Pending invite count for admin badge — only fetched when admin is logged in
   const isAdmin = user?.roles?.includes('admin') ?? false;
@@ -39,13 +43,13 @@ export function NavBar() {
     );
 
   function handleLogin() {
-    navigate('/login');
+    navigate(`${base}/login`);
   }
 
   const links = [
     ...publicLinks,
     ...(user ? authedLinks : []),
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
+    ...(isAdmin ? [{ to: `${base}/admin`, label: 'Admin' }] : []),
   ];
 
   return (
@@ -53,17 +57,17 @@ export function NavBar() {
       <div className="container flex h-16 max-w-screen-xl items-center justify-between px-4">
         {/* Logo */}
         <Link
-          to="/"
+          to={base}
           className="flex items-center gap-2 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
         >
           <span className="text-2xl" role="img" aria-label="golf flag">⛳</span>
-          <span className="hidden sm:inline">Capital Golf League</span>
+          <span className="hidden sm:inline">{leagueName}</span>
         </Link>
 
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
           {links.map((link) => (
-            <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === '/'}>
+            <NavLink key={link.to} to={link.to} className={navLinkClass} end={link.to === base}>
               <span className="relative">
                 {link.label}
                 {link.to === '/admin' && pendingInviteCount > 0 && (
@@ -82,7 +86,7 @@ export function NavBar() {
             <div className="flex items-center gap-3">
               {user.playerId ? (
                 <Link
-                  to={`/players/${user.playerId}`}
+                  to={`${base}/players/${user.playerId}`}
                   className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-primary-900 transition-colors"
                 >
                   <User className="h-4 w-4" />
@@ -134,7 +138,7 @@ export function NavBar() {
                       : 'text-gray-700 hover:bg-gray-50',
                   )
                 }
-                end={link.to === '/'}
+                end={link.to === base}
                 onClick={() => setMobileOpen(false)}
               >
                 {link.label}
@@ -146,7 +150,7 @@ export function NavBar() {
               <div className="flex flex-col gap-2">
                 {user.playerId ? (
                 <Link
-                  to={`/players/${user.playerId}`}
+                  to={`${base}/players/${user.playerId}`}
                   className="text-sm text-gray-700 px-3 hover:text-primary-900 transition-colors"
                   onClick={() => setMobileOpen(false)}
                 >

@@ -23,6 +23,7 @@ public sealed class AuthService : IAuthService
     private readonly IPlayerRepository _playerRepository;
     private readonly IInviteRepository _inviteRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly ILeagueRepository _leagueRepository;
     private readonly IEmailService _emailService;
     private readonly ILogger<AuthService> _logger;
 
@@ -33,6 +34,7 @@ public sealed class AuthService : IAuthService
         IPlayerRepository playerRepository,
         IInviteRepository inviteRepository,
         IHandicapRepository handicapRepository,
+        ILeagueRepository leagueRepository,
         IEmailService emailService,
         ILogger<AuthService> logger)
     {
@@ -42,6 +44,7 @@ public sealed class AuthService : IAuthService
         _playerRepository = playerRepository;
         _inviteRepository = inviteRepository;
         _handicapRepository = handicapRepository;
+        _leagueRepository = leagueRepository;
         _emailService = emailService;
         _logger = logger;
     }
@@ -91,6 +94,7 @@ public sealed class AuthService : IAuthService
     public async Task<Result<AuthResponseDto>> LoginAsync(
         string email,
         string password,
+        string? leagueSlug = null,
         CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByEmailAsync(email);
@@ -102,8 +106,6 @@ public sealed class AuthService : IAuthService
 
         if (!await _userManager.HasPasswordAsync(user))
         {
-            // Account exists but has no password yet (bootstrap admin or
-            // social-only). Tell the caller to use the password-reset flow.
             return Result<AuthResponseDto>.Fail(
                 "This account has no password set. Use the password reset flow to set one.");
         }
@@ -120,12 +122,14 @@ public sealed class AuthService : IAuthService
         user.LastLoginAt = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 
-        var response = await IssueTokensAsync(user, cancellationToken);
+        var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueSlug, cancellationToken);
+        var response = await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
     }
 
     public async Task<Result<AuthResponseDto>> RefreshAsync(
         string refreshToken,
+        string? leagueSlug = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(refreshToken))
@@ -140,12 +144,12 @@ public sealed class AuthService : IAuthService
         if (stored is null || stored.RevokedAt is not null || stored.ExpiresAt <= DateTime.UtcNow)
             return Result<AuthResponseDto>.Fail("Invalid or expired refresh token.");
 
-        // Rotate: revoke the used token and issue a new one.
         stored.RevokedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var user = stored.User!;
-        var response = await IssueTokensAsync(user, cancellationToken);
+        var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueSlug, cancellationToken);
+        var response = await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
     }
 
@@ -201,7 +205,7 @@ public sealed class AuthService : IAuthService
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException($"User {userId} not found.");
-        return await IssueTokensAsync(user, cancellationToken);
+        return await IssueTokensAsync(user, cancellationToken, leagueId: null, leagueRole: null);
     }
 
     public async Task<Result<bool>> RequestPasswordResetAsync(
@@ -403,13 +407,50 @@ public sealed class AuthService : IAuthService
         }
     }
 
-    private async Task<AuthResponseDto> IssueTokensAsync(AppUser user, CancellationToken cancellationToken)
+    /// <summary>
+    /// Resolves the league context for token issuance. If the user is a SuperAdmin
+    /// they always bypass league membership checks. Otherwise looks up the league
+    /// by slug and returns the user's role in that league (or null if not a member).
+    /// </summary>
+    private async Task<(int? leagueId, string? leagueRole)> ResolveLeagueAsync(
+        AppUser user,
+        string? leagueSlug,
+        CancellationToken cancellationToken)
+    {
+        if (user.IsSuperAdmin)
+        {
+            // SuperAdmin can operate across all leagues; no specific leagueId needed in token.
+            if (!string.IsNullOrWhiteSpace(leagueSlug))
+            {
+                var league = await _leagueRepository.GetBySlugAsync(leagueSlug, cancellationToken);
+                return (league?.Id, "admin");
+            }
+            return (null, null);
+        }
+
+        if (string.IsNullOrWhiteSpace(leagueSlug))
+            return (null, null);
+
+        var targetLeague = await _leagueRepository.GetBySlugAsync(leagueSlug, cancellationToken);
+        if (targetLeague is null)
+            return (null, null);
+
+        var membership = await _leagueRepository.GetMembershipAsync(targetLeague.Id, user.Id, cancellationToken);
+        return membership is not null
+            ? (targetLeague.Id, membership.Role.ToString().ToLowerInvariant())
+            : (null, null);
+    }
+
+    private async Task<AuthResponseDto> IssueTokensAsync(
+        AppUser user,
+        CancellationToken cancellationToken,
+        int? leagueId = null,
+        string? leagueRole = null)
     {
         var roles = (await _userManager.GetRolesAsync(user))
             .Select(r => r.ToLowerInvariant())
             .ToList();
 
-        // MFA is optional for all users. Set to true to require MFA for specific roles.
         var requiresMfa = false;
         var mfaEnrolled = user.TotpEnabled
             || await _dbContext.UserPasskeys.AnyAsync(p => p.UserId == user.Id, cancellationToken);
@@ -427,18 +468,26 @@ public sealed class AuthService : IAuthService
                 MfaEnrollmentRequired: !mfaEnrolled);
         }
 
-        return await IssueFullTokensAsync(user, cancellationToken, roles);
+        return await IssueFullTokensAsync(user, cancellationToken, roles, leagueId, leagueRole);
     }
 
     private async Task<AuthResponseDto> IssueFullTokensAsync(
         AppUser user,
         CancellationToken cancellationToken,
-        IReadOnlyList<string>? cachedRoles = null)
+        IReadOnlyList<string>? cachedRoles = null,
+        int? leagueId = null,
+        string? leagueRole = null)
     {
         var roles = cachedRoles
             ?? (await _userManager.GetRolesAsync(user)).Select(r => r.ToLowerInvariant()).ToList();
 
-        var access = _tokenService.IssueAccessToken(user, roles);
+        // For league-scoped tokens, use the league membership role if available.
+        // This overrides the global Identity role for authorization within the league context.
+        var effectiveRoles = leagueRole is not null
+            ? [leagueRole]
+            : roles;
+
+        var access = _tokenService.IssueAccessToken(user, effectiveRoles, leagueId, user.IsSuperAdmin);
         var refreshPlaintext = _tokenService.GenerateRefreshToken();
         var refresh = new RefreshToken
         {
@@ -454,7 +503,7 @@ public sealed class AuthService : IAuthService
             AccessToken: access.Token,
             RefreshToken: refreshPlaintext,
             AccessTokenExpiresAt: access.ExpiresAt,
-            Roles: roles,
+            Roles: effectiveRoles,
             UserId: user.Id,
             MfaRequired: false,
             MfaEnrollmentRequired: false);

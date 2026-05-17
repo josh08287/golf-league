@@ -68,6 +68,7 @@ public static class DependencyInjection
             .AddEntityFrameworkStores<AppDbContext>()
             .AddDefaultTokenProviders();
 
+        services.AddScoped<ILeagueRepository, LeagueRepository>();
         services.AddScoped<IPlayerRepository, PlayerRepository>();
         services.AddScoped<IFlightRepository, FlightRepository>();
         services.AddScoped<IRoundRepository, RoundRepository>();
@@ -80,6 +81,9 @@ public static class DependencyInjection
         services.AddScoped<IAppUserRepository, AppUserRepository>();
         services.AddScoped<ITeeTimeService, TeeTimeService>();
         services.AddScoped<ITeeTimeAutofillService, TeeTimeAutofillService>();
+
+        services.AddScoped<LeagueContext>();
+        services.AddScoped<ILeagueContext>(sp => sp.GetRequiredService<LeagueContext>());
 
         services.AddMemoryCache();
         services.AddHttpClient("google");
