@@ -246,4 +246,31 @@ public sealed class RoundRepository : IRoundRepository
             .Where(e => e.RoundId == roundId)
             .OrderBy(e => e.HoleNumber)
             .ToListAsync(cancellationToken);
+
+    public async Task SetLongestDriveWinnersAsync(int roundId, IEnumerable<int> playerIds, CancellationToken cancellationToken = default)
+    {
+        await _context.TournamentLongestDriveWinners
+            .Where(w => w.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var winners = playerIds.Distinct().Select(pid => new TournamentLongestDriveWinner
+        {
+            RoundId = roundId,
+            PlayerId = pid,
+        }).ToList();
+
+        if (winners.Count > 0)
+        {
+            await _context.TournamentLongestDriveWinners.AddRangeAsync(winners, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<TournamentLongestDriveWinner>> GetLongestDriveWinnersAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.TournamentLongestDriveWinners
+            .Include(w => w.Player)
+            .Where(w => w.RoundId == roundId)
+            .OrderBy(w => w.Player.LastName)
+            .ThenBy(w => w.Player.FirstName)
+            .ToListAsync(cancellationToken);
 }

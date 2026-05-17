@@ -9,3 +9,4 @@ export { AuditLogPage } from './AuditLogPage';
 export { SeasonsPage } from './SeasonsPage';
 export { InvitesPage } from './InvitesPage';
 export { TeeTimesAdminPage } from './TeeTimesAdminPage';
+export { TournamentScoreEntryPage } from './TournamentScoreEntryPage';

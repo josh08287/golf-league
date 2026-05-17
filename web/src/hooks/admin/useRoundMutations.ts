@@ -147,3 +147,14 @@ export function useSaveTournamentExtras(roundId: string) {
     },
   });
 }
+
+export function useSetLongestDriveWinners(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (playerIds: number[]) =>
+      apiClient.put(`/tournament-rounds/${roundId}/longest-drive`, { playerIds }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}

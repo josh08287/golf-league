@@ -33,6 +33,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
+    public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -56,6 +57,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureRoundParticipants(modelBuilder);
         ConfigureTournamentMatchups(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
+        ConfigureTournamentLongestDriveWinners(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
@@ -369,6 +371,23 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.LongestDrivePlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.RoundId, e.HoleNumber }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTournamentLongestDriveWinners(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TournamentLongestDriveWinner>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.TournamentLongestDriveWinners)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Player)
+                  .WithMany()
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
         });
     }
 

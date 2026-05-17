@@ -14,6 +14,7 @@ import {
   SeasonsPage,
   InvitesPage,
   TeeTimesAdminPage,
+  TournamentScoreEntryPage,
 } from '../pages/admin';
 
 export const adminRoutes = (
@@ -25,6 +26,7 @@ export const adminRoutes = (
       <Route path="flights" element={<FlightsPage />} />
       <Route path="rounds" element={<RoundsPage />} />
       <Route path="rounds/:id/scores" element={<ScoreEntryPage />} />
+      <Route path="rounds/:id/tournament-scores" element={<TournamentScoreEntryPage />} />
       <Route path="tee-times" element={<TeeTimesAdminPage />} />
       <Route path="courses" element={<CoursesPage />} />
       <Route path="seasons" element={<SeasonsPage />} />

@@ -685,13 +685,20 @@ export interface TournamentRankingEntry {
   isTied: boolean;
 }
 
+export interface LongestDriveWinner {
+  playerId: number;
+  playerName: string;
+}
+
 export interface TournamentResults {
   roundId: number;
   roundDate: string;
   courseName: string;
+  courseId: number;
   grossSkins: TournamentSkinsResult;
   netSkins: TournamentSkinsResult;
   holeExtras: TournamentHoleExtra[];
+  longestDriveWinners: LongestDriveWinner[];
   matchupResults: TournamentMatchupResult[];
   grossStrokeRanking: TournamentRankingEntry[];
   netStrokeRanking: TournamentRankingEntry[];

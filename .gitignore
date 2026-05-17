@@ -167,3 +167,4 @@ web/build/
 /tests/GolfLeague.Functions.Tests/TestResults
 /golf-league-fn-g5vkqe.PublishSettings
 *.stackdump
+.claude/settings.local.json

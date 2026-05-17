@@ -1,5 +1,17 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import type { CourseDetail } from '@/types/api';
+
+export function useCourseDetail(courseId: number | string | undefined) {
+  return useQuery({
+    queryKey: courseKeys.detail(String(courseId ?? '')),
+    queryFn: async () => {
+      const res = await apiClient.get<{ data: CourseDetail }>(`/courses/${courseId}`);
+      return res.data.data;
+    },
+    enabled: Boolean(courseId),
+  });
+}
 
 // ── Query key factory (local — courses not defined by other agent yet) ─────
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, CalendarDays, Trophy } from 'lucide-react';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { useRounds } from '../../hooks/useRounds';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import {
@@ -41,6 +42,7 @@ function RoundStatusBadge({ status }: { status: Round['status'] }) {
 
 export function RoundsPage() {
   const navigate = useNavigate();
+  const prefix = useLeaguePrefix();
   const { sort, cycle } = useSortableTable('adminRounds');
   const { data: roundsPage, isLoading, error } = useRounds(1, sort);
   const rounds = roundsPage?.data ?? [];
@@ -127,9 +129,9 @@ export function RoundsPage() {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => navigate(`/rounds/${r.id}/tournament-results`)}
+              onClick={() => navigate(`${prefix}/admin/rounds/${r.id}/tournament-scores`)}
             >
-              Results
+              {isRoundFinalized(r.status) ? 'View Results' : 'Enter Scores'}
             </Button>
           ) : (
             <Button

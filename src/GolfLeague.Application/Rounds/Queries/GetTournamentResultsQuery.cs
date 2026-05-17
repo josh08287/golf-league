@@ -58,13 +58,17 @@ public sealed record TournamentRankingEntryDto(
     int? Score,
     bool IsTied);
 
+public sealed record LongestDriveWinnerDto(int PlayerId, string PlayerName);
+
 public sealed record TournamentResultsDto(
     int RoundId,
     string RoundDate,
     string CourseName,
+    int CourseId,
     TournamentSkinsResultDto GrossSkins,
     TournamentSkinsResultDto NetSkins,
     List<TournamentHoleExtraDto> HoleExtras,
+    List<LongestDriveWinnerDto> LongestDriveWinners,
     List<TournamentMatchupResultDto> MatchupResults,
     List<TournamentRankingEntryDto> GrossStrokeRanking,
     List<TournamentRankingEntryDto> NetStrokeRanking,
@@ -100,6 +104,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var matchups = await _roundRepository.GetTournamentMatchupsAsync(request.RoundId, cancellationToken);
         var holeExtras = await _roundRepository.GetTournamentHoleExtrasAsync(request.RoundId, cancellationToken);
+        var ldWinners = await _roundRepository.GetLongestDriveWinnersAsync(request.RoundId, cancellationToken);
 
         var active = participants
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
@@ -120,13 +125,17 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var grossStablefordRanking = BuildRanking(active, p => p.TotalGrossStablefordPoints, ascending: false);
         var netStablefordRanking = BuildRanking(active, p => p.TotalNetStablefordPoints, ascending: false);
 
+        var ldWinnerDtos = ldWinners.Select(w => new LongestDriveWinnerDto(w.PlayerId, w.Player.FullName)).ToList();
+
         var result = new TournamentResultsDto(
             round.Id,
             round.RoundDate.ToString("yyyy-MM-dd"),
             course?.Name ?? "Unknown Course",
+            round.CourseId,
             grossSkins,
             netSkins,
             extraDtos,
+            ldWinnerDtos,
             matchupResults,
             grossStrokeRanking,
             netStrokeRanking,

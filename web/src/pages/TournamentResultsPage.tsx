@@ -17,6 +17,7 @@ import type {
   TournamentMatchupResult,
   TournamentRankingEntry,
   TournamentHoleExtra,
+  LongestDriveWinner,
 } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -118,11 +119,16 @@ function SkinsPanel({ skins }: { skins: TournamentSkinsResult }) {
 
 // ── Hole Extras ───────────────────────────────────────────────────────────────
 
-function HoleExtrasPanel({ extras }: { extras: TournamentHoleExtra[] }) {
+function HoleExtrasPanel({
+  extras,
+  ldWinners,
+}: {
+  extras: TournamentHoleExtra[];
+  ldWinners: LongestDriveWinner[];
+}) {
   const ctp = extras.filter((e) => e.closestToPinPlayerId !== null);
-  const ld = extras.filter((e) => e.longestDrivePlayerId !== null);
 
-  if (ctp.length === 0 && ld.length === 0) {
+  if (ctp.length === 0 && ldWinners.length === 0) {
     return (
       <p className="text-sm text-gray-400 italic">
         Closest to pin and longest drive not yet recorded.
@@ -164,25 +170,19 @@ function HoleExtrasPanel({ extras }: { extras: TournamentHoleExtra[] }) {
           <Zap className="h-4 w-4 text-amber-500" />
           Longest Drive
         </h3>
-        {ld.length === 0 ? (
+        {ldWinners.length === 0 ? (
           <p className="text-sm text-gray-400 italic">Not recorded.</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="text-xs uppercase tracking-wide text-gray-400">
-              <tr>
-                <th className="py-1 text-left">Hole</th>
-                <th className="py-1 text-left">Player</th>
-              </tr>
-            </thead>
-            <tbody>
-              {ld.map((e) => (
-                <tr key={e.holeNumber} className="border-t border-gray-100">
-                  <td className="py-1.5 pr-4 font-mono text-gray-500">#{e.holeNumber}</td>
-                  <td className="py-1.5 font-medium text-gray-800">{e.longestDrivePlayerName}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="flex flex-wrap gap-2">
+            {ldWinners.map((w) => (
+              <span
+                key={w.playerId}
+                className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800"
+              >
+                {w.playerName}
+              </span>
+            ))}
+          </div>
         )}
       </div>
     </div>
@@ -374,7 +374,7 @@ export function TournamentResultsPage() {
       {/* Hole Extras */}
       <section>
         <SectionTitle icon={Target} label="Closest to Pin & Longest Drive" />
-        <HoleExtrasPanel extras={results.holeExtras} />
+        <HoleExtrasPanel extras={results.holeExtras} ldWinners={results.longestDriveWinners} />
       </section>
 
       {/* Matchups */}

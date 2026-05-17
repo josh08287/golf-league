@@ -22,4 +22,5 @@ public class Round
     public ICollection<RoundParticipant> Participants { get; set; } = [];
     public ICollection<TournamentMatchup> TournamentMatchups { get; set; } = [];
     public ICollection<TournamentHoleExtra> TournamentHoleExtras { get; set; } = [];
+    public ICollection<TournamentLongestDriveWinner> TournamentLongestDriveWinners { get; set; } = [];
 }
