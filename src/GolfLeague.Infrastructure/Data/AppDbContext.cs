@@ -510,45 +510,47 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
 
     private void ApplyGlobalQueryFilters(ModelBuilder modelBuilder)
     {
-        // Bypass filter when running outside an HTTP request (migrations, startup
-        // jobs) — _leagueContext is null or IsSet is false in those cases.
-        // When middleware HAS run (IsSet=true), LeagueId=null means the user has
-        // no league membership for this request, so return nothing (false).
-        // SuperAdmin always bypasses to allow cross-league operations.
+        // Bypass filter entirely when running outside an HTTP request (migrations,
+        // startup jobs) — _leagueContext is null or IsSet is false in those cases.
+        // When a league slug was resolved (LeagueId != null), scope ALL users
+        // including SuperAdmins to that league — the slug is the URL the user is
+        // viewing and must be the authoritative scope.
+        // SuperAdmin bypasses only when no league slug was provided (LeagueId is
+        // null), allowing true cross-league admin calls.
         modelBuilder.Entity<Season>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<Player>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<PlayerInvite>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<Round>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<Flight>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<AuditLog>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
-                || _leagueContext.IsSuperAdmin
+                || (_leagueContext.IsSuperAdmin && _leagueContext.LeagueId == null)
                 || e.LeagueId == null
                 || e.LeagueId == _leagueContext.LeagueId);
     }
