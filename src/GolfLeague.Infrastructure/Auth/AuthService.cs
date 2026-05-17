@@ -194,7 +194,8 @@ public sealed class AuthService : IAuthService
             normalized,
             user.PlayerId,
             hasPasskey,
-            user.TotpEnabled);
+            user.TotpEnabled,
+            user.IsSuperAdmin);
 
         return Result<CurrentUserDto>.Ok(dto);
     }

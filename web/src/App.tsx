@@ -40,6 +40,9 @@ export default function App() {
         {/* Apex path shows the league picker */}
         <Route index element={<LeaguePickerPage />} />
 
+        {/* Root-level OAuth callback — redirectUri registered with Google must match this exactly */}
+        <Route path="auth/callback" element={<AuthCallbackPage />} />
+
         {/* All league-scoped routes live under /:leagueSlug */}
         <Route path=":leagueSlug" element={<LeagueSlugRoute />}>
           <Route element={<RootLayout />}>
@@ -52,7 +55,6 @@ export default function App() {
             <Route path="players/:playerId" element={<PlayerProfilePage />} />
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
-            <Route path="auth/callback" element={<AuthCallbackPage />} />
             <Route path="auth/mfa" element={<MfaPage />} />
             <Route path="auth/mfa/enroll" element={<MfaEnrollPage />} />
             <Route path="auth/forgot-password" element={<ForgotPasswordPage />} />

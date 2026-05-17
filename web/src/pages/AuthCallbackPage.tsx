@@ -11,6 +11,11 @@ export function AuthCallbackPage() {
   const [error, setError] = useState<string | null>(null);
   const ran = useRef(false);
 
+  // The league slug was saved to sessionStorage before the OAuth redirect so
+  // we can use a single fixed redirectUri with Google (no per-league registration).
+  const leagueSlug = sessionStorage.getItem('golf-league-oauth-league-slug') ?? '';
+  const base = leagueSlug ? `/${leagueSlug}` : '';
+
   useEffect(() => {
     if (ran.current) return; // React StrictMode double-invoke guard
     ran.current = true;
@@ -18,6 +23,8 @@ export function AuthCallbackPage() {
     const state = params.get('state');
     const code = params.get('code');
     const providerError = params.get('error');
+
+    sessionStorage.removeItem('golf-league-oauth-league-slug');
 
     if (providerError) {
       setError(`Social sign-in cancelled or failed (${providerError}).`);
@@ -32,7 +39,7 @@ export function AuthCallbackPage() {
       try {
         const resp = await completeExternalLogin(state, code);
         await onLoginSuccess(resp);
-        if (!resp.mfaRequired) navigate('/', { replace: true });
+        if (!resp.mfaRequired) navigate(base || '/', { replace: true });
       } catch (err) {
         const message =
           (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -40,7 +47,7 @@ export function AuthCallbackPage() {
         setError(message);
       }
     })();
-  }, [params, navigate, onLoginSuccess]);
+  }, [params, navigate, onLoginSuccess, base]);
 
   if (error) {
     return (
@@ -49,7 +56,7 @@ export function AuthCallbackPage() {
         <p className="text-sm text-red-600">{error}</p>
         <button
           className="text-sm text-primary-900 underline"
-          onClick={() => navigate('/login', { replace: true })}
+          onClick={() => navigate(base ? `${base}/login` : '/', { replace: true })}
         >
           Back to sign in
         </button>

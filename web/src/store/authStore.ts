@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string;
   roles: UserRole[];
   playerId: string | null;
+  isSuperAdmin: boolean;
 }
 
 interface AuthState {

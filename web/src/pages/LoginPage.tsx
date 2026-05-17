@@ -85,7 +85,7 @@ export function LoginPage() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => void startExternalLogin('google')}
+            onClick={() => void startExternalLogin('google', leagueSlug)}
           >
             Sign in with Google
           </Button>

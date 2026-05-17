@@ -21,4 +21,5 @@ public sealed record CurrentUserDto(
     IReadOnlyList<string> Roles,
     int? PlayerId,
     bool HasPasskey,
-    bool HasTotp);
+    bool HasTotp,
+    bool IsSuperAdmin);

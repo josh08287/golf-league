@@ -41,6 +41,7 @@ export function useAuth() {
           email: me.email,
           roles: me.roles ?? [],
           playerId: me.playerId != null ? String(me.playerId) : null,
+          isSuperAdmin: me.isSuperAdmin ?? false,
         });
       } catch {
         if (!cancelled) clearAuth();
@@ -72,6 +73,7 @@ export function useAuth() {
       email: me.email,
       roles: me.roles ?? [],
       playerId: me.playerId != null ? String(me.playerId) : null,
+      isSuperAdmin: me.isSuperAdmin ?? false,
     });
     await queryClient.invalidateQueries();
   }, [navigate, setUser, queryClient, prefix]);

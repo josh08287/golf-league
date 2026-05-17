@@ -25,6 +25,7 @@ export interface CurrentUser {
   playerId: number | null;
   hasPasskey: boolean;
   hasTotp: boolean;
+  isSuperAdmin: boolean;
 }
 
 const BASE_URL =
@@ -165,12 +166,14 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 
 interface StartResponse { authorizeUrl: string; state: string }
 
-export async function startExternalLogin(provider: Provider): Promise<void> {
+export async function startExternalLogin(provider: Provider, leagueSlug?: string): Promise<void> {
   const redirectUri = `${window.location.origin}/auth/callback`;
   const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri });
   const { authorizeUrl } = unwrap<StartResponse>(res.data);
   sessionStorage.setItem('golf-league-oauth-provider', provider);
   sessionStorage.setItem('golf-league-oauth-redirect-uri', redirectUri);
+  if (leagueSlug) sessionStorage.setItem('golf-league-oauth-league-slug', leagueSlug);
+  else sessionStorage.removeItem('golf-league-oauth-league-slug');
   window.location.assign(authorizeUrl);
 }
 
