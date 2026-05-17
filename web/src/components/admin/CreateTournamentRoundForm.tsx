@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
@@ -142,17 +143,21 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Season */}
       <FormField label="Season">
-        <input
-          readOnly
-          value={
-            activeSeason
-              ? String(activeSeason.year)
-              : seasons === undefined
-                ? 'Loading…'
-                : '— No active season —'
-          }
-          className={inputClass + ' bg-gray-50 text-gray-500'}
-        />
+        {seasons !== undefined && !activeSeason ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            No active season found.{' '}
+            <Link to="/admin/seasons" className="font-medium underline hover:text-amber-900">
+              Go to Seasons
+            </Link>{' '}
+            to create or activate one.
+          </div>
+        ) : (
+          <input
+            readOnly
+            value={activeSeason ? String(activeSeason.year) : 'Loading…'}
+            className={inputClass + ' bg-gray-50 text-gray-500'}
+          />
+        )}
       </FormField>
 
       {/* Date */}
