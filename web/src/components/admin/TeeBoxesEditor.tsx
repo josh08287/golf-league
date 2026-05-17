@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
@@ -111,7 +111,7 @@ function EditHoleTeeBoxes({ courseId, teeBox, courseHoles }: EditHoleTeeBoxesPro
     register,
     handleSubmit,
     reset,
-    formState: { errors, isDirty, isSubmitting },
+    formState: { isDirty, isSubmitting },
   } = useForm<UpdateHolesFormValues>({
     resolver: zodResolver(updateHolesSchema),
     defaultValues: { holes: defaultHoles },
