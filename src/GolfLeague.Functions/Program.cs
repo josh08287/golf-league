@@ -135,13 +135,13 @@ static async Task SeedRolesAsync(IServiceProvider services, ILogger logger)
 
 static async Task<GolfLeague.Domain.Entities.League> SeedDefaultLeagueAsync(AppDbContext dbContext, IConfiguration config)
 {
-    var defaultSlug = config["DEFAULT_LEAGUE_SLUG"] ?? "default";
+    var defaultSlug = config["DEFAULT_LEAGUE_SLUG"] ?? "capital";
     var existing = await dbContext.Leagues.FirstOrDefaultAsync(l => l.Slug == defaultSlug);
     if (existing is not null) return existing;
 
     var league = new GolfLeague.Domain.Entities.League
     {
-        Name = config["DEFAULT_LEAGUE_NAME"] ?? "Golf League",
+        Name = config["DEFAULT_LEAGUE_NAME"] ?? "Capital Golf League",
         Slug = defaultSlug,
         IsActive = true,
         CreatedAt = DateTime.UtcNow,

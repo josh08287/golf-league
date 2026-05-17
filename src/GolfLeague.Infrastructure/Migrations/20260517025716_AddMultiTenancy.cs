@@ -11,144 +11,108 @@ namespace GolfLeague.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<int>(
-                name: "LeagueId",
-                table: "Seasons",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
+            // All DDL statements are wrapped in IF NOT EXISTS guards so this
+            // migration is safe to re-run if it previously failed mid-way.
 
-            migrationBuilder.AddColumn<int>(
-                name: "LeagueId",
-                table: "Players",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
+            migrationBuilder.Sql(@"
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Seasons') AND name = 'LeagueId')
+                    ALTER TABLE Seasons ADD LeagueId int NOT NULL DEFAULT 0;
 
-            migrationBuilder.AddColumn<int>(
-                name: "LeagueId",
-                table: "PlayerInvites",
-                type: "int",
-                nullable: false,
-                defaultValue: 0);
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('Players') AND name = 'LeagueId')
+                    ALTER TABLE Players ADD LeagueId int NOT NULL DEFAULT 0;
 
-            migrationBuilder.AddColumn<int>(
-                name: "LeagueId",
-                table: "AuditLogs",
-                type: "int",
-                nullable: true);
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('PlayerInvites') AND name = 'LeagueId')
+                    ALTER TABLE PlayerInvites ADD LeagueId int NOT NULL DEFAULT 0;
 
-            migrationBuilder.AddColumn<bool>(
-                name: "IsSuperAdmin",
-                table: "AspNetUsers",
-                type: "bit",
-                nullable: false,
-                defaultValue: false);
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('AuditLogs') AND name = 'LeagueId')
+                    ALTER TABLE AuditLogs ADD LeagueId int NULL;
 
-            migrationBuilder.CreateTable(
-                name: "Leagues",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    Name = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
-                    Slug = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    IsActive = table.Column<bool>(type: "bit", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Leagues", x => x.Id);
-                });
+                IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('AspNetUsers') AND name = 'IsSuperAdmin')
+                    ALTER TABLE AspNetUsers ADD IsSuperAdmin bit NOT NULL DEFAULT 0;
 
-            migrationBuilder.CreateTable(
-                name: "LeagueMemberships",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "int", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    LeagueId = table.Column<int>(type: "int", nullable: false),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Role = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
-                    JoinedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_LeagueMemberships", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_LeagueMemberships_AspNetUsers_UserId",
-                        column: x => x.UserId,
-                        principalTable: "AspNetUsers",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_LeagueMemberships_Leagues_LeagueId",
-                        column: x => x.LeagueId,
-                        principalTable: "Leagues",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
+                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Leagues')
+                BEGIN
+                    CREATE TABLE Leagues (
+                        Id        int IDENTITY(1,1) NOT NULL,
+                        Name      nvarchar(200)     NOT NULL,
+                        Slug      nvarchar(100)     NOT NULL,
+                        IsActive  bit               NOT NULL,
+                        CreatedAt datetime2         NOT NULL,
+                        CONSTRAINT PK_Leagues PRIMARY KEY (Id)
+                    );
+                    CREATE UNIQUE INDEX IX_Leagues_Slug ON Leagues (Slug);
+                END
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Seasons_LeagueId",
-                table: "Seasons",
-                column: "LeagueId");
+                IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'LeagueMemberships')
+                BEGIN
+                    CREATE TABLE LeagueMemberships (
+                        Id        int IDENTITY(1,1)   NOT NULL,
+                        LeagueId  int                 NOT NULL,
+                        UserId    uniqueidentifier    NOT NULL,
+                        Role      nvarchar(20)        NOT NULL,
+                        JoinedAt  datetime2           NOT NULL,
+                        CONSTRAINT PK_LeagueMemberships PRIMARY KEY (Id),
+                        CONSTRAINT FK_LeagueMemberships_Leagues_LeagueId
+                            FOREIGN KEY (LeagueId) REFERENCES Leagues (Id) ON DELETE CASCADE,
+                        CONSTRAINT FK_LeagueMemberships_AspNetUsers_UserId
+                            FOREIGN KEY (UserId) REFERENCES AspNetUsers (Id) ON DELETE CASCADE
+                    );
+                    CREATE UNIQUE INDEX IX_LeagueMemberships_LeagueId_UserId ON LeagueMemberships (LeagueId, UserId);
+                    CREATE INDEX IX_LeagueMemberships_UserId ON LeagueMemberships (UserId);
+                END
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Players_LeagueId",
-                table: "Players",
-                column: "LeagueId");
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Seasons') AND name = 'IX_Seasons_LeagueId')
+                    CREATE INDEX IX_Seasons_LeagueId ON Seasons (LeagueId);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_PlayerInvites_LeagueId",
-                table: "PlayerInvites",
-                column: "LeagueId");
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('Players') AND name = 'IX_Players_LeagueId')
+                    CREATE INDEX IX_Players_LeagueId ON Players (LeagueId);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_AuditLogs_LeagueId",
-                table: "AuditLogs",
-                column: "LeagueId");
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('PlayerInvites') AND name = 'IX_PlayerInvites_LeagueId')
+                    CREATE INDEX IX_PlayerInvites_LeagueId ON PlayerInvites (LeagueId);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_LeagueMemberships_LeagueId_UserId",
-                table: "LeagueMemberships",
-                columns: new[] { "LeagueId", "UserId" },
-                unique: true);
+                IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('AuditLogs') AND name = 'IX_AuditLogs_LeagueId')
+                    CREATE INDEX IX_AuditLogs_LeagueId ON AuditLogs (LeagueId);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_LeagueMemberships_UserId",
-                table: "LeagueMemberships",
-                column: "UserId");
+                -- Seed the default league and stamp existing rows before adding FK constraints.
+                DECLARE @LeagueId INT;
+                IF NOT EXISTS (SELECT 1 FROM Leagues WHERE Slug = 'capital')
+                BEGIN
+                    INSERT INTO Leagues (Name, Slug, IsActive, CreatedAt)
+                    VALUES ('Capital Golf League', 'capital', 1, GETUTCDATE());
+                    SET @LeagueId = SCOPE_IDENTITY();
+                END
+                ELSE
+                BEGIN
+                    SELECT @LeagueId = Id FROM Leagues WHERE Slug = 'capital';
+                END
+                UPDATE Seasons       SET LeagueId = @LeagueId WHERE LeagueId = 0;
+                UPDATE Players       SET LeagueId = @LeagueId WHERE LeagueId = 0;
+                UPDATE PlayerInvites SET LeagueId = @LeagueId WHERE LeagueId = 0;
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Leagues_Slug",
-                table: "Leagues",
-                column: "Slug",
-                unique: true);
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.foreign_keys
+                    WHERE name = 'FK_PlayerInvites_Leagues_LeagueId'
+                      AND parent_object_id = OBJECT_ID('PlayerInvites'))
+                    ALTER TABLE PlayerInvites
+                        ADD CONSTRAINT FK_PlayerInvites_Leagues_LeagueId
+                        FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_PlayerInvites_Leagues_LeagueId",
-                table: "PlayerInvites",
-                column: "LeagueId",
-                principalTable: "Leagues",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Restrict);
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.foreign_keys
+                    WHERE name = 'FK_Players_Leagues_LeagueId'
+                      AND parent_object_id = OBJECT_ID('Players'))
+                    ALTER TABLE Players
+                        ADD CONSTRAINT FK_Players_Leagues_LeagueId
+                        FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
 
-            migrationBuilder.AddForeignKey(
-                name: "FK_Players_Leagues_LeagueId",
-                table: "Players",
-                column: "LeagueId",
-                principalTable: "Leagues",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Restrict);
-
-            migrationBuilder.AddForeignKey(
-                name: "FK_Seasons_Leagues_LeagueId",
-                table: "Seasons",
-                column: "LeagueId",
-                principalTable: "Leagues",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.Restrict);
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.foreign_keys
+                    WHERE name = 'FK_Seasons_Leagues_LeagueId'
+                      AND parent_object_id = OBJECT_ID('Seasons'))
+                    ALTER TABLE Seasons
+                        ADD CONSTRAINT FK_Seasons_Leagues_LeagueId
+                        FOREIGN KEY (LeagueId) REFERENCES Leagues (Id);
+            ");
         }
 
         /// <inheritdoc />
