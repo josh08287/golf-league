@@ -1,5 +1,6 @@
 import { Route } from 'react-router-dom';
 import { RequireAdmin } from '../components/admin/RequireAdmin';
+import { RequireSuperAdmin } from '../components/admin/RequireSuperAdmin';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import {
   AdminDashboardPage,
@@ -10,7 +11,6 @@ import {
   ScoreEntryPage,
   CoursesPage,
   AuditLogPage,
-  SettingsPage,
   SeasonsPage,
   InvitesPage,
   TeeTimesAdminPage,
@@ -29,8 +29,9 @@ export const adminRoutes = (
       <Route path="courses" element={<CoursesPage />} />
       <Route path="seasons" element={<SeasonsPage />} />
       <Route path="invites" element={<InvitesPage />} />
-      <Route path="audit-log" element={<AuditLogPage />} />
-      <Route path="settings" element={<SettingsPage />} />
+      <Route element={<RequireSuperAdmin />}>
+        <Route path="audit-log" element={<AuditLogPage />} />
+      </Route>
     </Route>
   </Route>
 );

@@ -6,7 +6,6 @@ export { RoundsPage } from './RoundsPage';
 export { ScoreEntryPage } from './ScoreEntryPage';
 export { CoursesPage } from './CoursesPage';
 export { AuditLogPage } from './AuditLogPage';
-export { SettingsPage } from './SettingsPage';
 export { SeasonsPage } from './SeasonsPage';
 export { InvitesPage } from './InvitesPage';
 export { TeeTimesAdminPage } from './TeeTimesAdminPage';

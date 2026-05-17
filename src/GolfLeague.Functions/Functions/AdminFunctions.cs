@@ -22,7 +22,7 @@ public sealed class AdminFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/audit-log")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var authError = req.RequireRole("admin");
+        var authError = req.RequireSuperAdmin();
         if (authError is not null) return authError;
 
         int.TryParse(req.Query["page"], out var page);

@@ -5,7 +5,6 @@ import {
   Flag,
   CalendarDays,
   MapPin,
-  Settings,
   ClipboardList,
   LogOut,
   Trophy,
@@ -21,6 +20,7 @@ interface NavItem {
   to: string;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
+  superAdminOnly?: boolean;
 }
 
 export function AdminLayout() {
@@ -40,8 +40,7 @@ export function AdminLayout() {
     { to: `${base}/admin/rounds`, label: 'Rounds', icon: CalendarDays },
     { to: `${base}/admin/tee-times`, label: 'Tee Times', icon: Clock },
     { to: `${base}/admin/courses`, label: 'Courses', icon: MapPin },
-    { to: `${base}/admin/settings`, label: 'Settings', icon: Settings },
-    { to: `${base}/admin/audit-log`, label: 'Audit Log', icon: ClipboardList },
+    { to: `${base}/admin/audit-log`, label: 'Audit Log', icon: ClipboardList, superAdminOnly: true },
   ];
 
   function handleLogout() {
@@ -62,7 +61,7 @@ export function AdminLayout() {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4">
           <ul className="space-y-1 px-3">
-            {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
+            {NAV_ITEMS.filter((item) => !item.superAdminOnly || user?.isSuperAdmin).map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <NavLink
                   to={to}
