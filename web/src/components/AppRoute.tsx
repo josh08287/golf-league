@@ -57,7 +57,7 @@ export function AppRoute() {
             isSuperAdmin: me.isSuperAdmin ?? false,
           });
           queryClient.clear();
-          navigate('/', { replace: true });
+          window.location.replace('/');
         }
       } finally {
         setTokenSyncing(false);
