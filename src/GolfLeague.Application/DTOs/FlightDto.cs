@@ -6,4 +6,5 @@ public sealed record FlightDto(
     int HalfId,
     string Name,
     int DisplayOrder,
-    int PlayerCount = 0);
+    int PlayerCount = 0,
+    bool IsLocked = false);

@@ -16,5 +16,8 @@ public interface IFlightRepository
     Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SeasonHalf>> GetHalvesBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task DeleteAsync(int flightId, CancellationToken cancellationToken = default);
+    Task AddMembershipAsync(FlightMembership membership, CancellationToken cancellationToken = default);
     Task<int?> GetActiveSeasonIdAsync(CancellationToken cancellationToken = default);
+    /// <summary>Returns true if the half has any InProgress, PendingFinalization, or Finalized rounds.</summary>
+    Task<bool> IsHalfLockedAsync(int halfId, CancellationToken cancellationToken = default);
 }

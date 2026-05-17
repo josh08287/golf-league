@@ -9,13 +9,12 @@ using static GolfLeague.Domain.Services.StablefordScoringService;
 namespace GolfLeague.Application.Rounds.Commands;
 
 /// <summary>
-/// Creates an 18-hole tournament round for a season/half.
+/// Creates an 18-hole tournament round for a season (not tied to a half).
 /// Players are selected explicitly (not pulled from flight memberships).
 /// Matchups are stored in TournamentMatchup rows; default pairing is low-to-high handicap: 1v2, 3v4, etc.
 /// </summary>
 public sealed record CreateTournamentRoundCommand(
     int SeasonId,
-    int HalfId,
     int CourseId,
     DateOnly RoundDate,
     List<int> PlayerIds,
@@ -47,7 +46,6 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
     private readonly ICourseRepository _courseRepository;
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
-    private readonly IFlightRepository _flightRepository;
     private readonly ISeasonRepository _seasonRepository;
 
     public CreateTournamentRoundCommandHandler(
@@ -55,14 +53,12 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         ICourseRepository courseRepository,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        IFlightRepository flightRepository,
         ISeasonRepository seasonRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
-        _flightRepository = flightRepository;
         _seasonRepository = seasonRepository;
     }
 
@@ -71,9 +67,9 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         if (request.PlayerIds.Count < 2)
             return Result<TournamentRoundDto>.Fail("A tournament round requires at least 2 players.");
 
-        var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
-        if (half is null)
-            return Result<TournamentRoundDto>.Fail($"Half with ID {request.HalfId} not found.");
+        var season = await _seasonRepository.GetByIdAsync(request.SeasonId, cancellationToken);
+        if (season is null)
+            return Result<TournamentRoundDto>.Fail($"Season with ID {request.SeasonId} not found.");
 
         var course = await _courseRepository.GetByIdAsync(request.CourseId, cancellationToken);
         if (course is null)
@@ -83,15 +79,16 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         if (courseHoles.Count < 18)
             return Result<TournamentRoundDto>.Fail("Tournament rounds require a course with all 18 holes configured.");
 
-        var flights = await _flightRepository.GetByHalfAsync(request.HalfId, cancellationToken);
-
-        var existing = await _roundRepository.GetByHalfAsync(request.HalfId, cancellationToken);
-        var nextWeek = existing.Count == 0 ? 1 : existing.Max(r => r.WeekNumber) + 1;
+        // Tournament rounds are numbered within the season across all tournament rounds
+        var existingTournamentRounds = (await _roundRepository.GetBySeasonAsync(request.SeasonId, cancellationToken))
+            .Where(r => r.RoundType == RoundType.Tournament)
+            .ToList();
+        var nextWeek = existingTournamentRounds.Count == 0 ? 1 : existingTournamentRounds.Max(r => r.WeekNumber) + 1;
 
         var round = new Round
         {
             SeasonId = request.SeasonId,
-            HalfId = request.HalfId,
+            HalfId = null,
             CourseId = course.Id,
             WeekNumber = nextWeek,
             RoundDate = request.RoundDate,
@@ -103,9 +100,8 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
         await _roundRepository.AddAsync(round, cancellationToken);
 
-        // Build participant records (use full 18-hole handicap)
+        // Build participant records (use full 18-hole handicap; no flight grouping for tournament rounds)
         var participantHandicaps = new List<(int PlayerId, double HcpIndex, int CourseHcp, string FullName)>();
-        var defaultFlightId = flights.OrderBy(f => f.DisplayOrder).FirstOrDefault()?.Id ?? 0;
 
         foreach (var playerId in request.PlayerIds.Distinct())
         {
@@ -116,15 +112,11 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             var index = current?.HandicapIndex ?? 0.0;
             var courseHcp = CourseHandicap(index, course.SlopeRating, RoundType.Tournament);
 
-            // Assign to the player's current flight, or the first flight as fallback
-            var membership = player.FlightMemberships.FirstOrDefault(fm => fm.HalfId == request.HalfId);
-            var flightId = membership?.FlightId ?? defaultFlightId;
-
             await _roundRepository.AddParticipantAsync(new RoundParticipant
             {
                 RoundId = round.Id,
                 PlayerId = playerId,
-                FlightId = flightId,
+                FlightId = 0,
                 HandicapIndex = index,
                 CourseHandicap = courseHcp,
                 IsWithdrawn = false,

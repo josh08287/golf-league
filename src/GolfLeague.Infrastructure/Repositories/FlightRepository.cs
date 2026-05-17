@@ -95,6 +95,20 @@ public sealed class FlightRepository : IFlightRepository
             .Include(fm => fm.Player)
             .ToListAsync(cancellationToken);
 
+    public async Task AddMembershipAsync(FlightMembership membership, CancellationToken cancellationToken = default)
+    {
+        await _context.FlightMemberships.AddAsync(membership, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<bool> IsHalfLockedAsync(int halfId, CancellationToken cancellationToken = default)
+        => await _context.Rounds.AnyAsync(
+            r => r.HalfId == halfId &&
+                 (r.Status == RoundStatus.InProgress ||
+                  r.Status == RoundStatus.PendingFinalization ||
+                  r.Status == RoundStatus.Finalized),
+            cancellationToken);
+
     public async Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(
         int flightId,
         int halfId,

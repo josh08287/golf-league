@@ -34,7 +34,6 @@ public sealed class TournamentRoundFunctions
 
         var command = new CreateTournamentRoundCommand(
             body.SeasonId,
-            body.HalfId,
             body.CourseId,
             body.ResolvedDate,
             body.PlayerIds,
@@ -125,7 +124,6 @@ public sealed class TournamentRoundFunctions
 
     private sealed record CreateTournamentRoundRequest(
         int SeasonId,
-        int HalfId,
         int CourseId,
         string? RoundDate,
         List<int> PlayerIds,

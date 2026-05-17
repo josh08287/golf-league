@@ -5,7 +5,7 @@ namespace GolfLeague.Application.DTOs;
 public sealed record RoundDto(
     int Id,
     int SeasonId,
-    int HalfId,
+    int? HalfId,
     int CourseId,
     string CourseName,
     int WeekNumber,

@@ -92,10 +92,20 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
 
     internal static PlayerDto ToDto(Player player, double? currentHandicap, IReadOnlyList<string>? roles = null)
     {
-        var activeMembership = player.FlightMemberships
+        var activeMemberships = player.FlightMemberships
             .Where(fm => fm.Season.IsActive)
             .OrderByDescending(fm => fm.JoinedAt)
-            .FirstOrDefault();
+            .ToList();
+
+        // "Current" flight = most recent membership in the active season (legacy field kept for compatibility)
+        var latestMembership = activeMemberships.FirstOrDefault();
+
+        // Per-half memberships: one entry per half (latest membership wins if multiple exist per half)
+        var perHalf = activeMemberships
+            .GroupBy(fm => fm.HalfId)
+            .Select(g => g.OrderByDescending(fm => fm.JoinedAt).First())
+            .Select(fm => new HalfFlightMembership(fm.HalfId, fm.FlightId, fm.Flight.Name))
+            .ToList();
 
         return new PlayerDto(
             player.Id,
@@ -103,10 +113,11 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             player.Email,
             player.IsActive,
             currentHandicap,
-            activeMembership?.FlightId,
-            activeMembership?.Flight.Name,
+            latestMembership?.FlightId,
+            latestMembership?.Flight.Name,
             roles ?? Array.Empty<string>(),
             player.AppUserId,
-            player.PreferredTeeTimeSlots);
+            player.PreferredTeeTimeSlots,
+            perHalf);
     }
 }

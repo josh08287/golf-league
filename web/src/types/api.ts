@@ -28,6 +28,12 @@ export const TEE_TIME_SLOT_FLAG: Record<TeeTimeSlotName, number> = {
   Late: 4,
 };
 
+export interface HalfFlightMembership {
+  halfId: number;
+  flightId: number;
+  flightName: string;
+}
+
 export interface Player {
   id: number;
   fullName: string;
@@ -41,6 +47,7 @@ export interface Player {
   // affordance on the admin player-detail page.
   appUserId: string | null;
   preferredTeeTimeSlots: TeeTimeSlotPreference;
+  flightMemberships: HalfFlightMembership[];
 }
 
 /** Lightweight row used by the unlinked-players pickers. */
@@ -67,6 +74,7 @@ export interface Flight {
   halfId: number;
   displayOrder: number;
   playerCount: number;
+  isLocked: boolean;
 }
 
 export interface Standing {

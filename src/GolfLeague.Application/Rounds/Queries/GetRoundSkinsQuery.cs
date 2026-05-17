@@ -102,7 +102,9 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             return Result<RoundSkinsDto>.Fail("No participants found for this round.");
 
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
-        var flights = await _flightRepository.GetByHalfAsync(round.HalfId, cancellationToken);
+        var flights = round.HalfId.HasValue
+            ? await _flightRepository.GetByHalfAsync(round.HalfId.Value, cancellationToken)
+            : [];
 
         // Group participants by flight
         var participantsByFlight = participants
@@ -148,7 +150,8 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
     {
         // Walk every prior round in the half (chronological order) and feed each round's
         // ending carryover into the next, so unresolved par-3 ties accumulate across rounds.
-        var previousRounds = await _roundRepository.GetPreviousRoundsAsync(round.HalfId, round.WeekNumber, cancellationToken);
+        if (!round.HalfId.HasValue) return 0;
+        var previousRounds = await _roundRepository.GetPreviousRoundsAsync(round.HalfId.Value, round.WeekNumber, cancellationToken);
 
         int carryover = 0;
         foreach (var prev in previousRounds)

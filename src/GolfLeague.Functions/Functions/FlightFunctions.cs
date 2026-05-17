@@ -98,8 +98,31 @@ public sealed class FlightFunctions
         return result.ToOkResult();
     }
 
+    [Function("InitializeHalfFlights")]
+    public async Task<IActionResult> InitializeHalfFlights(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/flights/initialize-half")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var body = await req.TryDeserializeAsync<InitializeHalfRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new InitializeHalfFlightsCommand(body.HalfId, userId, body.MaxPlayersPerFlight ?? 8),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateFlightRequest(
         string Name,
         int HalfId,
         int? DisplayOrder);
+
+    private sealed record InitializeHalfRequest(
+        int HalfId,
+        int? MaxPlayersPerFlight);
 }

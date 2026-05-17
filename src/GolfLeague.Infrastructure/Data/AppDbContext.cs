@@ -232,6 +232,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasOne(e => e.Half)
                   .WithMany(h => h.Rounds)
                   .HasForeignKey(e => e.HalfId)
+                  .IsRequired(false)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasOne(e => e.Course)
                   .WithMany(c => c.Rounds)

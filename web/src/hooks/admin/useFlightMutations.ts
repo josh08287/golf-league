@@ -16,3 +16,16 @@ export function useDeleteFlight() {
     },
   });
 }
+
+export function useInitializeHalfFlights() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { halfId: number; maxPlayersPerFlight?: number }) =>
+      apiClient.post('/flights/initialize-half', payload).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: flightKeys.all });
+      qc.invalidateQueries({ queryKey: ['players'] });
+    },
+  });
+}

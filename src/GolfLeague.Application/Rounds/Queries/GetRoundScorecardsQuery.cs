@@ -76,7 +76,9 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
 
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
-        var flights = await _flightRepository.GetByHalfAsync(round.HalfId, cancellationToken);
+        var flights = round.HalfId.HasValue
+            ? await _flightRepository.GetByHalfAsync(round.HalfId.Value, cancellationToken)
+            : [];
         var courseName = course?.Name ?? string.Empty;
 
         // Build flight name lookup

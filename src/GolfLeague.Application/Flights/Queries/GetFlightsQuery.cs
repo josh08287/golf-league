@@ -42,14 +42,30 @@ public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Re
                 ? await _flightRepository.GetBySeasonAsync(request.SeasonId.Value, cancellationToken)
                 : await _flightRepository.GetAllAsync(cancellationToken);
 
-        var dtos = flights.Select(f => new FlightDto(
-            f.Id,
-            f.SeasonId,
-            f.HalfId,
-            f.Name,
-            f.DisplayOrder,
-            f.Memberships.Count
-        )).ToList();
+        // Cache lock status per half to avoid N+1 queries
+        var halfLockCache = new Dictionary<int, bool>();
+        async Task<bool> IsLockedAsync(int halfId)
+        {
+            if (!halfLockCache.TryGetValue(halfId, out var locked))
+            {
+                locked = await _flightRepository.IsHalfLockedAsync(halfId, cancellationToken);
+                halfLockCache[halfId] = locked;
+            }
+            return locked;
+        }
+
+        var dtos = new List<FlightDto>(flights.Count);
+        foreach (var f in flights)
+        {
+            dtos.Add(new FlightDto(
+                f.Id,
+                f.SeasonId,
+                f.HalfId,
+                f.Name,
+                f.DisplayOrder,
+                f.Memberships.Count,
+                await IsLockedAsync(f.HalfId)));
+        }
 
         var sorted = SortMap.Apply(dtos, request.Sort);
         return Result<PagedResult<FlightDto>>.Ok(new PagedResult<FlightDto>(sorted.ToList(), 1, sorted.Count, sorted.Count));

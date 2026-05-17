@@ -102,7 +102,6 @@ export interface MatchupInput {
 
 export interface CreateTournamentRoundPayload {
   seasonId: number;
-  halfId: number;
   courseId: number;
   roundDate: string;
   playerIds: number[];

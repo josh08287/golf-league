@@ -7,10 +7,11 @@ import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import type { Flight, Player, PagedResponse } from '../../types/api';
 
 interface FlightPlayerAssignmentProps {
+  halfId: number;
   flights: Flight[];
 }
 
-export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps) {
+export function FlightPlayerAssignment({ halfId, flights }: FlightPlayerAssignmentProps) {
   const qc = useQueryClient();
   // Fetch the full roster in one page so drag-and-drop sees every player,
   // not just the first 20. Large size handles any realistic league size.
@@ -22,16 +23,19 @@ export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps)
 
   if (isLoading) return <Spinner />;
 
+  // Resolve each player's flight for THIS half from the per-half memberships array
+  function playerFlightIdForHalf(player: Player): number | null {
+    return player.flightMemberships?.find((m) => m.halfId === halfId)?.flightId ?? null;
+  }
+
   function playersInFlight(flightId: number | null) {
-    return players.filter((p) =>
-      flightId === null ? !p.flightId : p.flightId === flightId
-    );
+    return players.filter((p) => playerFlightIdForHalf(p) === flightId);
   }
 
   async function handleDropToFlight(flightId: number | null) {
     if (!draggingId) return;
     const player = players.find((p) => p.id === draggingId);
-    if (!player || player.flightId === flightId) return;
+    if (!player || playerFlightIdForHalf(player) === flightId) return;
 
     const movedId = draggingId;
     const newFlight = flightId === null ? null : flights.find((f) => f.id === flightId) ?? null;
@@ -46,11 +50,17 @@ export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps)
       if (!prev) continue;
       qc.setQueryData<PagedResponse<Player>>(key, {
         ...prev,
-        data: prev.data.map((p) =>
-          p.id === movedId
-            ? { ...p, flightId: newFlight?.id ?? null, flightName: newFlight?.name ?? null }
-            : p,
-        ),
+        data: prev.data.map((p) => {
+          if (p.id !== movedId) return p;
+          // Update the per-half membership entry optimistically
+          const otherHalfMemberships = (p.flightMemberships ?? []).filter(
+            (m) => m.halfId !== halfId,
+          );
+          const updatedMemberships = newFlight
+            ? [...otherHalfMemberships, { halfId, flightId: newFlight.id, flightName: newFlight.name }]
+            : otherHalfMemberships;
+          return { ...p, flightMemberships: updatedMemberships };
+        }),
       });
     }
 
@@ -66,8 +76,7 @@ export function FlightPlayerAssignment({ flights }: FlightPlayerAssignmentProps)
       throw err;
     }
 
-    // Refresh from the server to pick up any server-side changes (e.g.
-    // unique-membership-per-half displacing another row).
+    // Refresh from the server to pick up any server-side changes
     await qc.invalidateQueries({ queryKey: playerKeys.all });
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
@@ -25,7 +25,6 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const createTournament = useCreateTournamentRound();
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
-  const halves = activeSeason?.halves ?? [];
 
   const { data: playersPage } = usePlayers(1, undefined, 200);
   const allPlayers: Player[] = playersPage?.data?.filter((p) => p.isActive) ?? [];
@@ -36,17 +35,12 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   });
   const courses = coursesPage?.data ?? [];
 
-  const [halfId, setHalfId] = useState('');
   const [courseId, setCourseId] = useState('');
   const [roundDate, setRoundDate] = useState('');
   const [notes, setNotes] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (halves.length > 0 && !halfId) setHalfId(String(halves[0].id));
-  }, [halves, halfId]);
 
   // Auto-generate default matchups whenever selected players change
   const regenerateMatchups = useCallback((players: SelectedPlayer[]) => {
@@ -98,8 +92,8 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     e.preventDefault();
     setError(null);
 
-    if (!halfId || !courseId || !roundDate) {
-      setError('Half, course, and date are required.');
+    if (!courseId || !roundDate) {
+      setError('Course and date are required.');
       return;
     }
     if (selectedPlayers.length < 2) {
@@ -116,7 +110,6 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     try {
       const result = await createTournament.mutateAsync({
         seasonId: season.id,
-        halfId: Number(halfId),
         courseId: Number(courseId),
         roundDate,
         playerIds: selectedPlayers.map((p) => p.id),
@@ -133,16 +126,13 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Season / Half */}
-      <FormField label="Half" required>
-        <select value={halfId} onChange={(e) => setHalfId(e.target.value)} className={selectClass}>
-          {halves.map((h) => (
-            <option key={h.id} value={h.id}>
-              {h.name}
-            </option>
-          ))}
-          {halves.length === 0 && <option value="">— No active season —</option>}
-        </select>
+      {/* Season */}
+      <FormField label="Season">
+        <input
+          readOnly
+          value={activeSeason ? String(activeSeason.year) : '— No active season —'}
+          className={inputClass + ' bg-gray-50 text-gray-500'}
+        />
       </FormField>
 
       {/* Date */}

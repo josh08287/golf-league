@@ -6,7 +6,7 @@ public class Round
 {
     public int Id { get; set; }
     public int SeasonId { get; set; }
-    public int HalfId { get; set; }
+    public int? HalfId { get; set; }
     public int CourseId { get; set; }
     public int WeekNumber { get; set; }
     public DateOnly RoundDate { get; set; }
@@ -16,7 +16,7 @@ public class Round
     public string? Notes { get; set; }
 
     public Season Season { get; set; } = null!;
-    public SeasonHalf Half { get; set; } = null!;
+    public SeasonHalf? Half { get; set; }
     public Course Course { get; set; } = null!;
     public ICollection<RoundParticipant> Participants { get; set; } = [];
     public ICollection<TournamentMatchup> TournamentMatchups { get; set; } = [];

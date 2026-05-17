@@ -50,31 +50,35 @@ public sealed class CancelRoundCommandHandler : IRequestHandler<CancelRoundComma
         round.Status = RoundStatus.Cancelled;
         await _roundRepository.UpdateAsync(round, cancellationToken);
 
-        // Shift every later non-cancelled round in this half forward by one week
-        await _roundRepository.ShiftRoundsForwardAsync(
-            round.HalfId,
-            afterWeekNumber: round.WeekNumber,
-            daysToAdd: 7,
-            weekNumberIncrement: 1,
-            cancellationToken);
-
-        // Extend the half's end date by 7 days to accommodate the shifted schedule
-        var thisHalf = await _flightRepository.GetHalfByIdAsync(round.HalfId, cancellationToken);
-        if (thisHalf is not null)
+        // Tournament rounds have no half — no schedule shift needed
+        if (round.HalfId.HasValue)
         {
-            thisHalf.EndDate = thisHalf.EndDate.AddDays(7);
-            await _flightRepository.UpdateHalfAsync(thisHalf, cancellationToken);
+            // Shift every later non-cancelled round in this half forward by one week
+            await _roundRepository.ShiftRoundsForwardAsync(
+                round.HalfId.Value,
+                afterWeekNumber: round.WeekNumber,
+                daysToAdd: 7,
+                weekNumberIncrement: 1,
+                cancellationToken);
 
-            // If this is the first half, shift the second half's window forward too
-            if (thisHalf.HalfNumber == 1)
+            // Extend the half's end date by 7 days to accommodate the shifted schedule
+            var thisHalf = await _flightRepository.GetHalfByIdAsync(round.HalfId.Value, cancellationToken);
+            if (thisHalf is not null)
             {
-                var halves = await _flightRepository.GetHalvesBySeasonAsync(thisHalf.SeasonId, cancellationToken);
-                var second = halves.FirstOrDefault(h => h.HalfNumber == 2);
-                if (second is not null)
+                thisHalf.EndDate = thisHalf.EndDate.AddDays(7);
+                await _flightRepository.UpdateHalfAsync(thisHalf, cancellationToken);
+
+                // If this is the first half, shift the second half's window forward too
+                if (thisHalf.HalfNumber == 1)
                 {
-                    second.StartDate = second.StartDate.AddDays(7);
-                    second.EndDate = second.EndDate.AddDays(7);
-                    await _flightRepository.UpdateHalfAsync(second, cancellationToken);
+                    var halves = await _flightRepository.GetHalvesBySeasonAsync(thisHalf.SeasonId, cancellationToken);
+                    var second = halves.FirstOrDefault(h => h.HalfNumber == 2);
+                    if (second is not null)
+                    {
+                        second.StartDate = second.StartDate.AddDays(7);
+                        second.EndDate = second.EndDate.AddDays(7);
+                        await _flightRepository.UpdateHalfAsync(second, cancellationToken);
+                    }
                 }
             }
         }
