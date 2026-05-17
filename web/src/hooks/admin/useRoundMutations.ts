@@ -94,3 +94,57 @@ export function useDeleteRound() {
     },
   });
 }
+
+export interface MatchupInput {
+  player1Id: number;
+  player2Id: number;
+}
+
+export interface CreateTournamentRoundPayload {
+  seasonId: number;
+  halfId: number;
+  courseId: number;
+  roundDate: string;
+  playerIds: number[];
+  matchups?: MatchupInput[];
+  notes?: string;
+}
+
+export function useCreateTournamentRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: CreateTournamentRoundPayload) =>
+      apiClient.post('/tournament-rounds', payload).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.all });
+    },
+  });
+}
+
+export interface HoleExtraInput {
+  holeNumber: number;
+  closestToPinPlayerId?: number | null;
+  longestDrivePlayerId?: number | null;
+}
+
+export function useSetTournamentMatchups(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (matchups: MatchupInput[]) =>
+      apiClient.put(`/tournament-rounds/${roundId}/matchups`, { matchups }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}
+
+export function useSaveTournamentExtras(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (holeExtras: HoleExtraInput[]) =>
+      apiClient.put(`/tournament-rounds/${roundId}/extras`, { holeExtras }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}

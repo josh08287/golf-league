@@ -134,5 +134,6 @@ internal static class RoundDtoMapper
             round.RoundDate,
             round.Status,
             round.NineHoleSide,
+            round.RoundType,
             participantCount);
 }

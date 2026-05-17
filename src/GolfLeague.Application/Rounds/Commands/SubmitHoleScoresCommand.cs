@@ -63,19 +63,27 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (course is null || player is null)
             return Result<ScorecardDto>.Fail("Course or player data could not be loaded.");
 
-        var relevantHoles = round.NineHoleSide == NineHoleSide.Back
-            ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
-            : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
+        bool isTournament = round.RoundType == RoundType.Tournament;
+        var relevantHoles = isTournament
+            ? courseHoles.ToList()
+            : round.NineHoleSide == NineHoleSide.Back
+                ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
+                : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
 
+        int expectedHoles = isTournament ? 18 : 9;
         var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
         var submittedHoleNumbers = request.HoleScores.Select(h => h.HoleNumber).ToHashSet();
 
-        if (submittedHoleNumbers.Count != 9)
-            return Result<ScorecardDto>.Fail($"Expected 9 holes for the {round.NineHoleSide} nine, but received {submittedHoleNumbers.Count}.");
+        if (submittedHoleNumbers.Count != expectedHoles)
+            return Result<ScorecardDto>.Fail(isTournament
+                ? $"Expected 18 holes for tournament round, but received {submittedHoleNumbers.Count}."
+                : $"Expected 9 holes for the {round.NineHoleSide} nine, but received {submittedHoleNumbers.Count}.");
 
         var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
         if (invalidHoles.Count > 0)
-            return Result<ScorecardDto>.Fail($"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
+            return Result<ScorecardDto>.Fail(isTournament
+                ? $"Invalid hole numbers for 18-hole round: {string.Join(", ", invalidHoles)}."
+                : $"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
 
         await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
 
@@ -87,11 +95,14 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
             if (hole is null)
             {
-                return Result<ScorecardDto>.Fail(
-                    $"Hole {input.HoleNumber} not found for this round's {round.NineHoleSide} nine.");
+                return Result<ScorecardDto>.Fail(isTournament
+                    ? $"Hole {input.HoleNumber} not found for this 18-hole round."
+                    : $"Hole {input.HoleNumber} not found for this round's {round.NineHoleSide} nine.");
             }
 
-            var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndicesInNine);
+            var strokesOnHole = isTournament
+                ? StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, RoundType.Tournament)
+                : StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndicesInNine);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
             var actualGross = Math.Min(input.GrossStrokes, maxGross);
             var isMaxScore = input.GrossStrokes >= maxGross;

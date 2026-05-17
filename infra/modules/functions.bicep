@@ -125,6 +125,10 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
         }
+        {
+          name: 'SCALE_CONTROLLER_LOGGING_ENABLED'
+          value: '1'
+        }
       ]
     }
   }

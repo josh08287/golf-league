@@ -1,0 +1,305 @@
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowUpDown, Trophy, X } from 'lucide-react';
+import { useSeasons } from '../../hooks/useSeasons';
+import { usePlayers } from '../../hooks/usePlayers';
+import { useCreateTournamentRound } from '../../hooks/admin/useRoundMutations';
+import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
+import { api } from '../../lib/api';
+import { Button } from '../ui/Button';
+import { FormField, inputClass, selectClass } from './FormField';
+import type { Course, Player } from '../../types/api';
+
+interface CreateTournamentRoundFormProps {
+  onSuccess: (roundId: number) => void;
+  onCancel: () => void;
+}
+
+interface SelectedPlayer {
+  id: number;
+  fullName: string;
+  currentHandicap: number | null;
+}
+
+export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournamentRoundFormProps) {
+  const createTournament = useCreateTournamentRound();
+  const { data: seasons } = useSeasons();
+  const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
+  const halves = activeSeason?.halves ?? [];
+
+  const { data: playersPage } = usePlayers(1, undefined, 200);
+  const allPlayers: Player[] = playersPage?.data?.filter((p) => p.isActive) ?? [];
+
+  const { data: coursesPage } = useQuery<{ data: Course[] }>({
+    queryKey: ['courses'],
+    queryFn: () => api.get('/courses').then((r) => r.data),
+  });
+  const courses = coursesPage?.data ?? [];
+
+  const [halfId, setHalfId] = useState('');
+  const [courseId, setCourseId] = useState('');
+  const [roundDate, setRoundDate] = useState('');
+  const [notes, setNotes] = useState('');
+  const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
+  const [matchups, setMatchups] = useState<MatchupInput[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (halves.length > 0 && !halfId) setHalfId(String(halves[0].id));
+  }, [halves, halfId]);
+
+  // Auto-generate default matchups whenever selected players change
+  const regenerateMatchups = useCallback((players: SelectedPlayer[]) => {
+    const sorted = [...players].sort(
+      (a, b) => (a.currentHandicap ?? 99) - (b.currentHandicap ?? 99),
+    );
+    const pairs: MatchupInput[] = [];
+    for (let i = 0; i + 1 < sorted.length; i += 2) {
+      pairs.push({ player1Id: sorted[i].id, player2Id: sorted[i + 1].id });
+    }
+    setMatchups(pairs);
+  }, []);
+
+  function addPlayer(playerId: number) {
+    const player = allPlayers.find((p) => p.id === playerId);
+    if (!player || selectedPlayers.some((sp) => sp.id === playerId)) return;
+    const next = [
+      ...selectedPlayers,
+      { id: player.id, fullName: player.fullName, currentHandicap: player.currentHandicap },
+    ];
+    setSelectedPlayers(next);
+    regenerateMatchups(next);
+  }
+
+  function removePlayer(playerId: number) {
+    const next = selectedPlayers.filter((p) => p.id !== playerId);
+    setSelectedPlayers(next);
+    regenerateMatchups(next);
+  }
+
+  function swapMatchupPlayers(matchupIndex: number) {
+    setMatchups((prev) =>
+      prev.map((m, i) =>
+        i === matchupIndex ? { player1Id: m.player2Id, player2Id: m.player1Id } : m,
+      ),
+    );
+  }
+
+  function setMatchupPlayer(matchupIndex: number, slot: 1 | 2, playerId: number) {
+    setMatchups((prev) =>
+      prev.map((m, i) => {
+        if (i !== matchupIndex) return m;
+        return slot === 1 ? { ...m, player1Id: playerId } : { ...m, player2Id: playerId };
+      }),
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    if (!halfId || !courseId || !roundDate) {
+      setError('Half, course, and date are required.');
+      return;
+    }
+    if (selectedPlayers.length < 2) {
+      setError('Select at least 2 players.');
+      return;
+    }
+
+    const season = activeSeason;
+    if (!season) {
+      setError('No active season found.');
+      return;
+    }
+
+    try {
+      const result = await createTournament.mutateAsync({
+        seasonId: season.id,
+        halfId: Number(halfId),
+        courseId: Number(courseId),
+        roundDate,
+        playerIds: selectedPlayers.map((p) => p.id),
+        matchups: matchups.length > 0 ? matchups : undefined,
+        notes: notes || undefined,
+      });
+      onSuccess(result.round?.id ?? 0);
+    } catch {
+      setError('Failed to create tournament round.');
+    }
+  }
+
+  const availablePlayers = allPlayers.filter((p) => !selectedPlayers.some((sp) => sp.id === p.id));
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Season / Half */}
+      <FormField label="Half" required>
+        <select value={halfId} onChange={(e) => setHalfId(e.target.value)} className={selectClass}>
+          {halves.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
+            </option>
+          ))}
+          {halves.length === 0 && <option value="">— No active season —</option>}
+        </select>
+      </FormField>
+
+      {/* Date */}
+      <FormField label="Tournament Date" required>
+        <input
+          type="date"
+          value={roundDate}
+          onChange={(e) => setRoundDate(e.target.value)}
+          className={inputClass}
+        />
+      </FormField>
+
+      {/* Course */}
+      <FormField label="Course" required>
+        <select value={courseId} onChange={(e) => setCourseId(e.target.value)} className={selectClass}>
+          <option value="">— Select course —</option>
+          {courses.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      </FormField>
+
+      {/* Notes */}
+      <FormField label="Notes">
+        <input
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className={inputClass}
+          placeholder="Optional"
+        />
+      </FormField>
+
+      {/* Player Selection */}
+      <div>
+        <label className="mb-1 block text-sm font-medium text-gray-700">
+          Players <span className="text-red-500">*</span>
+        </label>
+        <div className="flex gap-2">
+          <select
+            className={selectClass}
+            defaultValue=""
+            onChange={(e) => {
+              const val = Number(e.target.value);
+              if (val) addPlayer(val);
+              e.target.value = '';
+            }}
+          >
+            <option value="">+ Add player…</option>
+            {availablePlayers.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.fullName} (HCP {p.currentHandicap?.toFixed(1) ?? '—'})
+              </option>
+            ))}
+          </select>
+        </div>
+        {selectedPlayers.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {selectedPlayers
+              .slice()
+              .sort((a, b) => (a.currentHandicap ?? 99) - (b.currentHandicap ?? 99))
+              .map((p) => (
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between rounded-md border border-gray-200 bg-gray-50 px-3 py-1.5 text-sm"
+                >
+                  <span>
+                    {p.fullName}{' '}
+                    <span className="text-gray-500">(HCP {p.currentHandicap?.toFixed(1) ?? '—'})</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removePlayer(p.id)}
+                    className="text-gray-400 hover:text-red-500"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              ))}
+          </ul>
+        )}
+      </div>
+
+      {/* Matchup Editor */}
+      {matchups.length > 0 && (
+        <div>
+          <div className="mb-2 flex items-center gap-2">
+            <Trophy className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-medium text-gray-700">Matchups</span>
+            <span className="text-xs text-gray-400">(drag players between slots to re-pair)</span>
+          </div>
+          <div className="space-y-2">
+            {matchups.map((m, idx) => (
+              <div
+                key={idx}
+                className="flex items-center gap-2 rounded-md border border-gray-200 bg-white p-2"
+              >
+                <span className="w-5 text-center text-xs font-semibold text-gray-400">
+                  {idx + 1}
+                </span>
+                <select
+                  value={m.player1Id}
+                  onChange={(e) => setMatchupPlayer(idx, 1, Number(e.target.value))}
+                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-600"
+                >
+                  {selectedPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.fullName}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs font-semibold text-gray-500">vs</span>
+                <select
+                  value={m.player2Id}
+                  onChange={(e) => setMatchupPlayer(idx, 2, Number(e.target.value))}
+                  className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-600"
+                >
+                  {selectedPlayers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.fullName}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  title="Swap players"
+                  onClick={() => swapMatchupPlayers(idx)}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+            {selectedPlayers.length % 2 !== 0 && (
+              <p className="text-xs text-amber-600">
+                Odd number of players — one player will not have a matchup.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="flex justify-end gap-3 pt-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          variant="primary"
+          disabled={createTournament.isPending}
+        >
+          {createTournament.isPending ? 'Creating…' : 'Create Tournament Round'}
+        </Button>
+      </div>
+    </form>
+  );
+}

@@ -23,4 +23,11 @@ public interface IRoundRepository
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default);
     Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
+
+    // Tournament-specific
+    Task AddTournamentMatchupsAsync(IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default);
+    Task ReplaceTournamentMatchupsAsync(int roundId, IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TournamentMatchup>> GetTournamentMatchupsAsync(int roundId, CancellationToken cancellationToken = default);
+    Task UpsertTournamentHoleExtrasAsync(IEnumerable<TournamentHoleExtra> extras, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TournamentHoleExtra>> GetTournamentHoleExtrasAsync(int roundId, CancellationToken cancellationToken = default);
 }

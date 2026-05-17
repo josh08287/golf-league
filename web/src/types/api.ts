@@ -82,7 +82,8 @@ export interface Standing {
 }
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
-export type NineHoleSide = 'Front' | 'Back';
+export type NineHoleSide = 'Front' | 'Back' | 'NotApplicable';
+export type RoundType = 'NineHole' | 'EighteenHole' | 'Tournament';
 
 export interface PlayerRoundSummary {
   roundId: number;
@@ -110,6 +111,7 @@ export interface Round {
   scheduledDate: string;
   status: RoundStatus;
   nineHoleSide: NineHoleSide;
+  roundType: RoundType;
   participantCount: number;
 }
 
@@ -590,4 +592,100 @@ export interface LeagueLeaderboards {
   lowNet: PlayerNetLeaderboardEntry[];
   birdiesEagles: PlayerBirdiesEagles[];
   par3Skins: PlayerPar3Skins[];
+}
+
+// ── Tournament Rounds ─────────────────────────────────────────────────────────
+
+export interface TournamentMatchupDto {
+  matchupNumber: number;
+  player1Id: number;
+  player1Name: string;
+  player1HandicapIndex: number;
+  player1CourseHandicap: number;
+  player2Id: number;
+  player2Name: string;
+  player2HandicapIndex: number;
+  player2CourseHandicap: number;
+  winnerPlayerId: number | null;
+}
+
+export interface TournamentRoundDto {
+  round: Round;
+  matchups: TournamentMatchupDto[];
+}
+
+export interface TournamentSkinHole {
+  holeNumber: number;
+  par: number;
+  skinValue: number;
+  winnerPlayerId: number | null;
+  winnerPlayerName: string | null;
+  winningScore: number | null;
+  wasCarryover: boolean;
+  isTie: boolean;
+}
+
+export interface TournamentPlayerSkin {
+  playerId: number;
+  playerName: string;
+  totalSkinsWon: number;
+  totalSkinValue: number;
+  holesWon: TournamentSkinHole[];
+}
+
+export interface TournamentSkinsResult {
+  skinType: string;
+  holeResults: TournamentSkinHole[];
+  playerSummaries: TournamentPlayerSkin[];
+}
+
+export interface TournamentHoleExtra {
+  holeNumber: number;
+  closestToPinPlayerId: number | null;
+  closestToPinPlayerName: string | null;
+  longestDrivePlayerId: number | null;
+  longestDrivePlayerName: string | null;
+}
+
+export interface TournamentMatchupResult {
+  matchupNumber: number;
+  player1Id: number;
+  player1Name: string;
+  player1HandicapIndex: number;
+  player1CourseHandicap: number;
+  player1NetStrokes: number | null;
+  player1NetPoints: number | null;
+  player2Id: number;
+  player2Name: string;
+  player2HandicapIndex: number;
+  player2CourseHandicap: number;
+  player2NetStrokes: number | null;
+  player2NetPoints: number | null;
+  winnerPlayerId: number | null;
+  winnerPlayerName: string | null;
+  isHalved: boolean;
+}
+
+export interface TournamentRankingEntry {
+  rank: number;
+  playerId: number;
+  playerName: string;
+  handicapIndex: number;
+  courseHandicap: number;
+  score: number | null;
+  isTied: boolean;
+}
+
+export interface TournamentResults {
+  roundId: number;
+  roundDate: string;
+  courseName: string;
+  grossSkins: TournamentSkinsResult;
+  netSkins: TournamentSkinsResult;
+  holeExtras: TournamentHoleExtra[];
+  matchupResults: TournamentMatchupResult[];
+  grossStrokeRanking: TournamentRankingEntry[];
+  netStrokeRanking: TournamentRankingEntry[];
+  grossStablefordRanking: TournamentRankingEntry[];
+  netStablefordRanking: TournamentRankingEntry[];
 }

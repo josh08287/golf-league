@@ -183,4 +183,49 @@ public sealed class RoundRepository : IRoundRepository
             .Where(r => r.HalfId == halfId && r.WeekNumber < currentWeekNumber)
             .OrderBy(r => r.WeekNumber)
             .ToListAsync(cancellationToken);
+
+    public async Task AddTournamentMatchupsAsync(IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default)
+    {
+        await _context.TournamentMatchups.AddRangeAsync(matchups, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ReplaceTournamentMatchupsAsync(int roundId, IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default)
+    {
+        await _context.TournamentMatchups
+            .Where(m => m.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _context.TournamentMatchups.AddRangeAsync(matchups, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TournamentMatchup>> GetTournamentMatchupsAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.TournamentMatchups
+            .Include(m => m.Player1)
+            .Include(m => m.Player2)
+            .Where(m => m.RoundId == roundId)
+            .OrderBy(m => m.MatchupNumber)
+            .ToListAsync(cancellationToken);
+
+    public async Task UpsertTournamentHoleExtrasAsync(IEnumerable<TournamentHoleExtra> extras, CancellationToken cancellationToken = default)
+    {
+        var extrasList = extras.ToList();
+        var roundId = extrasList.First().RoundId;
+        var holeNumbers = extrasList.Select(e => e.HoleNumber).ToList();
+
+        await _context.TournamentHoleExtras
+            .Where(e => e.RoundId == roundId && holeNumbers.Contains(e.HoleNumber))
+            .ExecuteDeleteAsync(cancellationToken);
+
+        await _context.TournamentHoleExtras.AddRangeAsync(extrasList, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TournamentHoleExtra>> GetTournamentHoleExtrasAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.TournamentHoleExtras
+            .Include(e => e.ClosestToPinPlayer)
+            .Include(e => e.LongestDrivePlayer)
+            .Where(e => e.RoundId == roundId)
+            .OrderBy(e => e.HoleNumber)
+            .ToListAsync(cancellationToken);
 }

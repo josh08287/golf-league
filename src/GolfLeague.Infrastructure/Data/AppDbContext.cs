@@ -24,6 +24,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
+    public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
+    public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -43,6 +45,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureCourseHoles(modelBuilder);
         ConfigureRounds(modelBuilder);
         ConfigureRoundParticipants(modelBuilder);
+        ConfigureTournamentMatchups(modelBuilder);
+        ConfigureTournamentHoleExtras(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
@@ -214,6 +218,12 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                       v => v.ToString(),
                       v => Enum.Parse<NineHoleSide>(v))
                   .HasMaxLength(20);
+            entity.Property(e => e.RoundType)
+                  .HasConversion(
+                      v => v.ToString(),
+                      v => Enum.Parse<RoundType>(v))
+                  .HasMaxLength(20)
+                  .HasDefaultValue(RoundType.NineHole);
             entity.Property(e => e.Notes).HasMaxLength(1000);
             entity.HasOne(e => e.Season)
                   .WithMany(s => s.Rounds)
@@ -258,6 +268,48 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
             entity.HasIndex(e => new { e.RoundId, e.FlightId });
             entity.HasIndex(e => e.TeeTimeId);
+        });
+    }
+
+    private static void ConfigureTournamentMatchups(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TournamentMatchup>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.TournamentMatchups)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Player1)
+                  .WithMany()
+                  .HasForeignKey(e => e.Player1Id)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Player2)
+                  .WithMany()
+                  .HasForeignKey(e => e.Player2Id)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.RoundId, e.MatchupNumber }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTournamentHoleExtras(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TournamentHoleExtra>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.TournamentHoleExtras)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.ClosestToPinPlayer)
+                  .WithMany()
+                  .HasForeignKey(e => e.ClosestToPinPlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.LongestDrivePlayer)
+                  .WithMany()
+                  .HasForeignKey(e => e.LongestDrivePlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.RoundId, e.HoleNumber }).IsUnique();
         });
     }
 

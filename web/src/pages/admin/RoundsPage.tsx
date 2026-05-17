@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, CalendarDays } from 'lucide-react';
+import { Plus, CalendarDays, Trophy } from 'lucide-react';
 import { useRounds } from '../../hooks/useRounds';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import {
@@ -17,6 +17,7 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
+import { CreateTournamentRoundForm } from '../../components/admin/CreateTournamentRoundForm';
 import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
 import {
   normalizeRoundStatus,
@@ -45,6 +46,7 @@ export function RoundsPage() {
   const rounds = roundsPage?.data ?? [];
 
   const [createOpen, setCreateOpen] = useState(false);
+  const [createTournamentOpen, setCreateTournamentOpen] = useState(false);
   const [createHalfOpen, setCreateHalfOpen] = useState(false);
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Round | null>(null);
@@ -99,14 +101,16 @@ export function RoundsPage() {
     },
     { key: 'course', header: 'Course', sortable: true, render: (r: Round) => r.courseName ?? '—' },
     {
-      key: 'nineHoleSide',
-      header: '9-Hole Side',
-      sortable: true,
-      render: (r: Round) => (
-        <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
-          {r.nineHoleSide}
-        </Badge>
-      ),
+      key: 'type',
+      header: 'Type',
+      render: (r: Round) =>
+        r.roundType === 'Tournament' ? (
+          <Badge variant="warning">Tournament</Badge>
+        ) : (
+          <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
+            {r.nineHoleSide === 'NotApplicable' ? '18-Hole' : r.nineHoleSide}
+          </Badge>
+        ),
     },
     {
       key: 'status',
@@ -119,13 +123,23 @@ export function RoundsPage() {
       header: '',
       render: (r: Round) => (
         <div className="flex items-center justify-end gap-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(`/admin/rounds/${r.id}/scores`)}
-          >
-            {isRoundFinalized(r.status) ? 'View Scorecard' : 'Enter Scores'}
-          </Button>
+          {r.roundType === 'Tournament' ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/rounds/${r.id}/tournament-results`)}
+            >
+              Results
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate(`/admin/rounds/${r.id}/scores`)}
+            >
+              {isRoundFinalized(r.status) ? 'View Scorecard' : 'Enter Scores'}
+            </Button>
+          )}
           {isRoundInProgress(r.status) && (
             <Button
               variant="ghost"
@@ -173,6 +187,10 @@ export function RoundsPage() {
             <Plus className="mr-1 h-4 w-4" />
             Add Round
           </Button>
+          <Button variant="secondary" onClick={() => setCreateTournamentOpen(true)}>
+            <Trophy className="mr-1 h-4 w-4" />
+            Tournament Round
+          </Button>
         </div>
       </PageHeader>
 
@@ -191,6 +209,16 @@ export function RoundsPage() {
         <CreateRoundForm
           onSuccess={() => setCreateOpen(false)}
           onCancel={() => setCreateOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={createTournamentOpen} title="Create Tournament Round" onClose={() => setCreateTournamentOpen(false)}>
+        <CreateTournamentRoundForm
+          onSuccess={(roundId) => {
+            setCreateTournamentOpen(false);
+            navigate(`/rounds/${roundId}/tournament-results`);
+          }}
+          onCancel={() => setCreateTournamentOpen(false)}
         />
       </Modal>
 

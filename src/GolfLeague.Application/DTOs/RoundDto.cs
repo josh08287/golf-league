@@ -12,4 +12,5 @@ public sealed record RoundDto(
     DateOnly ScheduledDate,
     RoundStatus Status,
     NineHoleSide NineHoleSide,
+    RoundType RoundType,
     int ParticipantCount);
