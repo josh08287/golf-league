@@ -24,6 +24,13 @@ public interface IRoundRepository
     Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Shifts RoundDate and WeekNumber of all non-cancelled rounds in <paramref name="halfId"/>
+    /// whose WeekNumber is strictly greater than <paramref name="afterWeekNumber"/> by the given
+    /// <paramref name="daysToAdd"/> and <paramref name="weekNumberIncrement"/>.
+    /// </summary>
+    Task ShiftRoundsForwardAsync(int halfId, int afterWeekNumber, int daysToAdd, int weekNumberIncrement, CancellationToken cancellationToken = default);
+
     // Tournament-specific
     Task AddTournamentMatchupsAsync(IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default);
     Task ReplaceTournamentMatchupsAsync(int roundId, IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default);

@@ -241,7 +241,7 @@ export function RoundsPage() {
       <ConfirmDialog
         open={!!cancelTarget}
         title="Cancel Round"
-        description={`Cancel the round on ${cancelTarget ? new Date(cancelTarget.scheduledDate).toLocaleDateString() : ''}? A make-up round will be appended one week later with the same 9-hole side.`}
+        description={`Cancel the round on ${cancelTarget ? new Date(cancelTarget.scheduledDate).toLocaleDateString() : ''}? All later rounds in this half will shift forward by one week to keep the schedule sequential.`}
         confirmLabel="Cancel Round"
         onConfirm={handleCancel}
         onCancel={() => setCancelTarget(null)}

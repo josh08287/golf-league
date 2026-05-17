@@ -184,6 +184,24 @@ public sealed class RoundRepository : IRoundRepository
             .OrderBy(r => r.WeekNumber)
             .ToListAsync(cancellationToken);
 
+    public async Task ShiftRoundsForwardAsync(int halfId, int afterWeekNumber, int daysToAdd, int weekNumberIncrement, CancellationToken cancellationToken = default)
+    {
+        var toShift = await _context.Rounds
+            .Where(r => r.HalfId == halfId
+                     && r.WeekNumber > afterWeekNumber
+                     && r.Status != RoundStatus.Cancelled)
+            .ToListAsync(cancellationToken);
+
+        foreach (var r in toShift)
+        {
+            r.RoundDate = r.RoundDate.AddDays(daysToAdd);
+            r.WeekNumber += weekNumberIncrement;
+        }
+
+        if (toShift.Count > 0)
+            await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task AddTournamentMatchupsAsync(IEnumerable<TournamentMatchup> matchups, CancellationToken cancellationToken = default)
     {
         await _context.TournamentMatchups.AddRangeAsync(matchups, cancellationToken);

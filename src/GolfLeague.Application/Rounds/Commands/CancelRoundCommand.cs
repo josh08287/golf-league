@@ -1,18 +1,16 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
-using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
-using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
 /// <summary>
-/// Cancels a scheduled round. The cancelled round keeps its date and side for history.
-/// A make-up round with the same NineHoleSide is appended one week after the half's
-/// last round; Half 1's EndDate extends, and Half 2's start/end dates shift forward
-/// by 7 days so the season schedule remains contiguous.
+/// Cancels a scheduled round. All non-cancelled rounds in the same half with a higher
+/// week number are shifted forward by 7 days (date and week number) so the schedule
+/// remains sequential with no gaps. The half's end date and any subsequent half's
+/// dates are extended by the same 7 days.
 /// </summary>
 public sealed record CancelRoundCommand(int RoundId, string UserId)
     : IRequest<Result<RoundDto>>, IAmAuditableCommand;
@@ -22,21 +20,15 @@ public sealed class CancelRoundCommandHandler : IRequestHandler<CancelRoundComma
     private readonly IRoundRepository _roundRepository;
     private readonly IFlightRepository _flightRepository;
     private readonly ICourseRepository _courseRepository;
-    private readonly IPlayerRepository _playerRepository;
-    private readonly IHandicapRepository _handicapRepository;
 
     public CancelRoundCommandHandler(
         IRoundRepository roundRepository,
         IFlightRepository flightRepository,
-        ICourseRepository courseRepository,
-        IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        ICourseRepository courseRepository)
     {
         _roundRepository = roundRepository;
         _flightRepository = flightRepository;
         _courseRepository = courseRepository;
-        _playerRepository = playerRepository;
-        _handicapRepository = handicapRepository;
     }
 
     public async Task<Result<RoundDto>> Handle(CancelRoundCommand request, CancellationToken cancellationToken)
@@ -50,70 +42,30 @@ public sealed class CancelRoundCommandHandler : IRequestHandler<CancelRoundComma
         if (round.Status == RoundStatus.Finalized)
             return Result<RoundDto>.Fail("Cannot cancel a finalized round.");
 
-        round.Status = RoundStatus.Cancelled;
-        await _roundRepository.UpdateAsync(round, cancellationToken);
-
-        // Append a make-up round one week after the half's current last round, same side.
-        var halfRounds = await _roundRepository.GetByHalfAsync(round.HalfId, cancellationToken);
-        var lastDate = halfRounds.Where(r => r.Status != RoundStatus.Cancelled)
-                                  .Select(r => r.RoundDate)
-                                  .DefaultIfEmpty(round.RoundDate)
-                                  .Max();
-        var makeupDate = lastDate.AddDays(7);
-        var nextWeek = halfRounds.Max(r => r.WeekNumber) + 1;
-
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {round.CourseId} not found.");
 
-        var flights = await _flightRepository.GetByHalfAsync(round.HalfId, cancellationToken);
+        // Mark cancelled
+        round.Status = RoundStatus.Cancelled;
+        await _roundRepository.UpdateAsync(round, cancellationToken);
 
-        var makeup = new Round
-        {
-            SeasonId = round.SeasonId,
-            HalfId = round.HalfId,
-            CourseId = round.CourseId,
-            WeekNumber = nextWeek,
-            RoundDate = makeupDate,
-            Status = RoundStatus.Scheduled,
-            NineHoleSide = round.NineHoleSide, // preserve the side that was missed
-            Notes = $"Make-up for cancelled round on {round.RoundDate:yyyy-MM-dd}",
-        };
-        await _roundRepository.AddAsync(makeup, cancellationToken);
+        // Shift every later non-cancelled round in this half forward by one week
+        await _roundRepository.ShiftRoundsForwardAsync(
+            round.HalfId,
+            afterWeekNumber: round.WeekNumber,
+            daysToAdd: 7,
+            weekNumberIncrement: 1,
+            cancellationToken);
 
-        foreach (var flight in flights)
-        {
-            var memberships = await _flightRepository.GetMembershipsAsync(flight.Id, cancellationToken);
-            foreach (var membership in memberships)
-            {
-                var player = await _playerRepository.GetByIdAsync(membership.PlayerId, cancellationToken);
-                if (player is null || !player.IsActive) continue;
-
-                var current = await _handicapRepository.GetCurrentAsync(membership.PlayerId, cancellationToken);
-                var index = current?.HandicapIndex ?? 0.0;
-
-                await _roundRepository.AddParticipantAsync(new RoundParticipant
-                {
-                    RoundId = makeup.Id,
-                    PlayerId = membership.PlayerId,
-                    FlightId = flight.Id,
-                    HandicapIndex = index,
-                    CourseHandicap = CourseHandicap(index, course.SlopeRating, RoundType.NineHole),
-                    IsWithdrawn = false,
-                }, cancellationToken);
-            }
-        }
-
-        // Extend the half's end date and shift the second half forward by 7 days.
+        // Extend the half's end date by 7 days to accommodate the shifted schedule
         var thisHalf = await _flightRepository.GetHalfByIdAsync(round.HalfId, cancellationToken);
         if (thisHalf is not null)
         {
-            if (makeupDate > thisHalf.EndDate)
-            {
-                thisHalf.EndDate = makeupDate;
-                await _flightRepository.UpdateHalfAsync(thisHalf, cancellationToken);
-            }
+            thisHalf.EndDate = thisHalf.EndDate.AddDays(7);
+            await _flightRepository.UpdateHalfAsync(thisHalf, cancellationToken);
 
+            // If this is the first half, shift the second half's window forward too
             if (thisHalf.HalfNumber == 1)
             {
                 var halves = await _flightRepository.GetHalvesBySeasonAsync(thisHalf.SeasonId, cancellationToken);
