@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -27,21 +28,27 @@ public sealed class InitializeHalfFlightsCommandHandler
     private readonly IFlightRepository _flightRepository;
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly ILeagueContext _leagueContext;
 
     public InitializeHalfFlightsCommandHandler(
         IFlightRepository flightRepository,
         IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IHandicapRepository handicapRepository,
+        ILeagueContext leagueContext)
     {
         _flightRepository = flightRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<List<FlightDto>>> Handle(
         InitializeHalfFlightsCommand request,
         CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<List<FlightDto>>.Fail("No league context.");
+
         var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
         if (half is null)
             return Result<List<FlightDto>>.Fail($"Half with ID {request.HalfId} not found.");
@@ -83,6 +90,7 @@ public sealed class InitializeHalfFlightsCommandHandler
         {
             var flight = new Flight
             {
+                LeagueId = _leagueContext.LeagueId!.Value,
                 Name = $"{FlightNames[i]} Flight",
                 SeasonId = half.SeasonId,
                 HalfId = half.Id,

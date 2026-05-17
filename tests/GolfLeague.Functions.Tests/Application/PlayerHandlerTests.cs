@@ -20,6 +20,14 @@ public class CreatePlayerCommandHandlerTests
         IsActive = true
     };
 
+    private static ILeagueContext MakeLeagueContext(int leagueId = 1)
+    {
+        var ctx = new Mock<ILeagueContext>();
+        ctx.Setup(c => c.LeagueId).Returns(leagueId);
+        ctx.Setup(c => c.IsSet).Returns(true);
+        return ctx.Object;
+    }
+
     [Fact]
     public async Task Handle_WhenEmailAlreadyExists_ReturnsFail()
     {
@@ -27,7 +35,7 @@ public class CreatePlayerCommandHandlerTests
         playerRepo.Setup(r => r.GetByEmailAsync("j@j.com", default)).ReturnsAsync(MakePlayer());
         var handicapRepo = new Mock<IHandicapRepository>();
 
-        var handler = new CreatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object);
+        var handler = new CreatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, MakeLeagueContext());
         var command = new CreatePlayerCommand("John", "Doe", "j@j.com", 10.0, "admin");
 
         var result = await handler.Handle(command, default);
@@ -44,7 +52,7 @@ public class CreatePlayerCommandHandlerTests
             .ReturnsAsync((Player?)null);
 
         var handicapRepo = new Mock<IHandicapRepository>();
-        var handler = new CreatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object);
+        var handler = new CreatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, MakeLeagueContext());
         var command = new CreatePlayerCommand("John", "Doe", "j@j.com", 12.5, "admin");
 
         var result = await handler.Handle(command, default);

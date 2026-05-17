@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -47,23 +48,29 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
     private readonly ISeasonRepository _seasonRepository;
+    private readonly ILeagueContext _leagueContext;
 
     public CreateTournamentRoundCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        ISeasonRepository seasonRepository)
+        ISeasonRepository seasonRepository,
+        ILeagueContext leagueContext)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
         _seasonRepository = seasonRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<TournamentRoundDto>> Handle(CreateTournamentRoundCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<TournamentRoundDto>.Fail("No league context.");
+
         if (request.PlayerIds.Count < 2)
             return Result<TournamentRoundDto>.Fail("A tournament round requires at least 2 players.");
 
@@ -87,6 +94,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
         var round = new Round
         {
+            LeagueId = _leagueContext.LeagueId!.Value,
             SeasonId = request.SeasonId,
             HalfId = null,
             CourseId = course.Id,

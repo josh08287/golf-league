@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -19,17 +20,23 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
 {
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly ILeagueContext _leagueContext;
 
     public CreatePlayerCommandHandler(
         IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IHandicapRepository handicapRepository,
+        ILeagueContext leagueContext)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<PlayerDto>> Handle(CreatePlayerCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<PlayerDto>.Fail("No league context.");
+
         // Duplicate-email check is only meaningful when an email is provided.
         // Players without an email (e.g. guest entries) can be created freely.
         if (!string.IsNullOrWhiteSpace(request.Email))
@@ -41,6 +48,7 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
 
         var player = new Player
         {
+            LeagueId = _leagueContext.LeagueId.Value,
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = string.IsNullOrWhiteSpace(request.Email) ? null : request.Email,

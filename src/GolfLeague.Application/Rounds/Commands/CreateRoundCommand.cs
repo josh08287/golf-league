@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -28,23 +29,29 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
     private readonly IFlightRepository _flightRepository;
+    private readonly ILeagueContext _leagueContext;
 
     public CreateRoundCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        IFlightRepository flightRepository)
+        IFlightRepository flightRepository,
+        ILeagueContext leagueContext)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
         _flightRepository = flightRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<RoundDto>> Handle(CreateRoundCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<RoundDto>.Fail("No league context.");
+
         var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
         if (half is null)
             return Result<RoundDto>.Fail($"Half with ID {request.HalfId} not found.");
@@ -64,6 +71,7 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
         var round = new Round
         {
+            LeagueId = _leagueContext.LeagueId!.Value,
             SeasonId = half.SeasonId,
             HalfId = half.Id,
             CourseId = course.Id,

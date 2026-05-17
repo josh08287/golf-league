@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -27,23 +28,29 @@ public sealed class GenerateHalfScheduleCommandHandler : IRequestHandler<Generat
     private readonly ICourseRepository _courseRepository;
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly ILeagueContext _leagueContext;
 
     public GenerateHalfScheduleCommandHandler(
         IFlightRepository flightRepository,
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
         IPlayerRepository playerRepository,
-        IHandicapRepository handicapRepository)
+        IHandicapRepository handicapRepository,
+        ILeagueContext leagueContext)
     {
         _flightRepository = flightRepository;
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<List<RoundDto>>> Handle(GenerateHalfScheduleCommand request, CancellationToken cancellationToken)
     {
+        if (_leagueContext.LeagueId is null)
+            return Result<List<RoundDto>>.Fail("No league context.");
+
         if (request.WeekDates.Count == 0)
             return Result<List<RoundDto>>.Fail("At least one week date is required.");
 
@@ -73,6 +80,7 @@ public sealed class GenerateHalfScheduleCommandHandler : IRequestHandler<Generat
 
             var round = new Round
             {
+                LeagueId = _leagueContext.LeagueId!.Value,
                 SeasonId = half.SeasonId,
                 HalfId = half.Id,
                 CourseId = course.Id,
