@@ -5,6 +5,7 @@ namespace GolfLeague.Domain.Entities;
 public class Round
 {
     public int Id { get; set; }
+    public int LeagueId { get; set; }
     public int SeasonId { get; set; }
     public int? HalfId { get; set; }
     public int CourseId { get; set; }

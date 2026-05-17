@@ -120,6 +120,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         {
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+            entity.HasOne<League>()
+                  .WithMany()
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Season)
                   .WithMany()
                   .HasForeignKey(e => e.SeasonId)
@@ -274,6 +278,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasMaxLength(20)
                   .HasDefaultValue(RoundType.NineHole);
             entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.HasOne<League>()
+                  .WithMany()
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Season)
                   .WithMany(s => s.Rounds)
                   .HasForeignKey(e => e.SeasonId)
@@ -520,6 +528,18 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                 || e.LeagueId == _leagueContext.LeagueId);
 
         modelBuilder.Entity<PlayerInvite>()
+            .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
+                || _leagueContext.IsSuperAdmin
+                || e.LeagueId == _leagueContext.LeagueId);
+
+        modelBuilder.Entity<Round>()
+            .HasQueryFilter(e => _leagueContext == null
+                || !_leagueContext.IsSet
+                || _leagueContext.IsSuperAdmin
+                || e.LeagueId == _leagueContext.LeagueId);
+
+        modelBuilder.Entity<Flight>()
             .HasQueryFilter(e => _leagueContext == null
                 || !_leagueContext.IsSet
                 || _leagueContext.IsSuperAdmin

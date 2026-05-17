@@ -226,6 +226,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<int>("HalfId")
                         .HasColumnType("int");
 
+                    b.Property<int>("LeagueId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -235,6 +238,8 @@ namespace GolfLeague.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LeagueId");
 
                     b.HasIndex("SeasonId");
 
@@ -596,6 +601,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<int?>("HalfId")
                         .HasColumnType("int");
 
+                    b.Property<int>("LeagueId")
+                        .HasColumnType("int");
+
                     b.Property<string>("NineHoleSide")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -629,6 +637,8 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("CourseId");
+
+                    b.HasIndex("LeagueId");
 
                     b.HasIndex("SeasonId");
 
@@ -1057,6 +1067,12 @@ namespace GolfLeague.Infrastructure.Migrations
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Flight", b =>
                 {
+                    b.HasOne("GolfLeague.Domain.Entities.League", null)
+                        .WithMany()
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("GolfLeague.Domain.Entities.SeasonHalf", "Half")
                         .WithMany("Flights")
                         .HasForeignKey("HalfId")
@@ -1216,6 +1232,12 @@ namespace GolfLeague.Infrastructure.Migrations
                         .WithMany("Rounds")
                         .HasForeignKey("HalfId")
                         .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("GolfLeague.Domain.Entities.League", null)
+                        .WithMany()
+                        .HasForeignKey("LeagueId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("GolfLeague.Domain.Entities.Season", "Season")
                         .WithMany("Rounds")

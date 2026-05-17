@@ -10,7 +10,10 @@ namespace GolfLeague.Functions.Middleware;
 
 /// <summary>
 /// Populates ILeagueContext for the duration of the request.
-/// Priority: JWT leagueId claim (authenticated) → X-League-Slug header (anonymous).
+/// The X-League-Slug header (always sent by the frontend, derived from the URL path)
+/// is the sole source of which league's data to return. The JWT leagueId claim is
+/// intentionally ignored here — it only reflects the league the token was issued for,
+/// not the league the user is currently viewing. IsSuperAdmin still comes from the JWT.
 /// Must run after AuthMiddleware so the ClaimsPrincipal is already populated.
 /// </summary>
 public sealed class LeagueContextMiddleware : IFunctionsWorkerMiddleware
@@ -28,25 +31,16 @@ public sealed class LeagueContextMiddleware : IFunctionsWorkerMiddleware
 
                 int? leagueId = null;
 
-                // Prefer the leagueId baked into the JWT.
-                var leagueIdRaw = user.FindFirst("leagueId")?.Value;
-                if (int.TryParse(leagueIdRaw, out var lid))
+                // Always resolve league from the X-League-Slug header so the data
+                // scope follows the URL the user is viewing, not the JWT's leagueId.
+                var slugHeader = httpContext.Request.Headers["X-League-Slug"].FirstOrDefault();
+                if (!string.IsNullOrWhiteSpace(slugHeader))
                 {
-                    leagueId = lid;
-                }
-                else
-                {
-                    // Fall back to the X-League-Slug header sent by the frontend
-                    // for anonymous (unauthenticated) requests.
-                    var slugHeader = httpContext.Request.Headers["X-League-Slug"].FirstOrDefault();
-                    if (!string.IsNullOrWhiteSpace(slugHeader))
+                    var leagueRepo = httpContext.RequestServices.GetService<ILeagueRepository>();
+                    if (leagueRepo is not null)
                     {
-                        var leagueRepo = httpContext.RequestServices.GetService<ILeagueRepository>();
-                        if (leagueRepo is not null)
-                        {
-                            var league = await leagueRepo.GetBySlugAsync(slugHeader, CancellationToken.None);
-                            leagueId = league?.Id;
-                        }
+                        var league = await leagueRepo.GetBySlugAsync(slugHeader, CancellationToken.None);
+                        leagueId = league?.Id;
                     }
                 }
 
