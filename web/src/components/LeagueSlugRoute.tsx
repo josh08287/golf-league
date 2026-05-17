@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
 import { LeagueContext, type LeagueInfo } from '@/context/LeagueContext';
 import { apiClient } from '@/lib/api';
+import { getTokenLeagueId, isAuthenticated, refresh } from '@/lib/auth';
+import { useAuthStore } from '@/store/authStore';
+import { getCurrentUser } from '@/lib/auth';
 
 interface LeagueResponse {
   id: number;
@@ -15,6 +18,7 @@ export function LeagueSlugRoute() {
   const [league, setLeague] = useState<LeagueInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const setUser = useAuthStore((s) => s.setUser);
 
   useEffect(() => {
     if (!leagueSlug) {
@@ -26,19 +30,38 @@ export function LeagueSlugRoute() {
     setLoading(true);
     setNotFound(false);
 
-    apiClient
-      .get<{ data: LeagueResponse }>(`/leagues/${leagueSlug}`)
-      .then((res) => {
+    void (async () => {
+      try {
+        const res = await apiClient.get<{ data: LeagueResponse }>(`/leagues/${leagueSlug}`);
         const l = res.data.data;
+
+        // If the user is logged in but their token is scoped to a different
+        // league, silently re-issue the token for this league so all API
+        // requests filter to the correct dataset.
+        if (isAuthenticated() && getTokenLeagueId() !== l.id) {
+          const newToken = await refresh(leagueSlug);
+          if (newToken) {
+            const me = await getCurrentUser();
+            setUser({
+              name: me.email,
+              email: me.email,
+              roles: me.roles ?? [],
+              playerId: me.playerId != null ? String(me.playerId) : null,
+              isSuperAdmin: me.isSuperAdmin ?? false,
+            });
+          }
+        }
+
         setLeague({ leagueId: l.id, slug: l.slug, name: l.name });
-      })
-      .catch((err) => {
-        if (err?.response?.status === 404) {
+      } catch (err) {
+        if ((err as { response?: { status?: number } })?.response?.status === 404) {
           setNotFound(true);
         }
-      })
-      .finally(() => setLoading(false));
-  }, [leagueSlug]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [leagueSlug, setUser]);
 
   if (loading) {
     return (

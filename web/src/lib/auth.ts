@@ -88,6 +88,18 @@ export function isAuthenticated(): boolean {
   return getAccessToken() !== null;
 }
 
+export function getTokenLeagueId(): number | null {
+  const token = getAccessToken();
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const val = payload['leagueId'];
+    return typeof val === 'number' ? val : null;
+  } catch {
+    return null;
+  }
+}
+
 export function storeAuthResponse(resp: AuthResponse) {
   setAccessToken(resp.accessToken, resp.accessTokenExpiresAt);
   // Only store refresh token when we got a real one — the MFA-challenge path
