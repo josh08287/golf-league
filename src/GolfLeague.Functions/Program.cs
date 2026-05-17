@@ -82,7 +82,17 @@ var host = new HostBuilder()
     })
     .Build();
 
-await EnsureDatabaseInitializedAsync(host);
+try
+{
+    await EnsureDatabaseInitializedAsync(host);
+}
+catch (Exception ex)
+{
+    var logger = host.Services.GetRequiredService<ILogger<Program>>();
+    logger.LogCritical(ex,
+        "Startup: database initialization failed — the host will start but DB may be unavailable. " +
+        "Azure SQL Serverless may still be resuming from auto-pause; the next host recycle will retry.");
+}
 
 await host.RunAsync();
 

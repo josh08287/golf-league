@@ -30,19 +30,17 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString, sql =>
             {
                 // Azure SQL routinely throws transient faults (40197, 40501, 49918, etc.).
-                // EnableRetryOnFailure wraps every command in an execution strategy that
-                // retries with exponential backoff. MaxRetryCount=6 + base delay 1s gives
-                // ~63s total worst-case before surfacing the error to the caller.
+                // Serverless auto-pause resume (42119) can take 60-90s; use 10 retries
+                // with a 60s max delay so the total wait covers a full cold-start.
                 sql.EnableRetryOnFailure(
-                    maxRetryCount: 6,
-                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    maxRetryCount: 10,
+                    maxRetryDelay: TimeSpan.FromSeconds(60),
                     // 42119: server busy / database resuming from serverless auto-pause
                     errorNumbersToAdd: [42119]);
 
-                // Functions Consumption can spend ~30s warming up SQL Serverless from
-                // pause. Bump the per-command timeout so cold-start queries don't fail
-                // before the DB is ready.
-                sql.CommandTimeout(60);
+                // Allow up to 120s for a single command so cold-start queries don't
+                // time out before the DB finishes resuming.
+                sql.CommandTimeout(120);
             });
 
             // Read queries should not pay the change-tracking tax — repositories that
