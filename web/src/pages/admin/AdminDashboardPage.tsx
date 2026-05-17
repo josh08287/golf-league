@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { useLeagueName } from '@/context/LeagueContext';
+import { useLeagueName, useLeaguePrefix } from '@/context/LeagueContext';
 import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight, Calculator, AlertTriangle } from 'lucide-react';
 import { usePlayers } from '@/hooks/usePlayers';
 import { useRounds } from '@/hooks/useRounds';
@@ -54,6 +54,7 @@ function QuickLink({ to, label, description, icon }: QuickLinkProps) {
 
 export function AdminDashboardPage() {
   const leagueName = useLeagueName();
+  const prefix = useLeaguePrefix();
   const { data: playersPage, isLoading: playersLoading } = usePlayers();
   const { data: roundsPage, isLoading: roundsLoading } = useRounds();
   const recalculateRounds = useRecalculateRounds();
@@ -114,25 +115,25 @@ export function AdminDashboardPage() {
         </h2>
         <div className="grid gap-3 sm:grid-cols-2">
           <QuickLink
-            to="/admin/players"
+            to={`${prefix}/admin/players`}
             label="Add Player"
             description="Register a new league member"
             icon={<Plus className="h-5 w-5" />}
           />
           <QuickLink
-            to="/admin/rounds"
+            to={`${prefix}/admin/rounds`}
             label="Create Round"
             description="Schedule a new round"
             icon={<Plus className="h-5 w-5" />}
           />
           <QuickLink
-            to="/admin/rounds"
+            to={`${prefix}/admin/rounds`}
             label="Enter Scores"
             description="Record scores for an active round"
             icon={<CalendarDays className="h-5 w-5" />}
           />
           <QuickLink
-            to="/admin/flights"
+            to={`${prefix}/admin/flights`}
             label="Manage Flights"
             description="Assign players to flights"
             icon={<Users className="h-5 w-5" />}

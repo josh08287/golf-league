@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCourses, useCourseStatistics, useMostImproved, useLeagueLeaderboards } from '@/hooks/useStatistics';
 import { Link } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import {
   Card,
   CardContent,
@@ -87,6 +88,7 @@ function HandicapReductionBadge({ value }: { value: number }) {
 }
 
 function MostImprovedSection() {
+  const prefix = useLeaguePrefix();
   const { data, isPending, isError } = useMostImproved();
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
@@ -120,7 +122,7 @@ function MostImprovedSection() {
           <div className="flex items-center justify-between">
             <div>
               <Link
-                to={`/players/${winner.playerId}`}
+                to={`${prefix}/players/${winner.playerId}`}
                 className="text-xl font-bold text-primary-900 hover:underline"
               >
                 {winner.playerName}
@@ -176,7 +178,7 @@ function MostImprovedSection() {
                       </TableCell>
                       <TableCell>
                         <Link
-                          to={`/players/${p.playerId}`}
+                          to={`${prefix}/players/${p.playerId}`}
                           className="font-medium text-primary-900 hover:underline"
                         >
                           {p.playerName}
@@ -244,6 +246,7 @@ function LeaderboardTable({
 }
 
 function LeagueLeaderboardsSection() {
+  const prefix = useLeaguePrefix();
   const { data, isPending, isError } = useLeagueLeaderboards();
   const [grossExpanded, setGrossExpanded] = useState(false);
   const [netExpanded, setNetExpanded] = useState(false);
@@ -286,7 +289,7 @@ function LeagueLeaderboardsSection() {
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
-                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                    <Link to={`${prefix}/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
                       {entry.playerName}
                     </Link>
                   </TableCell>
@@ -325,7 +328,7 @@ function LeagueLeaderboardsSection() {
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
-                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                    <Link to={`${prefix}/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
                       {entry.playerName}
                     </Link>
                   </TableCell>
@@ -365,7 +368,7 @@ function LeagueLeaderboardsSection() {
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
-                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                    <Link to={`${prefix}/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
                       {entry.playerName}
                     </Link>
                   </TableCell>
@@ -404,7 +407,7 @@ function LeagueLeaderboardsSection() {
                 <TableRow key={entry.playerId}>
                   <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
                   <TableCell>
-                    <Link to={`/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                    <Link to={`${prefix}/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
                       {entry.playerName}
                     </Link>
                   </TableCell>

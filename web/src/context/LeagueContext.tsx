@@ -29,3 +29,9 @@ export function useLeagueName(slug?: string): string {
   const { league } = useLeague();
   return league?.name ?? slug ?? '';
 }
+
+/** Returns the /:leagueSlug prefix for building absolute links, e.g. "/capital". */
+export function useLeaguePrefix(): string {
+  const { league } = useLeague();
+  return league ? `/${league.slug}` : '';
+}

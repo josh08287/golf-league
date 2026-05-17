@@ -1,4 +1,5 @@
 import { useParams, Link } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowLeft, Trophy, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { useState } from 'react';
 import { usePlayer, useHandicapHistory, usePlayerRounds } from '@/hooks/usePlayers';
@@ -137,6 +138,7 @@ function ScoringDistributionBar({ stats }: { stats: PlayerStatistics }) {
 }
 
 function PlayerStatsSection({ playerId }: { playerId: string }) {
+  const prefix = useLeaguePrefix();
   const playerStats = usePlayerStatistics(playerId);
 
   if (!playerId) return null;
@@ -242,7 +244,7 @@ function PlayerStatsSection({ playerId }: { playerId: string }) {
                   {stats.bestGrossRound.grossStrokes}
                 </p>
                 <Link
-                  to={`/rounds/${stats.bestGrossRound.roundId}`}
+                  to={`${prefix}/rounds/${stats.bestGrossRound.roundId}`}
                   className="text-xs text-primary-700 hover:underline"
                 >
                   {stats.bestGrossRound.courseName} — {formatShortDate(stats.bestGrossRound.roundDate)}
@@ -268,7 +270,7 @@ function PlayerStatsSection({ playerId }: { playerId: string }) {
                   {stats.bestNetPointsRound.netStablefordPoints} pts
                 </p>
                 <Link
-                  to={`/rounds/${stats.bestNetPointsRound.roundId}`}
+                  to={`${prefix}/rounds/${stats.bestNetPointsRound.roundId}`}
                   className="text-xs text-primary-700 hover:underline"
                 >
                   {stats.bestNetPointsRound.courseName} — {formatShortDate(stats.bestNetPointsRound.roundDate)}
@@ -444,6 +446,7 @@ function PlayerStatsSection({ playerId }: { playerId: string }) {
 }
 
 export function PlayerProfilePage() {
+  const prefix = useLeaguePrefix();
   const { playerId } = useParams<{ playerId: string }>();
   const user = useAuthStore((s) => s.user);
   const player = usePlayer(playerId ?? '');
@@ -460,7 +463,7 @@ export function PlayerProfilePage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link to="/players">
+        <Link to={`${prefix}/players`}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Players
         </Link>
@@ -657,7 +660,7 @@ export function PlayerProfilePage() {
                     <TableRow key={r.roundId}>
                       <TableCell>
                         <Link
-                          to={`/rounds/${r.roundId}`}
+                          to={`${prefix}/rounds/${r.roundId}`}
                           className="text-primary-900 hover:underline"
                         >
                           {formatShortDate(r.roundDate)}

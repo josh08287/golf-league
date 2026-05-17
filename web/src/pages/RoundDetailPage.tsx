@@ -1,4 +1,5 @@
 import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowLeft, ChevronDown, Clock, Trophy, Grid3X3 } from 'lucide-react';
 import * as Accordion from '@radix-ui/react-accordion';
 import * as Collapsible from '@radix-ui/react-collapsible';
@@ -199,6 +200,7 @@ interface FlightSkinsSummaryProps {
 }
 
 function FlightSkinsSummary({ flightSkins }: FlightSkinsSummaryProps) {
+  const prefix = useLeaguePrefix();
   if (flightSkins.playerSummaries.length === 0) {
     return (
       <div className="text-sm text-gray-500 italic">
@@ -227,7 +229,7 @@ function FlightSkinsSummary({ flightSkins }: FlightSkinsSummaryProps) {
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-amber-500" />
               <Link
-                to={`/players/${player.playerId}`}
+                to={`${prefix}/players/${player.playerId}`}
                 className="font-medium text-gray-900 hover:underline"
                 onClick={(e) => e.stopPropagation()}
               >
@@ -258,6 +260,7 @@ interface FlightScorecardsGridProps {
 }
 
 function FlightScorecardsGrid({ scorecards, flightSkins }: FlightScorecardsGridProps) {
+  const prefix = useLeaguePrefix();
   // Get all holes sorted
   const allHoles = scorecards
     .flatMap(sc => sc.holes)
@@ -326,7 +329,7 @@ function FlightScorecardsGrid({ scorecards, flightSkins }: FlightScorecardsGridP
             >
               <td className="px-2 py-2 sticky left-0 bg-white z-10 border-r border-gray-200">
                 <Link
-                  to={`/players/${sc.playerId}`}
+                  to={`${prefix}/players/${sc.playerId}`}
                   className="font-medium text-primary-900 hover:underline"
                 >
                   {sc.playerName}
@@ -383,6 +386,7 @@ function FlightScorecardsGrid({ scorecards, flightSkins }: FlightScorecardsGridP
 }
 
 export function RoundDetailPage() {
+  const prefix = useLeaguePrefix();
   const { roundId } = useParams<{ roundId: string }>();
   const navigate = useNavigate();
   const round = useRound(roundId ?? '');
@@ -412,7 +416,7 @@ export function RoundDetailPage() {
   return (
     <div className="space-y-6">
       <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link to="/rounds">
+        <Link to={`${prefix}/rounds`}>
           <ArrowLeft className="h-4 w-4 mr-1" />
           Back to Rounds
         </Link>
@@ -434,7 +438,7 @@ export function RoundDetailPage() {
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => navigate(`/rounds/${roundId}/tee-times`)}
+                onClick={() => navigate(`${prefix}/rounds/${roundId}/tee-times`)}
               >
                 <Clock className="h-4 w-4 mr-1" />
                 Tee Times
@@ -519,7 +523,7 @@ export function RoundDetailPage() {
                             <Accordion.Trigger className="flex w-full items-center justify-between px-5 py-4 text-left hover:bg-gray-50 transition-colors group">
                               <div className="flex items-center gap-3">
                                 <Link
-                                  to={`/players/${sc.playerId}`}
+                                  to={`${prefix}/players/${sc.playerId}`}
                                   className="font-semibold text-primary-900 hover:underline"
                                   onClick={(e) => e.stopPropagation()}
                                 >

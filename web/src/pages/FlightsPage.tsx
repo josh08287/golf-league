@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Users, ArrowRight } from 'lucide-react';
 import { useFlights, useFlightStandings } from '@/hooks/useFlights';
 import { useSeasons } from '@/hooks/useSeasons';
@@ -36,6 +37,7 @@ interface FlightCardProps {
 }
 
 function FlightCard({ flight, useGross }: FlightCardProps) {
+  const prefix = useLeaguePrefix();
   const { data: standings, isPending } = useFlightStandings(
     String(flight.id),
     String(flight.halfId),
@@ -72,7 +74,7 @@ function FlightCard({ flight, useGross }: FlightCardProps) {
                       </TableCell>
                       <TableCell className="py-2">
                         <Link
-                          to={`/players/${standing.playerId}`}
+                          to={`${prefix}/players/${standing.playerId}`}
                           className="font-medium text-primary-900 hover:underline text-sm"
                         >
                           {standing.playerFullName}
@@ -100,7 +102,7 @@ function FlightCard({ flight, useGross }: FlightCardProps) {
         )}
 
         <Button variant="outline" size="sm" className="w-full mt-4" asChild>
-          <Link to={`/flights/${flight.id}?halfId=${flight.halfId}`}>
+          <Link to={`${prefix}/flights/${flight.id}?halfId=${flight.halfId}`}>
             Full Leaderboard
             <ArrowRight className="ml-1 h-3 w-3" />
           </Link>

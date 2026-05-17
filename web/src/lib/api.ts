@@ -12,6 +12,13 @@ export function setNavigator(fn: (path: string) => void) {
   _navigate = fn;
 }
 
+// Module-level league slug — set by LeagueSlugRoute when a league is resolved
+// so anonymous requests carry X-League-Slug for backend query filter scoping.
+let _leagueSlug: string | null = null;
+export function setLeagueSlug(slug: string | null) {
+  _leagueSlug = slug;
+}
+
 const BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? '/api/v1';
 
@@ -30,13 +37,17 @@ export const api = apiClient;
 // proactively refresh it first so we never send an already-expired token.
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    const headers = config.headers ?? new AxiosHeaders();
+    if (_leagueSlug) {
+      (headers as AxiosHeaders).set('X-League-Slug', _leagueSlug);
+    }
     let token = getAccessToken();
     if (token && isTokenExpired()) {
       token = await refresh();
     }
-    if (!token) return config;
-    const headers = config.headers ?? new AxiosHeaders();
-    (headers as AxiosHeaders).set('Authorization', `Bearer ${token}`);
+    if (token) {
+      (headers as AxiosHeaders).set('Authorization', `Bearer ${token}`);
+    }
     config.headers = headers as InternalAxiosRequestConfig['headers'];
     return config;
   },

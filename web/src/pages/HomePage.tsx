@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { useLeagueName } from '@/context/LeagueContext';
+import { useLeagueName, useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
@@ -111,6 +111,7 @@ interface FlightScorecardCardProps {
 }
 
 function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScorecardCardProps) {
+  const prefix = useLeaguePrefix();
   // Players sorted by net points (the league's primary metric), then net
   // strokes ascending (lower is better) as a tiebreaker.
   const sorted = useMemo(() => {
@@ -152,7 +153,7 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
                 <TableCell className="text-center text-xs text-gray-500">{i + 1}</TableCell>
                 <TableCell>
                   <Link
-                    to={`/players/${sc.playerId}`}
+                    to={`${prefix}/players/${sc.playerId}`}
                     className="font-medium text-primary-900 hover:underline"
                   >
                     {sc.playerName}
@@ -172,7 +173,7 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
         </Table>
         <div className="border-t border-gray-100 px-5 py-3">
           <Button variant="ghost" size="sm" asChild className="-ml-2">
-            <Link to={`/flights/${flightId}`} className="flex items-center gap-1 text-xs">
+            <Link to={`${prefix}/flights/${flightId}`} className="flex items-center gap-1 text-xs">
               Season standings <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </Button>
@@ -187,6 +188,7 @@ interface FeaturedRoundProps {
 }
 
 function FeaturedRound({ round }: FeaturedRoundProps) {
+  const prefix = useLeaguePrefix();
   const scorecards = useRoundScorecards(String(round.id));
   const skins = useRoundSkins(String(round.id));
   const flights = useFlights();
@@ -215,7 +217,7 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
   return (
     <div className="space-y-4">
       <Link
-        to={`/rounds/${round.id}`}
+        to={`${prefix}/rounds/${round.id}`}
         className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
       >
         <div>
@@ -264,6 +266,7 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
 
 export function HomePage() {
   const leagueName = useLeagueName();
+  const prefix = useLeaguePrefix();
   const flights = useFlights();
   const rounds = useRounds(1);
   const isAuthed = useAuthStore((s) => !!s.user);
@@ -289,13 +292,13 @@ export function HomePage() {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
           <Button variant="secondary" asChild>
-            <Link to="/flights">View Flights</Link>
+            <Link to={`${prefix}/flights`}>View Flights</Link>
           </Button>
           <Button
             className="bg-white text-primary-900 hover:bg-primary-50"
             asChild
           >
-            <Link to="/rounds">Latest Rounds</Link>
+            <Link to={`${prefix}/rounds`}>Latest Rounds</Link>
           </Button>
         </div>
       </section>
@@ -313,7 +316,7 @@ export function HomePage() {
             Latest Round
           </h2>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/rounds" className="flex items-center gap-1">
+            <Link to={`${prefix}/rounds`} className="flex items-center gap-1">
               All rounds <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
@@ -341,7 +344,7 @@ export function HomePage() {
             Flights &amp; Standings
           </h2>
           <Button variant="ghost" size="sm" asChild>
-            <Link to="/flights" className="flex items-center gap-1">
+            <Link to={`${prefix}/flights`} className="flex items-center gap-1">
               All flights <ArrowRight className="h-4 w-4" />
             </Link>
           </Button>
@@ -372,7 +375,7 @@ export function HomePage() {
                 </CardHeader>
                 <CardContent>
                   <Button variant="outline" size="sm" asChild className="w-full">
-                    <Link to={`/flights/${flight.id}`}>
+                    <Link to={`${prefix}/flights/${flight.id}`}>
                       View Leaderboard
                     </Link>
                   </Button>
@@ -396,7 +399,7 @@ export function HomePage() {
             {olderRounds.map((round) => (
               <Link
                 key={round.id}
-                to={`/rounds/${round.id}`}
+                to={`${prefix}/rounds/${round.id}`}
                 className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
               >
                 <div>

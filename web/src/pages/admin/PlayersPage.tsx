@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Plus, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { usePlayers } from '../../hooks/usePlayers';
@@ -27,6 +28,7 @@ const PAGE_SIZE = 100;
 
 export function PlayersPage() {
   const navigate = useNavigate();
+  const prefix = useLeaguePrefix();
   const { sort, cycle } = useSortableTable('adminPlayers');
   const [page, setPage] = useState(1);
   const { data: playersPage, isLoading, error } = usePlayers(page, sort, PAGE_SIZE);
@@ -136,7 +138,7 @@ export function PlayersPage() {
       render: (p: Player) => (
         <button
           className="font-medium text-[#1B5E20] hover:underline"
-          onClick={() => navigate(`/admin/players/${p.id}`)}
+          onClick={() => navigate(`${prefix}/admin/players/${p.id}`)}
         >
           {p.fullName}
         </button>
@@ -192,7 +194,7 @@ export function PlayersPage() {
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/admin/players/${p.id}`);
+              navigate(`${prefix}/admin/players/${p.id}`);
             }}
           >
             Edit

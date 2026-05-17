@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
@@ -18,6 +19,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 
 export function PlayersPage() {
   const navigate = useNavigate();
+  const prefix = useLeaguePrefix();
   const { sort, cycle } = useSortableTable('players');
   // Public directory: fetch the full roster so client-side search/filter
   // sees everyone, not just the first 20.
@@ -82,7 +84,7 @@ export function PlayersPage() {
               {filtered.map((p) => (
                 <TableRow
                   key={p.id}
-                  onClick={() => navigate(`/players/${p.id}`)}
+                  onClick={() => navigate(`${prefix}/players/${p.id}`)}
                   className="cursor-pointer"
                 >
                   <TableCell className="font-medium text-primary-900">{p.fullName}</TableCell>

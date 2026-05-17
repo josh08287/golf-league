@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { LeagueContext, type LeagueInfo } from '@/context/LeagueContext';
-import { apiClient } from '@/lib/api';
-import { getTokenLeagueId, isAuthenticated, refresh } from '@/lib/auth';
+import { apiClient, setLeagueSlug } from '@/lib/api';
+import { getTokenLeagueId, isAuthenticated, refresh, getCurrentUser } from '@/lib/auth';
 import { useAuthStore } from '@/store/authStore';
-import { getCurrentUser } from '@/lib/auth';
 
 interface LeagueResponse {
   id: number;
@@ -19,6 +19,7 @@ export function LeagueSlugRoute() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const setUser = useAuthStore((s) => s.setUser);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!leagueSlug) {
@@ -53,10 +54,12 @@ export function LeagueSlugRoute() {
                 playerId: me.playerId != null ? String(me.playerId) : null,
                 isSuperAdmin: me.isSuperAdmin ?? false,
               });
+              queryClient.clear();
             }
           }
         }
 
+        setLeagueSlug(l.slug);
         setLeague({ leagueId: l.id, slug: l.slug, name: l.name });
       } catch (err) {
         if ((err as { response?: { status?: number } })?.response?.status === 404) {
@@ -66,7 +69,8 @@ export function LeagueSlugRoute() {
         setLoading(false);
       }
     })();
-  }, [leagueSlug, setUser]);
+    return () => { setLeagueSlug(null); };
+  }, [leagueSlug, setUser, queryClient]);
 
   if (loading) {
     return (

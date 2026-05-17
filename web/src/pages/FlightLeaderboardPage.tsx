@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowLeft } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlightStandings, useFlight } from '@/hooks/useFlights';
@@ -35,6 +36,7 @@ interface StandingsRowProps {
 }
 
 function StandingsRow({ standing, highlight }: StandingsRowProps) {
+  const prefix = useLeaguePrefix();
   const rowClass =
     highlight === 'gold'
       ? 'bg-yellow-50'
@@ -49,7 +51,7 @@ function StandingsRow({ standing, highlight }: StandingsRowProps) {
       <TableCell className="w-16 text-center">{positionBadge(standing.position)}</TableCell>
       <TableCell>
         <Link
-          to={`/players/${standing.playerId}`}
+          to={`${prefix}/players/${standing.playerId}`}
           className="font-medium text-primary-900 hover:underline"
         >
           {standing.playerFullName}
@@ -76,6 +78,7 @@ function podiumVariant(position: number): PodiumVariant | null {
 }
 
 export function FlightLeaderboardPage() {
+  const prefix = useLeaguePrefix();
   const { flightId } = useParams<{ flightId: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: seasons } = useSeasons();
@@ -113,7 +116,7 @@ export function FlightLeaderboardPage() {
     <div className="space-y-6">
       <div>
         <Button variant="ghost" size="sm" asChild className="mb-4 -ml-2">
-          <Link to="/flights">
+          <Link to={`${prefix}/flights`}>
             <ArrowLeft className="h-4 w-4 mr-1" />
             Back to Flights
           </Link>

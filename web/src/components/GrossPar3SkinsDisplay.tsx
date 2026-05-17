@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { GrossPar3SkinsSummary } from '@/types/api';
@@ -8,6 +9,7 @@ interface GrossPar3SkinsDisplayProps {
 }
 
 export function GrossPar3SkinsDisplay({ grossPar3Skins }: GrossPar3SkinsDisplayProps) {
+  const prefix = useLeaguePrefix();
   const incoming = grossPar3Skins.incomingCarryover;
 
   // Running cumulative carryover entering each hole (starts at incoming from prior rounds).
@@ -71,7 +73,7 @@ export function GrossPar3SkinsDisplay({ grossPar3Skins }: GrossPar3SkinsDisplayP
             <div className="flex items-center gap-2">
               <Trophy className="h-4 w-4 text-amber-500" />
               <Link
-                to={`/players/${player.playerId}`}
+                to={`${prefix}/players/${player.playerId}`}
                 className="font-medium text-gray-900 hover:underline"
               >
                 {player.playerName}
