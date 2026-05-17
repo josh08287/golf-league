@@ -50,7 +50,7 @@ export function ForgotPasswordPage() {
               Check your inbox (and the spam folder).
             </p>
             <p>
-              <Link to="/login" className="text-primary-900 font-medium hover:underline">
+              <Link to="../login" className="text-primary-900 font-medium hover:underline">
                 Back to sign in
               </Link>
             </p>
@@ -71,7 +71,7 @@ export function ForgotPasswordPage() {
               </Button>
             </form>
             <p className="mt-6 text-center text-sm text-gray-500">
-              <Link to="/login" className="text-primary-900 font-medium hover:underline">
+              <Link to="../login" className="text-primary-900 font-medium hover:underline">
                 Back to sign in
               </Link>
             </p>

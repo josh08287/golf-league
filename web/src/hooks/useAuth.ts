@@ -86,7 +86,7 @@ export function useAuth() {
     await logoutApi();
     clearUser();
     queryClient.clear();
-    navigate(`${prefix}/login`, { replace: true });
+    navigate(leagueSlug ? `/${leagueSlug}/login` : '/', { replace: true });
   }, [clearUser, navigate, queryClient, prefix]);
 
   return {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,10 +17,11 @@ type FormValues = z.infer<typeof schema>;
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isAuthenticated) {
-    navigate('/', { replace: true });
+    navigate(leagueSlug ? `/${leagueSlug}` : '/', { replace: true });
   }
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
@@ -67,7 +68,7 @@ export function LoginPage() {
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </Button>
           <p className="text-right text-xs">
-            <Link to="/auth/forgot-password" className="text-gray-500 hover:text-primary-900 hover:underline">
+            <Link to="auth/forgot-password" className="text-gray-500 hover:text-primary-900 hover:underline">
               Forgot password?
             </Link>
           </p>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useLeagueName } from '@/context/LeagueContext';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -27,6 +27,7 @@ export function RegisterPage() {
   const leagueName = useLeagueName();
   const { onLoginSuccess } = useAuth();
   const navigate = useNavigate();
+  const { leagueSlug } = useParams<{ leagueSlug?: string }>();
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
 
@@ -76,7 +77,7 @@ export function RegisterPage() {
         inviteToken: token,
       });
       await onLoginSuccess(resp);
-      if (!resp.mfaRequired) navigate('/', { replace: true });
+      if (!resp.mfaRequired) navigate(leagueSlug ? `/${leagueSlug}` : '/', { replace: true });
     } catch (err) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -150,7 +151,7 @@ export function RegisterPage() {
 
         <p className="mt-6 text-center text-sm text-gray-500">
           Already joined?{' '}
-          <Link to="/login" className="text-primary-900 font-medium hover:underline">Sign in</Link>
+          <Link to="../login" className="text-primary-900 font-medium hover:underline">Sign in</Link>
         </p>
       </div>
     </div>
@@ -165,7 +166,7 @@ function InviteOnlyNotice({ message }: { message: string }) {
         <h1 className="mt-4 text-xl font-bold text-gray-900">Invite required</h1>
         <p className="mt-3 text-sm text-gray-500">{message}</p>
         <p className="mt-4 text-sm">
-          <Link to="/login" className="text-primary-900 font-medium hover:underline">
+          <Link to="../login" className="text-primary-900 font-medium hover:underline">
             Back to sign in
           </Link>
         </p>

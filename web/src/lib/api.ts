@@ -88,7 +88,7 @@ apiClient.interceptors.response.use(
     if (!onPublicAuthPage) {
       // Navigate to /:leagueSlug/login, preserving the current league slug
       const slug = pathSegments[0] ?? '';
-      const loginPath = slug ? `/${slug}/login` : '/login';
+      const loginPath = slug ? `/${slug}/login` : '/';
       if (_navigate) {
         _navigate(loginPath);
       } else {
