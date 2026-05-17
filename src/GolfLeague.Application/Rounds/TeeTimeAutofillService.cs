@@ -215,7 +215,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 
     private static TeeTimeSlotPreference BandToFlag(TeeTimeSlotPreference band) => band;
 
-    private static int LargestFlight(List<RoundParticipant> pool)
+    private static int? LargestFlight(List<RoundParticipant> pool)
         => pool.GroupBy(p => p.FlightId)
                .OrderByDescending(g => g.Count())
                .ThenBy(g => g.Key)        // deterministic tie-break

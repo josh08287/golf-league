@@ -124,7 +124,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             {
                 RoundId = round.Id,
                 PlayerId = playerId,
-                FlightId = 0,
+                FlightId = null,
                 HandicapIndex = index,
                 CourseHandicap = courseHcp,
                 IsWithdrawn = false,

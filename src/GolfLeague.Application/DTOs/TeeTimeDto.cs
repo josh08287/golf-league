@@ -13,7 +13,7 @@ public sealed record TeeTimeParticipantDto(
     int ParticipantId,
     int PlayerId,
     string PlayerName,
-    int FlightId,
+    int? FlightId,
     string FlightName);
 
 public sealed record RoundTeeTimeScheduleDto(

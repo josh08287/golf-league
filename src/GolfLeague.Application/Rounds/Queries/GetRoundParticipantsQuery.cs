@@ -9,7 +9,7 @@ public sealed record RoundParticipantDto(
     int RoundId,
     int PlayerId,
     string PlayerName,
-    int FlightId,
+    int? FlightId,
     double HandicapAtTime,
     int CourseHandicap,
     bool IsWithdrawn,

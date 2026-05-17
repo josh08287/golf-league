@@ -315,6 +315,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasOne(e => e.Flight)
                   .WithMany()
                   .HasForeignKey(e => e.FlightId)
+                  .IsRequired(false)
                   .OnDelete(DeleteBehavior.Restrict);
             // Tee-time link: nullable, SetNull on delete so deleting a tee
             // time (e.g. admin regenerating the schedule) clears assignments

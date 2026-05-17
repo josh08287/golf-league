@@ -131,7 +131,7 @@ public sealed class TeeTimeService : ITeeTimeService
                     p.PlayerId,
                     p.Player.FullName,
                     p.FlightId,
-                    p.Flight.Name))
+                    p.Flight?.Name ?? string.Empty))
                 .ToList()))
             .ToList();
 

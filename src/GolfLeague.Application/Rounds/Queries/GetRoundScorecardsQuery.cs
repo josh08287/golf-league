@@ -17,7 +17,7 @@ public sealed record RoundScorecardDto(
     int RoundId,
     int PlayerId,
     string PlayerName,
-    int FlightId,
+    int? FlightId,
     string FlightName,
     string CourseName,
     DateOnly ScheduledDate,
@@ -98,7 +98,7 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
                     h.NetStablefordPoints))
                 .ToList();
 
-            var flightName = flightNameLookup.TryGetValue(p.FlightId, out var name) ? name : string.Empty;
+            var flightName = p.FlightId.HasValue && flightNameLookup.TryGetValue(p.FlightId.Value, out var name) ? name : string.Empty;
 
             return new RoundScorecardDto(
                 p.RoundId,

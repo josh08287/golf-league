@@ -47,7 +47,7 @@ public sealed record GrossPar3SkinDto(
     int SkinValue,
     int WinnerPlayerId,
     string WinnerPlayerName,
-    int WinnerFlightId,
+    int? WinnerFlightId,
     string WinnerFlightName,
     int WinningGrossScore,
     bool WasCarryover);
@@ -108,8 +108,8 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
         // Group participants by flight
         var participantsByFlight = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
-            .GroupBy(p => p.FlightId)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any() && p.FlightId.HasValue)
+            .GroupBy(p => p.FlightId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
         var flightSkinsList = new List<FlightSkinsDto>();
@@ -356,7 +356,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             if (lowestScorers.Count == 1)
             {
                 var winner = lowestScorers[0];
-                var flightName = flightNameLookup.TryGetValue(winner.FlightId, out var fn) ? fn : "Unknown";
+                var flightName = winner.FlightId.HasValue && flightNameLookup.TryGetValue(winner.FlightId.Value, out var fn) ? fn : "Unknown";
 
                 var holeSkin = new GrossPar3SkinDto(
                     holeNumber,

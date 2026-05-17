@@ -6,7 +6,7 @@ public sealed record ParticipantDto(
     int PlayerId,
     string PlayerFullName,
     string PlayerInitials,
-    int FlightId,
+    int? FlightId,
     double HandicapIndex,
     int CourseHandicap,
     int? TotalGrossStrokes,
