@@ -94,12 +94,9 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
 
     logger.LogInformation("Startup: applying EF Core migrations.");
 
-    // MigrateAsync is idempotent — it only runs migrations the database is
-    // missing. The DbContext's configured execution strategy handles
-    // transient Azure SQL faults during the initial connection. We
-    // deliberately let exceptions propagate so the host fails to start on
-    // permission / config errors instead of running with an empty schema
-    // and 500ing every request.
+    // EnableRetryOnFailure handles transient faults per-command, but MigrateAsync
+    // opens its own connection before the strategy fires. Wrap the whole call so
+    // a 42119 (server busy / serverless resume) at connection-open time is retried.
     var strategy = dbContext.Database.CreateExecutionStrategy();
     await strategy.ExecuteAsync(async () =>
     {

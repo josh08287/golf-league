@@ -36,7 +36,8 @@ public static class DependencyInjection
                 sql.EnableRetryOnFailure(
                     maxRetryCount: 6,
                     maxRetryDelay: TimeSpan.FromSeconds(30),
-                    errorNumbersToAdd: null);
+                    // 42119: server busy / database resuming from serverless auto-pause
+                    errorNumbersToAdd: [42119]);
 
                 // Functions Consumption can spend ~30s warming up SQL Serverless from
                 // pause. Bump the per-command timeout so cold-start queries don't fail
