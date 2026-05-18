@@ -72,20 +72,27 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             if (prelinkPlayer is null)
                 return Result<PlayerDto>.Fail("The pre-linked player profile no longer exists.");
 
+            // Only block if the pre-linked player is owned by a completely different user.
             if (prelinkPlayer.AppUserId is not null && prelinkPlayer.AppUserId != request.AppUserId)
                 return Result<PlayerDto>.Fail("This player profile is already linked to another account.");
 
+            // If the user is already linked to a different player, use their existing player
+            // rather than erroring — the admin pre-link may be stale or redundant.
             if (existing is not null && existing.Id != prelinkPlayer.Id)
-                return Result<PlayerDto>.Fail("Your account is already linked to a different player profile.");
+            {
+                player = existing;
+            }
+            else
+            {
+                // Update name/email even if already linked (idempotent re-accept).
+                prelinkPlayer.AppUserId = request.AppUserId;
+                prelinkPlayer.FirstName = request.FirstName;
+                prelinkPlayer.LastName = request.LastName;
+                prelinkPlayer.Email = request.Email;
 
-            // Update name/email even if already linked (idempotent re-accept).
-            prelinkPlayer.AppUserId = request.AppUserId;
-            prelinkPlayer.FirstName = request.FirstName;
-            prelinkPlayer.LastName = request.LastName;
-            prelinkPlayer.Email = request.Email;
-
-            await _playerRepo.UpdateAsync(prelinkPlayer, cancellationToken);
-            player = prelinkPlayer;
+                await _playerRepo.UpdateAsync(prelinkPlayer, cancellationToken);
+                player = prelinkPlayer;
+            }
         }
         else
         {
