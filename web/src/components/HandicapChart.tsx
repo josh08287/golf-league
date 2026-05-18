@@ -71,7 +71,7 @@ export function HandicapChart({ history }: HandicapChartProps) {
 
   function formatDate(iso: string) {
     const d = new Date(iso);
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' });
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit', timeZone: 'UTC' });
   }
 
   return (

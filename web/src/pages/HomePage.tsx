@@ -52,6 +52,7 @@ function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
     weekday: 'long',
     month: 'short',
     day: 'numeric',
+    timeZone: 'UTC',
   });
 
   return (

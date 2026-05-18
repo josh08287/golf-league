@@ -328,7 +328,7 @@ export function TeeTimesAdminPage() {
           <option value="">Choose a round...</option>
           {rounds.map((round) => (
             <option key={round.id} value={round.id}>
-              {new Date(round.scheduledDate).toLocaleDateString()} — {round.courseName} (Week {round.weekNumber})
+              {new Date(round.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' })} — {round.courseName} (Week {round.weekNumber})
             </option>
           ))}
         </select>

@@ -398,7 +398,7 @@ export function PlayerDetailPage() {
       key: 'date',
       header: 'Date',
       sortable: true,
-      render: (h: HandicapHistoryEntry) => new Date(h.effectiveDate).toLocaleDateString(),
+      render: (h: HandicapHistoryEntry) => new Date(h.effectiveDate).toLocaleDateString(undefined, { timeZone: 'UTC' }),
     },
     {
       key: 'index',

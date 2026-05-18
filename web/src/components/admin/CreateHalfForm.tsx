@@ -205,7 +205,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
                 className="inline-flex items-center gap-1 px-2 py-1 rounded bg-red-50 text-red-700 text-xs"
               >
                 <Calendar className="h-3 w-3" />
-                {new Date(date).toLocaleDateString()}
+                {new Date(date).toLocaleDateString(undefined, { timeZone: 'UTC' })}
                 <button type="button" onClick={() => removeSkipDate(date)} className="hover:text-red-900">
                   <X className="h-3 w-3" />
                 </button>
@@ -239,7 +239,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
                 {generatedSchedule.map((item, idx) => (
                   <tr key={item.date}>
                     <td className="px-3 py-2 text-gray-500">{idx + 1}</td>
-                    <td className="px-3 py-2">{new Date(item.date).toLocaleDateString()}</td>
+                    <td className="px-3 py-2">{new Date(item.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</td>
                     <td className="px-3 py-2">
                       <span
                         className={`inline-flex px-2 py-0.5 rounded text-xs ${

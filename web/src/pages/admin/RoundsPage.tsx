@@ -99,7 +99,7 @@ export function RoundsPage() {
       key: 'date',
       header: 'Date',
       sortable: true,
-      render: (r: Round) => new Date(r.scheduledDate).toLocaleDateString(),
+      render: (r: Round) => new Date(r.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }),
     },
     { key: 'course', header: 'Course', sortable: true, render: (r: Round) => r.courseName ?? '—' },
     {
@@ -234,7 +234,7 @@ export function RoundsPage() {
       <ConfirmDialog
         open={!!finalizeTarget}
         title="Finalize Round"
-        description={`Finalize the round on ${finalizeTarget ? new Date(finalizeTarget.scheduledDate).toLocaleDateString() : ''}? This will lock scores and recalculate standings.`}
+        description={`Finalize the round on ${finalizeTarget ? new Date(finalizeTarget.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : ''}? This will lock scores and recalculate standings.`}
         confirmLabel="Finalize"
         onConfirm={handleFinalize}
         onCancel={() => setFinalizeTarget(null)}
@@ -243,7 +243,7 @@ export function RoundsPage() {
       <ConfirmDialog
         open={!!cancelTarget}
         title="Cancel Round"
-        description={`Cancel the round on ${cancelTarget ? new Date(cancelTarget.scheduledDate).toLocaleDateString() : ''}? All later rounds in this half will shift forward by one week to keep the schedule sequential.`}
+        description={`Cancel the round on ${cancelTarget ? new Date(cancelTarget.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : ''}? All later rounds in this half will shift forward by one week to keep the schedule sequential.`}
         confirmLabel="Cancel Round"
         onConfirm={handleCancel}
         onCancel={() => setCancelTarget(null)}
@@ -252,7 +252,7 @@ export function RoundsPage() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete Round"
-        description={`Permanently delete the round on ${deleteTarget ? new Date(deleteTarget.scheduledDate).toLocaleDateString() : ''}? This cannot be undone.`}
+        description={`Permanently delete the round on ${deleteTarget ? new Date(deleteTarget.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : ''}? This cannot be undone.`}
         confirmLabel="Delete"
         destructive
         isLoading={deleteRound.isPending}

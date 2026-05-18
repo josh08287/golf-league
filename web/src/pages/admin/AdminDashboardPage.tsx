@@ -103,7 +103,7 @@ export function AdminDashboardPage() {
         />
         <StatCard
           label="Last Finalized"
-          value={lastFinalized ? new Date(lastFinalized.scheduledDate).toLocaleDateString() : 'None'}
+          value={lastFinalized ? new Date(lastFinalized.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : 'None'}
           icon={<CheckCircle className="h-6 w-6 text-green-700" />}
           colorClass="bg-green-50"
         />
