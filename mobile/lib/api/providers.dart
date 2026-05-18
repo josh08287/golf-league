@@ -31,6 +31,7 @@ T? _extractData<T>(
   if (responseData == null) return null;
   if (responseData is Map && responseData.containsKey('data')) {
     final data = responseData['data'];
+    if (data == null) return null;
     if (data is Map<String, dynamic>) {
       return fromJson(data);
     }

@@ -61,7 +61,7 @@ public static class TeeTimeSchedule
     // IANA "America/New_York" on Linux, "Eastern Standard Time" on Windows.
     // Try the IANA name first (works on Azure Functions Linux), fall back
     // to the Windows name for local-dev on Windows.
-    private static readonly TimeZoneInfo EasternTimeZone = ResolveEastern();
+    public static readonly TimeZoneInfo EasternTimeZone = ResolveEastern();
 
     private static TimeZoneInfo ResolveEastern()
     {

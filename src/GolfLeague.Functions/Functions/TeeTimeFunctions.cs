@@ -3,6 +3,7 @@ using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -50,7 +51,8 @@ public sealed class TeeTimeFunctions
         var authError = req.RequireAuthenticated();
         if (authError is not null) return authError;
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TeeTimeSchedule.EasternTimeZone);
+        var today = DateOnly.FromDateTime(easternToday);
         var roundId = await _service.ResolveNextRoundIdAsync(today, cancellationToken);
         if (roundId is null)
             return new NotFoundObjectResult(new { error = "No upcoming scheduled round." });
@@ -153,7 +155,8 @@ public sealed class TeeTimeFunctions
         if (playerId is null)
             return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var easternToday = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TeeTimeSchedule.EasternTimeZone);
+        var today = DateOnly.FromDateTime(easternToday);
         var result = await _mediator.Send(new GetMyTodaysTeeTimeQuery(playerId.Value, today), cancellationToken);
 
         if (!result.IsSuccess)
