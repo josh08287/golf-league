@@ -94,7 +94,9 @@ export function getTokenLeagueId(): number | null {
   try {
     const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
     const val = payload['leagueId'];
-    return typeof val === 'number' ? val : null;
+    if (val === null || val === undefined) return null;
+    const parsed = Number(val);
+    return isNaN(parsed) ? null : parsed;
   } catch {
     return null;
   }
