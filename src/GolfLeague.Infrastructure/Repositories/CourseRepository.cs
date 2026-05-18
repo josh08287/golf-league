@@ -62,9 +62,17 @@ public sealed class CourseRepository : ICourseRepository
 
     public async Task DeleteAsync(int courseId, CancellationToken cancellationToken = default)
     {
-        await _context.Courses
-            .Where(c => c.Id == courseId)
-            .ExecuteDeleteAsync(cancellationToken);
+        var course = await _context.Courses
+            .Include(c => c.Holes)
+            .Include(c => c.TeeBoxes)
+                .ThenInclude(t => t.HoleTeeBoxes)
+            .FirstOrDefaultAsync(c => c.Id == courseId, cancellationToken);
+
+        if (course is not null)
+        {
+            _context.Courses.Remove(course);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 
     public async Task AddTeeBoxAsync(TeeBox teeBox, CancellationToken cancellationToken = default)
