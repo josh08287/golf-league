@@ -78,6 +78,7 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             if (existing is not null && existing.Id != prelinkPlayer.Id)
                 return Result<PlayerDto>.Fail("Your account is already linked to a different player profile.");
 
+            // Update name/email even if already linked (idempotent re-accept).
             prelinkPlayer.AppUserId = request.AppUserId;
             prelinkPlayer.FirstName = request.FirstName;
             prelinkPlayer.LastName = request.LastName;
@@ -88,12 +89,19 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         }
         else
         {
-            if (existing is not null)
-                return Result<PlayerDto>.Fail("Your account is already linked to a player profile.");
-
             // Look for an admin-pre-created Player row by email and adopt it.
             var byEmail = await _playerRepo.GetByEmailAsync(request.Email, cancellationToken);
-            if (byEmail is not null && byEmail.AppUserId is null)
+
+            if (existing is not null)
+            {
+                // Account is already linked to a player. Treat as success if it's the
+                // same player the email resolves to (idempotent re-accept), otherwise fail.
+                if (byEmail is not null && byEmail.Id != existing.Id)
+                    return Result<PlayerDto>.Fail("Your account is already linked to a different player profile.");
+
+                player = existing;
+            }
+            else if (byEmail is not null && byEmail.AppUserId is null)
             {
                 byEmail.AppUserId = request.AppUserId;
                 byEmail.FirstName = request.FirstName;

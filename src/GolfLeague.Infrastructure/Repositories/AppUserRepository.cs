@@ -48,4 +48,10 @@ public sealed class AppUserRepository : IAppUserRepository
                     .Where(s => s.Length > 0)
                     .ToList());
     }
+
+    public async Task UpdateAsync(AppUser user, CancellationToken cancellationToken = default)
+    {
+        _context.Users.Update(user);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

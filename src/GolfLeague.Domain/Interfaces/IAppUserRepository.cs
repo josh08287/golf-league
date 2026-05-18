@@ -20,4 +20,6 @@ public interface IAppUserRepository
     Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetRolesAsync(
         IReadOnlyCollection<Guid> userIds,
         CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(AppUser user, CancellationToken cancellationToken = default);
 }

@@ -132,7 +132,7 @@ public sealed class InviteFunctions
         var result = await _mediator.Send(command, cancellationToken);
 
         if (!result.IsSuccess)
-            return new ConflictObjectResult(new { error = result.Error });
+            return result.ToOkResult();
 
         return new OkObjectResult(new { data = result.Value });
     }

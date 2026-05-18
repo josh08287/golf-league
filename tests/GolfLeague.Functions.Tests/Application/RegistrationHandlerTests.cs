@@ -354,16 +354,51 @@ public class AcceptInviteCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AcceptInviteAppUserAlreadyLinked_ReturnsFail()
+    public async Task Handle_AcceptInviteAppUserAlreadyLinked_ReturnsSuccess()
     {
+        // Already linked to a player with the same email — should succeed idempotently.
         var inviteRepo = new Mock<IInviteRepository>();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(MakeInvite());
 
         var appUserId = Guid.NewGuid();
+        var existingPlayer = MakeLinkedPlayer(appUserId);
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
-            .ReturnsAsync(MakeLinkedPlayer(appUserId));
+            .ReturnsAsync(existingPlayer);
+        playerRepo.Setup(r => r.GetByEmailAsync("j@e.com", default))
+            .ReturnsAsync(existingPlayer);
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
+
+        var handler = new AcceptInviteCommandHandler(
+            inviteRepo.Object,
+            playerRepo.Object,
+            new Mock<IHandicapRepository>().Object,
+            NoExistingRoles().Object,
+            new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
+
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "j@e.com", null), default);
+
+        result.IsSuccess.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_AcceptInviteAppUserLinkedToDifferentPlayer_ReturnsFail()
+    {
+        // User is linked to player #1, but the invite email matches a different player #2 — conflict.
+        var inviteRepo = new Mock<IInviteRepository>();
+        inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
+            .ReturnsAsync(MakeInvite());
+
+        var appUserId = Guid.NewGuid();
+        var linkedPlayer = MakeLinkedPlayer(appUserId); // id=1
+        var otherPlayer = new Player { Id = 2, Email = "j@e.com", IsActive = true }; // different player, same email
+
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
+            .ReturnsAsync(linkedPlayer);
+        playerRepo.Setup(r => r.GetByEmailAsync("j@e.com", default))
+            .ReturnsAsync(otherPlayer);
 
         var handler = new AcceptInviteCommandHandler(
             inviteRepo.Object,
