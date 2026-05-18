@@ -30,6 +30,7 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
     private readonly IHandicapRepository _handicapRepo;
+    private readonly ILeagueRepository _leagueRepo;
     private readonly IUserRoleService _roleService;
     private readonly ILogger<AcceptInviteCommandHandler> _logger;
 
@@ -37,12 +38,14 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         IInviteRepository inviteRepo,
         IPlayerRepository playerRepo,
         IHandicapRepository handicapRepo,
+        ILeagueRepository leagueRepo,
         IUserRoleService roleService,
         ILogger<AcceptInviteCommandHandler> logger)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
         _handicapRepo = handicapRepo;
+        _leagueRepo = leagueRepo;
         _roleService = roleService;
         _logger = logger;
     }
@@ -155,6 +158,14 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             player.Id,
             request.AppUserId,
             invite.Role);
+
+        await _leagueRepo.AddMembershipAsync(new LeagueMembership
+        {
+            LeagueId = invite.LeagueId,
+            UserId = request.AppUserId,
+            Role = invite.Role,
+            JoinedAt = DateTime.UtcNow,
+        }, cancellationToken);
 
         invite.Status = InviteStatus.Accepted;
         invite.AcceptedAt = DateTime.UtcNow;

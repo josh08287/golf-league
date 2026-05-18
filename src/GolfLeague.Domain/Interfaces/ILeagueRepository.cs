@@ -11,4 +11,5 @@ public interface ILeagueRepository
     Task<IReadOnlyList<LeagueMembership>> GetMembershipsForUserAsync(Guid userId, CancellationToken cancellationToken = default);
     Task AddAsync(League league, CancellationToken cancellationToken = default);
     Task UpdateAsync(League league, CancellationToken cancellationToken = default);
+    Task AddMembershipAsync(LeagueMembership membership, CancellationToken cancellationToken = default);
 }

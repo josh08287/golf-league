@@ -79,7 +79,10 @@ export function AppRoute() {
     }
   }, [bootstrapping, user, navigate]);
 
-  if (bootstrapping || leaguesLoading || tokenSyncing || (user && !activeLeague)) {
+  const leaguesResolved = !!leaguesData;
+  const hasNoLeagues = leaguesResolved && leaguesData.leagues.length === 0 && !leaguesData.isSuperAdmin;
+
+  if (bootstrapping || leaguesLoading || tokenSyncing || (user && !activeLeague && !hasNoLeagues)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Spinner />
@@ -88,6 +91,25 @@ export function AppRoute() {
   }
 
   if (!user) return null;
+
+  if (hasNoLeagues) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-center bg-gray-50 px-4">
+        <span className="text-5xl">⛳</span>
+        <h1 className="text-xl font-bold text-gray-900">You're in — welcome!</h1>
+        <p className="text-sm text-gray-500 max-w-xs">
+          Your account has been created. The league admin will add you to the roster shortly.
+          Try refreshing in a moment.
+        </p>
+        <button
+          className="mt-2 text-sm text-[#1B5E20] underline"
+          onClick={() => window.location.reload()}
+        >
+          Refresh
+        </button>
+      </div>
+    );
+  }
 
   return (
     <LeagueContext.Provider value={{ league: activeLeague, loading: false }}>

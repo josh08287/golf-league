@@ -46,4 +46,14 @@ public sealed class LeagueRepository : ILeagueRepository
         _context.Leagues.Update(league);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task AddMembershipAsync(LeagueMembership membership, CancellationToken cancellationToken = default)
+    {
+        var exists = await _context.LeagueMemberships
+            .AnyAsync(m => m.LeagueId == membership.LeagueId && m.UserId == membership.UserId, cancellationToken);
+        if (exists) return;
+
+        await _context.LeagueMemberships.AddAsync(membership, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

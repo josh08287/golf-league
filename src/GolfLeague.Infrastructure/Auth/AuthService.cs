@@ -407,6 +407,14 @@ public sealed class AuthService : IAuthService
         user.PlayerId = player.Id;
         await _userManager.UpdateAsync(user);
 
+        await _leagueRepository.AddMembershipAsync(new LeagueMembership
+        {
+            LeagueId = invite.LeagueId,
+            UserId = user.Id,
+            Role = invite.Role,
+            JoinedAt = DateTime.UtcNow,
+        }, cancellationToken);
+
         invite.Status = InviteStatus.Accepted;
         invite.AcceptedAt = DateTime.UtcNow;
         invite.AcceptedByAppUserId = user.Id;

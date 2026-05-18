@@ -95,8 +95,9 @@ public class CreateInvitesCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_CreateInvitesSkipsExistingPlayers()
+    public async Task Handle_CreateInvitesSkipsAlreadyLinkedPlayers()
     {
+        // A player who already has an AppUser (account exists) should block the invite.
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var emailService = new Mock<IEmailService>();
@@ -104,9 +105,10 @@ public class CreateInvitesCommandHandlerTests
         inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
 
-        var existingPlayer = MakePlayer();
+        var linkedPlayer = MakePlayer();
+        linkedPlayer.AppUserId = Guid.NewGuid(); // already has an account
         playerRepo.Setup(r => r.GetAllActiveAsync(default))
-            .ReturnsAsync(new List<Player> { existingPlayer });
+            .ReturnsAsync(new List<Player> { linkedPlayer });
 
         var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
         var command = new CreateInvitesCommand(
@@ -119,6 +121,38 @@ public class CreateInvitesCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value.Created.Should().HaveCount(0);
         result.Value.Skipped.Should().ContainSingle("john@example.com");
+    }
+
+    [Fact]
+    public async Task Handle_CreateInvitesDoesNotSkipUnlinkedPlayers()
+    {
+        // An unlinked player profile should not block the invite — they'll be adopted on accept.
+        var inviteRepo = new Mock<IInviteRepository>();
+        var playerRepo = new Mock<IPlayerRepository>();
+        var emailService = new Mock<IEmailService>();
+
+        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+        inviteRepo.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<PlayerInvite>>(), default))
+            .Returns(Task.CompletedTask);
+        emailService.Setup(s => s.SendInviteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), default))
+            .Returns(Task.CompletedTask);
+
+        var unlinkedPlayer = MakePlayer(); // AppUserId = null
+        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+            .ReturnsAsync(new List<Player> { unlinkedPlayer });
+
+        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var command = new CreateInvitesCommand(
+            new[] { "john@example.com" },
+            "admin-1",
+            "http://localhost:5173");
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Created.Should().HaveCount(1);
+        result.Value.Skipped.Should().BeEmpty();
     }
 
     [Fact]
@@ -178,6 +212,13 @@ public class AcceptInviteCommandHandlerTests
         AppUserId = appUserId,
     };
 
+    private static Mock<ILeagueRepository> NoLeagueRepo()
+    {
+        var repo = new Mock<ILeagueRepository>();
+        repo.Setup(r => r.AddMembershipAsync(It.IsAny<LeagueMembership>(), default)).Returns(Task.CompletedTask);
+        return repo;
+    }
+
     private static Mock<IUserRoleService> NoExistingRoles()
     {
         var roleService = new Mock<IUserRoleService>();
@@ -205,7 +246,7 @@ public class AcceptInviteCommandHandlerTests
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync((Player?)null);
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, roleService.Object, logger.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, NoLeagueRepo().Object, roleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null);
 
         var result = await handler.Handle(command, default);
@@ -250,7 +291,7 @@ public class AcceptInviteCommandHandlerTests
         roleService.Setup(r => r.SetRolesAsync(appUserId, It.IsAny<IReadOnlyCollection<string>>(), default))
             .ReturnsAsync(Result<bool>.Ok(true));
 
-        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, roleService.Object, logger.Object);
+        var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, NoLeagueRepo().Object, roleService.Object, logger.Object);
         var command = new AcceptInviteCommand("token-456", appUserId, "Jane", "Smith", "jane@example.com", "555-1234");
 
         var result = await handler.Handle(command, default);
@@ -275,6 +316,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -295,6 +337,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -315,6 +358,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -344,6 +388,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             new Mock<IPlayerRepository>().Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -374,6 +419,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -402,6 +448,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             new Mock<IHandicapRepository>().Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -428,6 +475,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             handicapRepo.Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -471,6 +519,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             handicapRepo.Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
@@ -520,6 +569,7 @@ public class AcceptInviteCommandHandlerTests
             inviteRepo.Object,
             playerRepo.Object,
             handicapRepo.Object,
+            NoLeagueRepo().Object,
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 

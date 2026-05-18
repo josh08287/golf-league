@@ -27,6 +27,17 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   // dropdown so the request doesn't fire for nothing in bulk mode.
   const { data: unlinkedPlayers = [] } = useUnlinkedPlayers(mode === 'single');
 
+  const selectedPlayer = unlinkedPlayers.find((p) => String(p.id) === preLinkedPlayerId) ?? null;
+  // When a player is selected, the invite email must match their profile email.
+  const effectiveEmail = selectedPlayer?.email ?? singleEmail;
+
+  function handlePlayerSelect(id: string) {
+    setPreLinkedPlayerId(id);
+    const player = unlinkedPlayers.find((p) => String(p.id) === id);
+    if (player?.email) setSingleEmail(player.email);
+    else if (id) setSingleEmail(''); // player has no email — admin must supply one
+  }
+
   function parseEmails(raw: string): string[] {
     return raw
       .split(/[\n,;]+/)
@@ -35,7 +46,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   }
 
   async function handleSend() {
-    const emails = mode === 'single' ? [singleEmail.trim()] : parseEmails(bulkText);
+    const emails = mode === 'single' ? [effectiveEmail.trim()] : parseEmails(bulkText);
     if (emails.length === 0 || emails.some((e) => !e.includes('@'))) return;
 
     const data = await create.mutateAsync({
@@ -97,41 +108,48 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       {mode === 'single' ? (
         <>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
-            <input
-              type="email"
-              value={singleEmail}
-              onChange={(e) => setSingleEmail(e.target.value)}
-              placeholder="player@example.com"
-              className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Attach to existing player <span className="text-gray-400 font-normal">(optional)</span>
             </label>
             <select
               value={preLinkedPlayerId}
-              onChange={(e) => setPreLinkedPlayerId(e.target.value)}
+              onChange={(e) => handlePlayerSelect(e.target.value)}
               disabled={unlinkedPlayers.length === 0}
               className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">
                 {unlinkedPlayers.length === 0
-                  ? '— No unlinked players available —'
-                  : '— Don’t attach (create new) —'}
+                  ? ‘— No unlinked players available —‘
+                  : ‘— Don\’t attach (create new) —‘}
               </option>
               {unlinkedPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.fullName}{p.email ? ` — ${p.email}` : ''}
+                  {p.fullName}{p.email ? ` — ${p.email}` : ‘’}
                 </option>
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-400">
               {unlinkedPlayers.length === 0
-                ? 'No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.'
-                : 'When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row.'}
+                ? ‘No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.’
+                : ‘When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row.’}
             </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Email address</label>
+            <input
+              type="email"
+              value={effectiveEmail}
+              onChange={(e) => { if (!selectedPlayer?.email) setSingleEmail(e.target.value); }}
+              readOnly={!!selectedPlayer?.email}
+              placeholder="player@example.com"
+              className={`block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] ${selectedPlayer?.email ? ‘bg-gray-50 text-gray-500’ : ‘’}`}
+            />
+            {selectedPlayer && selectedPlayer.email && (
+              <p className="mt-1 text-xs text-gray-400">Email is set from the selected player profile.</p>
+            )}
+            {selectedPlayer && !selectedPlayer.email && (
+              <p className="mt-1 text-xs text-amber-600">This player has no email on file — enter the email address to send the invite to.</p>
+            )}
           </div>
         </>
       ) : (
@@ -183,7 +201,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       <Button
         variant="primary"
         onClick={() => void handleSend()}
-        disabled={create.isPending || (mode === 'single' ? !singleEmail.includes('@') : parseEmails(bulkText).length === 0)}
+        disabled={create.isPending || (mode === 'single' ? !effectiveEmail.includes('@') : parseEmails(bulkText).length === 0)}
       >
         <Send className="mr-1.5 h-4 w-4" />
         {create.isPending ? 'Sending…' : mode === 'bulk' ? `Send ${parseEmails(bulkText).length || ''} Invite${parseEmails(bulkText).length !== 1 ? 's' : ''}`.trim() : 'Send Invite'}
