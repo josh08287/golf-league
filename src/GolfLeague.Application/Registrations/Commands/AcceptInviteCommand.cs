@@ -89,48 +89,48 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         }
         else
         {
-            // Look for an admin-pre-created Player row by email and adopt it.
-            var byEmail = await _playerRepo.GetByEmailAsync(request.Email, cancellationToken);
-
             if (existing is not null)
             {
-                // Account is already linked to a player. Treat as success if it's the
-                // same player the email resolves to (idempotent re-accept), otherwise fail.
-                if (byEmail is not null && byEmail.Id != existing.Id)
-                    return Result<PlayerDto>.Fail("Your account is already linked to a different player profile.");
-
+                // User already has a player profile — accept idempotently (e.g. role-only invite,
+                // or a retry after a partial failure). Just add the role below.
                 player = existing;
-            }
-            else if (byEmail is not null && byEmail.AppUserId is null)
-            {
-                byEmail.AppUserId = request.AppUserId;
-                byEmail.FirstName = request.FirstName;
-                byEmail.LastName = request.LastName;
-                byEmail.Email = request.Email;
-                await _playerRepo.UpdateAsync(byEmail, cancellationToken);
-                player = byEmail;
             }
             else
             {
-                player = new Player
-                {
-                    LeagueId = invite.LeagueId,
-                    FirstName = request.FirstName,
-                    LastName = request.LastName,
-                    Email = request.Email,
-                    IsActive = true,
-                    AppUserId = request.AppUserId,
-                };
+                // Look for an admin-pre-created Player row by email and adopt it.
+                var byEmail = await _playerRepo.GetByEmailAsync(request.Email, cancellationToken);
 
-                await _playerRepo.AddAsync(player, cancellationToken);
-
-                await _handicapRepo.AddAsync(new Handicap
+                if (byEmail is not null && byEmail.AppUserId is null)
                 {
-                    PlayerId = player.Id,
-                    HandicapIndex = 0.0,
-                    EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                    Source = HandicapSource.Initial
-                }, cancellationToken);
+                    byEmail.AppUserId = request.AppUserId;
+                    byEmail.FirstName = request.FirstName;
+                    byEmail.LastName = request.LastName;
+                    byEmail.Email = request.Email;
+                    await _playerRepo.UpdateAsync(byEmail, cancellationToken);
+                    player = byEmail;
+                }
+                else
+                {
+                    player = new Player
+                    {
+                        LeagueId = invite.LeagueId,
+                        FirstName = request.FirstName,
+                        LastName = request.LastName,
+                        Email = request.Email,
+                        IsActive = true,
+                        AppUserId = request.AppUserId,
+                    };
+
+                    await _playerRepo.AddAsync(player, cancellationToken);
+
+                    await _handicapRepo.AddAsync(new Handicap
+                    {
+                        PlayerId = player.Id,
+                        HandicapIndex = 0.0,
+                        EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                        Source = HandicapSource.Initial
+                    }, cancellationToken);
+                }
             }
         }
 
