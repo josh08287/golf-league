@@ -85,10 +85,9 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 continue;
             }
 
-            // Skip if they're already a player. Players without an email
-            // can't collide so we just skip the null check.
+            // Skip if they're already a player (unless we're explicitly pre-linking that specific player, in which case they obviously already exist).
             var allPlayers = await _playerRepo.GetAllActiveAsync(cancellationToken);
-            if (allPlayers.Any(p => p.Email is not null && p.Email.Equals(email, StringComparison.OrdinalIgnoreCase)))
+            if (allPlayers.Any(p => p.Email is not null && p.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && p.Id != request.PreLinkedPlayerId))
             {
                 skipped.Add(email);
                 continue;

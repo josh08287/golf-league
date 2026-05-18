@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -17,10 +17,12 @@ type FormValues = z.infer<typeof schema>;
 export function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get('next') ?? '/';
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   if (isAuthenticated) {
-    navigate('/', { replace: true });
+    navigate(next, { replace: true });
   }
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({

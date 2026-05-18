@@ -74,7 +74,7 @@ export function AcceptInvitePage() {
           <Button className="mt-6 w-full" size="lg" onClick={() => navigate(`/login?next=${returnTo}`)}>
             Sign in
           </Button>
-          <Button className="mt-3 w-full" size="lg" variant="outline" onClick={() => navigate(`/register?next=${returnTo}`)}>
+          <Button className="mt-3 w-full" size="lg" variant="outline" onClick={() => navigate(`/register?token=${token}&next=${returnTo}`)}>
             Create account
           </Button>
         </div>

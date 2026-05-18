@@ -63,21 +63,68 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         if (invite.ExpiresAt < DateTime.UtcNow)
             return Result<PlayerDto>.Fail("This invite has expired. Please ask the admin to send a new one.");
 
+        Player player;
         var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
-        if (existing is not null)
-            return Result<PlayerDto>.Fail("Your account is already linked to a player profile.");
 
-        var player = new Player
+        if (invite.PreLinkedPlayerId is int preId)
         {
-            LeagueId = invite.LeagueId,
-            FirstName = request.FirstName,
-            LastName = request.LastName,
-            Email = request.Email,
-            IsActive = true,
-            AppUserId = request.AppUserId,
-        };
+            var prelinkPlayer = await _playerRepo.GetByIdAsync(preId, cancellationToken);
+            if (prelinkPlayer is null)
+                return Result<PlayerDto>.Fail("The pre-linked player profile no longer exists.");
 
-        await _playerRepo.AddAsync(player, cancellationToken);
+            if (prelinkPlayer.AppUserId is not null && prelinkPlayer.AppUserId != request.AppUserId)
+                return Result<PlayerDto>.Fail("This player profile is already linked to another account.");
+
+            if (existing is not null && existing.Id != prelinkPlayer.Id)
+                return Result<PlayerDto>.Fail("Your account is already linked to a different player profile.");
+
+            prelinkPlayer.AppUserId = request.AppUserId;
+            prelinkPlayer.FirstName = request.FirstName;
+            prelinkPlayer.LastName = request.LastName;
+            prelinkPlayer.Email = request.Email;
+
+            await _playerRepo.UpdateAsync(prelinkPlayer, cancellationToken);
+            player = prelinkPlayer;
+        }
+        else
+        {
+            if (existing is not null)
+                return Result<PlayerDto>.Fail("Your account is already linked to a player profile.");
+
+            // Look for an admin-pre-created Player row by email and adopt it.
+            var byEmail = await _playerRepo.GetByEmailAsync(request.Email, cancellationToken);
+            if (byEmail is not null && byEmail.AppUserId is null)
+            {
+                byEmail.AppUserId = request.AppUserId;
+                byEmail.FirstName = request.FirstName;
+                byEmail.LastName = request.LastName;
+                byEmail.Email = request.Email;
+                await _playerRepo.UpdateAsync(byEmail, cancellationToken);
+                player = byEmail;
+            }
+            else
+            {
+                player = new Player
+                {
+                    LeagueId = invite.LeagueId,
+                    FirstName = request.FirstName,
+                    LastName = request.LastName,
+                    Email = request.Email,
+                    IsActive = true,
+                    AppUserId = request.AppUserId,
+                };
+
+                await _playerRepo.AddAsync(player, cancellationToken);
+
+                await _handicapRepo.AddAsync(new Handicap
+                {
+                    PlayerId = player.Id,
+                    HandicapIndex = 0.0,
+                    EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                    Source = HandicapSource.Initial
+                }, cancellationToken);
+            }
+        }
 
         // Add the invite's role on top of whatever the user already has.
         var currentRoles = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
@@ -93,14 +140,6 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             player.Id,
             request.AppUserId,
             invite.Role);
-
-        await _handicapRepo.AddAsync(new Handicap
-        {
-            PlayerId = player.Id,
-            HandicapIndex = 0.0,
-            EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
-            Source = HandicapSource.Initial
-        }, cancellationToken);
 
         invite.Status = InviteStatus.Accepted;
         invite.AcceptedAt = DateTime.UtcNow;
