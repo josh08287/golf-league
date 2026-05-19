@@ -157,6 +157,9 @@ export function ScoreEntryPage() {
   const setSkipped = useSetParticipantSkipped(roundId);
 
   const [scores, setScores] = useState<ScoreGrid>({});
+  // Local skip overrides: maps playerId → true (skip) | false (unskip).
+  // Only populated when the user changes from the server value.
+  const [localSkips, setLocalSkips] = useState<Record<number, boolean>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -229,10 +232,27 @@ export function ScoreEntryPage() {
     }
   }
 
+  function resolveSkipped(p: Participant): boolean {
+    return p.playerId in localSkips ? localSkips[p.playerId] : p.skippedWeek;
+  }
+
+  function handleToggleSkipped(playerId: number, currentlySkipped: boolean) {
+    const newSkipped = !currentlySkipped;
+    setLocalSkips((prev) => ({ ...prev, [playerId]: newSkipped }));
+    // Clear any draft scores for a player being marked as skipped.
+    if (newSkipped) {
+      setScores((prev) => {
+        const next = { ...prev };
+        delete next[String(playerId)];
+        return next;
+      });
+    }
+  }
+
   async function handleSubmitAll() {
-    // Skipped players don't need scores entered. Validate everyone else.
+    // Validate scores for non-skipped players.
     for (const p of participants) {
-      if (p.skippedWeek) continue;
+      if (resolveSkipped(p)) continue;
       for (const h of holes) {
         const v = scores[String(p.playerId)]?.[h];
         if (v === '' || v === undefined) {
@@ -246,8 +266,15 @@ export function ScoreEntryPage() {
     setSubmitError(null);
 
     try {
+      // Flush any skip-state changes to the server first.
+      const skipChanges = participants.filter((p) => p.playerId in localSkips);
+      for (const p of skipChanges) {
+        await setSkipped.mutateAsync({ playerId: p.playerId, skipped: localSkips[p.playerId] });
+      }
+
+      // Submit scores for non-skipped players.
       for (const p of participants) {
-        if (p.skippedWeek) continue;
+        if (resolveSkipped(p)) continue;
         await submitScores.mutateAsync({
           playerId: p.playerId,
           scores: holes.map((h) => ({
@@ -256,30 +283,14 @@ export function ScoreEntryPage() {
           })),
         });
       }
+
       localStorage.removeItem(buildDraftKey(roundId));
+      setLocalSkips({});
       setSubmitSuccess(true);
     } catch {
       setSubmitError('Submission failed. Please try again.');
     } finally {
       setSubmitting(false);
-    }
-  }
-
-  async function handleToggleSkipped(playerId: number, currentlySkipped: boolean) {
-    setSubmitError(null);
-    try {
-      await setSkipped.mutateAsync({ playerId, skipped: !currentlySkipped });
-      // If newly skipped, clear any local draft entries for this player so
-      // the inputs don't continue to show stale numbers after server reset.
-      if (!currentlySkipped) {
-        setScores((prev) => {
-          const next = { ...prev };
-          delete next[String(playerId)];
-          return next;
-        });
-      }
-    } catch {
-      setSubmitError('Failed to update skip status. Please try again.');
     }
   }
 
@@ -372,7 +383,7 @@ export function ScoreEntryPage() {
                 return sum + (typeof v === 'number' ? v : 0);
               }, 0);
               const courseHandicap = participant.courseHandicap;
-              const skipped = participant.skippedWeek;
+              const skipped = resolveSkipped(participant);
 
               return (
                 <Fragment key={participant.playerId}>
@@ -395,8 +406,8 @@ export function ScoreEntryPage() {
                             <input
                               type="checkbox"
                               checked={skipped}
-                              onChange={() => void handleToggleSkipped(participant.playerId, skipped)}
-                              disabled={setSkipped.isPending}
+                              onChange={() => handleToggleSkipped(participant.playerId, skipped)}
+                              disabled={submitting}
                               className="h-3.5 w-3.5 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]"
                             />
                             Skip
