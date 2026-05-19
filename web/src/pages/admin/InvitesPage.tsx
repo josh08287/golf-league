@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+﻿import { useState, useRef } from 'react';
 import { Link2, Send, Copy, Check, UserX, Trash2 } from 'lucide-react';
 import { useInvites, useCreateInvites, useRevokeInvite, useDeleteInvite } from '@/hooks/admin/useInvites';
 import { useUnlinkedPlayers } from '@/hooks/usePlayers';
@@ -119,19 +119,19 @@ function InviteForm({ onDone }: { onDone: () => void }) {
             >
               <option value="">
                 {unlinkedPlayers.length === 0
-                  ? ‘— No unlinked players available —‘
-                  : ‘— Don\’t attach (create new) —‘}
+                  ? '-- No unlinked players available --'
+                  : "-- Don't attach (create new) --"}
               </option>
               {unlinkedPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.fullName}{p.email ? ` — ${p.email}` : ‘’}
+                  {p.fullName}{p.email ? ` - ${p.email}` : ''}
                 </option>
               ))}
             </select>
             <p className="mt-1 text-xs text-gray-400">
               {unlinkedPlayers.length === 0
-                ? ‘No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.’
-                : ‘When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row.’}
+                ? 'No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.'
+                : "When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row."}
             </p>
           </div>
           <div>
@@ -142,13 +142,13 @@ function InviteForm({ onDone }: { onDone: () => void }) {
               onChange={(e) => { if (!selectedPlayer?.email) setSingleEmail(e.target.value); }}
               readOnly={!!selectedPlayer?.email}
               placeholder="player@example.com"
-              className={`block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] ${selectedPlayer?.email ? ‘bg-gray-50 text-gray-500’ : ‘’}`}
+              className={`block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] ${selectedPlayer?.email ? 'bg-gray-50 text-gray-500' : ''}`}
             />
             {selectedPlayer && selectedPlayer.email && (
               <p className="mt-1 text-xs text-gray-400">Email is set from the selected player profile.</p>
             )}
             {selectedPlayer && !selectedPlayer.email && (
-              <p className="mt-1 text-xs text-amber-600">This player has no email on file — enter the email address to send the invite to.</p>
+              <p className="mt-1 text-xs text-amber-600">This player has no email on file. Enter the email address to send the invite to.</p>
             )}
           </div>
         </>
