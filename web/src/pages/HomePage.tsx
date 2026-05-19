@@ -140,7 +140,7 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="w-10 text-center">#</TableHead>
+              <TableHead className="w-7 text-center">#</TableHead>
               <TableHead>Player</TableHead>
               <TableHead className="text-right">HCP</TableHead>
               <TableHead className="text-right">Gross</TableHead>
