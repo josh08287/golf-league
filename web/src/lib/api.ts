@@ -4,6 +4,8 @@ import axios, {
   InternalAxiosRequestConfig,
 } from 'axios';
 import { getAccessToken, isTokenExpired, refresh, clearAuth } from './auth';
+import { useAuthStore } from '@/store/authStore';
+import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 
 // Module-level navigator — set once by NavigatorInjector in App.tsx so the
 // interceptor can do a soft React Router redirect instead of a hard reload.
@@ -87,6 +89,8 @@ apiClient.interceptors.response.use(
     redirectingToLogin = true;
 
     clearAuth();
+    useAuthStore.getState().clearUser();
+    useActiveLeagueStore.getState().setActiveLeague(null);
     const path = window.location.pathname;
     const publicPaths = ['/login', '/register', '/accept-invite', '/auth/'];
     const onPublicPage = publicPaths.some((p) => path === p || path.startsWith(p));

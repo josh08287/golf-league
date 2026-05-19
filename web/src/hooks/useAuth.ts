@@ -43,7 +43,10 @@ export function useAuth() {
           isSuperAdmin: me.isSuperAdmin ?? false,
         });
       } catch {
-        if (!cancelled) clearAuth();
+        if (!cancelled) {
+          clearAuth();
+          clearUser();
+        }
       } finally {
         if (!cancelled) setBootstrapping(false);
       }

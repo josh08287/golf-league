@@ -53,41 +53,49 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
         var created = new List<PlayerInvite>();
         var skipped = new List<string>();
 
-        var normalised = request.Emails
-            .Select(e => e.Trim().ToLowerInvariant())
-            .Distinct()
-            .ToList();
-
         // Pre-link only makes sense for a single invite — a single Player
         // can only be attached to one AppUser.
-        if (request.PreLinkedPlayerId is not null && normalised.Count != 1)
+        if (request.PreLinkedPlayerId is not null && request.Emails.Count != 1)
         {
             return Result<CreateInvitesResult>.Fail(
                 "Pre-attaching a player only works for a single-email invite.");
         }
 
-        // Validate the pre-linked Player exists and is still unlinked.
+        // When a player is pre-linked, use their profile email as the canonical
+        // invite email so the signup flow can find the invite by email regardless
+        // of what the admin typed.
+        Player? prelinkPlayer = null;
         if (request.PreLinkedPlayerId is int prelinkId)
         {
-            var prelinkPlayer = await _playerRepo.GetByIdAsync(prelinkId, cancellationToken);
+            prelinkPlayer = await _playerRepo.GetByIdAsync(prelinkId, cancellationToken);
             if (prelinkPlayer is null)
                 return Result<CreateInvitesResult>.Fail("The selected player no longer exists.");
             if (prelinkPlayer.AppUserId is not null)
                 return Result<CreateInvitesResult>.Fail("The selected player is already linked to a user account.");
         }
 
+        var normalised = (prelinkPlayer?.Email is not null
+                ? new[] { prelinkPlayer.Email.Trim().ToLowerInvariant() }
+                : request.Emails.Select(e => e.Trim().ToLowerInvariant()))
+            .Distinct()
+            .ToList();
+
+        var allPlayers = await _playerRepo.GetAllActiveAsync(cancellationToken);
+
         foreach (var email in normalised)
         {
-            // Skip if a pending invite already exists for this email
+            // Skip if a pending invite already exists for this email.
             if (await _inviteRepo.PendingInviteExistsForEmailAsync(email, cancellationToken))
             {
                 skipped.Add(email);
                 continue;
             }
 
-            // Skip if they're already a player (unless we're explicitly pre-linking that specific player, in which case they obviously already exist).
-            var allPlayers = await _playerRepo.GetAllActiveAsync(cancellationToken);
-            if (allPlayers.Any(p => p.Email is not null && p.Email.Equals(email, StringComparison.OrdinalIgnoreCase) && p.Id != request.PreLinkedPlayerId))
+            // Skip if there's already a linked player with this email (and it's not the pre-linked one).
+            if (allPlayers.Any(p => p.Email is not null
+                    && p.Email.Equals(email, StringComparison.OrdinalIgnoreCase)
+                    && p.AppUserId is not null
+                    && p.Id != request.PreLinkedPlayerId))
             {
                 skipped.Add(email);
                 continue;

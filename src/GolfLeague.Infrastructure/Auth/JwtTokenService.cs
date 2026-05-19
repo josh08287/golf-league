@@ -15,7 +15,7 @@ public sealed class JwtTokenService : ITokenService
     public const string Audience = "golf-league-api";
     public const string MfaPendingRole = "mfa-pending";
 
-    private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromHours(8);
+    private static readonly TimeSpan AccessTokenLifetime = TimeSpan.FromDays(2);
     private static readonly TimeSpan MfaChallengeLifetime = TimeSpan.FromMinutes(5);
 
     private readonly SigningCredentials _signingCredentials;
