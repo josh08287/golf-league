@@ -43,8 +43,12 @@ public sealed class GetInvitesQueryHandler : IRequestHandler<GetInvitesQuery, Re
     {
         var slug = i.League?.Slug ?? string.Empty;
         var link = $"{baseUrl.TrimEnd('/')}/accept-invite?token={i.Token}";
+        var preLinkedPlayerName = i.PreLinkedPlayer is { } p
+            ? $"{p.FirstName} {p.LastName}".Trim()
+            : null;
         return new(i.Id, i.Email, i.Token, i.Status.ToString(),
             i.CreatedAt, i.ExpiresAt, i.AcceptedAt, i.PlayerId,
-            link, i.Role.ToString().ToLowerInvariant(), slug);
+            link, i.Role.ToString().ToLowerInvariant(), slug,
+            i.PreLinkedPlayerId, preLinkedPlayerName);
     }
 }

@@ -314,6 +314,8 @@ export interface Invite {
   inviteLink: string;
   role: 'admin' | 'scorer' | 'player';
   leagueSlug: string;
+  preLinkedPlayerId: number | null;
+  preLinkedPlayerName: string | null;
 }
 
 export interface CreateInvitesResult {

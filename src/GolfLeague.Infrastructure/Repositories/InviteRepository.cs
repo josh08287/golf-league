@@ -21,7 +21,10 @@ public sealed class InviteRepository : IInviteRepository
     // Token is a cryptographically random secret — it is self-authorizing and must
     // be resolvable without a league context (e.g. invite emails contain no slug).
     public Task<PlayerInvite?> GetByTokenAsync(string token, CancellationToken cancellationToken = default)
-        => _context.PlayerInvites.IgnoreQueryFilters().Include(i => i.League).FirstOrDefaultAsync(i => i.Token == token, cancellationToken);
+        => _context.PlayerInvites.IgnoreQueryFilters()
+            .Include(i => i.League)
+            .Include(i => i.PreLinkedPlayer)
+            .FirstOrDefaultAsync(i => i.Token == token, cancellationToken);
 
     public async Task<IReadOnlyList<PlayerInvite>> GetByStatusAsync(InviteStatus status, CancellationToken cancellationToken = default)
         => await _context.PlayerInvites
@@ -32,6 +35,7 @@ public sealed class InviteRepository : IInviteRepository
     public async Task<IReadOnlyList<PlayerInvite>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.PlayerInvites
             .Include(i => i.League)
+            .Include(i => i.PreLinkedPlayer)
             .OrderByDescending(i => i.CreatedAt)
             .ToListAsync(cancellationToken);
 

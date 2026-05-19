@@ -371,37 +371,21 @@ public sealed class AuthService : IAuthService
         }
         else
         {
-            // Look for an admin-pre-created Player row by email and adopt it.
-            var byEmail = await _playerRepository.GetByEmailAsync(user.Email!, cancellationToken);
-            if (byEmail is not null && byEmail.AppUserId is null)
+            // No pre-linked player — create membership only; do not auto-link
+            // or create a player profile.
+            await _leagueRepository.AddMembershipAsync(new LeagueMembership
             {
-                byEmail.AppUserId = user.Id;
-                byEmail.FirstName = firstName;
-                byEmail.LastName = lastName;
-                byEmail.Email = user.Email; // keep player email in sync with the linked account
-                await _playerRepository.UpdateAsync(byEmail, cancellationToken);
-                player = byEmail;
-            }
-            else
-            {
-                player = new Player
-                {
-                    LeagueId = invite.LeagueId,
-                    FirstName = firstName,
-                    LastName = lastName,
-                    Email = user.Email!,
-                    IsActive = true,
-                    AppUserId = user.Id,
-                };
-                await _playerRepository.AddAsync(player, cancellationToken);
-                await _handicapRepository.AddAsync(new Handicap
-                {
-                    PlayerId = player.Id,
-                    HandicapIndex = 0.0,
-                    EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                    Source = HandicapSource.Initial,
-                }, cancellationToken);
-            }
+                LeagueId = invite.LeagueId,
+                UserId = user.Id,
+                Role = invite.Role,
+                JoinedAt = DateTime.UtcNow,
+            }, cancellationToken);
+
+            invite.Status = InviteStatus.Accepted;
+            invite.AcceptedAt = DateTime.UtcNow;
+            invite.AcceptedByAppUserId = user.Id;
+            await _inviteRepository.UpdateAsync(invite, cancellationToken);
+            return;
         }
 
         user.PlayerId = player.Id;

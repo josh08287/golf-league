@@ -7,6 +7,8 @@ import { useInviteByToken, useAcceptInvite } from '@/hooks/useAcceptInvite';
 import { useAuth } from '@/hooks/useAuth';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
+import { useQueryClient } from '@tanstack/react-query';
+import { myStatusKeys } from '@/hooks/useMyStatus';
 
 const schema = z.object({
   firstName: z.string().min(1, 'First name is required'),
@@ -22,29 +24,37 @@ export function AcceptInvitePage() {
   const token = params.get('token') ?? '';
   const navigate = useNavigate();
   const { user, bootstrapping } = useAuth();
+  const qc = useQueryClient();
 
   const { data: invite, isLoading: inviteLoading, error: inviteError } = useInviteByToken(token || null);
   const accept = useAcceptInvite(token);
 
-  const prefillEmail = user?.email ?? invite?.email ?? '';
-  const [prefillFirst, prefillLast] = (user?.name ?? '').split(' ', 2);
+  const nameParts = (user?.name ?? '').split(' ');
+  const prefillFirst = nameParts[0] ?? '';
+  const prefillLast = nameParts.slice(1).join(' ');
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     values: {
-      firstName: prefillFirst ?? '',
-      lastName: prefillLast ?? '',
-      email: prefillEmail,
+      firstName: prefillFirst,
+      lastName: prefillLast,
+      email: invite?.email ?? user?.email ?? '',
       phone: '',
     },
   });
 
   useEffect(() => {
-    if (accept.isSuccess) {
-      const timer = setTimeout(() => navigate('/', { replace: true }), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [accept.isSuccess, navigate]);
+    if (!accept.isSuccess) return;
+    // Refresh auth state so user.playerId is up-to-date before navigating.
+    void qc.invalidateQueries({ queryKey: myStatusKeys.all }).then(() => {
+      const playerId = invite?.preLinkedPlayerId ?? invite?.playerId;
+      if (playerId) {
+        navigate(`/players/${playerId}`, { replace: true });
+      } else {
+        navigate('/', { replace: true });
+      }
+    });
+  }, [accept.isSuccess, navigate, invite, qc]);
 
   if (!token) return <InvalidInvite message="No invite token found in this link." />;
 
@@ -101,6 +111,13 @@ export function AcceptInvitePage() {
         <h1 className="mt-3 text-2xl font-bold text-gray-900">Join the League</h1>
         <p className="mt-1 text-sm text-gray-500">Confirm your details to complete your registration.</p>
 
+        {invite?.preLinkedPlayerName && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            Your account will be linked to the player profile for{' '}
+            <strong>{invite.preLinkedPlayerName}</strong>.
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -116,7 +133,7 @@ export function AcceptInvitePage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">Email <span className="text-red-500">*</span></label>
-            <input {...register('email')} type="email" className={inputClass} />
+            <input {...register('email')} type="email" readOnly className={`${inputClass} bg-gray-50 text-gray-500`} />
             {errors.email && <p className="mt-1 text-xs text-red-600">{errors.email.message}</p>}
           </div>
           <div>

@@ -69,7 +69,10 @@ export function RegisterPage() {
         inviteToken: token,
       });
       await onLoginSuccess(resp);
-      if (!resp.mfaRequired) navigate('/', { replace: true });
+      if (!resp.mfaRequired) {
+        const playerId = invite?.preLinkedPlayerId;
+        navigate(playerId ? `/players/${playerId}` : '/', { replace: true });
+      }
     } catch (err) {
       const message =
         (err as { response?: { data?: { error?: string } } })?.response?.data?.error
@@ -89,6 +92,13 @@ export function RegisterPage() {
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Join {leagueName || 'the League'}</h1>
           <p className="mt-1 text-sm text-gray-500">Invite for <strong>{invite.email}</strong></p>
         </div>
+
+        {invite.preLinkedPlayerName && (
+          <div className="mt-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+            Your account will be linked to the player profile for{' '}
+            <strong>{invite.preLinkedPlayerName}</strong>.
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">

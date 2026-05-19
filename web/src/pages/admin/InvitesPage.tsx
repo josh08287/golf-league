@@ -120,7 +120,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
               <option value="">
                 {unlinkedPlayers.length === 0
                   ? '-- No unlinked players available --'
-                  : "-- Don't attach (create new) --"}
+                  : '-- No player link --'}
               </option>
               {unlinkedPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -130,8 +130,8 @@ function InviteForm({ onDone }: { onDone: () => void }) {
             </select>
             <p className="mt-1 text-xs text-gray-400">
               {unlinkedPlayers.length === 0
-                ? 'No active players without a user account. Create a player first, or leave this blank to create a fresh roster row on sign-up.'
-                : "When the invitee signs up, their new account will be linked to this player instead of creating a fresh roster row."}
+                ? 'No active players without a user account. Create a player profile first if you want to link this invite to one.'
+                : 'When the invitee signs up, their account will be linked to the selected player profile. Leave blank to invite without a player link.'}
             </p>
           </div>
           <div>
@@ -352,6 +352,11 @@ function InviteRow({ invite, onRevoke, onDelete }: { invite: Invite; onRevoke?: 
     <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="text-sm font-medium text-gray-900 truncate">{invite.email}</p>
+        {invite.preLinkedPlayerName && (
+          <p className="text-xs text-green-700">
+            Linked to: {invite.preLinkedPlayerName}
+          </p>
+        )}
         <p className="text-xs text-gray-400">
           Sent {created}
           {invite.status === 'Pending' && (

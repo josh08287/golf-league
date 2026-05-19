@@ -66,6 +66,9 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
         if (invite.ExpiresAt < DateTime.UtcNow)
             return Result<PlayerDto>.Fail("This invite has expired. Please ask the admin to send a new one.");
 
+        if (!string.Equals(invite.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+            return Result<PlayerDto>.Fail("This invite was sent to a different email address.");
+
         Player player;
         var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
 
@@ -107,40 +110,27 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             }
             else
             {
-                // Look for an admin-pre-created Player row by email and adopt it.
-                var byEmail = await _playerRepo.GetByEmailAsync(request.Email, cancellationToken);
+                // No pre-linked player — grant membership only; do not auto-link
+                // or create a player profile.
+                var currentRolesOnly = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
+                var inviteRoleOnly = invite.Role.ToString().ToLowerInvariant();
+                if (!currentRolesOnly.Contains(inviteRoleOnly))
+                    await _roleService.SetRolesAsync(request.AppUserId, currentRolesOnly.Append(inviteRoleOnly).ToList(), cancellationToken);
 
-                if (byEmail is not null && byEmail.AppUserId is null)
+                await _leagueRepo.AddMembershipAsync(new LeagueMembership
                 {
-                    byEmail.AppUserId = request.AppUserId;
-                    byEmail.FirstName = request.FirstName;
-                    byEmail.LastName = request.LastName;
-                    byEmail.Email = request.Email;
-                    await _playerRepo.UpdateAsync(byEmail, cancellationToken);
-                    player = byEmail;
-                }
-                else
-                {
-                    player = new Player
-                    {
-                        LeagueId = invite.LeagueId,
-                        FirstName = request.FirstName,
-                        LastName = request.LastName,
-                        Email = request.Email,
-                        IsActive = true,
-                        AppUserId = request.AppUserId,
-                    };
+                    LeagueId = invite.LeagueId,
+                    UserId = request.AppUserId,
+                    Role = invite.Role,
+                    JoinedAt = DateTime.UtcNow,
+                }, cancellationToken);
 
-                    await _playerRepo.AddAsync(player, cancellationToken);
+                invite.Status = InviteStatus.Accepted;
+                invite.AcceptedAt = DateTime.UtcNow;
+                invite.AcceptedByAppUserId = request.AppUserId;
+                await _inviteRepo.UpdateAsync(invite, cancellationToken);
 
-                    await _handicapRepo.AddAsync(new Handicap
-                    {
-                        PlayerId = player.Id,
-                        HandicapIndex = 0.0,
-                        EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
-                        Source = HandicapSource.Initial
-                    }, cancellationToken);
-                }
+                return Result<PlayerDto>.Ok(new PlayerDto(0, string.Empty, null, false, 0.0, null, null, []));
             }
         }
 

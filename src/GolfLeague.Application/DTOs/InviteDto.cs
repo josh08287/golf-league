@@ -11,4 +11,6 @@ public sealed record InviteDto(
     int? PlayerId,
     string InviteLink,
     string Role,
-    string LeagueSlug);
+    string LeagueSlug,
+    int? PreLinkedPlayerId,
+    string? PreLinkedPlayerName);
