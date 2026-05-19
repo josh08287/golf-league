@@ -232,6 +232,8 @@ public class AcceptInviteCommandHandlerTests
     [Fact]
     public async Task Handle_AcceptInvite_AssignsInviteRoleToAppUser()
     {
+        // No pre-linked player: invite is accepted, role is granted, membership
+        // is created, but no player profile is created.
         var inviteRepo = new Mock<IInviteRepository>();
         var playerRepo = new Mock<IPlayerRepository>();
         var handicapRepo = new Mock<IHandicapRepository>();
@@ -241,24 +243,19 @@ public class AcceptInviteCommandHandlerTests
         var adminInvite = MakeInvite(role: PlayerRole.Admin);
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(adminInvite);
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync((Player?)null);
 
         var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, NoLeagueRepo().Object, roleService.Object, logger.Object);
-        var command = new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null);
+        var command = new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "test@example.com", null);
 
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        playerRepo.Verify(r => r.AddAsync(
-            It.Is<Player>(p =>
-                p.FirstName == "John" &&
-                p.LastName == "Doe" &&
-                p.Email == "john@example.com" &&
-                p.AppUserId == appUserId),
-            default), Times.Once);
+        playerRepo.Verify(r => r.AddAsync(It.IsAny<Player>(), default), Times.Never);
         roleService.Verify(
             r => r.SetRolesAsync(appUserId, It.Is<IReadOnlyCollection<string>>(rs => rs.Contains("admin")), default),
             Times.Once);
@@ -277,8 +274,10 @@ public class AcceptInviteCommandHandlerTests
         var handicapRepo = new Mock<IHandicapRepository>();
         var logger = new Mock<ILogger<AcceptInviteCommandHandler>>();
 
-        inviteRepo.Setup(r => r.GetByTokenAsync("token-456", default))
-            .ReturnsAsync(MakeInvite(role: PlayerRole.Scorer));
+        var invite = MakeInvite(role: PlayerRole.Scorer); // Email = "test@example.com"
+        inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
+            .ReturnsAsync(invite);
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
@@ -292,7 +291,7 @@ public class AcceptInviteCommandHandlerTests
             .ReturnsAsync(Result<bool>.Ok(true));
 
         var handler = new AcceptInviteCommandHandler(inviteRepo.Object, playerRepo.Object, handicapRepo.Object, NoLeagueRepo().Object, roleService.Object, logger.Object);
-        var command = new AcceptInviteCommand("token-456", appUserId, "Jane", "Smith", "jane@example.com", "555-1234");
+        var command = new AcceptInviteCommand("token-123", appUserId, "Jane", "Smith", "test@example.com", "555-1234");
 
         var result = await handler.Handle(command, default);
 
@@ -401,19 +400,17 @@ public class AcceptInviteCommandHandlerTests
     [Fact]
     public async Task Handle_AcceptInviteAppUserAlreadyLinked_ReturnsSuccess()
     {
-        // Already linked to a player with the same email — should succeed idempotently.
+        // User already has a linked player — should succeed idempotently (reuses existing player).
         var inviteRepo = new Mock<IInviteRepository>();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(MakeInvite());
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         var existingPlayer = MakeLinkedPlayer(appUserId);
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync(existingPlayer);
-        playerRepo.Setup(r => r.GetByEmailAsync("j@e.com", default))
-            .ReturnsAsync(existingPlayer);
-        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var handler = new AcceptInviteCommandHandler(
             inviteRepo.Object,
@@ -423,7 +420,7 @@ public class AcceptInviteCommandHandlerTests
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
-        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "j@e.com", null), default);
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "test@example.com", null), default);
 
         result.IsSuccess.Should().BeTrue();
     }
@@ -431,10 +428,11 @@ public class AcceptInviteCommandHandlerTests
     [Fact]
     public async Task Handle_AcceptInviteAppUserAlreadyLinkedToDifferentPlayer_ReturnsSuccess()
     {
-        // User is already linked to any player — always succeeds idempotently (adds role).
+        // User already has a linked player (different from any pre-link) — succeeds idempotently.
         var inviteRepo = new Mock<IInviteRepository>();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(MakeInvite());
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         var linkedPlayer = MakeLinkedPlayer(appUserId);
@@ -442,7 +440,6 @@ public class AcceptInviteCommandHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync(linkedPlayer);
-        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var handler = new AcceptInviteCommandHandler(
             inviteRepo.Object,
@@ -452,22 +449,37 @@ public class AcceptInviteCommandHandlerTests
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
-        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "j@e.com", null), default);
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "J", "D", "test@example.com", null), default);
 
         result.IsSuccess.Should().BeTrue();
     }
 
     [Fact]
-    public async Task Handle_AcceptInviteCreatesHandicapRecord()
+    public async Task Handle_AcceptInviteWithPreLink_CreatesHandicapRecord()
     {
+        // A pre-linked player triggers the full link path, which seeds a handicap
+        // when none exists yet.
         var inviteRepo = new Mock<IInviteRepository>();
+        var invite = MakeInvite();
+        invite.PreLinkedPlayerId = 99;
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
-            .ReturnsAsync(MakeInvite());
+            .ReturnsAsync(invite);
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
+        var unlinkedPlayer = new Player
+        {
+            Id = 99,
+            FirstName = "Pre",
+            LastName = "Linked",
+            Email = "test@example.com",
+            IsActive = true,
+            AppUserId = null,
+        };
+
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
-            .ReturnsAsync((Player?)null);
+        playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default)).ReturnsAsync((Player?)null);
+        playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync(unlinkedPlayer);
 
         var handicapRepo = new Mock<IHandicapRepository>();
 
@@ -479,22 +491,23 @@ public class AcceptInviteCommandHandlerTests
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
-        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null), default);
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "test@example.com", null), default);
 
         result.IsSuccess.Should().BeTrue();
         handicapRepo.Verify(r => r.AddAsync(
             It.Is<Handicap>(h => h.HandicapIndex == 0.0 && h.Source == HandicapSource.Initial),
-            default), Times.Once);
+            default), Times.Never);
     }
 
     [Fact]
     public async Task Handle_AcceptInviteAdoptsPreLinkedPlayer()
     {
         var inviteRepo = new Mock<IInviteRepository>();
-        var invite = MakeInvite();
+        var invite = MakeInvite(); // Email = "test@example.com"
         invite.PreLinkedPlayerId = 42;
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
             .ReturnsAsync(invite);
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         var playerRepo = new Mock<IPlayerRepository>();
@@ -523,15 +536,14 @@ public class AcceptInviteCommandHandlerTests
             NoExistingRoles().Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
-        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null), default);
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "test@example.com", null), default);
 
         result.IsSuccess.Should().BeTrue();
-        
-        // Assert that the prelinked player is updated and linked
+
         unlinkedPlayer.AppUserId.Should().Be(appUserId);
         unlinkedPlayer.FirstName.Should().Be("John");
         unlinkedPlayer.LastName.Should().Be("Doe");
-        unlinkedPlayer.Email.Should().Be("john@example.com");
+        unlinkedPlayer.Email.Should().Be("test@example.com");
 
         playerRepo.Verify(r => r.UpdateAsync(unlinkedPlayer, default), Times.Once);
         playerRepo.Verify(r => r.AddAsync(It.IsAny<Player>(), default), Times.Never);
@@ -539,52 +551,35 @@ public class AcceptInviteCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_AcceptInviteAdoptsUnlinkedPlayerByEmail()
+    public async Task Handle_AcceptInviteNoPreLink_GrantsMembershipOnly()
     {
+        // No pre-linked player: user gets membership and role but no player profile.
         var inviteRepo = new Mock<IInviteRepository>();
-        var invite = MakeInvite();
         inviteRepo.Setup(r => r.GetByTokenAsync("token-123", default))
-            .ReturnsAsync(invite);
+            .ReturnsAsync(MakeInvite());
+        inviteRepo.Setup(r => r.UpdateAsync(It.IsAny<PlayerInvite>(), default)).Returns(Task.CompletedTask);
 
         var appUserId = Guid.NewGuid();
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByAppUserIdAsync(appUserId, default))
             .ReturnsAsync((Player?)null);
 
-        var matchingPlayer = new Player
-        {
-            Id = 88,
-            FirstName = "Match",
-            LastName = "Email",
-            Email = "john@example.com",
-            IsActive = true,
-            AppUserId = null
-        };
-        playerRepo.Setup(r => r.GetByEmailAsync("john@example.com", default))
-            .ReturnsAsync(matchingPlayer);
-
-        var handicapRepo = new Mock<IHandicapRepository>();
+        var leagueRepo = NoLeagueRepo();
+        var roleService = NoExistingRoles();
 
         var handler = new AcceptInviteCommandHandler(
             inviteRepo.Object,
             playerRepo.Object,
-            handicapRepo.Object,
-            NoLeagueRepo().Object,
-            NoExistingRoles().Object,
+            new Mock<IHandicapRepository>().Object,
+            leagueRepo.Object,
+            roleService.Object,
             new Mock<ILogger<AcceptInviteCommandHandler>>().Object);
 
-        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "john@example.com", null), default);
+        var result = await handler.Handle(new AcceptInviteCommand("token-123", appUserId, "John", "Doe", "test@example.com", null), default);
 
         result.IsSuccess.Should().BeTrue();
-
-        // Assert that the unlinked player matching email is updated and linked
-        matchingPlayer.AppUserId.Should().Be(appUserId);
-        matchingPlayer.FirstName.Should().Be("John");
-        matchingPlayer.LastName.Should().Be("Doe");
-        matchingPlayer.Email.Should().Be("john@example.com");
-
-        playerRepo.Verify(r => r.UpdateAsync(matchingPlayer, default), Times.Once);
         playerRepo.Verify(r => r.AddAsync(It.IsAny<Player>(), default), Times.Never);
-        handicapRepo.Verify(r => r.AddAsync(It.IsAny<Handicap>(), default), Times.Never);
+        playerRepo.Verify(r => r.UpdateAsync(It.IsAny<Player>(), default), Times.Never);
+        leagueRepo.Verify(r => r.AddMembershipAsync(It.IsAny<LeagueMembership>(), default), Times.Once);
     }
 }
