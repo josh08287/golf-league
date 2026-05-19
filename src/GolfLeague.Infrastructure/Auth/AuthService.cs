@@ -384,6 +384,7 @@ public sealed class AuthService : IAuthService
             invite.Status = InviteStatus.Accepted;
             invite.AcceptedAt = DateTime.UtcNow;
             invite.AcceptedByAppUserId = user.Id;
+            invite.PreLinkedPlayer = null;
             await _inviteRepository.UpdateAsync(invite, cancellationToken);
             return;
         }
@@ -403,6 +404,9 @@ public sealed class AuthService : IAuthService
         invite.AcceptedAt = DateTime.UtcNow;
         invite.AcceptedByAppUserId = user.Id;
         invite.PlayerId = player.Id;
+        // Detach the loaded navigation so EF doesn't attempt a second UPDATE on
+        // the player row that was already saved above.
+        invite.PreLinkedPlayer = null;
         await _inviteRepository.UpdateAsync(invite, cancellationToken);
     }
 
