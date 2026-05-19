@@ -1,21 +1,21 @@
+import { lazy } from 'react';
 import { Route } from 'react-router-dom';
 import { RequireAdmin } from '../components/admin/RequireAdmin';
 import { RequireSuperAdmin } from '../components/admin/RequireSuperAdmin';
 import { AdminLayout } from '../components/layout/AdminLayout';
-import {
-  AdminDashboardPage,
-  PlayersPage,
-  PlayerDetailPage,
-  FlightsPage,
-  RoundsPage,
-  ScoreEntryPage,
-  CoursesPage,
-  AuditLogPage,
-  SeasonsPage,
-  InvitesPage,
-  TeeTimesAdminPage,
-  TournamentScoreEntryPage,
-} from '../pages/admin';
+
+const AdminDashboardPage = lazy(() => import('../pages/admin/AdminDashboardPage').then((m) => ({ default: m.AdminDashboardPage })));
+const PlayersPage = lazy(() => import('../pages/admin/PlayersPage').then((m) => ({ default: m.PlayersPage })));
+const PlayerDetailPage = lazy(() => import('../pages/admin/PlayerDetailPage').then((m) => ({ default: m.PlayerDetailPage })));
+const FlightsPage = lazy(() => import('../pages/admin/FlightsPage').then((m) => ({ default: m.FlightsPage })));
+const RoundsPage = lazy(() => import('../pages/admin/RoundsPage').then((m) => ({ default: m.RoundsPage })));
+const ScoreEntryPage = lazy(() => import('../pages/admin/ScoreEntryPage').then((m) => ({ default: m.ScoreEntryPage })));
+const TournamentScoreEntryPage = lazy(() => import('../pages/admin/TournamentScoreEntryPage').then((m) => ({ default: m.TournamentScoreEntryPage })));
+const TeeTimesAdminPage = lazy(() => import('../pages/admin/TeeTimesAdminPage').then((m) => ({ default: m.TeeTimesAdminPage })));
+const CoursesPage = lazy(() => import('../pages/admin/CoursesPage').then((m) => ({ default: m.CoursesPage })));
+const SeasonsPage = lazy(() => import('../pages/admin/SeasonsPage').then((m) => ({ default: m.SeasonsPage })));
+const InvitesPage = lazy(() => import('../pages/admin/InvitesPage').then((m) => ({ default: m.InvitesPage })));
+const AuditLogPage = lazy(() => import('../pages/admin/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
 
 export const adminRoutes = (
   <Route element={<RequireAdmin />}>
