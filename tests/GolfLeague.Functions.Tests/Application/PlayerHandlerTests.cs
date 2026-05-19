@@ -371,7 +371,7 @@ public class GetHandicapHistoryQueryHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Should().HaveCount(2);
         // Most recent first
-        result.Value[0].EffectiveDate.Should().Be(new DateOnly(2026, 3, 1));
-        result.Value[1].EffectiveDate.Should().Be(new DateOnly(2026, 1, 1));
+        result.Value![0].EffectiveDate.Should().Be(new DateOnly(2026, 3, 1));
+        result.Value![1].EffectiveDate.Should().Be(new DateOnly(2026, 1, 1));
     }
 }

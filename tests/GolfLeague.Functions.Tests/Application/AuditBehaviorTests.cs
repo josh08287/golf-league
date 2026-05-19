@@ -1,7 +1,6 @@
 using FluentAssertions;
 using GolfLeague.Application.Behaviors;
 using GolfLeague.Application.Common;
-using MediatR;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;

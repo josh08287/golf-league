@@ -54,8 +54,8 @@ public class CreateInvitesCommandHandlerTests
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Created.Should().HaveCount(1);
-        result.Value.Created[0].Role.Should().Be("admin");
+        result.Value!.Created.Should().HaveCount(1);
+        result.Value!.Created[0].Role.Should().Be("admin");
 
         inviteRepo.Verify(r => r.AddRangeAsync(
             It.Is<List<PlayerInvite>>(invites =>
@@ -86,7 +86,7 @@ public class CreateInvitesCommandHandlerTests
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Created[0].Role.Should().Be("player");
+        result.Value!.Created[0].Role.Should().Be("player");
 
         inviteRepo.Verify(r => r.AddRangeAsync(
             It.Is<List<PlayerInvite>>(invites =>
@@ -119,8 +119,8 @@ public class CreateInvitesCommandHandlerTests
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Created.Should().HaveCount(0);
-        result.Value.Skipped.Should().ContainSingle("john@example.com");
+        result.Value!.Created.Should().HaveCount(0);
+        result.Value!.Skipped.Should().ContainSingle("john@example.com");
     }
 
     [Fact]
@@ -151,8 +151,8 @@ public class CreateInvitesCommandHandlerTests
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Created.Should().HaveCount(1);
-        result.Value.Skipped.Should().BeEmpty();
+        result.Value!.Created.Should().HaveCount(1);
+        result.Value!.Skipped.Should().BeEmpty();
     }
 
     [Fact]
@@ -183,8 +183,8 @@ public class CreateInvitesCommandHandlerTests
         var result = await handler.Handle(command, default);
 
         result.IsSuccess.Should().BeTrue();
-        result.Value.Created.Should().HaveCount(1);
-        result.Value.Skipped.Should().BeEmpty();
+        result.Value!.Created.Should().HaveCount(1);
+        result.Value!.Skipped.Should().BeEmpty();
     }
 }
 
