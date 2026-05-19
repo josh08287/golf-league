@@ -61,7 +61,6 @@ function ScoreCell({ value, onChange, onKeyDown, inputRef, readonly }: ScoreCell
       ref={inputRef}
       type="number"
       min={1}
-      max={12}
       value={value === '' ? '' : value}
       readOnly={readonly}
       onChange={(e) => {
@@ -70,7 +69,7 @@ function ScoreCell({ value, onChange, onKeyDown, inputRef, readonly }: ScoreCell
           onChange('');
         } else {
           const n = parseInt(v, 10);
-          if (!isNaN(n) && n >= 1 && n <= 12) onChange(n);
+          if (!isNaN(n) && n >= 1) onChange(n);
         }
       }}
       onKeyDown={onKeyDown}

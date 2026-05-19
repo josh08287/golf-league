@@ -33,9 +33,10 @@ function calculateNetStrokes(
   handicapStrokes: number
 ): { netStrokes: number; isMaxScore: boolean } {
   const maxGross = par + 2 + handicapStrokes;
-  const cappedGross = Math.min(grossStrokes, maxGross);
+  // Net Stableford uses adjusted gross (capped at net double bogey); gross is stored as-entered.
+  const adjustedGross = Math.min(grossStrokes, maxGross);
   return {
-    netStrokes: cappedGross - handicapStrokes,
+    netStrokes: adjustedGross - handicapStrokes,
     isMaxScore: grossStrokes >= maxGross,
   };
 }
@@ -45,17 +46,15 @@ interface ScoreInputProps {
   value: number | '';
   onChange: (value: number | '') => void;
   disabled?: boolean;
-  maxScore?: number;
 }
 
-function ScoreInput({ label, value, onChange, disabled, maxScore }: ScoreInputProps) {
+function ScoreInput({ label, value, onChange, disabled }: ScoreInputProps) {
   return (
     <div className="flex flex-col items-center gap-1">
       <label className="text-xs font-medium text-gray-500">{label}</label>
       <input
         type="number"
         min={1}
-        max={12}
         value={value === '' ? '' : value}
         disabled={disabled}
         onChange={(e) => {
@@ -64,16 +63,13 @@ function ScoreInput({ label, value, onChange, disabled, maxScore }: ScoreInputPr
             onChange('');
           } else {
             const n = parseInt(v, 10);
-            if (!isNaN(n) && n >= 1 && n <= 12) {
+            if (!isNaN(n) && n >= 1) {
               onChange(n);
             }
           }
         }}
         className="h-12 w-16 rounded-lg border border-gray-300 text-center text-lg font-semibold focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-100 disabled:text-gray-400"
       />
-      {maxScore && value !== '' && value > maxScore && (
-        <span className="text-[10px] text-amber-600">Max: {maxScore}</span>
-      )}
     </div>
   );
 }
@@ -154,13 +150,12 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
         {players.map((player) => {
           const playerScore = scores[player.playerId]?.[hole.holeNumber] ?? '';
           const holeData = holeDataMap[player.playerId]?.[hole.holeNumber];
-          const maxScore = hole.par + 2 + calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
           const isSkipped = player.skippedWeek;
 
-          // Calculate GIR locally for display (matches backend logic)
+          // GIR: reached green in regulation = (gross - putts) <= par - 1
           const putts = holeData?.putts;
           const gir = putts !== '' && putts != null && playerScore !== '' && playerScore !== 0
-            ? (playerScore as number - (putts as number)) <= (hole.par - 1)
+            ? ((playerScore as number) - (putts as number)) <= hole.par - 1
             : null;
 
           return (
@@ -184,7 +179,6 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
                       value={isSkipped ? '' : playerScore}
                       onChange={(v) => onScoreChange(player.playerId, v)}
                       disabled={!canEdit || isSkipped}
-                      maxScore={maxScore}
                     />
                     <PuttInput
                       label="Putts"

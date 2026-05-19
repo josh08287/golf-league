@@ -118,11 +118,11 @@ public sealed class RecalculateAllRoundsCommandHandler
                                 // Recalculate handicap strokes and net strokes
                                 var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, courseHole.StrokeIndex, allStrokeIndicesInNine);
                                 var maxGross = StablefordScoringService.MaxGross(courseHole.Par, strokesOnHole);
-                                var actualGross = Math.Min(holeScore.GrossStrokes, maxGross);
                                 var isMaxScore = holeScore.GrossStrokes >= maxGross;
-                                var netStrokes = StablefordScoringService.NetStrokes(actualGross, strokesOnHole);
+                                var adjustedGross = Math.Min(holeScore.GrossStrokes, maxGross);
+                                var netStrokes = StablefordScoringService.NetStrokes(adjustedGross, strokesOnHole);
                                 var netPoints = StablefordScoringService.StablefordPoints(courseHole.Par, netStrokes);
-                                var grossPoints = StablefordScoringService.StablefordPoints(courseHole.Par, actualGross);
+                                var grossPoints = StablefordScoringService.StablefordPoints(courseHole.Par, holeScore.GrossStrokes);
 
                                 // Update hole score
                                 holeScore.HandicapStrokes = strokesOnHole;

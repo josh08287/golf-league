@@ -104,16 +104,17 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 ? StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, RoundType.Tournament)
                 : StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndicesInNine);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
-            var actualGross = Math.Min(input.GrossStrokes, maxGross);
             var isMaxScore = input.GrossStrokes >= maxGross;
-            var netStrokes = StablefordScoringService.NetStrokes(actualGross, strokesOnHole);
+            // Gross is stored as-entered. Net uses adjusted gross (capped at max double bogey) for Stableford.
+            var adjustedGross = Math.Min(input.GrossStrokes, maxGross);
+            var netStrokes = StablefordScoringService.NetStrokes(adjustedGross, strokesOnHole);
             var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
-            var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, actualGross);
+            var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, input.GrossStrokes);
 
             // Calculate GIR: on the green putting for birdie means (strokes - putts) <= (par - 1)
             // Only calculable if we have putts data
             var gir = input.Putts.HasValue
-                ? (actualGross - input.Putts.Value) <= (hole.Par - 1)
+                ? (input.GrossStrokes - input.Putts.Value) <= (hole.Par - 1)
                 : (bool?)null;
 
             holeScoreEntities.Add(new HoleScore
@@ -122,7 +123,7 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 HoleNumber = input.HoleNumber,
                 Par = hole.Par,
                 StrokeIndex = hole.StrokeIndex,
-                GrossStrokes = actualGross,
+                GrossStrokes = input.GrossStrokes,
                 HandicapStrokes = strokesOnHole,
                 NetStrokes = netStrokes,
                 GrossStablefordPoints = grossPoints,
