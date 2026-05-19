@@ -60,12 +60,23 @@ public sealed class PlayerRepository : IPlayerRepository
     public async Task DeleteAsync(int playerId, CancellationToken cancellationToken = default)
     {
         var player = await _context.Players
+            .IgnoreQueryFilters()
             .AsTracking()
             .Include(p => p.RoundParticipants).ThenInclude(rp => rp.HoleScores)
             .Include(p => p.FlightMemberships)
             .Include(p => p.Handicaps)
             .FirstOrDefaultAsync(p => p.Id == playerId, cancellationToken);
         if (player is null) return;
+
+        // PreLinkedPlayerId uses NoAction (SQL Server disallows two SetNull paths
+        // to the same table). Null it out on any pending invites before deletion.
+        var pendingPreLinks = await _context.PlayerInvites
+            .IgnoreQueryFilters()
+            .AsTracking()
+            .Where(i => i.PreLinkedPlayerId == playerId)
+            .ToListAsync(cancellationToken);
+        foreach (var invite in pendingPreLinks)
+            invite.PreLinkedPlayerId = null;
 
         // FK cascades from Player are Restrict — wipe child rows explicitly.
         _context.RoundParticipants.RemoveRange(player.RoundParticipants);
