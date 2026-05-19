@@ -16,6 +16,7 @@ public sealed class PlayerRepository : IPlayerRepository
 
     public Task<Player?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => _context.Players
+            .IgnoreQueryFilters()
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Flight)
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Season)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
