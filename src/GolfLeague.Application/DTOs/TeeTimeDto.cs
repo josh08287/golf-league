@@ -24,4 +24,5 @@ public sealed record RoundTeeTimeScheduleDto(
     int? CurrentUserParticipantId,
     int? CurrentUserTeeTimeId,
     IReadOnlyList<TeeTimeSlotDto> Slots,
-    TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None);
+    TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None,
+    bool CurrentUserSkippedWeek = false);

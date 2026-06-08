@@ -376,6 +376,7 @@ export interface RoundTeeTimeSchedule {
   participantCount: number;
   currentUserParticipantId: number | null;
   currentUserTeeTimeId: number | null;
+  currentUserSkippedWeek: boolean;
   slots: TeeTimeSlot[];
   currentUserPreferredSlots: TeeTimeSlotPreference;
 }

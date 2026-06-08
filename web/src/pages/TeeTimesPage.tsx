@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw } from 'lucide-react';
+import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw, SkipForward } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import {
   useNextRoundTeeTimes,
   useRoundTeeTimes,
   useJoinTeeTime,
   useLeaveTeeTime,
+  useSkipMyWeek,
   useSetTeeTimePreference,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
@@ -235,10 +236,12 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
   const countdown = useCutoffCountdown(schedule.cutoffUtc);
   const join = useJoinTeeTime();
   const leave = useLeaveTeeTime();
-  const mutating = join.isPending || leave.isPending;
+  const skipMyWeek = useSkipMyWeek();
+  const mutating = join.isPending || leave.isPending || skipMyWeek.isPending;
 
   const isParticipant = schedule.currentUserParticipantId != null;
   const hasPlayerId = user?.playerId != null;
+  const isSkipped = schedule.currentUserSkippedWeek;
 
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -267,6 +270,21 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
         setActionError(msg);
       },
     });
+  }
+
+  function handleSkipToggle() {
+    setActionError(null);
+    skipMyWeek.mutate(
+      { roundId: schedule.roundId, skipped: !isSkipped },
+      {
+        onError: (err: unknown) => {
+          const msg =
+            (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+            ?? 'Could not update skip status.';
+          setActionError(msg);
+        },
+      },
+    );
   }
 
   const title = roundCourseName ?? 'Tee Times';
@@ -309,7 +327,43 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
         <ErrorMessage message={actionError} />
       )}
 
-      {schedule.isLocked && isParticipant && schedule.currentUserTeeTimeId == null && (
+      {isParticipant && isSkipped && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-amber-800">
+              You&apos;ve marked yourself as skipping this round. You won&apos;t be assigned to a tee time.
+            </p>
+            {!schedule.isLocked && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={mutating}
+                onClick={handleSkipToggle}
+                className="shrink-0"
+              >
+                {skipMyWeek.isPending ? 'Updating…' : "I'm playing"}
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isParticipant && !isSkipped && !schedule.isLocked && (
+        <div className="flex justify-end">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={mutating}
+            onClick={handleSkipToggle}
+            className="text-amber-700 border-amber-300 hover:bg-amber-50"
+          >
+            <SkipForward className="h-4 w-4 mr-1" />
+            {skipMyWeek.isPending ? 'Updating…' : 'Skip this week'}
+          </Button>
+        </div>
+      )}
+
+      {schedule.isLocked && isParticipant && schedule.currentUserTeeTimeId == null && !isSkipped && (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
           Sign-ups are closed. You weren&apos;t assigned to a slot — you may have been placed by auto-fill or
           weren&apos;t registered in time.

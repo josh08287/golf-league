@@ -69,6 +69,17 @@ export function useLeaveTeeTime() {
   });
 }
 
+export function useSkipMyWeek() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ roundId, skipped }: { roundId: number; skipped: boolean }) => {
+      const res = await apiClient.post(`/rounds/${roundId}/tee-times/me/skip`, { skipped });
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
+  });
+}
+
 export function useSetTeeTimePreference() {
   const qc = useQueryClient();
   return useMutation({

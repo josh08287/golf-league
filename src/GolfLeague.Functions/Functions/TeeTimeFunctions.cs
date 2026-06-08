@@ -139,6 +139,39 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// POST /v1/rounds/{id}/tee-times/me/skip — Player marks themselves as
+    /// skipping (or un-skipping) a round before auto-fill runs. The audit log
+    /// records their own userId, distinguishing a self-skip from an admin skip.
+    /// </summary>
+    [Function("SkipMyWeek")]
+    public async Task<IActionResult> SkipMyWeek(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{id:int}/tee-times/me/skip")] HttpRequest req,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetSkippedRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetParticipantSkippedCommand(id, playerId.Value, body.Skipped, userId), cancellationToken);
+        if (!result.IsSuccess)
+            return new BadRequestObjectResult(new { error = result.Error });
+
+        var schedule = await _service.GetScheduleAsync(id, playerId, cancellationToken);
+        return schedule.IsSuccess
+            ? new OkObjectResult(new { data = schedule.Value })
+            : new BadRequestObjectResult(new { error = schedule.Error });
+    }
+
+    /// <summary>
     /// GET /v1/me/todays-tee-time — Returns today's tee time info for
     /// the authenticated player (if they have a round today with a tee time assignment).
     /// Returns 404 if no round today or player not assigned to a tee time.
