@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 
 export type UserRole = 'admin' | 'scorer' | 'player';
 
@@ -19,19 +18,12 @@ interface AuthState {
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
-      user: null,
-      setUser: (user) => set({ user }),
-      clearUser: () => set({ user: null }),
-      logout: () => set({ user: null }),
-    }),
-    {
-      name: 'golf-league-auth',
-    },
-  ),
-);
+export const useAuthStore = create<AuthState>()((set) => ({
+  user: null,
+  setUser: (user) => set({ user }),
+  clearUser: () => set({ user: null }),
+  logout: () => set({ user: null }),
+}));
 
 /** Convenience: returns true if the user holds the given role. */
 export const hasRole = (user: AuthUser | null, role: UserRole): boolean =>

@@ -46,6 +46,9 @@ const authClient = axios.create({
 // bigger lift we deferred.
 // Refresh token: localStorage. Always rotated on use.
 
+// Remove stale persisted user data left by the old zustand/persist setup.
+localStorage.removeItem('golf-league-auth');
+
 let accessTokenInMemory: string | null = null;
 
 export function getAccessToken(): string | null {
@@ -112,6 +115,7 @@ export function storeAuthResponse(resp: AuthResponse) {
 export function clearAuth() {
   setAccessToken(null);
   setRefreshToken(null);
+  localStorage.removeItem('golf-league-auth');
 }
 
 // ── Auth API calls ───────────────────────────────────────────────────────────
