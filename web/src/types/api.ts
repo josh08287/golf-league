@@ -726,3 +726,15 @@ export interface TournamentResults {
   grossStablefordRanking: TournamentRankingEntry[];
   netStablefordRanking: TournamentRankingEntry[];
 }
+
+
+// ── League Settings ───────────────────────────────────────────────────────────
+
+export interface LeagueSetting {
+  key: string;
+  value: string;
+}
+
+export const SETTING_KEYS = {
+  teeTimeEmailEnabled: 'tee_time_email_enabled',
+} as const;

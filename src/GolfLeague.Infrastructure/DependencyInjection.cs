@@ -78,6 +78,7 @@ public static class DependencyInjection
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
         services.AddScoped<IAppUserRepository, AppUserRepository>();
+        services.AddScoped<ILeagueSettingRepository, LeagueSettingRepository>();
         services.AddScoped<ITeeTimeService, TeeTimeService>();
         services.AddScoped<ITeeTimeAutofillService, TeeTimeAutofillService>();
 

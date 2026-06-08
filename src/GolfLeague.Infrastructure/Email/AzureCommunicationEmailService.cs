@@ -67,6 +67,53 @@ public sealed class AzureCommunicationEmailService : IEmailService
         await SendAsync(toEmail, subject, html, "password-reset", cancellationToken);
     }
 
+    public async Task SendTeeTimeScheduleAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        string? playerSlotTime,
+        IReadOnlyList<TeeTimeEmailSlot> allSlots,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"{leagueName} — Tee times for {roundDate}";
+
+        var yourSlotHtml = playerSlotTime is not null
+            ? $"<p>Your tee time is <strong>{playerSlotTime}</strong>.</p>"
+            : "<p>You do not have a tee time assigned for this round.</p>";
+
+        var slotsHtml = string.Join("\n", allSlots.Select(slot =>
+        {
+            var players = string.Join(", ", slot.PlayerNames);
+            return $"<tr><td style=\"padding:6px 12px;font-weight:bold;white-space:nowrap\">{slot.SlotTime}</td><td style=\"padding:6px 12px\">{players}</td></tr>";
+        }));
+
+        var html = $"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #1a5c38;">⛳ {leagueName} — Tee Times for {roundDate}</h2>
+              <p>Hi {playerName},</p>
+              {yourSlotHtml}
+              <h3 style="color: #1a5c38; margin-top: 24px;">Full Tee Sheet</h3>
+              <table style="border-collapse:collapse; width:100%">
+                <thead>
+                  <tr style="background:#1a5c38; color:white">
+                    <th style="padding:8px 12px; text-align:left">Time</th>
+                    <th style="padding:8px 12px; text-align:left">Players</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {slotsHtml}
+                </tbody>
+              </table>
+              <p style="color:#666; font-size:14px; margin-top:24px;">See you on the course!</p>
+            </body>
+            </html>
+            """;
+
+        await SendAsync(toEmail, subject, html, "tee-time-schedule", cancellationToken);
+    }
+
     private async Task SendAsync(string toEmail, string subject, string html, string kind, CancellationToken cancellationToken)
     {
         var message = new EmailMessage(

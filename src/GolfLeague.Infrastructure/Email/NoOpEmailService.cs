@@ -19,12 +19,24 @@ public sealed class NoOpEmailService : IEmailService
 
     public Task SendPasswordResetAsync(string toEmail, string resetLink, CancellationToken cancellationToken = default)
     {
-        // Logged at Warning so the link is visible in App Insights even when
-        // email isn't configured — useful for bootstrapping prod for the very
-        // first admin before ACS is fully wired.
         _logger.LogWarning(
             "Email not configured (ACS_CONNECTION_STRING/ACS_SENDER_ADDRESS missing). Skipping password-reset email to {Email}. Link: {Link}",
             toEmail, resetLink);
+        return Task.CompletedTask;
+    }
+
+    public Task SendTeeTimeScheduleAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        string? playerSlotTime,
+        IReadOnlyList<TeeTimeEmailSlot> allSlots,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning(
+            "Email not configured. Skipping tee-time schedule email to {Email} ({Player}) for {Date}.",
+            toEmail, playerName, roundDate);
         return Task.CompletedTask;
     }
 }

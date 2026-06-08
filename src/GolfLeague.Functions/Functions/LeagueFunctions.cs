@@ -1,6 +1,8 @@
+using GolfLeague.Application.Leagues;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
+using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
@@ -10,11 +12,56 @@ namespace GolfLeague.Functions.Functions;
 public sealed class LeagueFunctions
 {
     private readonly ILeagueRepository _leagueRepository;
+    private readonly IMediator _mediator;
 
-    public LeagueFunctions(ILeagueRepository leagueRepository)
+    public LeagueFunctions(ILeagueRepository leagueRepository, IMediator mediator)
     {
         _leagueRepository = leagueRepository;
+        _mediator = mediator;
     }
+
+    /// <summary>
+    /// GET /v1/admin/settings — Returns all league settings for the current league.
+    /// Admin only.
+    /// </summary>
+    [Function("GetLeagueSettings")]
+    public async Task<IActionResult> GetSettings(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/settings")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var result = await _mediator.Send(new GetLeagueSettingsQuery(), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
+    /// PUT /v1/admin/settings/{key} — Upserts a league setting. Admin only.
+    /// </summary>
+    [Function("UpdateLeagueSetting")]
+    public async Task<IActionResult> UpdateSetting(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/admin/settings/{key}")] HttpRequest req,
+        string key,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var body = await req.TryDeserializeAsync<UpdateSettingRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new UpdateLeagueSettingCommand(key, body.Value, userId), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    private sealed record UpdateSettingRequest(string Value);
 
     /// <summary>
     /// GET /v1/leagues — Public. Returns active leagues for anonymous callers;

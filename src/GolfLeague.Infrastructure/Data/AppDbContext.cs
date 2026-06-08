@@ -19,6 +19,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
 
     public DbSet<League> Leagues => Set<League>();
     public DbSet<LeagueMembership> LeagueMemberships => Set<LeagueMembership>();
+    public DbSet<LeagueSetting> LeagueSettings => Set<LeagueSetting>();
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<SeasonHalf> SeasonHalves => Set<SeasonHalf>();
     public DbSet<Flight> Flights => Set<Flight>();
@@ -47,6 +48,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
 
         ConfigureLeagues(modelBuilder);
         ConfigureLeagueMemberships(modelBuilder);
+        ConfigureLeagueSettings(modelBuilder);
         ConfigureSeasons(modelBuilder);
         ConfigureSeasonHalves(modelBuilder);
         ConfigureFlights(modelBuilder);
@@ -81,6 +83,21 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Slug).IsRequired().HasMaxLength(100);
             entity.HasIndex(e => e.Slug).IsUnique();
+        });
+    }
+
+    private static void ConfigureLeagueSettings(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<LeagueSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).IsRequired().HasMaxLength(500);
+            entity.HasOne(e => e.League)
+                  .WithMany()
+                  .HasForeignKey(e => e.LeagueId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.LeagueId, e.Key }).IsUnique();
         });
     }
 
