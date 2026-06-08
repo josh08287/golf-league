@@ -78,6 +78,19 @@ export function useTeeTimeGroupScorecard(teeTimeId: number | null) {
 }
 
 /**
+ * Save scores for a single hole for all players in a tee time group.
+ * Called when the user presses Next on each hole for incremental persistence.
+ */
+export function useSaveTeeTimeHoleScores(teeTimeId: number | null) {
+  return useMutation({
+    mutationFn: async ({ holeNumber, playerScores }: { holeNumber: number; playerScores: PlayerScoreInput[] }) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      await apiClient.put(`/tee-times/${teeTimeId}/holes/${holeNumber}/scores`, { playerScores });
+    },
+  });
+}
+
+/**
  * Submit scores for all players in a tee time group.
  */
 export function useSubmitTeeTimeGroupScores(teeTimeId: number | null) {

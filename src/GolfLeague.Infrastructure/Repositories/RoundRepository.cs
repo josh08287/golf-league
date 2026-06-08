@@ -156,6 +156,16 @@ public sealed class RoundRepository : IRoundRepository
             .ExecuteDeleteAsync(cancellationToken);
     }
 
+    public async Task UpsertHoleScoresAsync(int holeNumber, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default)
+    {
+        var participantIds = holeScores.Select(h => h.ParticipantId).ToList();
+        await _context.HoleScores
+            .Where(hs => participantIds.Contains(hs.ParticipantId) && hs.HoleNumber == holeNumber)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _context.HoleScores.AddRangeAsync(holeScores, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default)
         => await _context.RoundParticipants
             .Include(rp => rp.Round).ThenInclude(r => r.Course)

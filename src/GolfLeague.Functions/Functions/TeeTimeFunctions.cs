@@ -215,7 +215,7 @@ public sealed class TeeTimeFunctions
         var userId = req.GetUserId() ?? "unknown";
         var playerScores = body.PlayerScores?.Select(p => new PlayerHoleScoresInput(
             p.PlayerId,
-            p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes)).ToList() ?? [])).ToList() ?? [];
+            p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes, h.Putts, h.FirstPuttDistanceFeet, h.FairwayHit)).ToList() ?? [])).ToList() ?? [];
 
         var command = new SubmitTeeTimeGroupScoresCommand(id, playerId.Value, playerScores, userId);
         var result = await _mediator.Send(command, cancellationToken);
@@ -225,9 +225,46 @@ public sealed class TeeTimeFunctions
             : new BadRequestObjectResult(new { error = result.Error });
     }
 
-    private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes);
+    /// <summary>
+    /// PUT /v1/tee-times/{id}/holes/{holeNumber}/scores — Save scores for a
+    /// single hole for all players in the group. Safe to call per-hole as the
+    /// player advances; upserts so re-entry overwrites prior data for that hole.
+    /// </summary>
+    [Function("SaveTeeTimeHoleScores")]
+    public async Task<IActionResult> SaveHoleScores(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{id:int}/holes/{holeNumber:int}/scores")] HttpRequest req,
+        int id,
+        int holeNumber,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SaveHoleScoresRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var playerScores = body.PlayerScores?.Select(p => new PlayerHoleScoresInput(
+            p.PlayerId,
+            p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes, h.Putts, h.FirstPuttDistanceFeet, h.FairwayHit)).ToList() ?? [])).ToList() ?? [];
+
+        var command = new SaveTeeTimeHoleScoresCommand(id, playerId.Value, holeNumber, playerScores, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = new { saved = true } })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes, int? Putts = null, double? FirstPuttDistanceFeet = null, bool? FairwayHit = null);
     private sealed record PlayerScoreInputDto(int PlayerId, List<HoleScoreInputDto>? HoleScores);
     private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
+    private sealed record SaveHoleScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
 
     /// <summary>
     /// POST /v1/admin/rounds/{roundId}/tee-times/{teeTimeId}/participants/{participantId}

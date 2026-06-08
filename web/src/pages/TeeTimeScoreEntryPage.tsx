@@ -4,6 +4,7 @@ import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle } from 'l
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
+  useSaveTeeTimeHoleScores,
 } from '@/hooks/useTeeTimeScoreEntry';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -388,6 +389,7 @@ export function TeeTimeScoreEntryPage() {
 
   const { data: scorecard, isLoading, error } = useTeeTimeGroupScorecard(teeTimeIdNum);
   const submitScores = useSubmitTeeTimeGroupScores(teeTimeIdNum);
+  const saveHoleScores = useSaveTeeTimeHoleScores(teeTimeIdNum);
 
   const [currentHoleIndex, setCurrentHoleIndex] = useState(0);
   const [scores, setScores] = useState<Record<number, Record<number, number | ''>>>({});
@@ -398,6 +400,7 @@ export function TeeTimeScoreEntryPage() {
   const players = scorecard?.players ?? [];
   const holes = scorecard?.holes ?? [];
   const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
+  const currentHole = holes[currentHoleIndex];
 
   // Initialize scores from existing data
   useMemo(() => {
@@ -446,7 +449,46 @@ export function TeeTimeScoreEntryPage() {
     }));
   }, []);
 
-  const handleNext = () => {
+  const buildHoleScoresPayload = useCallback((holeNumber: number): PlayerScoreInput[] => {
+    return players
+      .filter((p) => !p.skippedWeek)
+      .map((player) => {
+        const gross = scores[player.playerId]?.[holeNumber];
+        const hd = holeDataMap[player.playerId]?.[holeNumber];
+        const hole = holes.find((h) => h.holeNumber === holeNumber);
+        return {
+          playerId: player.playerId,
+          holeScores: gross !== undefined && gross !== '' ? [{
+            holeNumber,
+            grossStrokes: gross as number,
+            putts: hd?.putts !== '' && hd?.putts != null ? hd.putts as number : null,
+            firstPuttDistanceFeet: hd?.firstPuttDistanceFeet !== '' && hd?.firstPuttDistanceFeet != null ? hd.firstPuttDistanceFeet as number : null,
+            fairwayHit: hole && hole.par >= 4 ? hd?.fairwayHit ?? null : null,
+          }] : [],
+        };
+      })
+      .filter((p) => p.holeScores.length > 0);
+  }, [players, scores, holeDataMap, holes]);
+
+  const handleNext = async () => {
+    if (!canEdit || !currentHole) {
+      if (currentHoleIndex < holes.length - 1) {
+        setCurrentHoleIndex((prev) => prev + 1);
+      } else {
+        setShowSummary(true);
+      }
+      return;
+    }
+
+    const payload = buildHoleScoresPayload(currentHole.holeNumber);
+    if (payload.length > 0) {
+      try {
+        await saveHoleScores.mutateAsync({ holeNumber: currentHole.holeNumber, playerScores: payload });
+      } catch {
+        // Non-fatal — user can still navigate; full submit will catch any issues
+      }
+    }
+
     if (currentHoleIndex < holes.length - 1) {
       setCurrentHoleIndex((prev) => prev + 1);
     } else {
@@ -518,8 +560,6 @@ export function TeeTimeScoreEntryPage() {
     );
   }
 
-  const currentHole = holes[currentHoleIndex];
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -577,9 +617,16 @@ export function TeeTimeScoreEntryPage() {
             variant="outline"
             size="sm"
             onClick={handleNext}
+            disabled={saveHoleScores.isPending}
           >
-            {currentHoleIndex === holes.length - 1 ? 'Review' : 'Next'}
-            {currentHoleIndex < holes.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
+            {saveHoleScores.isPending ? (
+              <Spinner className="h-4 w-4" />
+            ) : (
+              <>
+                {currentHoleIndex === holes.length - 1 ? 'Review' : 'Next'}
+                {currentHoleIndex < holes.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
+              </>
+            )}
           </Button>
         </div>
       )}
@@ -631,8 +678,11 @@ export function TeeTimeScoreEntryPage() {
           <Button
             variant={currentHoleIndex === holes.length - 1 ? 'primary' : 'outline'}
             onClick={handleNext}
+            disabled={saveHoleScores.isPending}
           >
-            {currentHoleIndex === holes.length - 1 ? (
+            {saveHoleScores.isPending ? (
+              <Spinner className="mr-2 h-4 w-4" />
+            ) : currentHoleIndex === holes.length - 1 ? (
               <>
                 Review & Submit
                 <Flag className="h-4 w-4 ml-1" />
