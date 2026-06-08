@@ -147,10 +147,10 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
                 var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, input.GrossStrokes);
 
-                // Calculate GIR: on the green putting for birdie means (strokes - putts) <= (par - 1)
+                // Calculate GIR: reached green in regulation means (strokes - putts) <= (par - 2)
                 // Only calculable if we have putts data
                 var gir = input.Putts.HasValue
-                    ? (input.GrossStrokes - input.Putts.Value) <= (hole.Par - 1)
+                    ? (input.GrossStrokes - input.Putts.Value) <= (hole.Par - 2)
                     : (bool?)null;
 
                 holeScoreEntities.Add(new HoleScore

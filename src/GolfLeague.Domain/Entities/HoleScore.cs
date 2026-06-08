@@ -30,7 +30,7 @@ public class HoleScore
     public bool? FairwayHit { get; set; }
 
     /// <summary>
-    /// Greens in Regulation - true if on the green putting for birdie (gross strokes - putts <= par - 1).
+    /// Greens in Regulation - true if reached the green in regulation (gross strokes - putts <= par - 2).
     /// Calculated automatically based on score and putts.
     /// </summary>
     public bool? Gir { get; set; }

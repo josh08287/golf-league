@@ -88,7 +88,7 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
             var netPoints = StablefordScoringService.StablefordPoints(hole.Par, netStrokes);
             var grossPoints = StablefordScoringService.StablefordPoints(hole.Par, holeInput.GrossStrokes);
             var gir = holeInput.Putts.HasValue
-                ? (holeInput.GrossStrokes - holeInput.Putts.Value) <= (hole.Par - 1)
+                ? (holeInput.GrossStrokes - holeInput.Putts.Value) <= (hole.Par - 2)
                 : (bool?)null;
 
             holeScoreEntities.Add(new HoleScore

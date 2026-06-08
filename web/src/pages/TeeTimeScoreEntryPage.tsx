@@ -250,10 +250,10 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
           const isSkipped = player.skippedWeek;
           const trackAdvanced = advancedStatsMap[player.playerId] ?? false;
 
-          // GIR: reached green in regulation = (gross - putts) <= par - 1
+          // GIR: reached green in regulation = (gross - putts) <= par - 2
           const putts = holeData?.putts;
           const gir = trackAdvanced && putts !== '' && putts != null && playerScore !== '' && playerScore !== 0
-            ? ((playerScore as number) - (putts as number)) <= hole.par - 1
+            ? ((playerScore as number) - (putts as number)) <= hole.par - 2
             : null;
 
           return (
