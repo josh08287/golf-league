@@ -16,6 +16,7 @@ const CoursesPage = lazy(() => import('../pages/admin/CoursesPage').then((m) => 
 const SeasonsPage = lazy(() => import('../pages/admin/SeasonsPage').then((m) => ({ default: m.SeasonsPage })));
 const InvitesPage = lazy(() => import('../pages/admin/InvitesPage').then((m) => ({ default: m.InvitesPage })));
 const AuditLogPage = lazy(() => import('../pages/admin/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
+const SettingsPage = lazy(() => import('../pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 
 export const adminRoutes = (
   <Route element={<RequireAdmin />}>
@@ -31,6 +32,7 @@ export const adminRoutes = (
       <Route path="courses" element={<CoursesPage />} />
       <Route path="seasons" element={<SeasonsPage />} />
       <Route path="invites" element={<InvitesPage />} />
+      <Route path="settings" element={<SettingsPage />} />
       <Route element={<RequireSuperAdmin />}>
         <Route path="audit-log" element={<AuditLogPage />} />
       </Route>
