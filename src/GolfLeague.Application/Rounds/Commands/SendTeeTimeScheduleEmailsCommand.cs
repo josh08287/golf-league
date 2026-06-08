@@ -70,10 +70,11 @@ public sealed class SendTeeTimeScheduleEmailsCommandHandler
                 .Select(p => (p.PlayerId, SlotTime: s.ScheduledTime.ToString("h:mm tt"))))
             .ToDictionary(x => x.PlayerId, x => x.SlotTime);
 
-        // Only participants in the current half with an email address
+        // Only participants in the current half with an email address who haven't opted out
         var recipients = round.Participants
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek
-                        && p.Player.Email is not null)
+                        && p.Player.Email is not null
+                        && !p.Player.TeeTimeEmailOptOut)
             .ToList();
 
         var roundDate = round.RoundDate.ToString("dddd, MMMM d");

@@ -379,6 +379,42 @@ public sealed class PlayerFunctions
         return new OkObjectResult(new { data = new { playerId, preferredTeeTimeSlots = (int)preference } });
     }
 
+    /// <summary>
+    /// PUT /v1/players/{id}/tee-time-email-opt-out
+    /// Authenticated players may update their own opt-out preference only.
+    /// Body: { "optOut": true|false }
+    /// </summary>
+    [Function("SetTeeTimeEmailOptOut")]
+    public async Task<IActionResult> SetTeeTimeEmailOptOut(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/tee-time-email-opt-out")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        // Only the player themselves may change this setting.
+        var callingPlayerId = req.GetPlayerId();
+        if (callingPlayerId != playerId)
+            return new ObjectResult(new { error = "Forbidden: you may only update your own email preference." }) { StatusCode = 403 };
+
+        var body = await req.TryDeserializeAsync<SetTeeTimeEmailOptOutRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var player = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
+        if (player is null)
+            return new NotFoundObjectResult(new { error = $"Player {playerId} not found." });
+
+        player.TeeTimeEmailOptOut = body.OptOut;
+        await _playerRepository.UpdateAsync(player, cancellationToken);
+
+        return new OkObjectResult(new { data = new { playerId, teeTimeEmailOptOut = body.OptOut } });
+    }
+
     private sealed record LinkUserBody(string UserId);
     private sealed record CreatePlayerRequest(string Name, string? Email, double InitialHandicap, string? FlightId);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string? Email);
@@ -388,4 +424,5 @@ public sealed class PlayerFunctions
         public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;
     }
     private sealed record SetTeeTimePreferenceRequest(IReadOnlyList<string>? PreferredSlots);
+    private sealed record SetTeeTimeEmailOptOutRequest(bool OptOut);
 }

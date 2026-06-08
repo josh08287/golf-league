@@ -30,6 +30,12 @@ public class Player
     /// </summary>
     public TeeTimeSlotPreference PreferredTeeTimeSlots { get; set; } = TeeTimeSlotPreference.None;
 
+    /// <summary>
+    /// When true the player has opted out of weekly tee time schedule emails.
+    /// Default false = opted in (emails are sent if the league setting is enabled).
+    /// </summary>
+    public bool TeeTimeEmailOptOut { get; set; } = false;
+
     public string FullName => $"{FirstName} {LastName}";
     public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();
 

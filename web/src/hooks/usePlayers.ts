@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type { TableSort } from '@/hooks/useSortableTable';
 import type {
@@ -90,6 +90,18 @@ export function useUnlinkedPlayers(enabled: boolean = true) {
       return unwrap<UnlinkedPlayer[]>(res.data);
     },
     enabled,
+  });
+}
+
+export function useSetTeeTimeEmailOptOut() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ playerId, optOut }: { playerId: number; optOut: boolean }) => {
+      await apiClient.put(`/players/${playerId}/tee-time-email-opt-out`, { optOut });
+    },
+    onSuccess: (_data, { playerId }) => {
+      qc.invalidateQueries({ queryKey: playerKeys.detail(String(playerId)) });
+    },
   });
 }
 

@@ -48,6 +48,7 @@ export interface Player {
   appUserId: string | null;
   preferredTeeTimeSlots: TeeTimeSlotPreference;
   flightMemberships: HalfFlightMembership[];
+  teeTimeEmailOptOut: boolean;
 }
 
 /** Lightweight row used by the unlinked-players pickers. */

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { usePlayer, useHandicapHistory, usePlayerRounds } from '@/hooks/usePlayers';
 import { usePlayerStatistics } from '@/hooks/useStatistics';
 import { useSetTeeTimePreference } from '@/hooks/useTeeTimes';
+import { useSetTeeTimeEmailOptOut } from '@/hooks/usePlayers';
 import { useAuthStore } from '@/store/authStore';
 import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '@/types/api';
 import type { TeeTimeSlotName, PlayerStatistics } from '@/types/api';
@@ -92,6 +93,94 @@ function TeeTimePreferenceSelector({ playerId, currentMask }: { playerId: number
           {setPreference.isSuccess && !setPreference.isPending && (
             <span className="text-xs text-green-700">Saved!</span>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TeeTimeEmailOptOutToggle({ playerId, optOut }: { playerId: number; optOut: boolean }) {
+  const setOptOut = useSetTeeTimeEmailOptOut();
+  const [showWarning, setShowWarning] = useState(false);
+
+  function handleToggle() {
+    if (!optOut) {
+      // Opting out — show warning first
+      setShowWarning(true);
+    } else {
+      // Re-enabling — no warning needed
+      setOptOut.mutate({ playerId, optOut: false });
+    }
+  }
+
+  function confirmOptOut() {
+    setShowWarning(false);
+    setOptOut.mutate({ playerId, optOut: true });
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-3">
+      <div className="flex items-start justify-between gap-6">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-700">Weekly tee time emails</p>
+          <p className="mt-0.5 text-sm text-gray-500">
+            {optOut
+              ? 'You are not receiving weekly tee time emails.'
+              : 'You will receive an email each week with the upcoming tee sheet.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={!optOut}
+          disabled={setOptOut.isPending}
+          onClick={handleToggle}
+          className={[
+            'relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+            'transition-colors duration-200 ease-in-out focus:outline-none focus-visible:ring-2',
+            'focus-visible:ring-[#1B5E20] focus-visible:ring-offset-2',
+            !optOut ? 'bg-[#1B5E20]' : 'bg-gray-200',
+            setOptOut.isPending ? 'opacity-50 cursor-not-allowed' : '',
+          ].join(' ')}
+        >
+          <span
+            className={[
+              'pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow',
+              'transform transition duration-200 ease-in-out',
+              !optOut ? 'translate-x-5' : 'translate-x-0',
+            ].join(' ')}
+          />
+        </button>
+      </div>
+
+      {setOptOut.isError && (
+        <p className="text-xs text-red-600">Failed to save. Please try again.</p>
+      )}
+
+      {showWarning && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 space-y-2">
+          <p className="text-sm font-medium text-amber-800">
+            Are you sure you want to opt out?
+          </p>
+          <p className="text-sm text-amber-700">
+            You will not receive weekly tee time emails until you re-enable this setting.
+          </p>
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={confirmOptOut}
+              className="px-3 py-1.5 rounded text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors"
+            >
+              Opt out
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowWarning(false)}
+              className="px-3 py-1.5 rounded text-sm font-medium bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
     </div>
@@ -486,10 +575,16 @@ export function PlayerProfilePage() {
           </PageHeader>
 
           {isOwnProfile && (
-            <TeeTimePreferenceSelector
-              playerId={parseInt(playerId!, 10)}
-              currentMask={playerData.preferredTeeTimeSlots ?? 0}
-            />
+            <div className="space-y-3">
+              <TeeTimePreferenceSelector
+                playerId={parseInt(playerId!, 10)}
+                currentMask={playerData.preferredTeeTimeSlots ?? 0}
+              />
+              <TeeTimeEmailOptOutToggle
+                playerId={parseInt(playerId!, 10)}
+                optOut={playerData.teeTimeEmailOptOut ?? false}
+              />
+            </div>
           )}
 
           {/* Stats cards */}

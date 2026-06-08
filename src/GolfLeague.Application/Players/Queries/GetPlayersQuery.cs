@@ -118,6 +118,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             roles ?? Array.Empty<string>(),
             player.AppUserId,
             player.PreferredTeeTimeSlots,
-            perHalf);
+            perHalf,
+            player.TeeTimeEmailOptOut);
     }
 }
