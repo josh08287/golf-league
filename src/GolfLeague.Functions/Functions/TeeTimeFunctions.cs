@@ -226,6 +226,48 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// POST /v1/tee-times/{id}/participants/{playerId}/skip — Mark a player in
+    /// the tee time group as skipped (or un-skip them). Any authenticated player
+    /// in the group can call this; the command validates group membership.
+    /// </summary>
+    [Function("SetTeeTimeParticipantSkipped")]
+    public async Task<IActionResult> SetTeeTimeParticipantSkipped(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tee-times/{id:int}/participants/{playerId:int}/skip")] HttpRequest req,
+        int id,
+        int playerId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var callingPlayerId = req.GetPlayerId();
+        if (callingPlayerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetSkippedRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        // Verify the caller is in this tee time group
+        var teeTime = await _teeTimes.GetByIdAsync(id, cancellationToken);
+        if (teeTime is null)
+            return new NotFoundObjectResult(new { error = "Tee time not found." });
+
+        var callerInGroup = teeTime.Participants.Any(p => p.PlayerId == callingPlayerId.Value && !p.IsWithdrawn);
+        if (!callerInGroup)
+            return new ForbidResult();
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetParticipantSkippedCommand(teeTime.RoundId, playerId, body.Skipped, userId), cancellationToken);
+
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = new { skipped = body.Skipped } })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    private sealed record SetSkippedRequest(bool Skipped);
+
+    /// <summary>
     /// PUT /v1/tee-times/{id}/holes/{holeNumber}/scores — Save scores for a
     /// single hole for all players in the group. Safe to call per-hole as the
     /// player advances; upserts so re-entry overwrites prior data for that hole.

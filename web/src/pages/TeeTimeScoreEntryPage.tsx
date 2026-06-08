@@ -1,10 +1,11 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2 } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
   useSaveTeeTimeHoleScores,
+  useSetTeeTimeParticipantSkipped,
 } from '@/hooks/useTeeTimeScoreEntry';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -81,6 +82,100 @@ interface HoleData {
   fairwayHit: boolean | null;
 }
 
+interface GroupSetupStepProps {
+  players: TeeTimePlayerScore[];
+  skippedMap: Record<number, boolean>;
+  advancedStatsMap: Record<number, boolean>;
+  onToggleSkipped: (playerId: number, skipped: boolean) => void;
+  onToggleAdvancedStats: (playerId: number, enabled: boolean) => void;
+  pendingSkipIds: Set<number>;
+  onContinue: () => void;
+}
+
+function GroupSetupStep({
+  players,
+  skippedMap,
+  advancedStatsMap,
+  onToggleSkipped,
+  onToggleAdvancedStats,
+  pendingSkipIds,
+  onContinue,
+}: GroupSetupStepProps) {
+  const activePlayers = players.filter((p) => !p.isWithdrawn);
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-lg bg-primary-50 px-4 py-3">
+        <p className="text-sm text-primary-700">
+          Before entering scores, confirm who is playing and choose which players to track advanced statistics for.
+        </p>
+      </div>
+
+      <div className="space-y-3">
+        {activePlayers.map((player) => {
+          const isSkipped = skippedMap[player.playerId] ?? player.skippedWeek;
+          const trackAdvanced = advancedStatsMap[player.playerId] ?? false;
+          const isPending = pendingSkipIds.has(player.playerId);
+
+          return (
+            <Card key={player.playerId} className={isSkipped ? 'opacity-60' : ''}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900 truncate">{player.playerName}</p>
+                    <p className="text-xs text-gray-500">
+                      HCP {formatHandicapPair(player.handicapIndex)} · CH {player.courseHandicap}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2 shrink-0">
+                    {/* Skip toggle */}
+                    <button
+                      type="button"
+                      disabled={isPending}
+                      onClick={() => onToggleSkipped(player.playerId, !isSkipped)}
+                      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        isSkipped
+                          ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      } disabled:opacity-50`}
+                    >
+                      {isPending ? (
+                        <Spinner className="h-3 w-3" />
+                      ) : (
+                        <span>{isSkipped ? '✗ Skipping' : '✓ Playing'}</span>
+                      )}
+                    </button>
+                    {/* Advanced stats toggle — only relevant if not skipping */}
+                    {!isSkipped && (
+                      <button
+                        type="button"
+                        onClick={() => onToggleAdvancedStats(player.playerId, !trackAdvanced)}
+                        className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          trackAdvanced
+                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        <BarChart2 className="h-3 w-3" />
+                        {trackAdvanced ? 'Advanced stats on' : 'Advanced stats off'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      <Button variant="primary" size="lg" className="w-full" onClick={onContinue}>
+        Start Entering Scores
+        <ChevronRight className="h-4 w-4 ml-1" />
+      </Button>
+    </div>
+  );
+}
+
 interface HoleViewProps {
   hole: TeeTimeHoleInfo;
   players: TeeTimePlayerScore[];
@@ -89,6 +184,7 @@ interface HoleViewProps {
   onScoreChange: (playerId: number, value: number | '') => void;
   onHoleDataChange: (playerId: number, field: keyof HoleData, value: number | '' | boolean | null) => void;
   canEdit: boolean;
+  advancedStatsMap: Record<number, boolean>;
 }
 
 function PuttInput({ label, value, onChange, disabled, min, max, step, placeholder }: {
@@ -124,7 +220,7 @@ function PuttInput({ label, value, onChange, disabled, min, max, step, placehold
   );
 }
 
-function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDataChange, canEdit }: HoleViewProps) {
+function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDataChange, canEdit, advancedStatsMap }: HoleViewProps) {
   // Fairway is relevant for par 4 and 5 holes only
   const showFairway = hole.par >= 4;
 
@@ -152,10 +248,11 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
           const playerScore = scores[player.playerId]?.[hole.holeNumber] ?? '';
           const holeData = holeDataMap[player.playerId]?.[hole.holeNumber];
           const isSkipped = player.skippedWeek;
+          const trackAdvanced = advancedStatsMap[player.playerId] ?? false;
 
           // GIR: reached green in regulation = (gross - putts) <= par - 1
           const putts = holeData?.putts;
-          const gir = putts !== '' && putts != null && playerScore !== '' && playerScore !== 0
+          const gir = trackAdvanced && putts !== '' && putts != null && playerScore !== '' && playerScore !== 0
             ? ((playerScore as number) - (putts as number)) <= hole.par - 1
             : null;
 
@@ -181,54 +278,58 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
                       onChange={(v) => onScoreChange(player.playerId, v)}
                       disabled={!canEdit || isSkipped}
                     />
-                    <PuttInput
-                      label="Putts"
-                      value={isSkipped ? '' : (holeData?.putts ?? '')}
-                      onChange={(v) => onHoleDataChange(player.playerId, 'putts', v)}
-                      disabled={!canEdit || isSkipped}
-                      min={0}
-                      max={9}
-                      placeholder="—"
-                    />
-                    <PuttInput
-                      label="1st Putt (ft)"
-                      value={isSkipped ? '' : (holeData?.firstPuttDistanceFeet ?? '')}
-                      onChange={(v) => onHoleDataChange(player.playerId, 'firstPuttDistanceFeet', v)}
-                      disabled={!canEdit || isSkipped}
-                      min={0}
-                      max={200}
-                      step="1"
-                      placeholder="—"
-                    />
-                    {showFairway && (
-                      <div className="flex flex-col items-center gap-1">
-                        <label className="text-[10px] font-medium text-gray-400">Fairway</label>
-                        <button
-                          type="button"
+                    {trackAdvanced && (
+                      <>
+                        <PuttInput
+                          label="Putts"
+                          value={isSkipped ? '' : (holeData?.putts ?? '')}
+                          onChange={(v) => onHoleDataChange(player.playerId, 'putts', v)}
                           disabled={!canEdit || isSkipped}
-                          onClick={() => onHoleDataChange(player.playerId, 'fairwayHit', !holeData?.fairwayHit)}
-                          className={`h-10 w-14 rounded-lg border text-sm font-medium transition-colors ${
-                            holeData?.fairwayHit
-                              ? 'border-green-500 bg-green-50 text-green-700'
-                              : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
-                          } disabled:bg-gray-100 disabled:text-gray-400`}
-                        >
-                          {holeData?.fairwayHit ? 'Yes' : 'No'}
-                        </button>
-                      </div>
+                          min={0}
+                          max={9}
+                          placeholder="—"
+                        />
+                        <PuttInput
+                          label="1st Putt (ft)"
+                          value={isSkipped ? '' : (holeData?.firstPuttDistanceFeet ?? '')}
+                          onChange={(v) => onHoleDataChange(player.playerId, 'firstPuttDistanceFeet', v)}
+                          disabled={!canEdit || isSkipped}
+                          min={0}
+                          max={200}
+                          step="1"
+                          placeholder="—"
+                        />
+                        {showFairway && (
+                          <div className="flex flex-col items-center gap-1">
+                            <label className="text-[10px] font-medium text-gray-400">Fairway</label>
+                            <button
+                              type="button"
+                              disabled={!canEdit || isSkipped}
+                              onClick={() => onHoleDataChange(player.playerId, 'fairwayHit', !holeData?.fairwayHit)}
+                              className={`h-10 w-14 rounded-lg border text-sm font-medium transition-colors ${
+                                holeData?.fairwayHit
+                                  ? 'border-green-500 bg-green-50 text-green-700'
+                                  : 'border-gray-200 bg-white text-gray-400 hover:border-gray-300'
+                              } disabled:bg-gray-100 disabled:text-gray-400`}
+                            >
+                              {holeData?.fairwayHit ? 'Yes' : 'No'}
+                            </button>
+                          </div>
+                        )}
+                        <div className="flex flex-col items-center gap-1">
+                          <label className="text-[10px] font-medium text-gray-400">GIR</label>
+                          <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold ${
+                            gir === true
+                              ? 'bg-green-100 text-green-700'
+                              : gir === false
+                              ? 'bg-gray-100 text-gray-500'
+                              : 'bg-gray-50 text-gray-300'
+                          }`}>
+                            {gir === true ? '✓' : gir === false ? '✗' : '—'}
+                          </div>
+                        </div>
+                      </>
                     )}
-                    <div className="flex flex-col items-center gap-1">
-                      <label className="text-[10px] font-medium text-gray-400">GIR</label>
-                      <div className={`h-10 w-10 rounded-lg flex items-center justify-center text-sm font-bold ${
-                        gir === true
-                          ? 'bg-green-100 text-green-700'
-                          : gir === false
-                          ? 'bg-gray-100 text-gray-500'
-                          : 'bg-gray-50 text-gray-300'
-                      }`}>
-                        {gir === true ? '✓' : gir === false ? '✗' : '—'}
-                      </div>
-                    </div>
                   </div>
                 </div>
               </CardContent>
@@ -390,6 +491,16 @@ export function TeeTimeScoreEntryPage() {
   const { data: scorecard, isLoading, error } = useTeeTimeGroupScorecard(teeTimeIdNum);
   const submitScores = useSubmitTeeTimeGroupScores(teeTimeIdNum);
   const saveHoleScores = useSaveTeeTimeHoleScores(teeTimeIdNum);
+  const setParticipantSkipped = useSetTeeTimeParticipantSkipped(teeTimeIdNum);
+
+  // setup step state
+  const [setupComplete, setSetupComplete] = useState(false);
+  // local overrides for skip (mirrors DB after save); keyed by playerId
+  const [skippedOverrides, setSkippedOverrides] = useState<Record<number, boolean>>({});
+  // which playerIds are currently being saved (skip API in-flight)
+  const [pendingSkipIds, setPendingSkipIds] = useState<Set<number>>(new Set());
+  // per-player advanced stats opt-in (local only, not persisted)
+  const [advancedStatsMap, setAdvancedStatsMap] = useState<Record<number, boolean>>({});
 
   const [currentHoleIndex, setCurrentHoleIndex] = useState(0);
   const [scores, setScores] = useState<Record<number, Record<number, number | ''>>>({});
@@ -397,7 +508,11 @@ export function TeeTimeScoreEntryPage() {
   const [showSummary, setShowSummary] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const players = scorecard?.players ?? [];
+  const rawPlayers = scorecard?.players ?? [];
+  // Merge local skip overrides so the UI reacts immediately without waiting for refetch
+  const players = rawPlayers.map((p) =>
+    p.playerId in skippedOverrides ? { ...p, skippedWeek: skippedOverrides[p.playerId] } : p
+  );
   const holes = scorecard?.holes ?? [];
   const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
   const currentHole = holes[currentHoleIndex];
@@ -447,6 +562,20 @@ export function TeeTimeScoreEntryPage() {
         },
       },
     }));
+  }, []);
+
+  const handleToggleSkipped = useCallback(async (playerId: number, skipped: boolean) => {
+    setPendingSkipIds((prev) => new Set(prev).add(playerId));
+    try {
+      await setParticipantSkipped.mutateAsync({ playerId, skipped });
+      setSkippedOverrides((prev) => ({ ...prev, [playerId]: skipped }));
+    } finally {
+      setPendingSkipIds((prev) => { const next = new Set(prev); next.delete(playerId); return next; });
+    }
+  }, [setParticipantSkipped]);
+
+  const handleToggleAdvancedStats = useCallback((playerId: number, enabled: boolean) => {
+    setAdvancedStatsMap((prev) => ({ ...prev, [playerId]: enabled }));
   }, []);
 
   const buildHoleScoresPayload = useCallback((holeNumber: number): PlayerScoreInput[] => {
@@ -586,8 +715,21 @@ export function TeeTimeScoreEntryPage() {
         </div>
       )}
 
+      {/* Setup interstitial — only shown for editable rounds */}
+      {!setupComplete && canEdit && (
+        <GroupSetupStep
+          players={players}
+          skippedMap={skippedOverrides}
+          advancedStatsMap={advancedStatsMap}
+          onToggleSkipped={handleToggleSkipped}
+          onToggleAdvancedStats={handleToggleAdvancedStats}
+          pendingSkipIds={pendingSkipIds}
+          onContinue={() => setSetupComplete(true)}
+        />
+      )}
+
       {/* Progress indicator */}
-      {!showSummary && (
+      {(setupComplete || !canEdit) && !showSummary && (
         <div className="flex items-center justify-between">
           <Button
             variant="outline"
@@ -632,14 +774,14 @@ export function TeeTimeScoreEntryPage() {
       )}
 
       {/* Hole number indicator */}
-      {!showSummary && (
+      {(setupComplete || !canEdit) && !showSummary && (
         <p className="text-center text-sm text-gray-500">
           Hole {currentHoleIndex + 1} of {holes.length}
         </p>
       )}
 
       {/* Main content */}
-      {showSummary ? (
+      {(setupComplete || !canEdit) && showSummary ? (
         <ScoreSummary
           players={players}
           holes={holes}
@@ -661,11 +803,12 @@ export function TeeTimeScoreEntryPage() {
             handleHoleDataChange(playerId, currentHole.holeNumber, field, value)
           }
           canEdit={canEdit}
+          advancedStatsMap={advancedStatsMap}
         />
       ) : null}
 
       {/* Navigation buttons for mobile */}
-      {!showSummary && (
+      {(setupComplete || !canEdit) && !showSummary && (
         <div className="flex justify-between pt-4">
           <Button
             variant="outline"

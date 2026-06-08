@@ -78,6 +78,23 @@ export function useTeeTimeGroupScorecard(teeTimeId: number | null) {
 }
 
 /**
+ * Mark a player in the tee time group as skipped (or un-skip them).
+ * Any authenticated player in the group can call this.
+ */
+export function useSetTeeTimeParticipantSkipped(teeTimeId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ playerId, skipped }: { playerId: number; skipped: boolean }) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      await apiClient.post(`/tee-times/${teeTimeId}/participants/${playerId}/skip`, { skipped });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+    },
+  });
+}
+
+/**
  * Save scores for a single hole for all players in a tee time group.
  * Called when the user presses Next on each hole for incremental persistence.
  */
