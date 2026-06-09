@@ -12,6 +12,7 @@ import {
   Clock,
   Layers,
   Settings,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/authStore';
@@ -41,6 +42,7 @@ export function AdminLayout() {
     { to: '/admin/rounds', label: 'Rounds', icon: CalendarDays },
     { to: '/admin/tee-times', label: 'Tee Times', icon: Clock },
     { to: '/admin/courses', label: 'Courses', icon: MapPin },
+    { to: '/admin/messages', label: 'Messages', icon: MessageSquare },
     { to: '/admin/settings', label: 'Settings', icon: Settings },
     { to: '/admin/audit-log', label: 'Audit Log', icon: ClipboardList, superAdminOnly: true },
   ];

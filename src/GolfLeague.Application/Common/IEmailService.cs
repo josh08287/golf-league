@@ -22,6 +22,16 @@ public interface IEmailService
         string? playerSlotTime,
         IReadOnlyList<TeeTimeEmailSlot> allSlots,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends a free-form broadcast message from an admin to a single recipient.
+    /// </summary>
+    Task SendBroadcastMessageAsync(
+        string toEmail,
+        string leagueName,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record TeeTimeEmailSlot(string SlotTime, IReadOnlyList<string> PlayerNames);

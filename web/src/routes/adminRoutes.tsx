@@ -17,6 +17,7 @@ const SeasonsPage = lazy(() => import('../pages/admin/SeasonsPage').then((m) => 
 const InvitesPage = lazy(() => import('../pages/admin/InvitesPage').then((m) => ({ default: m.InvitesPage })));
 const AuditLogPage = lazy(() => import('../pages/admin/AuditLogPage').then((m) => ({ default: m.AuditLogPage })));
 const SettingsPage = lazy(() => import('../pages/admin/SettingsPage').then((m) => ({ default: m.SettingsPage })));
+const MessagesPage = lazy(() => import('../pages/admin/MessagesPage').then((m) => ({ default: m.MessagesPage })));
 
 export const adminRoutes = (
   <Route element={<RequireAdmin />}>
@@ -33,6 +34,7 @@ export const adminRoutes = (
       <Route path="seasons" element={<SeasonsPage />} />
       <Route path="invites" element={<InvitesPage />} />
       <Route path="settings" element={<SettingsPage />} />
+      <Route path="messages" element={<MessagesPage />} />
       <Route element={<RequireSuperAdmin />}>
         <Route path="audit-log" element={<AuditLogPage />} />
       </Route>

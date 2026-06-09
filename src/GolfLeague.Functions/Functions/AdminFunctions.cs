@@ -60,4 +60,29 @@ public sealed class AdminFunctions
         var result = await _mediator.Send(new RecalculateAllRoundsCommand(userId), cancellationToken);
         return result.ToOkResult();
     }
+
+    [Function("SendBroadcastMessage")]
+    public async Task<IActionResult> SendBroadcastMessage(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/admin/messages/broadcast")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var body = await req.TryDeserializeAsync<BroadcastMessageRequest>(cancellationToken);
+        if (body is null || string.IsNullOrWhiteSpace(body.Subject) || string.IsNullOrWhiteSpace(body.Body))
+            return new BadRequestObjectResult(new { error = "Subject and body are required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SendBroadcastMessageCommand(body.Subject, body.Body, body.PlayerIds, body.AdHocEmails, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private sealed record BroadcastMessageRequest(
+        string Subject,
+        string Body,
+        IReadOnlyList<int>? PlayerIds,
+        IReadOnlyList<string>? AdHocEmails);
 }

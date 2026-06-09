@@ -39,4 +39,17 @@ public sealed class NoOpEmailService : IEmailService
             toEmail, playerName, roundDate);
         return Task.CompletedTask;
     }
+
+    public Task SendBroadcastMessageAsync(
+        string toEmail,
+        string leagueName,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning(
+            "Email not configured. Skipping broadcast message to {Email}. Subject: {Subject}",
+            toEmail, subject);
+        return Task.CompletedTask;
+    }
 }

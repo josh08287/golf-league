@@ -114,6 +114,32 @@ public sealed class AzureCommunicationEmailService : IEmailService
         await SendAsync(toEmail, subject, html, "tee-time-schedule", cancellationToken);
     }
 
+    public async Task SendBroadcastMessageAsync(
+        string toEmail,
+        string leagueName,
+        string subject,
+        string body,
+        CancellationToken cancellationToken = default)
+    {
+        // Preserve newlines from the admin's message as HTML line breaks.
+        var bodyHtml = System.Net.WebUtility.HtmlEncode(body)
+            .Replace("\r\n", "<br>")
+            .Replace("\n", "<br>");
+
+        var html = $"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #1a5c38;">⛳ {System.Net.WebUtility.HtmlEncode(leagueName)}</h2>
+              <p style="line-height: 1.6;">{bodyHtml}</p>
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;" />
+              <p style="color: #9ca3af; font-size: 12px;">This message was sent by a league administrator.</p>
+            </body>
+            </html>
+            """;
+
+        await SendAsync(toEmail, subject, html, "broadcast", cancellationToken);
+    }
+
     private async Task SendAsync(string toEmail, string subject, string html, string kind, CancellationToken cancellationToken)
     {
         var message = new EmailMessage(
