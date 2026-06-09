@@ -85,8 +85,6 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 ? $"Invalid hole numbers for 18-hole round: {string.Join(", ", invalidHoles)}."
                 : $"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
 
-        await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
-
         var holeScoreEntities = new List<HoleScore>();
         var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
 
@@ -136,7 +134,7 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             });
         }
 
-        await _roundRepository.AddHoleScoresAsync(holeScoreEntities, cancellationToken);
+        await _roundRepository.ReplaceHoleScoresAsync(participant.Id, holeScoreEntities, cancellationToken);
 
         participant.TotalGrossStrokes = holeScoreEntities.Sum(h => h.GrossStrokes);
         participant.TotalNetStrokes = holeScoreEntities.Sum(h => h.NetStrokes);

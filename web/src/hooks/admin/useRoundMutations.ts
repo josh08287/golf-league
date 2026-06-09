@@ -78,8 +78,10 @@ export function useReopenRound() {
   return useMutation({
     mutationFn: (roundId: string) =>
       apiClient.post(`/rounds/${roundId}/reopen`).then((r) => r.data),
-    onSuccess: () => {
+    onSuccess: (_data, roundId) => {
       qc.invalidateQueries({ queryKey: roundKeys.all });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.scorecards(roundId) });
     },
   });
 }

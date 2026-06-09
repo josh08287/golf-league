@@ -20,6 +20,7 @@ public interface IRoundRepository
     Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
     Task AddHoleScoresAsync(IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
     Task ClearHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
+    Task ReplaceHoleScoresAsync(int participantId, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
     Task UpsertHoleScoresAsync(int holeNumber, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default);
     Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);

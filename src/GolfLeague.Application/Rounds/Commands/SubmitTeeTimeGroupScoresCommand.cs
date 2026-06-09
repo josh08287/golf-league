@@ -124,9 +124,6 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 return Result<TeeTimeGroupScoresResultDto>.Fail(
                     $"Player {participant.Player.FullName}: Invalid hole numbers: {string.Join(", ", invalidHoles)}.");
 
-            // Clear existing scores and add new ones
-            await _roundRepository.ClearHoleScoresAsync(participant.Id, cancellationToken);
-
             var holeScoreEntities = new List<HoleScore>();
             var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
             foreach (var input in playerScoreInput.HoleScores)
@@ -172,7 +169,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 });
             }
 
-            await _roundRepository.AddHoleScoresAsync(holeScoreEntities, cancellationToken);
+            await _roundRepository.ReplaceHoleScoresAsync(participant.Id, holeScoreEntities, cancellationToken);
 
             // Update participant totals
             participant.TotalGrossStrokes = holeScoreEntities.Sum(h => h.GrossStrokes);
