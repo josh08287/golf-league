@@ -134,6 +134,19 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
 
             var currentHandicap = await _handicapRepository.GetCurrentAsync(group.Key, cancellationToken);
 
+            var roundScores = group
+                .OrderBy(rp => rp.Round.WeekNumber)
+                .Select(rp => new RoundScoreDto(
+                    RoundId: rp.RoundId,
+                    RoundDate: rp.Round.RoundDate,
+                    WeekNumber: rp.Round.WeekNumber,
+                    Points: request.UseGrossPoints ? rp.TotalGrossStablefordPoints : rp.TotalNetStablefordPoints,
+                    GrossStrokes: rp.TotalGrossStrokes,
+                    NetStrokes: rp.TotalNetStrokes,
+                    IsSkipped: rp.SkippedWeek,
+                    IsDropped: droppedRounds.Contains(rp)))
+                .ToList();
+
             dtos.Add(new StandingDto(
                 Position: 0,
                 PlayerId: player.Id,
@@ -143,7 +156,8 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
                 TotalPoints: totalPoints,
                 AveragePoints: Math.Round(avgPoints, 2),
                 CurrentHandicapIndex: currentHandicap?.HandicapIndex ?? 0.0,
-                AverageScore: avgScore));
+                AverageScore: avgScore,
+                RoundScores: roundScores));
         }
 
         // Position is the league rank based on the default ordering — assign

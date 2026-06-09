@@ -78,6 +78,17 @@ export interface Flight {
   isLocked: boolean;
 }
 
+export interface RoundScore {
+  roundId: number;
+  roundDate: string;
+  weekNumber: number;
+  points: number | null;
+  grossStrokes: number | null;
+  netStrokes: number | null;
+  isSkipped: boolean;
+  isDropped: boolean;
+}
+
 export interface Standing {
   position: number;
   playerId: number;
@@ -88,6 +99,7 @@ export interface Standing {
   averagePoints: number;
   currentHandicapIndex: number;
   averageScore: number | null;
+  roundScores: RoundScore[];
 }
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
