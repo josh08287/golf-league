@@ -86,12 +86,6 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         var nineHoleIndex = HandicapCalculationService.CalculateNewIndex(differentials);
         var newIndex = Math.Round(nineHoleIndex * 2, 1, MidpointRounding.ToEven);
 
-        var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
-        if (current is not null && Math.Abs(current.HandicapIndex - newIndex) < 0.05)
-        {
-            return;
-        }
-
         await _handicapRepository.AddAsync(new Handicap
         {
             PlayerId = playerId,
@@ -102,7 +96,7 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         }, cancellationToken);
 
         _logger.LogInformation(
-            "Recalculated handicap for player {PlayerId}: {OldIndex} -> {NewIndex} (over {Count} differentials)",
-            playerId, current?.HandicapIndex, newIndex, differentials.Count);
+            "Recalculated handicap for player {PlayerId}: {NewIndex} (over {Count} differentials)",
+            playerId, newIndex, differentials.Count);
     }
 }
