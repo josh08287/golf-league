@@ -1,5 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Leagues;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -16,6 +18,8 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
     private readonly IFlightRepository _flightRepository;
     private readonly IHandicapRepository _handicapRepository;
     private readonly IPlayerRepository _playerRepository;
+    private readonly ILeagueSettingRepository _settings;
+    private readonly ILeagueContext _leagueContext;
 
     /// <summary>
     /// Default sort: by Position, which is the league rank (highest total
@@ -43,11 +47,15 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
     public GetFlightStandingsQueryHandler(
         IFlightRepository flightRepository,
         IHandicapRepository handicapRepository,
-        IPlayerRepository playerRepository)
+        IPlayerRepository playerRepository,
+        ILeagueSettingRepository settings,
+        ILeagueContext leagueContext)
     {
         _flightRepository = flightRepository;
         _handicapRepository = handicapRepository;
         _playerRepository = playerRepository;
+        _settings = settings;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<List<StandingDto>>> Handle(GetFlightStandingsQuery request, CancellationToken cancellationToken)
@@ -55,6 +63,14 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
         var flight = await _flightRepository.GetByIdAsync(request.FlightId, cancellationToken);
         if (flight is null)
             return Result<List<StandingDto>>.Fail($"Flight with ID {request.FlightId} not found.");
+
+        var dropCount = 1;
+        if (_leagueContext.LeagueId.HasValue)
+        {
+            var dropSetting = await _settings.GetAsync(_leagueContext.LeagueId.Value, KnownSettings.StandingsDropCount, cancellationToken);
+            if (dropSetting is not null && int.TryParse(dropSetting.Value, out var parsed) && parsed >= 0)
+                dropCount = parsed;
+        }
 
         var participants = await _flightRepository.GetStandingsAsync(request.FlightId, request.HalfId, cancellationToken);
 
@@ -76,16 +92,18 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
             // Skipped weeks count as 0 pts for total/ranking but must not deflate the average.
             var scoredRounds = group.Where(rp => !rp.SkippedWeek).ToList();
 
-            // Drop the single lowest-scoring round (net or gross) from each player's totals.
-            // Only applied when there are at least 2 scored rounds; with 1 round nothing is dropped.
-            var droppedRound = scoredRounds.Count >= 2
-                ? scoredRounds.MinBy(rp => request.UseGrossPoints
+            // Drop the N lowest-scoring rounds (net or gross) from each player's totals.
+            // Only drop up to (scoredRounds.Count - 1) so at least one round always counts.
+            var effectiveDrop = Math.Min(dropCount, Math.Max(0, scoredRounds.Count - 1));
+            var droppedRounds = scoredRounds
+                .OrderBy(rp => request.UseGrossPoints
                     ? rp.TotalGrossStablefordPoints ?? 0
                     : rp.TotalNetStablefordPoints ?? 0)
-                : null;
-            var countingRounds = droppedRound is null
+                .Take(effectiveDrop)
+                .ToHashSet();
+            var countingRounds = droppedRounds.Count == 0
                 ? scoredRounds
-                : scoredRounds.Where(rp => rp != droppedRound).ToList();
+                : scoredRounds.Where(rp => !droppedRounds.Contains(rp)).ToList();
 
             // Skipped weeks still contribute 0 to the total but the drop already came from scored rounds.
             var skippedPoints = group.Where(rp => rp.SkippedWeek).Sum(rp =>

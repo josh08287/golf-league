@@ -80,9 +80,11 @@ public sealed class UpdateLeagueSettingCommandHandler
 public static class KnownSettings
 {
     public const string TeeTimeEmailEnabled = "tee_time_email_enabled";
+    public const string StandingsDropCount = "standings_drop_count";
 
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
+        [StandingsDropCount] = "1",
     };
 }

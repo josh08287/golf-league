@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
 import { Spinner } from '../../components/ui/Spinner';
@@ -59,8 +60,26 @@ export function SettingsPage() {
     return s?.value === 'true';
   }
 
+  function getNumericSetting(key: string, fallback: number): number {
+    const s = settings?.find((s) => s.key === key);
+    const parsed = parseInt(s?.value ?? '', 10);
+    return isNaN(parsed) ? fallback : parsed;
+  }
+
   function handleToggle(key: string, value: boolean) {
     update.mutate({ key, value: String(value) });
+  }
+
+  const dropCountValue = getNumericSetting(SETTING_KEYS.standingsDropCount, 1);
+  const [dropCountInput, setDropCountInput] = useState<string | null>(null);
+  const displayDropCount = dropCountInput ?? String(dropCountValue);
+
+  function handleDropCountBlur() {
+    const parsed = parseInt(displayDropCount, 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed !== dropCountValue) {
+      update.mutate({ key: SETTING_KEYS.standingsDropCount, value: String(parsed) });
+    }
+    setDropCountInput(null);
   }
 
   return (
@@ -76,20 +95,48 @@ export function SettingsPage() {
       {isError && <ErrorMessage message="Could not load settings." />}
 
       {settings && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Email Notifications</CardTitle>
-          </CardHeader>
-          <CardContent className="divide-y divide-gray-100">
-            <Toggle
-              label="Weekly tee time emails"
-              description="After auto-fill runs each Sunday, send every player in the current half an email with the full tee sheet for the upcoming round."
-              checked={getSetting(SETTING_KEYS.teeTimeEmailEnabled)}
-              onChange={(v) => handleToggle(SETTING_KEYS.teeTimeEmailEnabled, v)}
-              disabled={update.isPending}
-            />
-          </CardContent>
-        </Card>
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Standings</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-gray-100">
+              <div className="flex items-start justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">Rounds to drop</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Number of each player's lowest-scoring rounds excluded from their standings total and average. Set to 0 to count all rounds.
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  value={displayDropCount}
+                  onChange={(e) => setDropCountInput(e.target.value)}
+                  onBlur={handleDropCountBlur}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                  disabled={update.isPending}
+                  className="w-20 shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Email Notifications</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-gray-100">
+              <Toggle
+                label="Weekly tee time emails"
+                description="After auto-fill runs each Sunday, send every player in the current half an email with the full tee sheet for the upcoming round."
+                checked={getSetting(SETTING_KEYS.teeTimeEmailEnabled)}
+                onChange={(v) => handleToggle(SETTING_KEYS.teeTimeEmailEnabled, v)}
+                disabled={update.isPending}
+              />
+            </CardContent>
+          </Card>
+        </>
       )}
 
       {update.isError && (

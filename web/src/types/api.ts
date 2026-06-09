@@ -738,4 +738,5 @@ export interface LeagueSetting {
 
 export const SETTING_KEYS = {
   teeTimeEmailEnabled: 'tee_time_email_enabled',
+  standingsDropCount: 'standings_drop_count',
 } as const;
