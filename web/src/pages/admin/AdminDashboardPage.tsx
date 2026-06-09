@@ -4,6 +4,7 @@ import { Users, CalendarDays, Clock, CheckCircle, Plus, ArrowRight, Calculator, 
 import { usePlayers } from '@/hooks/usePlayers';
 import { useRounds } from '@/hooks/useRounds';
 import { useRecalculateRounds } from '@/hooks/admin/useRecalculateRounds';
+import { useRecalculateHandicaps } from '@/hooks/admin/useRecalculateHandicaps';
 import { Spinner } from '@/components/ui/Spinner';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -58,6 +59,7 @@ export function AdminDashboardPage() {
   const { data: playersPage, isLoading: playersLoading } = usePlayers();
   const { data: roundsPage, isLoading: roundsLoading } = useRounds();
   const recalculateRounds = useRecalculateRounds();
+  const recalculateHandicaps = useRecalculateHandicaps();
 
   const isLoading = playersLoading || roundsLoading || recalculateRounds.isPending;
 
@@ -196,6 +198,62 @@ export function AdminDashboardPage() {
               <p className="mt-1">
                 {recalculateRounds.error instanceof Error
                   ? recalculateRounds.error.message
+                  : 'An unexpected error occurred'}
+              </p>
+            </div>
+          )}
+        </Card>
+
+        <Card className="p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="rounded-lg bg-amber-50 p-2 text-amber-600">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="font-medium text-gray-900">Recalculate All Handicaps</p>
+                <p className="text-sm text-gray-500">
+                  Rebuilds each player's full handicap history from their round differentials.
+                  Run this to backfill missing handicap entries.
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={() => recalculateHandicaps.mutate()}
+              disabled={recalculateHandicaps.isPending}
+              className="shrink-0"
+            >
+              {recalculateHandicaps.isPending ? (
+                <>
+                  <Spinner className="mr-2 h-4 w-4" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Recalculate Handicaps
+                </>
+              )}
+            </Button>
+          </div>
+
+          {recalculateHandicaps.isSuccess && (
+            <div className="mt-4 rounded-lg bg-green-50 p-4 text-sm text-green-800">
+              <p className="font-medium">Recalculation complete!</p>
+              <ul className="mt-1 list-inside list-disc">
+                <li>{recalculateHandicaps.data.playersProcessed} players processed</li>
+                <li>{recalculateHandicaps.data.handicapsCreated} handicap entries created</li>
+              </ul>
+            </div>
+          )}
+
+          {recalculateHandicaps.isError && (
+            <div className="mt-4 rounded-lg bg-red-50 p-4 text-sm text-red-800">
+              <p className="font-medium">Error recalculating handicaps</p>
+              <p className="mt-1">
+                {recalculateHandicaps.error instanceof Error
+                  ? recalculateHandicaps.error.message
                   : 'An unexpected error occurred'}
               </p>
             </div>
