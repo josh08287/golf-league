@@ -147,11 +147,21 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
 
         if (round.Status == RoundStatus.Scheduled)
         {
-            // Use the dedicated status updater so we don't reattach the whole
-            // Round graph (which already has its Participants loaded) on top of
-            // the participant we just tracked via UpdateParticipantAsync — that
-            // would throw a duplicate-key tracking error.
-            await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);
+            // Only transition to InProgress if no other round is already in that
+            // state. Entering scores out of order (e.g. a later round first) must
+            // not leave two simultaneous InProgress rounds, which would confuse
+            // tee-time resolution and could cause one round's scores to appear
+            // under the wrong round in the UI.
+            var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
+            var anyInProgress = allRounds.Any(r => r.Id != round.Id && r.Status == RoundStatus.InProgress);
+            if (!anyInProgress)
+            {
+                // Use the dedicated status updater so we don't reattach the whole
+                // Round graph (which already has its Participants loaded) on top of
+                // the participant we just tracked via UpdateParticipantAsync — that
+                // would throw a duplicate-key tracking error.
+                await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);
+            }
         }
 
         var holeScoreDtos = holeScoreEntities

@@ -162,6 +162,9 @@ export function ScoreEntryPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  // True when the round already has server-side scores and the user has not yet
+  // confirmed they intend to overwrite them.
+  const [overwritePending, setOverwritePending] = useState(false);
 
   const cellRefs = useRef<Array<Array<HTMLInputElement | null>>>([]);
 
@@ -261,6 +264,15 @@ export function ScoreEntryPage() {
       }
     }
 
+    // If the round already has scores on the server, require an explicit
+    // overwrite confirmation before proceeding.
+    const hasExistingScores = (scorecardsData?.data ?? []).some((sc) => sc.holes.length > 0);
+    if (hasExistingScores && !overwritePending) {
+      setOverwritePending(true);
+      return;
+    }
+
+    setOverwritePending(false);
     setSubmitting(true);
     setSubmitError(null);
 
@@ -331,6 +343,13 @@ export function ScoreEntryPage() {
           subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()} — ${round.nineHoleSide} 9 (Week ${round.weekNumber})`}
         />
       </div>
+
+      {!isFinalized && (scorecardsData?.data ?? []).some((sc) => sc.holes.length > 0) && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <strong>Scores already recorded</strong> — this round has existing scores. Submitting will overwrite them.
+          Confirm you are editing the correct round: <strong>Week {round.weekNumber} ({new Date(round.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' })})</strong>.
+        </div>
+      )}
 
       {submitSuccess && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -469,7 +488,27 @@ export function ScoreEntryPage() {
         </table>
       </div>
 
-      {!isFinalized && (
+      {!isFinalized && overwritePending && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <p className="font-semibold">This round already has scores recorded.</p>
+          <p className="mt-1">
+            Submitting will permanently replace the existing scores for all players.
+            Make sure you are on the correct round (Week {round.weekNumber} —{' '}
+            {new Date(round.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' })}).
+          </p>
+          <div className="mt-3 flex gap-2">
+            <Button variant="primary" onClick={handleSubmitAll} disabled={submitting}>
+              <Save className="mr-1.5 h-4 w-4" />
+              Yes, overwrite scores
+            </Button>
+            <Button variant="secondary" onClick={() => setOverwritePending(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {!isFinalized && !overwritePending && (
         <div className="flex items-center justify-end gap-3">
           <p className="text-sm text-gray-500">
             Auto-saved to local draft. Submit when all {holes.length} holes are complete.

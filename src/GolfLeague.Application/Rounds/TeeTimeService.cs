@@ -28,6 +28,20 @@ public sealed class TeeTimeService : ITeeTimeService
     public async Task<int?> ResolveNextRoundIdAsync(DateOnly today, CancellationToken cancellationToken = default)
     {
         var rounds = await _rounds.GetAllAsync(cancellationToken);
+
+        // Prefer a round that is already InProgress (e.g. a re-opened round),
+        // then fall back to the nearest upcoming Scheduled round.
+        // Order by date then ID so the earliest in-progress round wins when
+        // (in the unusual case) more than one slips into InProgress state.
+        var inProgress = rounds
+            .Where(r => r.Status == RoundStatus.InProgress)
+            .OrderBy(r => r.RoundDate)
+            .ThenBy(r => r.Id)
+            .FirstOrDefault();
+
+        if (inProgress is not null)
+            return inProgress.Id;
+
         return rounds
             .Where(r => r.Status == RoundStatus.Scheduled && r.RoundDate >= today)
             .OrderBy(r => r.RoundDate)

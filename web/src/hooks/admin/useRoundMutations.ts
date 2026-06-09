@@ -73,6 +73,17 @@ export function useFinalizeRound(roundId: string) {
   });
 }
 
+export function useReopenRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (roundId: string) =>
+      apiClient.post(`/rounds/${roundId}/reopen`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.all });
+    },
+  });
+}
+
 export function useCancelRound() {
   const qc = useQueryClient();
   return useMutation({

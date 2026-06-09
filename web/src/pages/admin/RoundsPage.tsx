@@ -8,6 +8,7 @@ import {
   useFinalizeRound,
   useDeleteRound,
   useCancelRound,
+  useReopenRound,
 } from '../../hooks/admin/useRoundMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -53,10 +54,12 @@ export function RoundsPage() {
   const [finalizeTarget, setFinalizeTarget] = useState<Round | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Round | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Round | null>(null);
+  const [reopenTarget, setReopenTarget] = useState<Round | null>(null);
 
   const finalize = useFinalizeRound(String(finalizeTarget?.id ?? ''));
   const cancelRound = useCancelRound();
   const deleteRound = useDeleteRound();
+  const reopenRound = useReopenRound();
 
   async function handleFinalize() {
     if (!finalizeTarget) return;
@@ -74,6 +77,12 @@ export function RoundsPage() {
     if (!deleteTarget) return;
     await deleteRound.mutateAsync(String(deleteTarget.id));
     setDeleteTarget(null);
+  }
+
+  async function handleReopen() {
+    if (!reopenTarget) return;
+    await reopenRound.mutateAsync(String(reopenTarget.id));
+    setReopenTarget(null);
   }
 
   if (isLoading) {
@@ -150,6 +159,16 @@ export function RoundsPage() {
               onClick={() => setFinalizeTarget(r)}
             >
               Finalize
+            </Button>
+          )}
+          {isRoundFinalized(r.status) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-amber-600 hover:bg-amber-50"
+              onClick={() => setReopenTarget(r)}
+            >
+              Re-open
             </Button>
           )}
           {isRoundScheduled(r.status) && (
@@ -258,6 +277,16 @@ export function RoundsPage() {
         isLoading={deleteRound.isPending}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={!!reopenTarget}
+        title="Re-open Round"
+        description={`Re-open the finalized round on ${reopenTarget ? new Date(reopenTarget.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : ''}? Scores can be edited again. Calculated handicaps from this round will be removed and recalculated when you re-finalize.`}
+        confirmLabel="Re-open"
+        isLoading={reopenRound.isPending}
+        onConfirm={handleReopen}
+        onCancel={() => setReopenTarget(null)}
       />
     </div>
   );
