@@ -85,36 +85,17 @@ public sealed class ExternalAuthFunctions
 
         const string appScheme = "com.golfleague.app";
 
+        // Chrome Custom Tabs blocks JavaScript navigation to custom app schemes
+        // (no user gesture), so the redirect must be a real HTTP 302 — the
+        // browser follows it and hands the deep link to the app.
         if (!string.IsNullOrEmpty(error))
-        {
-            var errorDeepLink = $"{appScheme}://auth?error={Uri.EscapeDataString(error)}";
-            var errorHtml = $"""
-                <!DOCTYPE html>
-                <html>
-                <head><meta charset="utf-8"><title>Sign-in error</title></head>
-                <body>
-                <script>window.location = '{errorDeepLink}';</script>
-                </body>
-                </html>
-                """;
-            return new ContentResult { Content = errorHtml, ContentType = "text/html", StatusCode = 200 };
-        }
+            return new RedirectResult($"{appScheme}://auth?error={Uri.EscapeDataString(error)}");
 
         if (string.IsNullOrEmpty(code) || string.IsNullOrEmpty(state))
             return new BadRequestObjectResult(new { error = "Missing code or state." });
 
         var deepLink = $"{appScheme}://auth?code={Uri.EscapeDataString(code)}&state={Uri.EscapeDataString(state)}";
-        var html = $"""
-            <!DOCTYPE html>
-            <html>
-            <head><meta charset="utf-8"><title>Signing you in...</title></head>
-            <body>
-            <p>Signing you in, please wait...</p>
-            <script>window.location = '{deepLink}';</script>
-            </body>
-            </html>
-            """;
-        return new ContentResult { Content = html, ContentType = "text/html", StatusCode = 200 };
+        return new RedirectResult(deepLink);
     }
 
     private sealed record StartRequest(string RedirectUri);
