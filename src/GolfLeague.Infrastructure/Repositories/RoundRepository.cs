@@ -139,8 +139,18 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default)
     {
-        _context.RoundParticipants.Update(participant);
-        await _context.SaveChangesAsync(cancellationToken);
+        await _context.RoundParticipants
+            .Where(rp => rp.Id == participant.Id)
+            .ExecuteUpdateAsync(u => u
+                .SetProperty(rp => rp.TotalGrossStrokes, participant.TotalGrossStrokes)
+                .SetProperty(rp => rp.TotalNetStrokes, participant.TotalNetStrokes)
+                .SetProperty(rp => rp.TotalGrossStablefordPoints, participant.TotalGrossStablefordPoints)
+                .SetProperty(rp => rp.TotalNetStablefordPoints, participant.TotalNetStablefordPoints)
+                .SetProperty(rp => rp.IsWithdrawn, participant.IsWithdrawn)
+                .SetProperty(rp => rp.SkippedWeek, participant.SkippedWeek)
+                .SetProperty(rp => rp.HandicapIndex, participant.HandicapIndex)
+                .SetProperty(rp => rp.CourseHandicap, participant.CourseHandicap),
+            cancellationToken);
     }
 
     public async Task AddHoleScoresAsync(IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default)

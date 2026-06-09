@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2 } from 'lucide-react';
 import {
@@ -517,8 +517,8 @@ export function TeeTimeScoreEntryPage() {
   const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
   const currentHole = holes[currentHoleIndex];
 
-  // Initialize scores from existing data
-  useMemo(() => {
+  // Initialize scores from existing data when scorecard loads
+  useEffect(() => {
     if (!scorecard) return;
 
     const initialScores: Record<number, Record<number, number | ''>> = {};
@@ -711,7 +711,10 @@ export function TeeTimeScoreEntryPage() {
 
       {submitScores.isError && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          Failed to submit scores. Please try again.
+          {(() => {
+            const err = submitScores.error as { response?: { data?: { error?: string } } } | null;
+            return err?.response?.data?.error ?? 'Failed to submit scores. Please try again.';
+          })()}
         </div>
       )}
 
