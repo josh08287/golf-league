@@ -89,41 +89,36 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
 
             var roundsPlayed = group.Count();
 
-            // Skipped weeks count as 0 pts for total/ranking but must not deflate the average.
-            var scoredRounds = group.Where(rp => !rp.SkippedWeek).ToList();
+            // All rounds (including skipped 0-pt weeks) are candidates for dropping.
+            var allRounds = group.ToList();
 
-            // Drop the N lowest-scoring rounds (net or gross) from each player's totals.
-            // Only drop up to (scoredRounds.Count - 1) so at least one round always counts.
-            var effectiveDrop = Math.Min(dropCount, Math.Max(0, scoredRounds.Count - 1));
-            var droppedRounds = scoredRounds
+            // Drop the N lowest-scoring rounds from each player's totals.
+            // Only drop up to (allRounds.Count - 1) so at least one round always counts.
+            var effectiveDrop = Math.Min(dropCount, Math.Max(0, allRounds.Count - 1));
+            var droppedRounds = allRounds
                 .OrderBy(rp => request.UseGrossPoints
                     ? rp.TotalGrossStablefordPoints ?? 0
                     : rp.TotalNetStablefordPoints ?? 0)
                 .Take(effectiveDrop)
                 .ToHashSet();
-            var countingRounds = droppedRounds.Count == 0
-                ? scoredRounds
-                : scoredRounds.Where(rp => !droppedRounds.Contains(rp)).ToList();
+            var countingRounds = allRounds.Where(rp => !droppedRounds.Contains(rp)).ToList();
 
-            // Skipped weeks still contribute 0 to the total but the drop already came from scored rounds.
-            var skippedPoints = group.Where(rp => rp.SkippedWeek).Sum(rp =>
-                request.UseGrossPoints
-                    ? rp.TotalGrossStablefordPoints ?? 0
-                    : rp.TotalNetStablefordPoints ?? 0);
             var totalPoints = countingRounds.Sum(rp =>
                 request.UseGrossPoints
                     ? rp.TotalGrossStablefordPoints ?? 0
-                    : rp.TotalNetStablefordPoints ?? 0) + skippedPoints;
+                    : rp.TotalNetStablefordPoints ?? 0);
 
-            var scoredCount = countingRounds.Count;
+            // Skipped weeks must not deflate the average even if they aren't dropped.
+            var countingScored = countingRounds.Where(rp => !rp.SkippedWeek).ToList();
+            var scoredCount = countingScored.Count;
             var avgPoints = scoredCount > 0
-                ? (double)countingRounds.Sum(rp =>
+                ? (double)countingScored.Sum(rp =>
                     request.UseGrossPoints
                         ? rp.TotalGrossStablefordPoints ?? 0
                         : rp.TotalNetStablefordPoints ?? 0) / scoredCount
                 : 0.0;
 
-            var scoreList = countingRounds.Where(rp =>
+            var scoreList = countingScored.Where(rp =>
                 request.UseGrossPoints ? rp.TotalGrossStrokes.HasValue : rp.TotalNetStrokes.HasValue).ToList();
             double? avgScore = scoreList.Count > 0
                 ? Math.Round(
