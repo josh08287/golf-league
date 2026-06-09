@@ -110,8 +110,14 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
             ? allHoles.Where(h => h.HoleNumber >= 10).OrderBy(h => h.HoleNumber).ToList()
             : allHoles.Where(h => h.HoleNumber <= 9).OrderBy(h => h.HoleNumber).ToList();
 
+        // Normalize stroke indices to 1–9 rank within this nine so the frontend
+        // can apply the same algorithm as StrokesOnHole(courseHandicap, strokeIndex, allIndices).
+        var sortedStrokeIndices = relevantHoles.Select(h => h.StrokeIndex).OrderBy(si => si).ToList();
         var holeDtos = relevantHoles
-            .Select(h => new CourseHoleInfoDto(h.HoleNumber, h.Par, h.StrokeIndex))
+            .Select(h => new CourseHoleInfoDto(
+                h.HoleNumber,
+                h.Par,
+                sortedStrokeIndices.IndexOf(h.StrokeIndex) + 1))
             .ToList();
 
         // Build player scores

@@ -21,11 +21,10 @@ function calculateStablefordPoints(par: number, netStrokes: number): number {
   return Math.max(0, Math.min(6, par + 2 - netStrokes));
 }
 
-// Helper to calculate handicap strokes on a hole
+// Helper to calculate handicap strokes on a hole.
+// strokeIndex is the normalized 1–9 rank within the nine (sent by the scorecard API).
 function calculateHandicapStrokes(courseHandicap: number, strokeIndex: number): number {
-  const base = Math.floor(courseHandicap / 18);
-  const extra = courseHandicap % 18;
-  return base + (strokeIndex <= extra ? 1 : 0);
+  return Math.floor(courseHandicap / 9) + (strokeIndex <= courseHandicap % 9 ? 1 : 0);
 }
 
 // Helper to calculate net strokes and cap at max
