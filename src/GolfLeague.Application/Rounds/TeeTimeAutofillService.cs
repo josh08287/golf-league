@@ -9,26 +9,30 @@ using Microsoft.Extensions.Logging;
 namespace GolfLeague.Application.Rounds;
 
 /// <summary>
-/// Greedy 2+2 flight pairing as described in the design conversation:
-///  - Top off any partial existing tee times first (1- to 3-occupant slots),
-///    preferring players from a flight already present in that slot.
-///  - For remaining unassigned participants, pull 2 from the largest flight
-///    and 2 from the next largest until everyone has a seat. Open new slots
-///    in order as needed.
+/// Greedy 2+2 flight pairing:
+///  - On the final round of a half: group participants by standings rank within
+///    their flight (1+2 together, 3+4 together, …), pairing adjacent-ranked
+///    players from different flights per slot. Time preferences are ignored.
+///  - All other rounds: top off any partial existing tee times first, then
+///    assign remaining participants respecting time preferences with 2+2 flight
+///    pairing across the largest remaining flights.
 /// </summary>
 public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 {
     private readonly ITeeTimeRepository _teeTimes;
     private readonly IRoundRepository _rounds;
+    private readonly IFlightRepository _flights;
     private readonly ILogger<TeeTimeAutofillService> _logger;
 
     public TeeTimeAutofillService(
         ITeeTimeRepository teeTimes,
         IRoundRepository rounds,
+        IFlightRepository flights,
         ILogger<TeeTimeAutofillService> logger)
     {
         _teeTimes = teeTimes;
         _rounds = rounds;
+        _flights = flights;
         _logger = logger;
     }
 
@@ -59,6 +63,52 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         var now = DateTime.UtcNow;
         var assignedCount = 0;
         var touchedSlotIds = new HashSet<int>();
+
+        // --- Phase 0 (final round of half only): standings-based pairing.
+        // On the last scheduled round of the half, ignore time preferences and
+        // group players so that adjacent standings rivals share a tee time:
+        // rank 1+2 together, rank 3+4 together, etc. Players without a flight
+        // or standings data fall through to the normal phases below.
+        if (round.HalfId.HasValue && await IsLastRoundOfHalfAsync(round, cancellationToken))
+        {
+            var unassignedForStandings = participants.Where(p => p.TeeTimeId is null).ToList();
+            var standingsBuckets = await BuildStandingsBucketsAsync(
+                round.HalfId.Value, unassignedForStandings, cancellationToken);
+
+            // Interleave one bucket-pair from each flight into each slot.
+            var emptySlotQueue = slots
+                .Where(s => s.Participants.Count == 0)
+                .OrderBy(s => s.TeeTimeNumber)
+                .ToList();
+
+            var placedInPhase0 = new HashSet<int>();
+            int slotIndex = 0;
+            while (standingsBuckets.Any(b => b.Count > 0) && slotIndex < emptySlotQueue.Count)
+            {
+                var slot = emptySlotQueue[slotIndex++];
+                var picks = new List<RoundParticipant>();
+
+                // Take up to 2 from each flight bucket in order until the slot
+                // is full (max 4 players).
+                foreach (var bucket in standingsBuckets)
+                {
+                    if (picks.Count >= TeeTimeSchedule.CapacityPerTeeTime) break;
+                    var take = Math.Min(2, TeeTimeSchedule.CapacityPerTeeTime - picks.Count);
+                    picks.AddRange(bucket.Take(take));
+                    bucket.RemoveRange(0, Math.Min(take, bucket.Count));
+                }
+
+                foreach (var p in picks)
+                {
+                    await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
+                    assignedCount++;
+                    touchedSlotIds.Add(slot.Id);
+                    placedInPhase0.Add(p.Id);
+                }
+            }
+
+            unassigned.RemoveAll(p => placedInPhase0.Contains(p.Id));
+        }
 
         // --- Phase 1: top off partial slots (1-3 occupants). Prefer adding
         // players whose flight is already present in the slot.
@@ -102,8 +152,9 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         // --- Phase 2: assign everyone else to empty slots, greedy 2+2.
         // Players with a slot preference are placed into their preferred band
         // first; players with None are used to fill whatever remains.
+        // Exclude slots already filled by Phase 0 (touchedSlotIds tracks them).
         var emptySlots = slots
-            .Where(s => s.Participants.Count == 0)
+            .Where(s => s.Participants.Count == 0 && !touchedSlotIds.Contains(s.Id))
             .OrderBy(s => s.TeeTimeNumber)
             .ToList();
 
@@ -234,5 +285,70 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             pool.Remove(d);
         }
         return result;
+    }
+
+    /// <summary>
+    /// Returns true if <paramref name="round"/> is the last scheduled (non-cancelled)
+    /// round in its half by WeekNumber.
+    /// </summary>
+    private async Task<bool> IsLastRoundOfHalfAsync(Round round, CancellationToken cancellationToken)
+    {
+        if (!round.HalfId.HasValue) return false;
+        var halfRounds = await _rounds.GetByHalfAsync(round.HalfId.Value, cancellationToken);
+        var maxWeek = halfRounds
+            .Where(r => r.Status != RoundStatus.Cancelled)
+            .Select(r => r.WeekNumber)
+            .DefaultIfEmpty(0)
+            .Max();
+        return round.WeekNumber == maxWeek;
+    }
+
+    /// <summary>
+    /// For each flight represented in <paramref name="unassigned"/>, queries half
+    /// standings and returns a list of ranked participant buckets — one list per
+    /// flight, ordered by standing rank (best first). Players with no standings
+    /// data are appended at the end of their flight's bucket.
+    /// </summary>
+    private async Task<List<List<RoundParticipant>>> BuildStandingsBucketsAsync(
+        int halfId,
+        List<RoundParticipant> unassigned,
+        CancellationToken cancellationToken)
+    {
+        var flightIds = unassigned
+            .Where(p => p.FlightId.HasValue)
+            .Select(p => p.FlightId!.Value)
+            .Distinct()
+            .OrderBy(id => id)
+            .ToList();
+
+        var buckets = new List<List<RoundParticipant>>();
+
+        foreach (var flightId in flightIds)
+        {
+            var flightParticipants = unassigned.Where(p => p.FlightId == flightId).ToList();
+            var standingsRows = await _flights.GetStandingsAsync(flightId, halfId, cancellationToken);
+
+            // Aggregate total net points per player from finalized rounds this half.
+            var pointsByPlayer = standingsRows
+                .GroupBy(rp => rp.PlayerId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.Sum(rp => rp.TotalNetStablefordPoints ?? 0));
+
+            // Rank: most points first, then by PlayerId for determinism.
+            var ranked = flightParticipants
+                .OrderByDescending(p => pointsByPlayer.GetValueOrDefault(p.PlayerId, 0))
+                .ThenBy(p => p.PlayerId)
+                .ToList();
+
+            buckets.Add(ranked);
+        }
+
+        // Players with no flight assignment fall into a single leftover bucket.
+        var noFlight = unassigned.Where(p => !p.FlightId.HasValue).ToList();
+        if (noFlight.Count > 0)
+            buckets.Add(noFlight);
+
+        return buckets;
     }
 }

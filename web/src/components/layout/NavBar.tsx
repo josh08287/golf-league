@@ -72,7 +72,7 @@ export function NavBar() {
 
   const publicLinks = [
     { to: '/', label: 'Home' },
-    { to: '/flights', label: 'Flights' },
+    { to: '/flights', label: 'Standings' },
     { to: '/rounds', label: 'Rounds' },
     { to: '/players', label: 'Players' },
     { to: '/statistics', label: 'Statistics' },

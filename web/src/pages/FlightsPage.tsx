@@ -131,7 +131,7 @@ export function FlightsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Flights"
+        title="Standings"
         description={
           halfLabel
             ? `Competition groups — ${halfLabel}`
