@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -203,8 +203,16 @@ interface HalfMembershipRowProps {
 /** One half's flight assignment: a dropdown, or read-only when the half is locked. */
 function HalfMembershipRow({ playerId, half, currentFlightId, flights }: HalfMembershipRowProps) {
   const setMembership = useSetHalfMembership(playerId);
-  const [value, setValue] = useState(currentFlightId != null ? String(currentFlightId) : '');
+  const serverValue = currentFlightId != null ? String(currentFlightId) : '';
+  const [value, setValue] = useState(serverValue);
   const [saved, setSaved] = useState(false);
+
+  // Re-sync the dropdown when the server's membership for THIS half changes
+  // (e.g. after a refetch). Without this, the row keeps stale local state and
+  // can appear as though a different half was the one that changed.
+  useEffect(() => {
+    setValue(serverValue);
+  }, [serverValue]);
 
   const halfFlights = useMemo(
     () => flights.filter((f) => f.halfId === half.id).sort((a, b) => a.displayOrder - b.displayOrder),
