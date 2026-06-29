@@ -71,6 +71,34 @@ public sealed class SeasonFunctions
         return result.ToOkResult();
     }
 
+    [Function("UpdateSeasonHalf")]
+    public async Task<IActionResult> UpdateSeasonHalf(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/seasons/halves/{halfId}")] HttpRequest req,
+        string halfId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(halfId, out var id))
+            return new BadRequestObjectResult(new { error = "Invalid half ID." });
+
+        var body = await req.TryDeserializeAsync<UpdateSeasonHalfRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        if (!DateOnly.TryParseExact(body.StartDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var startDate) ||
+            !DateOnly.TryParseExact(body.EndDate, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var endDate))
+            return new BadRequestObjectResult(new { error = "startDate and endDate must be valid dates (yyyy-MM-dd)." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new UpdateSeasonHalfCommand(id, startDate, endDate, userId),
+            cancellationToken);
+
+        return result.ToOkResult();
+    }
+
     [Function("DeleteSeason")]
     public async Task<IActionResult> DeleteSeason(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/seasons/{id}")] HttpRequest req,
@@ -94,4 +122,8 @@ public sealed class SeasonFunctions
         string StartDate,
         string EndDate,
         int? BestNRounds);
+
+    private sealed record UpdateSeasonHalfRequest(
+        string StartDate,
+        string EndDate);
 }

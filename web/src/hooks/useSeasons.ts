@@ -45,6 +45,25 @@ export function useSetActiveSeason() {
   });
 }
 
+export function useUpdateSeasonHalf() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      halfId,
+      startDate,
+      endDate,
+    }: {
+      halfId: number;
+      startDate: string;
+      endDate: string;
+    }) =>
+      apiClient
+        .put(`/seasons/halves/${halfId}`, { startDate, endDate })
+        .then((r) => r.data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: seasonKeys.all }),
+  });
+}
+
 export function useDeleteSeason() {
   const qc = useQueryClient();
   return useMutation({

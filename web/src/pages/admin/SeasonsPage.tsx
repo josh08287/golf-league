@@ -2,8 +2,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, CheckCircle, Trash2 } from 'lucide-react';
-import { useSeasons, useCreateSeason, useSetActiveSeason, useDeleteSeason } from '../../hooks/useSeasons';
+import { Plus, CheckCircle, Trash2, Pencil } from 'lucide-react';
+import { useSeasons, useCreateSeason, useSetActiveSeason, useDeleteSeason, useUpdateSeasonHalf } from '../../hooks/useSeasons';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -13,7 +13,7 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
-import type { Season } from '../../types/api';
+import type { Season, SeasonHalf } from '../../types/api';
 
 const schema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -76,6 +76,56 @@ function CreateSeasonForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
   );
 }
 
+const halfSchema = z
+  .object({
+    startDate: z.string().min(1, 'Start date is required'),
+    endDate: z.string().min(1, 'End date is required'),
+  })
+  .refine((v) => v.endDate > v.startDate, {
+    message: 'End date must be after start date',
+    path: ['endDate'],
+  });
+
+type HalfFormValues = z.infer<typeof halfSchema>;
+
+function EditHalfForm({ half, onSuccess, onCancel }: { half: SeasonHalf; onSuccess: () => void; onCancel: () => void }) {
+  const update = useUpdateSeasonHalf();
+
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<HalfFormValues>({
+    resolver: zodResolver(halfSchema),
+    defaultValues: { startDate: half.startDate, endDate: half.endDate },
+  });
+
+  async function onSubmit(values: HalfFormValues) {
+    await update.mutateAsync({ halfId: half.id, startDate: values.startDate, endDate: values.endDate });
+    onSuccess();
+  }
+
+  return (
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <FormField label="Start Date" error={errors.startDate} required>
+          <input {...register('startDate')} type="date" className={inputClass} />
+        </FormField>
+        <FormField label="End Date" error={errors.endDate} required>
+          <input {...register('endDate')} type="date" className={inputClass} />
+        </FormField>
+      </div>
+
+      {update.isError && (
+        <p className="text-sm text-red-600">Failed to update half. Try again.</p>
+      )}
+
+      <div className="flex justify-end gap-3 pt-2">
+        <Button type="button" variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" variant="primary" disabled={isSubmitting || update.isPending}>
+          Save Changes
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function SeasonsPage() {
   const { data: seasons, isLoading, error } = useSeasons();
   const setActive = useSetActiveSeason();
@@ -83,6 +133,7 @@ export function SeasonsPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [activateTarget, setActivateTarget] = useState<Season | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Season | null>(null);
+  const [editHalfTarget, setEditHalfTarget] = useState<SeasonHalf | null>(null);
 
   async function handleDelete() {
     if (!deleteTarget) return;
@@ -125,12 +176,16 @@ export function SeasonsPage() {
                 {s.halves && s.halves.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {s.halves.map((h) => (
-                      <span
+                      <button
                         key={h.id}
-                        className="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600"
+                        type="button"
+                        onClick={() => setEditHalfTarget(h)}
+                        className="group inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-200 hover:text-gray-900"
+                        title="Edit date range"
                       >
                         {h.name}: {h.startDate} → {h.endDate}
-                      </span>
+                        <Pencil className="h-3 w-3 opacity-0 group-hover:opacity-100" />
+                      </button>
                     ))}
                   </div>
                 )}
@@ -169,6 +224,16 @@ export function SeasonsPage() {
           onSuccess={() => setCreateOpen(false)}
           onCancel={() => setCreateOpen(false)}
         />
+      </Modal>
+
+      <Modal open={!!editHalfTarget} title={`Edit ${editHalfTarget?.name ?? 'Half'}`} onClose={() => setEditHalfTarget(null)}>
+        {editHalfTarget && (
+          <EditHalfForm
+            half={editHalfTarget}
+            onSuccess={() => setEditHalfTarget(null)}
+            onCancel={() => setEditHalfTarget(null)}
+          />
+        )}
       </Modal>
 
       <ConfirmDialog
