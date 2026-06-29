@@ -80,16 +80,18 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
   const generatedSchedule = useMemo(() => {
     if (!watched.startDate || !watched.numberOfRounds) return [];
     const dates: Array<{ date: string; nineHoleSide: 'Front' | 'Back' }> = [];
-    const start = new Date(watched.startDate);
-    let currentDate = new Date(start);
+    // Parse as UTC and do all math in UTC so the output matches the yyyy-MM-dd
+    // input without shifting by the viewer's local timezone offset.
+    const [y, m, d] = watched.startDate.split('-').map(Number);
+    const currentDate = new Date(Date.UTC(y, m - 1, d));
     let count = 0;
     let side: 'Front' | 'Back' = (watched.startingSide as 'Front' | 'Back') ?? 'Front';
 
     if (watched.dayOfWeek !== undefined) {
-      const currentDay = currentDate.getDay();
+      const currentDay = currentDate.getUTCDay();
       const target = watched.dayOfWeek;
       const diff = (target - currentDay + 7) % 7;
-      currentDate.setDate(currentDate.getDate() + diff);
+      currentDate.setUTCDate(currentDate.getUTCDate() + diff);
     }
 
     while (count < (watched.numberOfRounds || 0)) {
@@ -99,7 +101,7 @@ export function CreateHalfForm({ onSuccess, onCancel }: CreateHalfFormProps) {
         side = side === 'Front' ? 'Back' : 'Front';
         count++;
       }
-      currentDate.setDate(currentDate.getDate() + 7);
+      currentDate.setUTCDate(currentDate.getUTCDate() + 7);
     }
 
     return dates;
