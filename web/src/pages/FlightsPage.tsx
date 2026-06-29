@@ -121,22 +121,38 @@ export function FlightsPage() {
   );
   const [useGross, setUseGross] = useState(false);
 
-  const halfLabel = useMemo(() => {
-    if (!activeSeason || !data?.data[0]) return '';
-    const halfId = data.data[0].halfId;
-    const half = activeSeason.halves.find((h) => h.id === halfId);
-    return half?.name ?? '';
-  }, [activeSeason, data]);
+  // Group flights by half so each half's standings render in their own section,
+  // ordered by half number. Flights whose half isn't in the active season (e.g.
+  // a prior season) fall into a trailing "Other" group keyed by halfId.
+  const groupedByHalf = useMemo(() => {
+    const flights = data?.data ?? [];
+    const byHalf = new Map<number, Flight[]>();
+    for (const f of flights) {
+      const list = byHalf.get(f.halfId) ?? [];
+      list.push(f);
+      byHalf.set(f.halfId, list);
+    }
+    return [...byHalf.entries()]
+      .map(([halfId, halfFlights]) => {
+        const half = activeSeason?.halves.find((h) => h.id === halfId) ?? null;
+        return {
+          halfId,
+          half,
+          name: half?.name ?? 'Other',
+          halfNumber: half?.halfNumber ?? Number.MAX_SAFE_INTEGER,
+          flights: halfFlights
+            .slice()
+            .sort((a, b) => a.displayOrder - b.displayOrder),
+        };
+      })
+      .sort((a, b) => a.halfNumber - b.halfNumber);
+  }, [data, activeSeason]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Standings"
-        description={
-          halfLabel
-            ? `Competition groups — ${halfLabel}`
-            : 'Competition groups created for each half based on starting handicaps.'
-        }
+        description="Competition groups created for each half based on starting handicaps."
       >
         <div className="flex gap-2 text-sm">
           <button
@@ -159,18 +175,30 @@ export function FlightsPage() {
         <ErrorMessage message="Could not load flights. Please try again." />
       )}
 
-      {data && (
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {data.data.length === 0 && (
-            <p className="col-span-full text-gray-500 text-sm">
-              No flights have been created for this season yet.
-            </p>
-          )}
-          {data.data.map((flight) => (
-            <FlightCard key={flight.id} flight={flight} useGross={useGross} />
-          ))}
-        </div>
+      {data && groupedByHalf.length === 0 && (
+        <p className="text-gray-500 text-sm">
+          No flights have been created for this season yet.
+        </p>
       )}
+
+      {data &&
+        groupedByHalf.map((group) => (
+          <section key={group.halfId} className="space-y-4">
+            <div className="flex items-baseline justify-between border-b border-gray-200 pb-2">
+              <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
+              {group.half && (
+                <span className="text-sm text-gray-500">
+                  {group.half.startDate} – {group.half.endDate}
+                </span>
+              )}
+            </div>
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {group.flights.map((flight) => (
+                <FlightCard key={flight.id} flight={flight} useGross={useGross} />
+              ))}
+            </div>
+          </section>
+        ))}
     </div>
   );
 }
