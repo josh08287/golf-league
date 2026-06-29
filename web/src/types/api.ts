@@ -351,6 +351,8 @@ export interface SeasonHalf {
   name: string;
   startDate: string;
   endDate: string;
+  /** True once the half's rounds have started; its roster is then frozen. */
+  isLocked: boolean;
 }
 
 export interface Season {

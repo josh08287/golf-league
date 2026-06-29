@@ -67,6 +67,26 @@ export function useUpdatePlayer(playerId: string) {
   });
 }
 
+/**
+ * Add, move, or remove a player for a single season half. `flightId: null`
+ * removes the player from that half. The backend rejects changes to a half
+ * whose rounds have already started (locked).
+ */
+export function useSetHalfMembership(playerId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ halfId, flightId }: { halfId: number; flightId: number | null }) =>
+      apiClient
+        .put(`/players/${playerId}/half-membership`, { halfId, flightId })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+      qc.invalidateQueries({ queryKey: playerKeys.detail(playerId) });
+    },
+  });
+}
+
 export function useDeactivatePlayer(playerId: string) {
   const qc = useQueryClient();
 

@@ -23,20 +23,35 @@ public sealed class GetSeasonsQueryHandler : IRequestHandler<GetSeasonsQuery, Re
         .Add("active", s => s.IsActive)
         .Add("isActive", s => s.IsActive);
 
-    public GetSeasonsQueryHandler(ISeasonRepository seasonRepository)
+    private readonly IFlightRepository _flightRepository;
+
+    public GetSeasonsQueryHandler(ISeasonRepository seasonRepository, IFlightRepository flightRepository)
     {
         _seasonRepository = seasonRepository;
+        _flightRepository = flightRepository;
     }
 
     public async Task<Result<List<SeasonDto>>> Handle(GetSeasonsQuery request, CancellationToken cancellationToken)
     {
         var seasons = await _seasonRepository.GetAllAsync(cancellationToken);
-        var dtos = seasons.Select(ToDto).ToList();
+
+        // Compute lock state per half (a half is locked once any of its rounds
+        // have started) so the admin UI can prevent removing players from it.
+        var lockedHalfIds = new HashSet<int>();
+        foreach (var half in seasons.SelectMany(s => s.Halves))
+        {
+            if (await _flightRepository.IsHalfLockedAsync(half.Id, cancellationToken))
+                lockedHalfIds.Add(half.Id);
+        }
+
+        var dtos = seasons
+            .Select(s => ToDto(s, lockedHalfIds))
+            .ToList();
         var sorted = SortMap.Apply(dtos, request.Sort);
         return Result<List<SeasonDto>>.Ok(sorted.ToList());
     }
 
-    internal static SeasonDto ToDto(Domain.Entities.Season s) => new(
+    internal static SeasonDto ToDto(Domain.Entities.Season s, IReadOnlySet<int>? lockedHalfIds = null) => new(
         s.Id, s.Name, s.Year,
         s.StartDate.ToString("yyyy-MM-dd"),
         s.EndDate.ToString("yyyy-MM-dd"),
@@ -46,6 +61,7 @@ public sealed class GetSeasonsQueryHandler : IRequestHandler<GetSeasonsQuery, Re
             .Select(h => new SeasonHalfDto(
                 h.Id, h.SeasonId, h.HalfNumber, h.Name,
                 h.StartDate.ToString("yyyy-MM-dd"),
-                h.EndDate.ToString("yyyy-MM-dd")))
+                h.EndDate.ToString("yyyy-MM-dd"),
+                lockedHalfIds?.Contains(h.Id) ?? false))
             .ToList());
 }

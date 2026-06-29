@@ -20,4 +20,12 @@ public interface IPlayerRepository
     Task UpdateAsync(Player player, CancellationToken cancellationToken = default);
     Task DeleteAsync(int playerId, CancellationToken cancellationToken = default);
     Task AssignToFlightAsync(int playerId, int? flightId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sets the player's flight membership for a single half. A non-null
+    /// <paramref name="flightId"/> assigns (replacing any existing membership in
+    /// that half); a null <paramref name="flightId"/> removes the player from
+    /// the half. Other halves are left untouched.
+    /// </summary>
+    Task SetHalfMembershipAsync(int playerId, int halfId, int? flightId, CancellationToken cancellationToken = default);
 }

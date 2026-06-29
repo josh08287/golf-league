@@ -129,4 +129,35 @@ public sealed class PlayerRepository : IPlayerRepository
 
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task SetHalfMembershipAsync(int playerId, int halfId, int? flightId, CancellationToken cancellationToken = default)
+    {
+        // Drop any existing membership for this player in this half. We only
+        // touch the one half, leaving the player's other half memberships alone.
+        var existing = await _context.FlightMemberships
+            .AsTracking()
+            .Where(fm => fm.PlayerId == playerId && fm.HalfId == halfId)
+            .ToListAsync(cancellationToken);
+
+        if (existing.Count > 0)
+            _context.FlightMemberships.RemoveRange(existing);
+
+        if (flightId is not null)
+        {
+            var flight = await _context.Flights
+                .FirstOrDefaultAsync(f => f.Id == flightId.Value && f.HalfId == halfId, cancellationToken);
+            if (flight is null) return;
+
+            await _context.FlightMemberships.AddAsync(new FlightMembership
+            {
+                PlayerId = playerId,
+                FlightId = flight.Id,
+                SeasonId = flight.SeasonId,
+                HalfId = flight.HalfId,
+                JoinedAt = DateTime.UtcNow,
+            }, cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

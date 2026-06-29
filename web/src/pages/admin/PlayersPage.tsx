@@ -4,6 +4,7 @@ import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Plus, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { usePlayers } from '../../hooks/usePlayers';
+import { useSeasons } from '../../hooks/useSeasons';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -35,6 +36,11 @@ export function PlayersPage() {
   const players = playersPage?.data ?? [];
   const meta = playersPage?.meta;
   const totalPages = meta ? Math.max(1, Math.ceil(meta.totalCount / meta.pageSize)) : 1;
+
+  const { data: seasons } = useSeasons();
+  const activeHalves = (seasons?.find((s) => s.isActive)?.halves ?? [])
+    .slice()
+    .sort((a, b) => a.halfNumber - b.halfNumber);
 
   const [addOpen, setAddOpen] = useState(false);
   const [deactivateTarget, setDeactivateTarget] = useState<Player | null>(null);
@@ -177,10 +183,26 @@ export function PlayersPage() {
       ),
     },
     {
-      key: 'flight',
-      header: 'Flight',
-      sortable: true,
-      render: (p: Player) => p.flightName ?? <span className="text-gray-400">Unassigned</span>,
+      key: 'halves',
+      header: 'Halves',
+      sortable: false,
+      render: (p: Player) => {
+        if (activeHalves.length === 0) {
+          return p.flightName ?? <span className="text-gray-400">Unassigned</span>;
+        }
+        const byHalf = new Map(p.flightMemberships.map((m) => [m.halfId, m.flightName]));
+        return (
+          <span className="text-sm text-gray-700">
+            {activeHalves.map((h, i) => (
+              <span key={h.id}>
+                {i > 0 && <span className="text-gray-300"> · </span>}
+                <span className="text-gray-500">H{h.halfNumber}:</span>{' '}
+                {byHalf.get(h.id) ?? <span className="text-gray-400">—</span>}
+              </span>
+            ))}
+          </span>
+        );
+      },
     },
     {
       key: 'isActive',

@@ -11,6 +11,7 @@ import {
   useUpdatePlayer,
   useDeactivatePlayer,
   useSetHandicap,
+  useSetHalfMembership,
 } from '../../hooks/admin/usePlayerMutations';
 import { useFlights } from '../../hooks/useFlights';
 import { useSeasons } from '../../hooks/useSeasons';
@@ -192,96 +193,98 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
   );
 }
 
-const flightSchema = z.object({
-  flightId: z.string(),
-});
-
-type FlightAssignmentValues = z.infer<typeof flightSchema>;
-
-interface FlightAssignmentFormProps {
+interface HalfMembershipRowProps {
   playerId: string;
+  half: SeasonHalf;
   currentFlightId: number | null;
   flights: Flight[];
-  halvesById: Map<number, SeasonHalf>;
 }
 
-function FlightAssignmentForm({
-  playerId,
-  currentFlightId,
-  flights,
-  halvesById,
-}: FlightAssignmentFormProps) {
-  const updatePlayer = useUpdatePlayer(playerId);
+/** One half's flight assignment: a dropdown, or read-only when the half is locked. */
+function HalfMembershipRow({ playerId, half, currentFlightId, flights }: HalfMembershipRowProps) {
+  const setMembership = useSetHalfMembership(playerId);
+  const [value, setValue] = useState(currentFlightId != null ? String(currentFlightId) : '');
   const [saved, setSaved] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    formState: { isDirty, isSubmitting },
-  } = useForm<FlightAssignmentValues>({
-    resolver: zodResolver(flightSchema),
-    defaultValues: { flightId: currentFlightId != null ? String(currentFlightId) : '' },
-  });
+  const halfFlights = useMemo(
+    () => flights.filter((f) => f.halfId === half.id).sort((a, b) => a.displayOrder - b.displayOrder),
+    [flights, half.id],
+  );
 
-  // Group flights by half for the optgroup label.
-  const grouped = useMemo(() => {
-    const map = new Map<number, Flight[]>();
-    for (const f of flights) {
-      const list = map.get(f.halfId) ?? [];
-      list.push(f);
-      map.set(f.halfId, list);
-    }
-    return [...map.entries()]
-      .map(([halfId, list]) => ({
-        half: halvesById.get(halfId),
-        flights: list.sort((a, b) => a.displayOrder - b.displayOrder),
-      }))
-      .sort((a, b) => (a.half?.halfNumber ?? 99) - (b.half?.halfNumber ?? 99));
-  }, [flights, halvesById]);
+  const dirty = value !== (currentFlightId != null ? String(currentFlightId) : '');
+  const currentFlightName = flights.find((f) => f.id === currentFlightId)?.name;
 
-  async function onSubmit(values: FlightAssignmentValues) {
-    await updatePlayer.mutateAsync({
-      flightId: values.flightId === '' ? null : values.flightId,
-    });
+  async function save() {
+    await setMembership.mutateAsync({ halfId: half.id, flightId: value === '' ? null : Number(value) });
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-      <FormField label="Flight">
-        <select {...register('flightId')} className={selectClass}>
-          <option value="">— Unassigned —</option>
-          {grouped.map(({ half, flights: halfFlights }) => (
-            <optgroup
-              key={half?.id ?? 'orphan'}
-              label={half?.name ?? 'Unknown half'}
-            >
-              {halfFlights.map((f) => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </FormField>
-
-      {updatePlayer.isError && (
-        <p className="text-sm text-red-600">Failed to update flight. Try again.</p>
+    <div className="grid grid-cols-[1fr,2fr] items-center gap-3">
+      <div className="text-sm font-medium text-gray-700">{half.name}</div>
+      {half.isLocked ? (
+        <div className="flex items-center gap-2 text-sm text-gray-600">
+          <span>{currentFlightName ?? <span className="text-gray-400">Not in this half</span>}</span>
+          <Badge variant="neutral">🔒 Locked</Badge>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <select
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            className={selectClass}
+          >
+            <option value="">— Not in this half —</option>
+            {halfFlights.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+          {dirty && (
+            <Button size="sm" variant="primary" onClick={save} disabled={setMembership.isPending}>
+              Save
+            </Button>
+          )}
+          {saved && <span className="text-xs text-green-700">Saved!</span>}
+        </div>
       )}
+      {setMembership.isError && (
+        <p className="col-span-2 text-sm text-red-600">
+          {(setMembership.error as { response?: { data?: { error?: string } } })?.response?.data?.error
+            ?? 'Failed to update. Try again.'}
+        </p>
+      )}
+    </div>
+  );
+}
 
-      <div className="flex items-center gap-3">
-        <Button
-          type="submit"
-          variant="primary"
-          disabled={!isDirty || isSubmitting || updatePlayer.isPending}
-        >
-          Save Flight
-        </Button>
-        {saved && <span className="text-sm text-green-700">Saved!</span>}
-      </div>
-    </form>
+interface HalfMembershipsCardProps {
+  playerId: string;
+  halves: SeasonHalf[];
+  flights: Flight[];
+  membershipFlightByHalf: Map<number, number>;
+}
+
+function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf }: HalfMembershipsCardProps) {
+  const ordered = useMemo(
+    () => [...halves].sort((a, b) => a.halfNumber - b.halfNumber),
+    [halves],
+  );
+
+  return (
+    <div className="space-y-4">
+      {ordered.map((half) => (
+        <HalfMembershipRow
+          key={half.id}
+          playerId={playerId}
+          half={half}
+          currentFlightId={membershipFlightByHalf.get(half.id) ?? null}
+          flights={flights}
+        />
+      ))}
+    </div>
   );
 }
 
@@ -366,11 +369,12 @@ export function PlayerDetailPage() {
     return allFlights.filter((f) => halfIds.has(f.halfId));
   }, [allFlights, activeSeason]);
 
-  const halvesById = useMemo(() => {
-    const map = new Map<number, SeasonHalf>();
-    for (const h of activeSeason?.halves ?? []) map.set(h.id, h);
+  // Player's current flight per half, from their active-season memberships.
+  const membershipFlightByHalf = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const m of player?.flightMemberships ?? []) map.set(m.halfId, m.flightId);
     return map;
-  }, [activeSeason]);
+  }, [player]);
 
   const deactivate = useDeactivatePlayer(id);
   const [confirmDeactivate, setConfirmDeactivate] = useState(false);
@@ -469,16 +473,17 @@ export function PlayerDetailPage() {
         </Card>
 
         <Card className="p-6">
-          <h2 className="mb-1 text-base font-semibold text-gray-900">Flight Assignment</h2>
+          <h2 className="mb-1 text-base font-semibold text-gray-900">Half Assignments</h2>
           <p className="mb-4 text-sm text-gray-500">
-            Currently in: <strong>{player.flightName ?? 'Unassigned'}</strong>
+            Choose the flight this player competes in for each half of the active season.
+            Pick &ldquo;Not in this half&rdquo; to leave them out. A half locks once its rounds start.
           </p>
           {activeSeason ? (
-            <FlightAssignmentForm
+            <HalfMembershipsBody
               playerId={id}
-              currentFlightId={player.flightId}
+              halves={activeSeason.halves}
               flights={activeSeasonFlights}
-              halvesById={halvesById}
+              membershipFlightByHalf={membershipFlightByHalf}
             />
           ) : (
             <p className="text-sm text-gray-500">No active season.</p>

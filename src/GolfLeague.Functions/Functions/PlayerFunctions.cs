@@ -169,6 +169,29 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
+    [Function("SetPlayerHalfMembership")]
+    public async Task<IActionResult> SetPlayerHalfMembership(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/half-membership")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<SetHalfMembershipRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SetHalfMembershipCommand(playerId, body.HalfId, body.FlightId, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("DeletePlayer")]
     public async Task<IActionResult> DeletePlayer(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/players/{id}")] HttpRequest req,
@@ -419,6 +442,7 @@ public sealed class PlayerFunctions
     private sealed record CreatePlayerRequest(string Name, string? Email, double InitialHandicap, string? FlightId);
     private sealed record UpdatePlayerRequest(string FirstName, string LastName, string? Email);
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, IReadOnlyList<string>? Roles);
+    private sealed record SetHalfMembershipRequest(int HalfId, int? FlightId);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)
     {
         public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;

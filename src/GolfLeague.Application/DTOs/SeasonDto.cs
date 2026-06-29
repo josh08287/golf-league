@@ -6,7 +6,8 @@ public sealed record SeasonHalfDto(
     int HalfNumber,
     string Name,
     string StartDate,
-    string EndDate);
+    string EndDate,
+    bool IsLocked = false);
 
 public sealed record SeasonDto(
     int Id,
