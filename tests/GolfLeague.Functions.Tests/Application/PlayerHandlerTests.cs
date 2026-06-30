@@ -288,11 +288,12 @@ public class GetPlayersQueryHandlerTests
     [Fact]
     public async Task Handle_WithActiveMembership_IncludesFlightInfoInDto()
     {
-        var activeSeason = new Season { Id = 1, IsActive = true };
+        var activeSeason = new Season { Id = 1, IsActive = true, Year = 2026 };
+        var half = new SeasonHalf { Id = 1, HalfNumber = 1 };
         var flight = new Flight { Id = 10, Name = "A Flight" };
         var membership = new FlightMembership
         {
-            FlightId = 10, SeasonId = 1, Season = activeSeason, Flight = flight,
+            FlightId = 10, SeasonId = 1, HalfId = 1, Season = activeSeason, Half = half, Flight = flight,
             JoinedAt = DateTime.UtcNow
         };
         var player = new Player
@@ -310,7 +311,7 @@ public class GetPlayersQueryHandlerTests
         var result = await handler.Handle(new GetPlayersQuery(1, 10), default);
 
         result.Value!.Data[0].FlightId.Should().Be(10);
-        result.Value.Data[0].FlightName.Should().Be("A Flight");
+        result.Value.Data[0].FlightName.Should().Be("2026 · H1 · A Flight");
     }
 
     [Fact]
