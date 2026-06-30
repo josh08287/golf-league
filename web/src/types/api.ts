@@ -394,6 +394,9 @@ export interface RoundTeeTimeSchedule {
   currentUserSkippedWeek: boolean;
   slots: TeeTimeSlot[];
   currentUserPreferredSlots: TeeTimeSlotPreference;
+  weekNumber: number;
+  roundDate: string; // "yyyy-MM-dd"
+  courseName: string;
 }
 
 // ── Tee Time Score Entry ───────────────────────────────────────────────────────

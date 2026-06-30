@@ -30,12 +30,15 @@ public sealed class TeeTimeService : ITeeTimeService
         var rounds = await _rounds.GetAllAsync(cancellationToken);
         var now = DateTime.UtcNow;
 
-        // Prefer a round that is already InProgress (e.g. a re-opened round),
-        // then fall back to the nearest upcoming Scheduled round.
-        // Order by date then ID so the earliest in-progress round wins when
-        // (in the unusual case) more than one slips into InProgress state.
+        bool NotYetPlayed(Domain.Entities.Round r) => now < TeeTimeSchedule.LastTeeTimeUtc(
+            r.RoundDate, r.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek));
+
+        // Prefer a round that is currently InProgress — but only if its last tee
+        // time hasn't passed. A stale InProgress round from a finished half (e.g.
+        // never finalized) must NOT pin the page to the old half; we fall through
+        // to the date-based pick in that case.
         var inProgress = rounds
-            .Where(r => r.Status == RoundStatus.InProgress)
+            .Where(r => r.Status == RoundStatus.InProgress && NotYetPlayed(r))
             .OrderBy(r => r.RoundDate)
             .ThenBy(r => r.Id)
             .FirstOrDefault();
@@ -43,14 +46,12 @@ public sealed class TeeTimeService : ITeeTimeService
         if (inProgress is not null)
             return inProgress.Id;
 
-        // The "next" round is the earliest Scheduled round whose last tee time
-        // has NOT yet passed. This advances to next week as soon as the current
-        // week's final tee time is in the past (not when the calendar day rolls
-        // over), so next week opens the moment this week wraps up.
+        // Otherwise the "next" round is simply the earliest Scheduled round whose
+        // last tee time has NOT yet passed — across ALL seasons/halves, purely by
+        // date. This advances to the next round (next week, next half, or next
+        // season) the moment the current round's final tee time is in the past.
         return rounds
-            .Where(r => r.Status == RoundStatus.Scheduled)
-            .Where(r => now < TeeTimeSchedule.LastTeeTimeUtc(
-                r.RoundDate, r.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek)))
+            .Where(r => r.Status == RoundStatus.Scheduled && NotYetPlayed(r))
             .OrderBy(r => r.RoundDate)
             .ThenBy(r => r.Id)
             .Select(r => (int?)r.Id)
@@ -216,6 +217,9 @@ public sealed class TeeTimeService : ITeeTimeService
             callerParticipant?.Id,
             callerParticipant?.TeeTimeId,
             slotDtos,
+            round.WeekNumber,
+            round.RoundDate.ToString("yyyy-MM-dd"),
+            round.Course?.Name ?? string.Empty,
             callerParticipant?.Player.PreferredTeeTimeSlots ?? Domain.Enums.TeeTimeSlotPreference.None,
             callerParticipant?.SkippedWeek ?? false);
     }

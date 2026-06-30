@@ -24,5 +24,8 @@ public sealed record RoundTeeTimeScheduleDto(
     int? CurrentUserParticipantId,
     int? CurrentUserTeeTimeId,
     IReadOnlyList<TeeTimeSlotDto> Slots,
+    int WeekNumber,
+    string RoundDate, // "yyyy-MM-dd"
+    string CourseName,
     TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None,
     bool CurrentUserSkippedWeek = false);

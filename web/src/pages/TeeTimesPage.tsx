@@ -287,13 +287,15 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
     );
   }
 
-  const title = roundCourseName ?? 'Tee Times';
+  const title = roundCourseName ?? schedule.courseName ?? 'Tee Times';
   const subtitle = useMemo(() => {
     const parts: string[] = [];
-    if (roundDate) parts.push(formatShortDate(roundDate));
+    if (schedule.weekNumber) parts.push(`Week ${schedule.weekNumber}`);
+    const date = roundDate ?? schedule.roundDate;
+    if (date) parts.push(formatShortDate(date));
     parts.push(`${schedule.participantCount} players`);
     return parts.join(' · ');
-  }, [roundDate, schedule.participantCount]);
+  }, [roundDate, schedule.roundDate, schedule.weekNumber, schedule.participantCount]);
 
   return (
     <div className="space-y-6">
