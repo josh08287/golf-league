@@ -58,6 +58,22 @@ public static class TeeTimeSchedule
     public static bool IsAfterCutoff(DateOnly roundDate, DateTime utcNow)
         => utcNow >= ComputeSundayNoonCutoffUtc(roundDate);
 
+    /// <summary>
+    /// UTC instant of the last tee time on the given round date, for the given
+    /// player count. Used to decide when a week's play is "over" so the next
+    /// week's tee times can open. With zero players we fall back to the first
+    /// slot so the window still advances at the nominal start time.
+    /// </summary>
+    public static DateTime LastTeeTimeUtc(DateOnly roundDate, int participantCount)
+    {
+        var slot = Math.Max(1, SlotsNeeded(participantCount));
+        var localTime = TimeForSlot(slot);
+        var local = new DateTime(
+            roundDate.Year, roundDate.Month, roundDate.Day,
+            localTime.Hour, localTime.Minute, 0, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, EasternTimeZone);
+    }
+
     // IANA "America/New_York" on Linux, "Eastern Standard Time" on Windows.
     // Try the IANA name first (works on Azure Functions Linux), fall back
     // to the Windows name for local-dev on Windows.

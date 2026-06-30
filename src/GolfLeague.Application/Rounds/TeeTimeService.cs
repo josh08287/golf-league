@@ -28,6 +28,7 @@ public sealed class TeeTimeService : ITeeTimeService
     public async Task<int?> ResolveNextRoundIdAsync(DateOnly today, CancellationToken cancellationToken = default)
     {
         var rounds = await _rounds.GetAllAsync(cancellationToken);
+        var now = DateTime.UtcNow;
 
         // Prefer a round that is already InProgress (e.g. a re-opened round),
         // then fall back to the nearest upcoming Scheduled round.
@@ -42,9 +43,16 @@ public sealed class TeeTimeService : ITeeTimeService
         if (inProgress is not null)
             return inProgress.Id;
 
+        // The "next" round is the earliest Scheduled round whose last tee time
+        // has NOT yet passed. This advances to next week as soon as the current
+        // week's final tee time is in the past (not when the calendar day rolls
+        // over), so next week opens the moment this week wraps up.
         return rounds
-            .Where(r => r.Status == RoundStatus.Scheduled && r.RoundDate >= today)
+            .Where(r => r.Status == RoundStatus.Scheduled)
+            .Where(r => now < TeeTimeSchedule.LastTeeTimeUtc(
+                r.RoundDate, r.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek)))
             .OrderBy(r => r.RoundDate)
+            .ThenBy(r => r.Id)
             .Select(r => (int?)r.Id)
             .FirstOrDefault();
     }
@@ -66,8 +74,51 @@ public sealed class TeeTimeService : ITeeTimeService
 
         var slots = await _teeTimes.GetByRoundAsync(roundId, cancellationToken);
 
-        var dto = BuildDto(round, slots, callingPlayerId);
+        var (isOpen, _, closesUtc) = await GetSignupWindowDetailAsync(round, DateTime.UtcNow, cancellationToken);
+        var dto = BuildDto(round, slots, callingPlayerId, isLocked: !isOpen, closesUtc: closesUtc);
         return Result<RoundTeeTimeScheduleDto>.Ok(dto);
+    }
+
+    /// <summary>
+    /// Whether tee-time sign-ups for <paramref name="round"/> are open at
+    /// <paramref name="utcNow"/>. Sign-ups OPEN as soon as the previous week's
+    /// round (same half, prior week) has finished — i.e. its last tee time has
+    /// passed — and CLOSE at the Sunday-noon-ET cutoff before the round. The
+    /// first round of a half has no predecessor, so it opens immediately.
+    /// </summary>
+    private async Task<(bool IsOpen, string? Reason)> GetSignupWindowAsync(
+        Round round, DateTime utcNow, CancellationToken cancellationToken)
+    {
+        var (isOpen, reason, _) = await GetSignupWindowDetailAsync(round, utcNow, cancellationToken);
+        return (isOpen, reason);
+    }
+
+    private async Task<(bool IsOpen, string? Reason, DateTime ClosesUtc)> GetSignupWindowDetailAsync(
+        Round round, DateTime utcNow, CancellationToken cancellationToken)
+    {
+        // Sign-ups close at the Sunday-noon-ET cutoff before the round, when
+        // auto-fill takes over assigning the remaining players.
+        var closesUtc = TeeTimeSchedule.ComputeSundayNoonCutoffUtc(round.RoundDate);
+
+        if (utcNow >= closesUtc)
+            return (false, "Tee-time sign-ups are closed for this round.", closesUtc);
+
+        // Opens once the previous week's round (same half) has wrapped up.
+        // Rounds with no half (e.g. tournament rounds) have no predecessor to
+        // gate on, so they open immediately.
+        if (round.HalfId is int halfId)
+        {
+            var previous = await _rounds.GetPreviousRoundAsync(halfId, round.WeekNumber, cancellationToken);
+            if (previous is not null)
+            {
+                var prevCount = previous.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek);
+                var opensUtc = TeeTimeSchedule.LastTeeTimeUtc(previous.RoundDate, prevCount);
+                if (utcNow < opensUtc)
+                    return (false, "Tee-time sign-ups for this round haven't opened yet.", closesUtc);
+            }
+        }
+
+        return (true, null, closesUtc);
     }
 
     public async Task<Result<RoundTeeTimeScheduleDto>> JoinAsync(int roundId, int teeTimeId, int callingPlayerId, CancellationToken cancellationToken = default)
@@ -75,8 +126,9 @@ public sealed class TeeTimeService : ITeeTimeService
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
         if (round is null) return Result<RoundTeeTimeScheduleDto>.Fail($"Round {roundId} not found.");
 
-        if (TeeTimeSchedule.IsAfterCutoff(round.RoundDate, DateTime.UtcNow))
-            return Result<RoundTeeTimeScheduleDto>.Fail("Tee-time sign-ups are locked for this round.");
+        var (isOpen, lockReason) = await GetSignupWindowAsync(round, DateTime.UtcNow, cancellationToken);
+        if (!isOpen)
+            return Result<RoundTeeTimeScheduleDto>.Fail(lockReason!);
 
         var participant = round.Participants
             .FirstOrDefault(p => p.PlayerId == callingPlayerId && !p.IsWithdrawn && !p.SkippedWeek);
@@ -107,8 +159,9 @@ public sealed class TeeTimeService : ITeeTimeService
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
         if (round is null) return Result<RoundTeeTimeScheduleDto>.Fail($"Round {roundId} not found.");
 
-        if (TeeTimeSchedule.IsAfterCutoff(round.RoundDate, DateTime.UtcNow))
-            return Result<RoundTeeTimeScheduleDto>.Fail("Tee-time sign-ups are locked for this round.");
+        var (isOpen, lockReason) = await GetSignupWindowAsync(round, DateTime.UtcNow, cancellationToken);
+        if (!isOpen)
+            return Result<RoundTeeTimeScheduleDto>.Fail(lockReason!);
 
         var participant = round.Participants.FirstOrDefault(p => p.PlayerId == callingPlayerId);
         if (participant is null)
@@ -122,11 +175,17 @@ public sealed class TeeTimeService : ITeeTimeService
         return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
     }
 
-    private static RoundTeeTimeScheduleDto BuildDto(Round round, IReadOnlyList<RoundTeeTime> slots, int? callingPlayerId)
+    private static RoundTeeTimeScheduleDto BuildDto(
+        Round round,
+        IReadOnlyList<RoundTeeTime> slots,
+        int? callingPlayerId,
+        bool isLocked,
+        DateTime closesUtc)
     {
         var participantCount = round.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek);
-        var cutoffUtc = TeeTimeSchedule.ComputeSundayNoonCutoffUtc(round.RoundDate);
-        var isLocked = DateTime.UtcNow >= cutoffUtc;
+        // The DTO's "cutoff" is now the moment sign-ups close for this round
+        // (its last tee time), replacing the old Sunday-noon cutoff.
+        var cutoffUtc = closesUtc;
 
         var callerParticipant = callingPlayerId is null
             ? null
