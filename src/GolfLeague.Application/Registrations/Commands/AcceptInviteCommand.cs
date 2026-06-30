@@ -70,7 +70,7 @@ public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCom
             return Result<PlayerDto>.Fail("This invite was sent to a different email address.");
 
         Player player;
-        var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
+        var existing = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, invite.LeagueId, cancellationToken);
 
         if (invite.PreLinkedPlayerId is int preId)
         {

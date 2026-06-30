@@ -32,7 +32,7 @@ public class CreatePlayerCommandHandlerTests
     public async Task Handle_WhenEmailAlreadyExists_ReturnsFail()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByEmailAsync("j@j.com", default)).ReturnsAsync(MakePlayer());
+        playerRepo.Setup(r => r.GetByEmailAsync("j@j.com", 1, default)).ReturnsAsync(MakePlayer());
         var handicapRepo = new Mock<IHandicapRepository>();
 
         var handler = new CreatePlayerCommandHandler(playerRepo.Object, handicapRepo.Object, MakeLeagueContext());
@@ -48,7 +48,7 @@ public class CreatePlayerCommandHandlerTests
     public async Task Handle_WhenNew_CreatesPlayerAndHandicap()
     {
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByEmailAsync("j@j.com", default))
+        playerRepo.Setup(r => r.GetByEmailAsync("j@j.com", 1, default))
             .ReturnsAsync((Player?)null);
 
         var handicapRepo = new Mock<IHandicapRepository>();

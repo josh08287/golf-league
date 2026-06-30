@@ -191,10 +191,12 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.LeagueId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.AppUser)
-                  .WithOne(u => u.Player)
-                  .HasForeignKey<Player>(e => e.AppUserId)
+                  .WithMany()
+                  .HasForeignKey(e => e.AppUserId)
                   .OnDelete(DeleteBehavior.SetNull);
-            entity.HasIndex(e => e.AppUserId).IsUnique();
+            // A user can have at most one Player profile per league, but may
+            // hold separate Player rows across different leagues.
+            entity.HasIndex(e => new { e.AppUserId, e.LeagueId }).IsUnique();
         });
     }
 

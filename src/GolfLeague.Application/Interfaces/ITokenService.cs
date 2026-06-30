@@ -9,9 +9,12 @@ public interface ITokenService
     /// Issues a normal access token with one "role" claim per assigned role.
     /// Used after primary login is complete and any required MFA has been
     /// satisfied. leagueId is the active league context for this session;
-    /// isSuperAdmin bypasses all league-scoped authorization checks.
+    /// playerId is this user's Player profile within that league (a user may
+    /// have a different Player row per league, so the caller must resolve
+    /// it for the active league before issuing); isSuperAdmin bypasses all
+    /// league-scoped authorization checks.
     /// </summary>
-    AccessTokenResult IssueAccessToken(AppUser user, IEnumerable<string> roles, int? leagueId, bool isSuperAdmin);
+    AccessTokenResult IssueAccessToken(AppUser user, IEnumerable<string> roles, int? leagueId, int? playerId, bool isSuperAdmin);
 
     /// <summary>
     /// Issues a short-lived MFA-challenge token that proves the user

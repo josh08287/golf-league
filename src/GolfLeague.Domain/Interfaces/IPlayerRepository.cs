@@ -6,8 +6,25 @@ public interface IPlayerRepository
 {
     Task<Player?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Player>> GetAllActiveAsync(CancellationToken cancellationToken = default);
-    Task<Player?> GetByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default);
-    Task<Player?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Looks up the Player profile for this user within a specific league.
+    /// A user may hold one Player row per league, so league scoping is
+    /// required to get a unique result.
+    /// </summary>
+    Task<Player?> GetByAppUserIdAsync(Guid appUserId, int leagueId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// All Player rows linked to this user across every league. Used for
+    /// guards/diagnostics that need to know "does this user have any
+    /// profile anywhere," not request handling (which is always league-scoped).
+    /// </summary>
+    Task<IReadOnlyList<Player>> GetAllByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default);
+    /// <summary>
+    /// Looks up a Player by email within a specific league. The same email
+    /// may have separate Player rows in different leagues (e.g. the same
+    /// person belonging to two leagues), so this is league-scoped.
+    /// </summary>
+    Task<Player?> GetByEmailAsync(string email, int leagueId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Active players with no linked AppUser. Used by admin to pick which

@@ -91,7 +91,8 @@ public sealed class AuthService : IAuthService
         await AddRoleAsync(user, invite!.Role);
         await ConsumeInviteAsync(invite, user, firstName, lastName, cancellationToken);
 
-        var response = await IssueTokensAsync(user, cancellationToken);
+        var leagueRole = invite.Role.ToString().ToLowerInvariant();
+        var response = await IssueTokensAsync(user, cancellationToken, invite.LeagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
     }
 
@@ -202,6 +203,7 @@ public sealed class AuthService : IAuthService
 
     public async Task<Result<CurrentUserDto>> GetCurrentUserAsync(
         Guid userId,
+        int? leagueId,
         CancellationToken cancellationToken = default)
     {
         var user = await _userManager.FindByIdAsync(userId.ToString());
@@ -214,11 +216,15 @@ public sealed class AuthService : IAuthService
         var roles = await _userManager.GetRolesAsync(user);
         var normalized = roles.Select(r => r.ToLowerInvariant()).ToList();
 
+        var player = leagueId.HasValue
+            ? await _playerRepository.GetByAppUserIdAsync(userId, leagueId.Value, cancellationToken)
+            : null;
+
         var dto = new CurrentUserDto(
             user.Id,
             user.Email ?? string.Empty,
             normalized,
-            user.PlayerId,
+            player?.Id,
             hasPasskey,
             user.TotpEnabled,
             user.IsSuperAdmin);
@@ -232,7 +238,8 @@ public sealed class AuthService : IAuthService
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException($"User {userId} not found.");
-        return await IssueTokensAsync(user, cancellationToken, leagueId: null, leagueRole: null);
+        var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId: null, cancellationToken);
+        return await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
     }
 
     public async Task<Result<bool>> RequestPasswordResetAsync(
@@ -332,9 +339,10 @@ public sealed class AuthService : IAuthService
     }
 
     /// <summary>
-    /// Consume an invite: link the AppUser, create the Player row (if there
-    /// isn't one already linked), seed an initial handicap, mark the invite
-    /// accepted.
+    /// Consume an invite: link the AppUser, create the Player row for this
+    /// invite's league (if the user doesn't already have one there — a user
+    /// may hold separate Player rows in other leagues, which this leaves
+    /// untouched), seed an initial handicap, mark the invite accepted.
     /// </summary>
     internal async Task ConsumeInviteAsync(
         PlayerInvite invite,
@@ -343,7 +351,7 @@ public sealed class AuthService : IAuthService
         string lastName,
         CancellationToken cancellationToken)
     {
-        var existingPlayer = await _playerRepository.GetByAppUserIdAsync(user.Id, cancellationToken);
+        var existingPlayer = await _playerRepository.GetByAppUserIdAsync(user.Id, invite.LeagueId, cancellationToken);
         Player? preLink = null;
         if (existingPlayer is null && invite.PreLinkedPlayerId is int preId)
         {
@@ -398,9 +406,6 @@ public sealed class AuthService : IAuthService
             await _inviteRepository.UpdateAsync(invite, cancellationToken);
             return;
         }
-
-        user.PlayerId = player.Id;
-        await _userManager.UpdateAsync(user);
 
         await _leagueRepository.AddMembershipAsync(new LeagueMembership
         {
@@ -521,7 +526,11 @@ public sealed class AuthService : IAuthService
             ? [leagueRole]
             : roles;
 
-        var access = _tokenService.IssueAccessToken(user, effectiveRoles, leagueId, user.IsSuperAdmin);
+        var player = leagueId.HasValue
+            ? await _playerRepository.GetByAppUserIdAsync(user.Id, leagueId.Value, cancellationToken)
+            : null;
+
+        var access = _tokenService.IssueAccessToken(user, effectiveRoles, leagueId, player?.Id, user.IsSuperAdmin);
         var refreshPlaintext = _tokenService.GenerateRefreshToken();
         var refresh = new RefreshToken
         {

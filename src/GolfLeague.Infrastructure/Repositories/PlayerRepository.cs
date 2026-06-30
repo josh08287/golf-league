@@ -32,13 +32,22 @@ public sealed class PlayerRepository : IPlayerRepository
             .ThenBy(p => p.FirstName)
             .ToListAsync(cancellationToken);
 
-    // AppUser↔Player linkage is 1:1 across all leagues — must be resolvable
-    // without a league context (e.g. during invite acceptance with no slug).
-    public Task<Player?> GetByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default)
-        => _context.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.AppUserId == appUserId, cancellationToken);
+    // A user may hold one Player row per league, so the lookup must be
+    // scoped by league to return a unique result. IgnoreQueryFilters is used
+    // because this can run outside the current league context (e.g. invite
+    // acceptance for a different league than the caller's session).
+    public Task<Player?> GetByAppUserIdAsync(Guid appUserId, int leagueId, CancellationToken cancellationToken = default)
+        => _context.Players.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.AppUserId == appUserId && p.LeagueId == leagueId, cancellationToken);
 
-    public Task<Player?> GetByEmailAsync(string email, CancellationToken cancellationToken = default)
-        => _context.Players.IgnoreQueryFilters().FirstOrDefaultAsync(p => p.Email == email, cancellationToken);
+    public async Task<IReadOnlyList<Player>> GetAllByAppUserIdAsync(Guid appUserId, CancellationToken cancellationToken = default)
+        => await _context.Players.IgnoreQueryFilters()
+            .Where(p => p.AppUserId == appUserId)
+            .ToListAsync(cancellationToken);
+
+    public Task<Player?> GetByEmailAsync(string email, int leagueId, CancellationToken cancellationToken = default)
+        => _context.Players.IgnoreQueryFilters()
+            .FirstOrDefaultAsync(p => p.Email == email && p.LeagueId == leagueId, cancellationToken);
 
     public async Task<IReadOnlyList<Player>> GetUnlinkedActiveAsync(CancellationToken cancellationToken = default)
         => await _context.Players

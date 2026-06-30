@@ -4,9 +4,6 @@ namespace GolfLeague.Domain.Entities;
 
 public sealed class AppUser : IdentityUser<Guid>
 {
-    public int? PlayerId { get; set; }
-    public Player? Player { get; set; }
-
     public string? TotpSecret { get; set; }
     public bool TotpEnabled { get; set; }
 

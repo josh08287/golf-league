@@ -41,7 +41,7 @@ public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCom
         // Players without an email (e.g. guest entries) can be created freely.
         if (!string.IsNullOrWhiteSpace(request.Email))
         {
-            var existing = await _playerRepository.GetByEmailAsync(request.Email, cancellationToken);
+            var existing = await _playerRepository.GetByEmailAsync(request.Email, _leagueContext.LeagueId.Value, cancellationToken);
             if (existing is not null)
                 return Result<PlayerDto>.Fail($"A player with email '{request.Email}' already exists.");
         }

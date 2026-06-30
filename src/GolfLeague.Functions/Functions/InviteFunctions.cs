@@ -151,7 +151,7 @@ public sealed class InviteFunctions
         if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var appUserId))
             return new UnauthorizedResult();
 
-        var result = await _mediator.Send(new GetMyStatusQuery(appUserId), cancellationToken);
+        var result = await _mediator.Send(new GetMyStatusQuery(appUserId, req.GetLeagueId()), cancellationToken);
         return result.ToOkResult();
     }
 

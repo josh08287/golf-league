@@ -129,7 +129,7 @@ public sealed class AuthFunctions
         if (string.IsNullOrEmpty(userIdStr) || !Guid.TryParse(userIdStr, out var userId))
             return new UnauthorizedResult();
 
-        var result = await _authService.GetCurrentUserAsync(userId, cancellationToken);
+        var result = await _authService.GetCurrentUserAsync(userId, req.GetLeagueId(), cancellationToken);
         if (!result.IsSuccess)
             return new NotFoundObjectResult(new { error = result.Error });
 

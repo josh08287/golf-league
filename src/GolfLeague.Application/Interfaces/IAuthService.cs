@@ -47,8 +47,14 @@ public interface IAuthService
         string refreshToken,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// leagueId scopes which Player profile is returned (a user may have a
+    /// different Player row per league); pass the active league from the
+    /// caller's session/JWT. Null when there is no active league context.
+    /// </summary>
     Task<Result<CurrentUserDto>> GetCurrentUserAsync(
         Guid userId,
+        int? leagueId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

@@ -50,12 +50,27 @@ public sealed class AdminUserService : IAdminUserService
     public async Task<IReadOnlyList<AdminUserDto>> ListAdminOnlyUsersAsync(
         CancellationToken cancellationToken = default)
     {
-        // "Admin-only" = no linked Player row. Some of these will be admins
+        // "Admin-only" = a member of this league (via LeagueMembership) with
+        // no linked Player row in this league. Some of these will be admins
         // proper, others might be users who signed up via invite but haven't
         // had a Player created yet (rare given how invites auto-create
-        // Players, but still possible).
+        // Players, but still possible). Scoped to LeagueMembership so users
+        // who only belong to other leagues are never listed here — admins
+        // must not be able to discover users outside their own league.
+        var leagueId = _leagueContext.LeagueId;
+        var memberUserIds = await _dbContext.LeagueMemberships
+            .Where(m => m.LeagueId == leagueId)
+            .Select(m => m.UserId)
+            .ToListAsync(cancellationToken);
+
+        var playerUserIds = await _dbContext.Players
+            .IgnoreQueryFilters()
+            .Where(p => p.LeagueId == leagueId && p.AppUserId != null)
+            .Select(p => p.AppUserId!.Value)
+            .ToListAsync(cancellationToken);
+
         var users = await _dbContext.Users
-            .Where(u => u.PlayerId == null)
+            .Where(u => memberUserIds.Contains(u.Id) && !playerUserIds.Contains(u.Id))
             .OrderBy(u => u.Email)
             .ToListAsync(cancellationToken);
 
@@ -190,16 +205,25 @@ public sealed class AdminUserService : IAdminUserService
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null) return Result<PlayerDto>.Fail("User not found.");
 
-        if (user.PlayerId is not null)
-            return Result<PlayerDto>.Fail("This user already has a player profile.");
+        var leagueId = _leagueContext.LeagueId.Value;
+
+        // Admins may only attach profiles for users who are members of this
+        // league — never reach across into another league's user base.
+        var membership = await _leagueRepository.GetMembershipAsync(leagueId, user.Id, cancellationToken);
+        if (membership is null)
+            return Result<PlayerDto>.Fail("User not found.");
+
+        var existingInLeague = await _playerRepository.GetByAppUserIdAsync(user.Id, leagueId, cancellationToken);
+        if (existingInLeague is not null)
+            return Result<PlayerDto>.Fail("This user already has a player profile in this league.");
 
         if (string.IsNullOrWhiteSpace(user.Email))
             return Result<PlayerDto>.Fail("User has no email address; cannot create a player profile.");
 
-        // Try to adopt an existing unlinked Player with the same email. Only
-        // do this lookup when the user has an email (which we already required
-        // above, so this is unconditional here).
-        var existing = await _playerRepository.GetByEmailAsync(user.Email, cancellationToken);
+        // Try to adopt an existing unlinked Player with the same email, scoped
+        // to this league. A Player with this email already linked to this same
+        // user in another league is unrelated and left untouched.
+        var existing = await _playerRepository.GetByEmailAsync(user.Email, leagueId, cancellationToken);
         Player player;
         if (existing is not null && existing.AppUserId is null)
         {
@@ -218,7 +242,7 @@ public sealed class AdminUserService : IAdminUserService
         }
         else if (existing is not null)
         {
-            // Email matches a Player already linked to a different AppUser.
+            // Email matches a Player in this league already linked to a different AppUser.
             return Result<PlayerDto>.Fail(
                 "A player with this email is already linked to a different account.");
         }
@@ -243,9 +267,6 @@ public sealed class AdminUserService : IAdminUserService
             }, cancellationToken);
             _logger.LogInformation("Created Player {PlayerId} for AppUser {UserId}", player.Id, user.Id);
         }
-
-        user.PlayerId = player.Id;
-        await _userManager.UpdateAsync(user);
 
         if (flightId is int fId)
         {
@@ -294,19 +315,23 @@ public sealed class AdminUserService : IAdminUserService
 
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user is null) return Result<PlayerDto>.Fail("User not found.");
-        if (user.PlayerId is not null)
-            return Result<PlayerDto>.Fail("User is already linked to a player profile.");
 
-        // Set both sides of the 1:1 link in a single transaction-ish sequence.
+        // Admins may only link users who are members of this league — never
+        // reach across into another league's user base.
+        var membership = await _leagueRepository.GetMembershipAsync(player.LeagueId, user.Id, cancellationToken);
+        if (membership is null)
+            return Result<PlayerDto>.Fail("User not found.");
+
+        var existingInLeague = await _playerRepository.GetByAppUserIdAsync(user.Id, player.LeagueId, cancellationToken);
+        if (existingInLeague is not null)
+            return Result<PlayerDto>.Fail("User is already linked to a player profile in this league.");
+
         // Player.Email is overwritten with AppUser.Email so future email-based
         // operations (invite, password reset, etc.) stay consistent.
         player.AppUserId = user.Id;
         if (!string.IsNullOrWhiteSpace(user.Email))
             player.Email = user.Email;
         await _playerRepository.UpdateAsync(player, cancellationToken);
-
-        user.PlayerId = player.Id;
-        await _userManager.UpdateAsync(user);
 
         // Find the pending invite for this player (by pre-link or email) so we
         // can mark it accepted and ensure membership/role are consistent.

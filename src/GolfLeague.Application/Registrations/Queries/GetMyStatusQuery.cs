@@ -9,7 +9,7 @@ namespace GolfLeague.Application.Registrations.Queries;
 /// Query to get the current user's status. Roles come from the linked
 /// AppUser (authoritative for authorization).
 /// </summary>
-public sealed record GetMyStatusQuery(Guid AppUserId) : IRequest<Result<MyStatusResult>>;
+public sealed record GetMyStatusQuery(Guid AppUserId, int? LeagueId) : IRequest<Result<MyStatusResult>>;
 
 /// <summary>
 /// Status values:
@@ -33,7 +33,9 @@ public sealed class GetMyStatusQueryHandler : IRequestHandler<GetMyStatusQuery, 
     {
         var roles = await _roleService.GetRolesAsync(request.AppUserId, cancellationToken);
 
-        var player = await _playerRepo.GetByAppUserIdAsync(request.AppUserId, cancellationToken);
+        var player = request.LeagueId.HasValue
+            ? await _playerRepo.GetByAppUserIdAsync(request.AppUserId, request.LeagueId.Value, cancellationToken)
+            : null;
         var status = player is not null ? "approved" : "none";
         return Result<MyStatusResult>.Ok(new MyStatusResult(status, player?.Id, roles));
     }
