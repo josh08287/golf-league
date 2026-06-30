@@ -4,13 +4,127 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../api/api_service.dart';
 import '../api/providers.dart';
+import '../auth/auth_providers.dart';
 import '../models/models.dart';
 
 class PlayerProfileScreen extends ConsumerWidget {
   const PlayerProfileScreen({super.key, required this.playerId});
 
   final int playerId;
+
+  Future<void> _showEditDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Player player,
+  ) async {
+    final parts = player.fullName.split(' ');
+    final firstCtrl = TextEditingController(text: parts.first);
+    final lastCtrl = TextEditingController(
+      text: parts.length > 1 ? parts.sublist(1).join(' ') : '',
+    );
+    String? error;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return Padding(
+              padding: EdgeInsets.fromLTRB(
+                24,
+                24,
+                24,
+                MediaQuery.of(ctx).viewInsets.bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Edit Player Name',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: firstCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'First name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: lastCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                      labelText: 'Last name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  if (error != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      error!,
+                      style: const TextStyle(color: Colors.red, fontSize: 13),
+                    ),
+                  ],
+                  const SizedBox(height: 20),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.of(ctx).pop(),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      FilledButton(
+                        onPressed: () async {
+                          final first = firstCtrl.text.trim();
+                          final last = lastCtrl.text.trim();
+                          if (first.isEmpty || last.isEmpty) {
+                            setState(() => error = 'First and last name are required.');
+                            return;
+                          }
+                          try {
+                            await ref
+                                .read(apiServiceProvider)
+                                .updatePlayer(
+                                  playerId,
+                                  firstName: first,
+                                  lastName: last,
+                                  email: player.email,
+                                );
+                            ref.invalidate(playerDetailProvider(playerId));
+                            if (ctx.mounted) Navigator.of(ctx).pop();
+                          } catch (e) {
+                            setState(() => error = 'Failed to save. Please try again.');
+                          }
+                        },
+                        child: const Text('Save'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    firstCtrl.dispose();
+    lastCtrl.dispose();
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -19,18 +133,32 @@ class PlayerProfileScreen extends ConsumerWidget {
       playerHandicapHistoryProvider(playerId),
     );
     final roundsAsync = ref.watch(playerRoundsProvider(playerId));
+    final statsAsync = ref.watch(playerStatisticsProvider(playerId));
+    final myStatus = ref.watch(myStatusProvider);
+    final isAdmin = myStatus.role == 'admin' || myStatus.role == 'scorer';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
         title: const Text('Player Profile'),
         leading: const BackButton(),
+        actions: [
+          if (isAdmin)
+            playerAsync.whenOrNull(
+              data: (player) => IconButton(
+                icon: const Icon(Icons.edit_outlined),
+                tooltip: 'Edit name',
+                onPressed: () => _showEditDialog(context, ref, player),
+              ),
+            ) ?? const SizedBox.shrink(),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(playerDetailProvider(playerId));
           ref.invalidate(playerHandicapHistoryProvider(playerId));
           ref.invalidate(playerRoundsProvider(playerId));
+          ref.invalidate(playerStatisticsProvider(playerId));
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -42,6 +170,28 @@ class PlayerProfileScreen extends ConsumerWidget {
               data: (player) => _PlayerHeader(player: player),
             ),
             const SizedBox(height: 24),
+            statsAsync.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+              data: (stats) => stats == null || stats.totalRoundsPlayed == 0
+                  ? const SizedBox.shrink()
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Season Statistics',
+                          style: TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF111827),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        _PlayerStatsSection(stats: stats),
+                        const SizedBox(height: 24),
+                      ],
+                    ),
+            ),
             const Text(
               'Handicap History',
               style: TextStyle(
@@ -207,6 +357,218 @@ class _StatBox extends StatelessWidget {
           style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
         ),
       ],
+    );
+  }
+}
+
+class _PlayerStatsSection extends StatelessWidget {
+  const _PlayerStatsSection({required this.stats});
+
+  final PlayerStatistics stats;
+
+  String _fmt(double? v, {int digits = 1}) =>
+      v != null ? v.toStringAsFixed(digits) : '—';
+
+  @override
+  Widget build(BuildContext context) {
+    final dist = stats.scoringDistribution;
+    return Column(
+      children: [
+        // Averages
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _StatBox(
+                  label: 'Rounds',
+                  value: '${stats.totalRoundsPlayed}',
+                ),
+                _StatBox(
+                  label: 'Avg Gross',
+                  value: _fmt(stats.averageGrossStrokes),
+                ),
+                _StatBox(
+                  label: 'Avg Net',
+                  value: _fmt(stats.averageNetStrokes),
+                ),
+                _StatBox(
+                  label: 'Avg Pts',
+                  value: _fmt(stats.averageNetStablefordPoints),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Bests
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _StatBox(
+                      label: 'Best Gross',
+                      value: stats.bestGrossStrokes != null
+                          ? '${stats.bestGrossStrokes}'
+                          : '—',
+                    ),
+                    _StatBox(
+                      label: 'Best Net Pts',
+                      value: stats.bestNetStablefordPoints != null
+                          ? '${stats.bestNetStablefordPoints}'
+                          : '—',
+                    ),
+                    _StatBox(
+                      label: 'Par or Better',
+                      value: stats.parOrBetterPercentage != null
+                          ? '${stats.parOrBetterPercentage!.toStringAsFixed(0)}%'
+                          : '—',
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Scoring distribution
+        if (dist.totalHolesPlayed > 0)
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Scoring Distribution',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 10),
+                  _DistRow('Eagle or better', dist.eagleOrBetterCount,
+                      dist.totalHolesPlayed, const Color(0xFFFACC15)),
+                  _DistRow('Birdie', dist.birdieCount, dist.totalHolesPlayed,
+                      const Color(0xFF22C55E)),
+                  _DistRow('Par', dist.parCount, dist.totalHolesPlayed,
+                      const Color(0xFF9CA3AF)),
+                  _DistRow('Bogey', dist.bogeyCount, dist.totalHolesPlayed,
+                      const Color(0xFFFB923C)),
+                  _DistRow('Double bogey+', dist.doubleBogeyOrWorseCount,
+                      dist.totalHolesPlayed, const Color(0xFFEF4444)),
+                ],
+              ),
+            ),
+          ),
+        if (stats.strokesGainedPutting != null &&
+            stats.strokesGainedPutting!.holesWithPuttData > 0) ...[
+          const SizedBox(height: 12),
+          Card(
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _StatBox(
+                    label: 'SG: Putting',
+                    value: _fmt(
+                      stats.strokesGainedPutting!.totalStrokesGained,
+                      digits: 2,
+                    ),
+                  ),
+                  _StatBox(
+                    label: 'Avg Putts/Hole',
+                    value: _fmt(
+                      stats.strokesGainedPutting!.averagePuttsPerHole,
+                      digits: 2,
+                    ),
+                  ),
+                  _StatBox(
+                    label: 'Flight Avg',
+                    value: _fmt(
+                      stats.strokesGainedPutting!.flightAveragePuttsPerHole,
+                      digits: 2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DistRow extends StatelessWidget {
+  const _DistRow(this.label, this.count, this.total, this.color);
+
+  final String label;
+  final int count;
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final fraction = total > 0 ? count / total : 0.0;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              label,
+              style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+            ),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: 8,
+                backgroundColor: const Color(0xFFF3F4F6),
+                valueColor: AlwaysStoppedAnimation(color),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 64,
+            child: Text(
+              '$count (${(fraction * 100).toStringAsFixed(0)}%)',
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
