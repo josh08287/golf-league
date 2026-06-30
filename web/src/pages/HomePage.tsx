@@ -269,7 +269,10 @@ export function HomePage() {
   const leagueName = useLeagueName();
   const prefix = useLeaguePrefix();
   const flights = useFlights();
-  const rounds = useRounds(1);
+  // Most recent first so page 1 holds the latest rounds across all halves —
+  // otherwise (default ascending) page 1 is the earliest rounds and the
+  // featured round is stuck in the first half once the season grows past a page.
+  const rounds = useRounds(1, { sortBy: 'date', sortDir: 'desc' });
   const isAuthed = useAuthStore((s) => !!s.user);
   const todaysTeeTime = useMyTodaysTeeTime(isAuthed);
 
