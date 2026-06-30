@@ -19,7 +19,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   const [expiryDays, setExpiryDays] = useState(7);
   const [role, setRole] = useState<'player' | 'scorer' | 'admin'>('player');
   const [preLinkedPlayerId, setPreLinkedPlayerId] = useState<string>('');
-  const [result, setResult] = useState<{ created: number; skipped: string[] } | null>(null);
+  const [result, setResult] = useState<{ created: number; skipped: string[]; autoLinked: string[] } | null>(null);
   const create = useCreateInvites();
 
   // Pre-attach only makes sense in single-email mode (one Player can only
@@ -56,7 +56,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       preLinkedPlayerId:
         mode === 'single' && preLinkedPlayerId ? Number(preLinkedPlayerId) : null,
     });
-    setResult({ created: data.created.length, skipped: data.skipped });
+    setResult({ created: data.created.length, skipped: data.skipped, autoLinked: data.autoLinked });
   }
 
   if (result) {
@@ -65,6 +65,14 @@ function InviteForm({ onDone }: { onDone: () => void }) {
         <p className="font-medium text-gray-900">
           {result.created} invite{result.created !== 1 ? 's' : ''} sent.
         </p>
+        {result.autoLinked.length > 0 && (
+          <div className="rounded-lg bg-green-50 border border-green-200 p-3 text-sm text-green-800">
+            <strong>Already had an account</strong> — linked to this league immediately, no email sent:
+            <ul className="mt-1 list-disc pl-4">
+              {result.autoLinked.map((e) => <li key={e}>{e}</li>)}
+            </ul>
+          </div>
+        )}
         {result.skipped.length > 0 && (
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-800">
             <strong>Skipped</strong> (already invited or existing players):

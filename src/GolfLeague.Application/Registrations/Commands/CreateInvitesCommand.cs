@@ -12,7 +12,9 @@ namespace GolfLeague.Application.Registrations.Commands;
 
 /// <summary>
 /// Creates one or more invites (single or bulk). Skips emails that already have a pending invite or
-/// an existing player record.
+/// an existing player record in this league. When the email already belongs to an AppUser (e.g. a
+/// member of another league), the account is linked immediately — a new Player/LeagueMembership is
+/// created for this league and no invite email is sent, since there's nothing for that user to accept.
 /// </summary>
 public sealed record CreateInvitesCommand(
     IReadOnlyList<string> Emails,
@@ -27,19 +29,36 @@ public sealed record CreateInvitesCommand(
 
 public sealed record CreateInvitesResult(
     List<InviteDto> Created,
-    List<string> Skipped);
+    List<string> Skipped,
+    List<string> AutoLinked);
 
 public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesCommand, Result<CreateInvitesResult>>
 {
     private readonly IInviteRepository _inviteRepo;
     private readonly IPlayerRepository _playerRepo;
+    private readonly IAppUserRepository _appUserRepo;
+    private readonly ILeagueRepository _leagueRepo;
+    private readonly IHandicapRepository _handicapRepo;
+    private readonly IUserRoleService _roleService;
     private readonly IEmailService _emailService;
     private readonly ILeagueContext _leagueContext;
 
-    public CreateInvitesCommandHandler(IInviteRepository inviteRepo, IPlayerRepository playerRepo, IEmailService emailService, ILeagueContext leagueContext)
+    public CreateInvitesCommandHandler(
+        IInviteRepository inviteRepo,
+        IPlayerRepository playerRepo,
+        IAppUserRepository appUserRepo,
+        ILeagueRepository leagueRepo,
+        IHandicapRepository handicapRepo,
+        IUserRoleService roleService,
+        IEmailService emailService,
+        ILeagueContext leagueContext)
     {
         _inviteRepo = inviteRepo;
         _playerRepo = playerRepo;
+        _appUserRepo = appUserRepo;
+        _leagueRepo = leagueRepo;
+        _handicapRepo = handicapRepo;
+        _roleService = roleService;
         _emailService = emailService;
         _leagueContext = leagueContext;
     }
@@ -51,7 +70,12 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
 
         var leagueId = _leagueContext.LeagueId.Value;
         var created = new List<PlayerInvite>();
+        var autoLinked = new List<PlayerInvite>();
         var skipped = new List<string>();
+
+        var role = Enum.TryParse<PlayerRole>(request.Role, true, out var parsedRole)
+            ? parsedRole
+            : PlayerRole.Player;
 
         // Pre-link only makes sense for a single invite — a single Player
         // can only be attached to one AppUser.
@@ -101,6 +125,18 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 continue;
             }
 
+            // The email already belongs to a login (e.g. a member of another
+            // league). There's nothing for them to "accept" by email — link
+            // them into this league immediately.
+            var existingUser = await _appUserRepo.GetByEmailAsync(email, cancellationToken);
+            if (existingUser is not null)
+            {
+                var invite = await AutoLinkExistingUserAsync(
+                    existingUser, email, role, prelinkPlayer, request, leagueId, cancellationToken);
+                autoLinked.Add(invite);
+                continue;
+            }
+
             created.Add(new PlayerInvite
             {
                 LeagueId = leagueId,
@@ -110,9 +146,7 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
                 CreatedAt = DateTime.UtcNow,
                 ExpiresAt = DateTime.UtcNow.AddDays(request.ExpiryDays),
                 InvitedByUserId = request.AdminUserId,
-                Role = Enum.TryParse<Domain.Enums.PlayerRole>(request.Role, true, out var role)
-                    ? role
-                    : Domain.Enums.PlayerRole.Player,
+                Role = role,
                 PreLinkedPlayerId = request.PreLinkedPlayerId,
             });
         }
@@ -127,7 +161,91 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
         foreach (var invite in dtos)
             await _emailService.SendInviteAsync(invite.Email, invite.InviteLink, invite.ExpiresAt, cancellationToken);
 
-        return Result<CreateInvitesResult>.Ok(new CreateInvitesResult(dtos, skipped));
+        var autoLinkedEmails = autoLinked.Select(i => i.Email).ToList();
+
+        return Result<CreateInvitesResult>.Ok(new CreateInvitesResult(dtos, skipped, autoLinkedEmails));
+    }
+
+    /// <summary>
+    /// Links an AppUser that already exists (from another league) into this
+    /// league: creates/adopts a Player row, grants league membership and role,
+    /// seeds an initial handicap for a freshly-created Player, and records an
+    /// already-Accepted PlayerInvite for audit history. No email is sent.
+    /// </summary>
+    private async Task<PlayerInvite> AutoLinkExistingUserAsync(
+        AppUser existingUser,
+        string email,
+        PlayerRole role,
+        Player? prelinkPlayer,
+        CreateInvitesCommand request,
+        int leagueId,
+        CancellationToken cancellationToken)
+    {
+        Player player;
+        if (prelinkPlayer is not null)
+        {
+            prelinkPlayer.AppUserId = existingUser.Id;
+            prelinkPlayer.Email = email;
+            await _playerRepo.UpdateAsync(prelinkPlayer, cancellationToken);
+            player = prelinkPlayer;
+        }
+        else
+        {
+            // Reuse the name from any existing profile for this user (other
+            // leagues) since invite creation collects no name — the admin can
+            // edit it afterward if the new league needs a different display.
+            var otherProfiles = await _playerRepo.GetAllByAppUserIdAsync(existingUser.Id, cancellationToken);
+            var nameSource = otherProfiles.FirstOrDefault();
+
+            player = new Player
+            {
+                LeagueId = leagueId,
+                FirstName = nameSource?.FirstName ?? string.Empty,
+                LastName = nameSource?.LastName ?? string.Empty,
+                Email = email,
+                IsActive = true,
+                AppUserId = existingUser.Id,
+            };
+            await _playerRepo.AddAsync(player, cancellationToken);
+            await _handicapRepo.AddAsync(new Handicap
+            {
+                PlayerId = player.Id,
+                HandicapIndex = 0,
+                EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow),
+                Source = HandicapSource.Initial,
+            }, cancellationToken);
+        }
+
+        await _leagueRepo.AddMembershipAsync(new LeagueMembership
+        {
+            LeagueId = leagueId,
+            UserId = existingUser.Id,
+            Role = role,
+            JoinedAt = DateTime.UtcNow,
+        }, cancellationToken);
+
+        var roleName = role.ToString().ToLowerInvariant();
+        var currentRoles = await _roleService.GetRolesAsync(existingUser.Id, cancellationToken);
+        if (!currentRoles.Contains(roleName))
+            await _roleService.SetRolesAsync(existingUser.Id, currentRoles.Append(roleName).ToList(), cancellationToken);
+
+        var invite = new PlayerInvite
+        {
+            LeagueId = leagueId,
+            Email = email,
+            Token = GenerateToken(),
+            Status = InviteStatus.Accepted,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(request.ExpiryDays),
+            InvitedByUserId = request.AdminUserId,
+            Role = role,
+            PreLinkedPlayerId = request.PreLinkedPlayerId,
+            AcceptedAt = DateTime.UtcNow,
+            AcceptedByAppUserId = existingUser.Id,
+            PlayerId = player.Id,
+        };
+        await _inviteRepo.AddAsync(invite, cancellationToken);
+        return invite;
     }
 
     private static string GenerateToken()

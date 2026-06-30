@@ -334,6 +334,7 @@ export interface Invite {
 export interface CreateInvitesResult {
   created: Invite[];
   skipped: string[];
+  autoLinked: string[];
 }
 
 export type MyStatus = 'approved' | 'none';

@@ -31,19 +31,50 @@ public class CreateInvitesCommandHandlerTests
         IsActive = true,
     };
 
+    private sealed class Mocks
+    {
+        public Mock<IInviteRepository> InviteRepo { get; } = new();
+        public Mock<IPlayerRepository> PlayerRepo { get; } = new();
+        public Mock<IAppUserRepository> AppUserRepo { get; } = new();
+        public Mock<ILeagueRepository> LeagueRepo { get; } = new();
+        public Mock<IHandicapRepository> HandicapRepo { get; } = new();
+        public Mock<IUserRoleService> RoleService { get; } = new();
+        public Mock<IEmailService> EmailService { get; } = new();
+
+        public Mocks()
+        {
+            // Default: no existing account for any email (most tests cover the brand-new-invite path).
+            AppUserRepo.Setup(r => r.GetByEmailAsync(It.IsAny<string>(), default))
+                .ReturnsAsync((AppUser?)null);
+            InviteRepo.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<PlayerInvite>>(), default))
+                .Returns(Task.CompletedTask);
+            InviteRepo.Setup(r => r.AddAsync(It.IsAny<PlayerInvite>(), default))
+                .Returns(Task.CompletedTask);
+            EmailService.Setup(s => s.SendInviteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), default))
+                .Returns(Task.CompletedTask);
+        }
+
+        public CreateInvitesCommandHandler BuildHandler(int leagueId = 1) => new(
+            InviteRepo.Object,
+            PlayerRepo.Object,
+            AppUserRepo.Object,
+            LeagueRepo.Object,
+            HandicapRepo.Object,
+            RoleService.Object,
+            EmailService.Object,
+            MakeLeagueContext(leagueId));
+    }
+
     [Fact]
     public async Task Handle_CreateInvitesWithAdminRole_SetsRoleOnInvite()
     {
-        var inviteRepo = new Mock<IInviteRepository>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var emailService = new Mock<IEmailService>();
-
-        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
-        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player>());
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var handler = m.BuildHandler();
         var command = new CreateInvitesCommand(
             new[] { "new@example.com" },
             "admin-1",
@@ -57,7 +88,7 @@ public class CreateInvitesCommandHandlerTests
         result.Value!.Created.Should().HaveCount(1);
         result.Value!.Created[0].Role.Should().Be("admin");
 
-        inviteRepo.Verify(r => r.AddRangeAsync(
+        m.InviteRepo.Verify(r => r.AddRangeAsync(
             It.Is<List<PlayerInvite>>(invites =>
                 invites.Count == 1 &&
                 invites[0].Email == "new@example.com" &&
@@ -68,16 +99,13 @@ public class CreateInvitesCommandHandlerTests
     [Fact]
     public async Task Handle_CreateInvitesWithoutRole_DefaultsToPlayer()
     {
-        var inviteRepo = new Mock<IInviteRepository>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var emailService = new Mock<IEmailService>();
-
-        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
-        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player>());
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var handler = m.BuildHandler();
         var command = new CreateInvitesCommand(
             new[] { "new@example.com" },
             "admin-1",
@@ -88,7 +116,7 @@ public class CreateInvitesCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Created[0].Role.Should().Be("player");
 
-        inviteRepo.Verify(r => r.AddRangeAsync(
+        m.InviteRepo.Verify(r => r.AddRangeAsync(
             It.Is<List<PlayerInvite>>(invites =>
                 invites[0].Role == PlayerRole.Player),
             default), Times.Once);
@@ -98,19 +126,16 @@ public class CreateInvitesCommandHandlerTests
     public async Task Handle_CreateInvitesSkipsAlreadyLinkedPlayers()
     {
         // A player who already has an AppUser (account exists) should block the invite.
-        var inviteRepo = new Mock<IInviteRepository>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var emailService = new Mock<IEmailService>();
-
-        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
 
         var linkedPlayer = MakePlayer();
         linkedPlayer.AppUserId = Guid.NewGuid(); // already has an account
-        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player> { linkedPlayer });
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var handler = m.BuildHandler();
         var command = new CreateInvitesCommand(
             new[] { "john@example.com" },
             "admin-1",
@@ -127,22 +152,15 @@ public class CreateInvitesCommandHandlerTests
     public async Task Handle_CreateInvitesDoesNotSkipUnlinkedPlayers()
     {
         // An unlinked player profile should not block the invite — they'll be adopted on accept.
-        var inviteRepo = new Mock<IInviteRepository>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var emailService = new Mock<IEmailService>();
-
-        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
-        inviteRepo.Setup(r => r.AddRangeAsync(It.IsAny<IEnumerable<PlayerInvite>>(), default))
-            .Returns(Task.CompletedTask);
-        emailService.Setup(s => s.SendInviteAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), default))
-            .Returns(Task.CompletedTask);
 
         var unlinkedPlayer = MakePlayer(); // AppUserId = null
-        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player> { unlinkedPlayer });
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var handler = m.BuildHandler();
         var command = new CreateInvitesCommand(
             new[] { "john@example.com" },
             "admin-1",
@@ -158,20 +176,17 @@ public class CreateInvitesCommandHandlerTests
     [Fact]
     public async Task Handle_CreateInvitesDoesNotSkipPreLinkedPlayer()
     {
-        var inviteRepo = new Mock<IInviteRepository>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var emailService = new Mock<IEmailService>();
-
-        inviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
             .ReturnsAsync(false);
 
         var existingPlayer = MakePlayer(id: 42);
-        playerRepo.Setup(r => r.GetAllActiveAsync(default))
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
             .ReturnsAsync(new List<Player> { existingPlayer });
-        playerRepo.Setup(r => r.GetByIdAsync(42, default))
+        m.PlayerRepo.Setup(r => r.GetByIdAsync(42, default))
             .ReturnsAsync(existingPlayer);
 
-        var handler = new CreateInvitesCommandHandler(inviteRepo.Object, playerRepo.Object, emailService.Object, MakeLeagueContext());
+        var handler = m.BuildHandler();
         var command = new CreateInvitesCommand(
             new[] { "john@example.com" },
             "admin-1",
@@ -185,6 +200,166 @@ public class CreateInvitesCommandHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Created.Should().HaveCount(1);
         result.Value!.Skipped.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Handle_EmailBelongsToExistingAppUser_AutoLinksWithoutSendingEmail()
+    {
+        // The invited email already has a login (e.g. member of another league).
+        // There's nothing for them to "accept" — link immediately, send no email.
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
+            .ReturnsAsync(new List<Player>());
+
+        var existingUser = new AppUser { Id = Guid.NewGuid(), Email = "existing@example.com", UserName = "existing@example.com" };
+        m.AppUserRepo.Setup(r => r.GetByEmailAsync("existing@example.com", default))
+            .ReturnsAsync(existingUser);
+
+        var otherLeagueProfile = new Player { Id = 99, LeagueId = 2, FirstName = "Jane", LastName = "Roe", AppUserId = existingUser.Id, IsActive = true };
+        m.PlayerRepo.Setup(r => r.GetAllByAppUserIdAsync(existingUser.Id, default))
+            .ReturnsAsync(new List<Player> { otherLeagueProfile });
+
+        m.PlayerRepo.Setup(r => r.AddAsync(It.IsAny<Player>(), default))
+            .Callback<Player, CancellationToken>((p, _) => p.Id = 7)
+            .Returns(Task.CompletedTask);
+
+        m.RoleService.Setup(r => r.GetRolesAsync(existingUser.Id, default))
+            .ReturnsAsync(Array.Empty<string>());
+        m.RoleService.Setup(r => r.SetRolesAsync(existingUser.Id, It.IsAny<IReadOnlyCollection<string>>(), default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = m.BuildHandler(leagueId: 1);
+        var command = new CreateInvitesCommand(
+            new[] { "existing@example.com" },
+            "admin-1",
+            "http://localhost:5173",
+            7,
+            "player");
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Created.Should().BeEmpty();
+        result.Value!.Skipped.Should().BeEmpty();
+        result.Value!.AutoLinked.Should().ContainSingle("existing@example.com");
+
+        // No invite email sent — there's nothing to accept by email.
+        m.EmailService.Verify(s => s.SendInviteAsync(
+            It.IsAny<string>(), It.IsAny<string>(), It.IsAny<DateTime>(), default), Times.Never);
+
+        // A new Player is created in this league, copying the name from the other-league profile.
+        m.PlayerRepo.Verify(r => r.AddAsync(
+            It.Is<Player>(p =>
+                p.LeagueId == 1 &&
+                p.AppUserId == existingUser.Id &&
+                p.FirstName == "Jane" &&
+                p.LastName == "Roe" &&
+                p.Email == "existing@example.com"),
+            default), Times.Once);
+
+        // League membership is granted for this league.
+        m.LeagueRepo.Verify(r => r.AddMembershipAsync(
+            It.Is<LeagueMembership>(lm =>
+                lm.LeagueId == 1 &&
+                lm.UserId == existingUser.Id &&
+                lm.Role == PlayerRole.Player),
+            default), Times.Once);
+
+        // Role is granted on the AppUser.
+        m.RoleService.Verify(r => r.SetRolesAsync(
+            existingUser.Id,
+            It.Is<IReadOnlyCollection<string>>(rs => rs.Contains("player")),
+            default), Times.Once);
+
+        // An already-Accepted invite is recorded for audit history.
+        m.InviteRepo.Verify(r => r.AddAsync(
+            It.Is<PlayerInvite>(i =>
+                i.Email == "existing@example.com" &&
+                i.LeagueId == 1 &&
+                i.Status == InviteStatus.Accepted &&
+                i.AcceptedByAppUserId == existingUser.Id &&
+                i.PlayerId == 7),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_EmailBelongsToExistingAppUser_DoesNotDuplicateRoleAlreadyHeld()
+    {
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
+            .ReturnsAsync(new List<Player>());
+
+        var existingUser = new AppUser { Id = Guid.NewGuid(), Email = "existing@example.com" };
+        m.AppUserRepo.Setup(r => r.GetByEmailAsync("existing@example.com", default))
+            .ReturnsAsync(existingUser);
+        m.PlayerRepo.Setup(r => r.GetAllByAppUserIdAsync(existingUser.Id, default))
+            .ReturnsAsync(new List<Player>());
+        m.PlayerRepo.Setup(r => r.AddAsync(It.IsAny<Player>(), default))
+            .Returns(Task.CompletedTask);
+
+        // Already a "player" elsewhere — should not call SetRolesAsync again.
+        m.RoleService.Setup(r => r.GetRolesAsync(existingUser.Id, default))
+            .ReturnsAsync(new[] { "player" });
+
+        var handler = m.BuildHandler();
+        var command = new CreateInvitesCommand(
+            new[] { "existing@example.com" },
+            "admin-1",
+            "http://localhost:5173",
+            7,
+            "player");
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.AutoLinked.Should().ContainSingle("existing@example.com");
+        m.RoleService.Verify(r => r.SetRolesAsync(
+            It.IsAny<Guid>(), It.IsAny<IReadOnlyCollection<string>>(), default), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_PreLinkedPlayerForExistingAppUser_AdoptsPreLinkedPlayerInstedOfCreatingNew()
+    {
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+
+        var prelink = MakePlayer(id: 55);
+        prelink.Email = "existing@example.com";
+        m.PlayerRepo.Setup(r => r.GetByIdAsync(55, default)).ReturnsAsync(prelink);
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default)).ReturnsAsync(new List<Player> { prelink });
+        m.PlayerRepo.Setup(r => r.UpdateAsync(It.IsAny<Player>(), default)).Returns(Task.CompletedTask);
+
+        var existingUser = new AppUser { Id = Guid.NewGuid(), Email = "existing@example.com" };
+        m.AppUserRepo.Setup(r => r.GetByEmailAsync("existing@example.com", default))
+            .ReturnsAsync(existingUser);
+        m.RoleService.Setup(r => r.GetRolesAsync(existingUser.Id, default))
+            .ReturnsAsync(Array.Empty<string>());
+        m.RoleService.Setup(r => r.SetRolesAsync(existingUser.Id, It.IsAny<IReadOnlyCollection<string>>(), default))
+            .ReturnsAsync(Result<bool>.Ok(true));
+
+        var handler = m.BuildHandler();
+        var command = new CreateInvitesCommand(
+            new[] { "existing@example.com" },
+            "admin-1",
+            "http://localhost:5173",
+            7,
+            "player",
+            55);
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.AutoLinked.Should().ContainSingle("existing@example.com");
+
+        m.PlayerRepo.Verify(r => r.UpdateAsync(
+            It.Is<Player>(p => p.Id == 55 && p.AppUserId == existingUser.Id),
+            default), Times.Once);
+        m.PlayerRepo.Verify(r => r.AddAsync(It.IsAny<Player>(), default), Times.Never);
     }
 }
 
