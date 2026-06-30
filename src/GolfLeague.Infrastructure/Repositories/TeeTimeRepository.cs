@@ -17,7 +17,8 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
     public async Task<IReadOnlyList<RoundTeeTime>> GetByRoundAsync(int roundId, CancellationToken cancellationToken = default)
         => await _context.RoundTeeTimes
             .Include(t => t.Participants).ThenInclude(p => p.Player)
-            .Include(t => t.Participants).ThenInclude(p => p.Flight)
+            .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Season)
+            .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Half)
             .Where(t => t.RoundId == roundId)
             .OrderBy(t => t.TeeTimeNumber)
             .AsSplitQuery()
@@ -26,7 +27,8 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
     public Task<RoundTeeTime?> GetByIdAsync(int teeTimeId, CancellationToken cancellationToken = default)
         => _context.RoundTeeTimes
             .Include(t => t.Participants).ThenInclude(p => p.Player)
-            .Include(t => t.Participants).ThenInclude(p => p.Flight)
+            .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Season)
+            .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Half)
             .FirstOrDefaultAsync(t => t.Id == teeTimeId, cancellationToken);
 
     public async Task<IReadOnlyList<RoundTeeTime>> EnsureSlotsAsync(int roundId, int count, CancellationToken cancellationToken = default)

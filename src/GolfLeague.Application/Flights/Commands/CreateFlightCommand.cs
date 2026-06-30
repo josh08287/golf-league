@@ -4,6 +4,7 @@ using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Flights.Commands;
 
@@ -44,7 +45,7 @@ public sealed class CreateFlightCommandHandler : IRequestHandler<CreateFlightCom
 
         await _flightRepository.AddAsync(flight, cancellationToken);
 
-        var dto = new FlightDto(flight.Id, flight.SeasonId, flight.HalfId, flight.Name, flight.DisplayOrder, 0);
+        var dto = new FlightDto(flight.Id, flight.SeasonId, flight.HalfId, Format(half.Season.Year, half.HalfNumber, flight.Name), flight.DisplayOrder, 0);
         return Result<FlightDto>.Ok(dto);
     }
 }

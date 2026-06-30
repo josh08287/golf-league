@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Flights.Queries;
 
@@ -61,7 +62,7 @@ public sealed class GetFlightsQueryHandler : IRequestHandler<GetFlightsQuery, Re
                 f.Id,
                 f.SeasonId,
                 f.HalfId,
-                f.Name,
+                Format(f),
                 f.DisplayOrder,
                 f.Memberships.Count,
                 await IsLockedAsync(f.HalfId)));

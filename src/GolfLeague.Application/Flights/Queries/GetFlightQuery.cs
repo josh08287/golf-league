@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Flights.Queries;
 
@@ -28,7 +29,7 @@ public sealed class GetFlightQueryHandler : IRequestHandler<GetFlightQuery, Resu
             flight.Id,
             flight.SeasonId,
             flight.HalfId,
-            flight.Name,
+            Format(flight),
             flight.DisplayOrder,
             memberships.Count));
     }

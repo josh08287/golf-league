@@ -32,6 +32,8 @@ public sealed class FlightRepository : IFlightRepository
 
     public async Task<IReadOnlyList<Flight>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default)
         => await _context.Flights
+            .Include(f => f.Season)
+            .Include(f => f.Half)
             .Include(f => f.Memberships)
             .Where(f => f.HalfId == halfId)
             .OrderBy(f => f.DisplayOrder)
@@ -57,6 +59,7 @@ public sealed class FlightRepository : IFlightRepository
 
     public Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default)
         => _context.SeasonHalves
+            .Include(h => h.Season)
             .Include(h => h.Flights).ThenInclude(f => f.Memberships)
             .FirstOrDefaultAsync(h => h.Id == halfId, cancellationToken);
 
@@ -81,6 +84,7 @@ public sealed class FlightRepository : IFlightRepository
 
     public async Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.Flights
+            .Include(f => f.Season)
             .Include(f => f.Half)
             .Where(f => f.SeasonId == seasonId)
             .OrderBy(f => f.HalfId)

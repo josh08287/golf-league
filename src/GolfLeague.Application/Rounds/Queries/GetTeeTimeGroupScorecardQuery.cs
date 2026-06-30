@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Rounds.Queries;
 
@@ -147,7 +148,7 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
                 participant.Player.FullName,
                 participant.Player.Initials,
                 participant.FlightId,
-                participant.Flight?.Name ?? string.Empty,
+                participant.Flight is null ? string.Empty : Format(participant.Flight),
                 participant.HandicapIndex,
                 participant.CourseHandicap,
                 participant.IsWithdrawn,

@@ -4,6 +4,7 @@ using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Flights.Commands;
 
@@ -120,7 +121,7 @@ public sealed class InitializeHalfFlightsCommandHandler
 
         var dtos = createdFlights.Select((cf, _) =>
             new FlightDto(cf.Flight.Id, cf.Flight.SeasonId, cf.Flight.HalfId,
-                          cf.Flight.Name, cf.Flight.DisplayOrder, cf.Members.Count))
+                          Format(half.Season.Year, half.HalfNumber, cf.Flight.Name), cf.Flight.DisplayOrder, cf.Members.Count))
             .ToList();
 
         return Result<List<FlightDto>>.Ok(dtos);

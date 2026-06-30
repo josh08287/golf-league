@@ -3,6 +3,7 @@ using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Players.Queries;
 
@@ -104,7 +105,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         var perHalf = activeMemberships
             .GroupBy(fm => fm.HalfId)
             .Select(g => g.OrderByDescending(fm => fm.JoinedAt).First())
-            .Select(fm => new HalfFlightMembership(fm.HalfId, fm.FlightId, fm.Flight.Name))
+            .Select(fm => new HalfFlightMembership(fm.HalfId, fm.FlightId, Format(fm.Season.Year, fm.Half.HalfNumber, fm.Flight.Name)))
             .ToList();
 
         return new PlayerDto(
@@ -114,7 +115,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             player.IsActive,
             currentHandicap,
             latestMembership?.FlightId,
-            latestMembership?.Flight.Name,
+            latestMembership is null ? null : Format(latestMembership.Season.Year, latestMembership.Half.HalfNumber, latestMembership.Flight.Name),
             roles ?? Array.Empty<string>(),
             player.AppUserId,
             player.PreferredTeeTimeSlots,

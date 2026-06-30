@@ -6,6 +6,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using Microsoft.Extensions.Logging;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Rounds;
 
@@ -205,7 +206,7 @@ public sealed class TeeTimeService : ITeeTimeService
                     p.PlayerId,
                     p.Player.FullName,
                     p.FlightId,
-                    p.Flight?.Name ?? string.Empty))
+                    p.Flight is null ? string.Empty : Format(p.Flight)))
                 .ToList()))
             .ToList();
 

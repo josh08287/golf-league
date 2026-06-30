@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Rounds.Queries;
 
@@ -82,7 +83,7 @@ public sealed class GetRoundScorecardsQueryHandler : IRequestHandler<GetRoundSco
         var courseName = course?.Name ?? string.Empty;
 
         // Build flight name lookup
-        var flightNameLookup = flights.ToDictionary(f => f.Id, f => f.Name);
+        var flightNameLookup = flights.ToDictionary(f => f.Id, f => Format(f));
 
         var dtos = participants.Select(p =>
         {

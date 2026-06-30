@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
+using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Rounds.Queries;
 
@@ -124,7 +125,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
         }
 
         // Build flight name lookup for par-3 skins
-        var flightNameLookup = flights.ToDictionary(f => f.Id, f => f.Name);
+        var flightNameLookup = flights.ToDictionary(f => f.Id, f => Format(f));
 
         // Calculate gross par-3 skins across all flights
         var allParticipants = participants
@@ -290,7 +291,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
         return new FlightSkinsDto(
             flight.Id,
-            flight.Name,
+            Format(flight),
             totalHolesWithSkins,
             totalSkinValueAwarded,
             playerSummaries,
