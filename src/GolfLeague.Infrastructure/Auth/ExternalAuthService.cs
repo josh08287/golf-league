@@ -48,7 +48,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         _logger = logger;
     }
 
-    public Result<ExternalAuthStartDto> Start(string provider, string redirectUri)
+    public Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null)
     {
         if (!TryGetProvider(provider, out var p))
             return Result<ExternalAuthStartDto>.Fail($"Unknown provider: {provider}");
@@ -63,7 +63,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         var verifier = GenerateUrlSafeToken(64);
         var challenge = ComputeS256(verifier);
 
-        _cache.Set(CacheKey(provider, state), new PkceState(verifier, redirectUri), FlowLifetime);
+        _cache.Set(CacheKey(provider, state), new PkceState(verifier, redirectUri, inviteToken), FlowLifetime);
 
         var url = p.BuildAuthorizeUrl(clientId, redirectUri, state, challenge);
         return Result<ExternalAuthStartDto>.Ok(new ExternalAuthStartDto(url, state));
@@ -103,7 +103,7 @@ public sealed class ExternalAuthService : IExternalAuthService
             return Result<AuthResponseDto>.Fail($"{provider} did not return enough profile info (email required).");
 
         // Find or create AppUser
-        var (user, error) = await FindOrCreateUserAsync(provider, profile, cancellationToken);
+        var (user, error) = await FindOrCreateUserAsync(provider, profile, pkce.InviteToken, cancellationToken);
         if (user is null)
             return Result<AuthResponseDto>.Fail(error ?? "Failed to create or link the account.");
 
@@ -120,7 +120,7 @@ public sealed class ExternalAuthService : IExternalAuthService
     ///  3) Fresh sign-up → REQUIRES a pending invite for that email. No open registration.
     /// </summary>
     private async Task<(AppUser? User, string? Error)> FindOrCreateUserAsync(
-        string provider, ExternalProfile profile, CancellationToken cancellationToken)
+        string provider, ExternalProfile profile, string? inviteToken, CancellationToken cancellationToken)
     {
         // 1) Look up by Identity external-login link (provider + providerUserId)
         var byLogin = await _userManager.FindByLoginAsync(provider, profile.ProviderUserId);
@@ -138,15 +138,37 @@ public sealed class ExternalAuthService : IExternalAuthService
             return (byEmail, null);
         }
 
-        // 3) Fresh creation — require a pending invite for this email.
-        var invite = await _inviteRepository.GetPendingByEmailAsync(profile.Email, cancellationToken);
-        var inviteError = AuthService.ValidateInvite(invite, profile.Email);
-        if (inviteError is not null)
+        // 3) Fresh creation — require a pending invite.
+        //
+        // When the user arrived from an invite link, the token is the
+        // authorization: look the invite up by token and allow the provider
+        // email to differ from the invited address (e.g. invited at a Yahoo
+        // address, signing in with Google). The provider email then becomes the
+        // account/player email. Otherwise fall back to matching by email.
+        PlayerInvite? invite;
+        if (!string.IsNullOrWhiteSpace(inviteToken))
         {
-            _logger.LogInformation(
-                "Refused to create user from {Provider} for {Email}: {Reason}",
-                provider, profile.Email, inviteError);
-            return (null, "You don't have an invite to join the league. Ask an admin to send you one.");
+            invite = await _inviteRepository.GetByTokenAsync(inviteToken, cancellationToken);
+            var tokenError = AuthService.ValidateInvite(invite, profile.Email, requireEmailMatch: false);
+            if (tokenError is not null)
+            {
+                _logger.LogInformation(
+                    "Refused to create user from {Provider} for {Email} via invite token: {Reason}",
+                    provider, profile.Email, tokenError);
+                return (null, tokenError);
+            }
+        }
+        else
+        {
+            invite = await _inviteRepository.GetPendingByEmailAsync(profile.Email, cancellationToken);
+            var inviteError = AuthService.ValidateInvite(invite, profile.Email);
+            if (inviteError is not null)
+            {
+                _logger.LogInformation(
+                    "Refused to create user from {Provider} for {Email}: {Reason}",
+                    provider, profile.Email, inviteError);
+                return (null, "You don't have an invite to join the league. Ask an admin to send you one.");
+            }
         }
 
         var fresh = new AppUser
@@ -207,7 +229,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         return Convert.ToBase64String(hash).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
 
-    private sealed record PkceState(string Verifier, string RedirectUri);
+    private sealed record PkceState(string Verifier, string RedirectUri, string? InviteToken = null);
 }
 
 internal sealed record TokenResponse(string AccessToken);

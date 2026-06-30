@@ -184,9 +184,9 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 
 interface StartResponse { authorizeUrl: string; state: string }
 
-export async function startExternalLogin(provider: Provider): Promise<void> {
+export async function startExternalLogin(provider: Provider, inviteToken?: string): Promise<void> {
   const redirectUri = `${window.location.origin}/auth/callback`;
-  const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri });
+  const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri, inviteToken });
   const { authorizeUrl } = unwrap<StartResponse>(res.data);
   sessionStorage.setItem('golf-league-oauth-provider', provider);
   sessionStorage.setItem('golf-league-oauth-redirect-uri', redirectUri);

@@ -30,7 +30,7 @@ public sealed class ExternalAuthFunctions
         if (body is null || string.IsNullOrWhiteSpace(body.RedirectUri))
             return new BadRequestObjectResult(new { error = "redirectUri is required." });
 
-        var result = _externalAuth.Start(provider.ToLowerInvariant(), body.RedirectUri);
+        var result = _externalAuth.Start(provider.ToLowerInvariant(), body.RedirectUri, body.InviteToken);
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
 
@@ -98,6 +98,6 @@ public sealed class ExternalAuthFunctions
         return new RedirectResult(deepLink);
     }
 
-    private sealed record StartRequest(string RedirectUri);
+    private sealed record StartRequest(string RedirectUri, string? InviteToken);
     private sealed record CallbackRequest(string State, string Code, string RedirectUri);
 }

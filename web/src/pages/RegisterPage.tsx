@@ -139,14 +139,14 @@ export function RegisterPage() {
             type="button"
             variant="outline"
             className="w-full"
-            onClick={() => void startExternalLogin('google')}
+            onClick={() => void startExternalLogin('google', token ?? undefined)}
           >
             Continue with Google
           </Button>
         </div>
 
         <p className="mt-4 text-center text-xs text-gray-400">
-          Social sign-in only works if the provider's email matches your invite.
+          You can use any Google account — it doesn&apos;t have to match the email your invite was sent to.
         </p>
 
         <p className="mt-6 text-center text-sm text-gray-500">

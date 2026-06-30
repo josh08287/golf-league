@@ -62,7 +62,10 @@ public sealed class AuthService : IAuthService
             return Result<AuthResponseDto>.Fail("An invite is required to create an account.");
 
         var invite = await _inviteRepository.GetByTokenAsync(inviteToken, cancellationToken);
-        var inviteFailure = ValidateInvite(invite, email);
+        // The token authorizes registration; the user may use a different email
+        // than the invite was addressed to (it becomes their account email, and
+        // is adopted onto the pre-linked player in ConsumeInviteAsync).
+        var inviteFailure = ValidateInvite(invite, email, requireEmailMatch: false);
         if (inviteFailure is not null)
             return Result<AuthResponseDto>.Fail(inviteFailure);
 
@@ -310,13 +313,20 @@ public sealed class AuthService : IAuthService
     /// still pending/non-expired. Returns null on success, an error message
     /// to surface on failure.
     /// </summary>
-    internal static string? ValidateInvite(PlayerInvite? invite, string email)
+    /// <param name="requireEmailMatch">
+    /// When true, the supplied <paramref name="email"/> must match the invite's
+    /// address. Token-based registration passes false: the invite token is the
+    /// authorization, so the user may sign up with any email (which then becomes
+    /// their account/player email). The social path keeps this true because it
+    /// locates the invite *by* the provider email.
+    /// </param>
+    internal static string? ValidateInvite(PlayerInvite? invite, string email, bool requireEmailMatch = true)
     {
         if (invite is null) return "Invite not found.";
         if (invite.Status == InviteStatus.Revoked) return "This invite has been revoked.";
         if (invite.Status == InviteStatus.Accepted) return "This invite has already been used.";
         if (invite.ExpiresAt < DateTime.UtcNow) return "This invite has expired.";
-        if (!string.Equals(invite.Email, email, StringComparison.OrdinalIgnoreCase))
+        if (requireEmailMatch && !string.Equals(invite.Email, email, StringComparison.OrdinalIgnoreCase))
             return "This invite was sent to a different email address.";
         return null;
     }
