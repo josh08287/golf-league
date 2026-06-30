@@ -128,6 +128,7 @@ public sealed class PlayerRepository : IPlayerRepository
         }
 
         await _context.SaveChangesAsync(cancellationToken);
+        _context.ChangeTracker.Clear();
     }
 
     public async Task SetHalfMembershipAsync(int playerId, int halfId, int? flightId, CancellationToken cancellationToken = default)
