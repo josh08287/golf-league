@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Card';
+import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { useLeagueSettings, useUpdateLeagueSetting } from '../../hooks/admin/useLeagueSettings';
@@ -71,15 +72,22 @@ export function SettingsPage() {
   }
 
   const dropCountValue = getNumericSetting(SETTING_KEYS.standingsDropCount, 1);
-  const [dropCountInput, setDropCountInput] = useState<string | null>(null);
-  const displayDropCount = dropCountInput ?? String(dropCountValue);
+  const [dropCountInput, setDropCountInput] = useState<string>('');
+  const [dropCountInitialized, setDropCountInitialized] = useState(false);
 
-  function handleDropCountBlur() {
-    const parsed = parseInt(displayDropCount, 10);
-    if (!isNaN(parsed) && parsed >= 0 && parsed !== dropCountValue) {
-      update.mutate({ key: SETTING_KEYS.standingsDropCount, value: String(parsed) });
+  if (settings && !dropCountInitialized) {
+    setDropCountInput(String(dropCountValue));
+    setDropCountInitialized(true);
+  }
+
+  const dropCountParsed = parseInt(dropCountInput, 10);
+  const dropCountValid = !isNaN(dropCountParsed) && dropCountParsed >= 0;
+  const dropCountDirty = dropCountValid && dropCountParsed !== dropCountValue;
+
+  function handleSaveDropCount() {
+    if (dropCountValid) {
+      update.mutate({ key: SETTING_KEYS.standingsDropCount, value: String(dropCountParsed) });
     }
-    setDropCountInput(null);
   }
 
   return (
@@ -108,16 +116,24 @@ export function SettingsPage() {
                     Number of each player's lowest-scoring rounds excluded from their standings total and average. Set to 0 to count all rounds.
                   </p>
                 </div>
-                <input
-                  type="number"
-                  min={0}
-                  value={displayDropCount}
-                  onChange={(e) => setDropCountInput(e.target.value)}
-                  onBlur={handleDropCountBlur}
-                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
-                  disabled={update.isPending}
-                  className="w-20 shrink-0 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
-                />
+                <div className="flex shrink-0 items-center gap-2">
+                  <input
+                    type="number"
+                    min={0}
+                    value={dropCountInput}
+                    onChange={(e) => setDropCountInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveDropCount(); }}
+                    disabled={update.isPending}
+                    className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveDropCount}
+                    disabled={!dropCountDirty || update.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
