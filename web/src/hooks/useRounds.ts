@@ -28,11 +28,11 @@ export const roundKeys = {
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-export function useRounds(page = 1, sort?: TableSort) {
+export function useRounds(page = 1, sort?: TableSort, pageSize = 20) {
   return useQuery({
-    queryKey: roundKeys.list(page, sort),
+    queryKey: [...roundKeys.list(page, sort), pageSize] as const,
     queryFn: async () => {
-      const params: Record<string, string | number> = { page, pageSize: 20 };
+      const params: Record<string, string | number> = { page, pageSize };
       if (sort) {
         params.sortBy = sort.sortBy;
         params.sortDir = sort.sortDir;

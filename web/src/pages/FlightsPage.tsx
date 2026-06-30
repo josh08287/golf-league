@@ -3,6 +3,8 @@ import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Users, ArrowRight } from 'lucide-react';
 import { useFlights, useFlightStandings } from '@/hooks/useFlights';
 import { useSeasons } from '@/hooks/useSeasons';
+import { useRounds } from '@/hooks/useRounds';
+import { normalizeRoundStatus } from '@/lib/enumUtils';
 import { useMemo, useState } from 'react';
 import {
   Card,
@@ -22,7 +24,7 @@ import {
   TableCell,
   TableRow,
 } from '@/components/ui/Table';
-import type { Flight, Standing } from '@/types/api';
+import type { Flight, Season, SeasonHalf, Standing } from '@/types/api';
 
 function positionBadge(position: number) {
   if (position === 1) return <Badge variant="gold">1</Badge>;
@@ -115,15 +117,35 @@ function FlightCard({ flight, useGross }: FlightCardProps) {
 export function FlightsPage() {
   const { data, isPending, isError } = useFlights();
   const { data: seasons } = useSeasons();
-  const activeSeason = useMemo(
-    () => seasons?.find((s) => s.isActive) ?? null,
-    [seasons]
-  );
+  // Pull a generous window of rounds (most recent first) so we can find the
+  // last finalized round per half across every season for ordering.
+  const { data: roundsPage } = useRounds(1, { sortBy: 'date', sortDir: 'desc' }, 500);
   const [useGross, setUseGross] = useState(false);
 
-  // Group flights by half so each half's standings render in their own section,
-  // ordered by half number. Flights whose half isn't in the active season (e.g.
-  // a prior season) fall into a trailing "Other" group keyed by halfId.
+  // halfId → { season, half } across ALL seasons (not just the active one), so
+  // every group can be labelled with its season year and half name.
+  const halfInfoById = useMemo(() => {
+    const map = new Map<number, { season: Season; half: SeasonHalf }>();
+    for (const season of seasons ?? []) {
+      for (const half of season.halves) map.set(half.id, { season, half });
+    }
+    return map;
+  }, [seasons]);
+
+  // halfId → most recent finalized round date. Rounds arrive newest-first, so
+  // the first finalized round we see for a half is its latest.
+  const lastFinalizedByHalf = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const r of roundsPage?.data ?? []) {
+      if (normalizeRoundStatus(r.status) !== 'Finalized') continue;
+      if (!map.has(r.halfId)) map.set(r.halfId, r.scheduledDate);
+    }
+    return map;
+  }, [roundsPage]);
+
+  // Group flights by half, label with "{year} — {half name}", and order so the
+  // half whose most recent round was finalized most recently comes first. Halves
+  // with no finalized round yet sort last, newest season/half first.
   const groupedByHalf = useMemo(() => {
     const flights = data?.data ?? [];
     const byHalf = new Map<number, Flight[]>();
@@ -134,19 +156,37 @@ export function FlightsPage() {
     }
     return [...byHalf.entries()]
       .map(([halfId, halfFlights]) => {
-        const half = activeSeason?.halves.find((h) => h.id === halfId) ?? null;
+        const info = halfInfoById.get(halfId) ?? null;
+        const year = info?.season.year ?? 0;
+        const halfName = info?.half.name ?? 'Other';
+        const lastFinalized = lastFinalizedByHalf.get(halfId) ?? null;
         return {
           halfId,
-          half,
-          name: half?.name ?? 'Other',
-          halfNumber: half?.halfNumber ?? Number.MAX_SAFE_INTEGER,
+          half: info?.half ?? null,
+          year,
+          name: info ? `${year} — ${halfName}` : 'Other',
+          halfNumber: info?.half.halfNumber ?? Number.MAX_SAFE_INTEGER,
+          lastFinalized,
           flights: halfFlights
             .slice()
             .sort((a, b) => a.displayOrder - b.displayOrder),
         };
       })
-      .sort((a, b) => a.halfNumber - b.halfNumber);
-  }, [data, activeSeason]);
+      .sort((a, b) => {
+        // Primary: most recent finalized round first; halves with none go last.
+        if (a.lastFinalized && b.lastFinalized) {
+          if (a.lastFinalized !== b.lastFinalized)
+            return a.lastFinalized < b.lastFinalized ? 1 : -1;
+        } else if (a.lastFinalized) {
+          return -1;
+        } else if (b.lastFinalized) {
+          return 1;
+        }
+        // Tiebreak: newest season first, then later half first.
+        if (a.year !== b.year) return b.year - a.year;
+        return b.halfNumber - a.halfNumber;
+      });
+  }, [data, halfInfoById, lastFinalizedByHalf]);
 
   return (
     <div className="space-y-6">
@@ -177,7 +217,7 @@ export function FlightsPage() {
 
       {data && groupedByHalf.length === 0 && (
         <p className="text-gray-500 text-sm">
-          No flights have been created for this season yet.
+          No flights have been created yet.
         </p>
       )}
 
