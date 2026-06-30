@@ -20,6 +20,8 @@ public sealed class AdminUserService : IAdminUserService
     private readonly IUserRoleService _roleService;
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly IInviteRepository _inviteRepository;
+    private readonly ILeagueRepository _leagueRepository;
     private readonly ILeagueContext _leagueContext;
     private readonly ILogger<AdminUserService> _logger;
 
@@ -29,6 +31,8 @@ public sealed class AdminUserService : IAdminUserService
         IUserRoleService roleService,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
+        IInviteRepository inviteRepository,
+        ILeagueRepository leagueRepository,
         ILeagueContext leagueContext,
         ILogger<AdminUserService> logger)
     {
@@ -37,6 +41,8 @@ public sealed class AdminUserService : IAdminUserService
         _roleService = roleService;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
+        _inviteRepository = inviteRepository;
+        _leagueRepository = leagueRepository;
         _leagueContext = leagueContext;
         _logger = logger;
     }
@@ -302,9 +308,52 @@ public sealed class AdminUserService : IAdminUserService
         user.PlayerId = player.Id;
         await _userManager.UpdateAsync(user);
 
-        _logger.LogInformation(
-            "Manually linked Player {PlayerId} to AppUser {UserId}",
-            player.Id, user.Id);
+        // Find the pending invite for this player (by pre-link or email) so we
+        // can mark it accepted and ensure membership/role are consistent.
+        // LeagueId is always set for admin endpoints (league-scoped JWT required).
+        var leagueId = _leagueContext.LeagueId
+            ?? throw new InvalidOperationException("LeagueId is required to complete link-user.");
+        var invite = await _dbContext.PlayerInvites
+            .IgnoreQueryFilters()
+            .Where(i => i.LeagueId == leagueId
+                && i.Status == InviteStatus.Pending
+                && (i.PreLinkedPlayerId == player.Id
+                    || (player.Email != null && i.Email == player.Email)))
+            .OrderByDescending(i => i.CreatedAt)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var membershipRole = invite?.Role ?? PlayerRole.Player;
+
+        await _leagueRepository.AddMembershipAsync(new LeagueMembership
+        {
+            LeagueId = leagueId,
+            UserId = user.Id,
+            Role = membershipRole,
+            JoinedAt = DateTime.UtcNow,
+        }, cancellationToken);
+
+        var roleName = membershipRole.ToString().ToLowerInvariant();
+        if (!await _userManager.IsInRoleAsync(user, roleName))
+            await _userManager.AddToRoleAsync(user, roleName);
+
+        if (invite is not null)
+        {
+            invite.Status = InviteStatus.Accepted;
+            invite.AcceptedAt = DateTime.UtcNow;
+            invite.AcceptedByAppUserId = user.Id;
+            invite.PlayerId = player.Id;
+            invite.PreLinkedPlayer = null;
+            await _inviteRepository.UpdateAsync(invite, cancellationToken);
+            _logger.LogInformation(
+                "Manually linked Player {PlayerId} to AppUser {UserId}; marked invite {InviteId} as Accepted",
+                player.Id, user.Id, invite.Id);
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Manually linked Player {PlayerId} to AppUser {UserId}; no pending invite found",
+                player.Id, user.Id);
+        }
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
         var roles = (await _userManager.GetRolesAsync(user))

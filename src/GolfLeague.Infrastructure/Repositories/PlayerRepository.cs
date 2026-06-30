@@ -53,7 +53,7 @@ public sealed class PlayerRepository : IPlayerRepository
 
     public async Task UpdateAsync(Player player, CancellationToken cancellationToken = default)
     {
-        _context.Players.Update(player);
+        _context.Entry(player).State = EntityState.Modified;
         await _context.SaveChangesAsync(cancellationToken);
     }
 
