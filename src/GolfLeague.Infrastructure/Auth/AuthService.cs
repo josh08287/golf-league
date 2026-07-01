@@ -450,7 +450,7 @@ public sealed class AuthService : IAuthService
     /// When leagueId is null and the user belongs to exactly one league,
     /// that league is auto-selected.
     /// </summary>
-    private async Task<(int? leagueId, string? leagueRole)> ResolveLeagueAsync(
+    internal async Task<(int? leagueId, string? leagueRole)> ResolveLeagueAsync(
         AppUser user,
         int? leagueId,
         CancellationToken cancellationToken)

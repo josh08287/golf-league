@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="GolfLeague.Functions.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Azure.Communication.Email" Version="1.*" />
     <PackageReference Include="Azure.Identity" Version="1.*" />
     <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.*" />

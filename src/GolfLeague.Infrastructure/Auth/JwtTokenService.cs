@@ -72,7 +72,11 @@ public sealed class JwtTokenService : ITokenService
     {
         try
         {
-            var handler = new JwtSecurityTokenHandler();
+            // JwtSecurityTokenHandler remaps short claim names (e.g. "role") to
+            // long legacy URIs on validation by default, which silently breaks
+            // RoleClaimType = "role" below and IsInRole always returns false.
+            // Disabling the inbound map keeps claim types as issued.
+            var handler = new JwtSecurityTokenHandler { InboundClaimTypeMap = new Dictionary<string, string>() };
             var principal = handler.ValidateToken(token, _validationParameters, out _);
             // Only accept tokens that explicitly carry the MFA-pending role.
             if (!principal.IsInRole(MfaPendingRole)) return null;
