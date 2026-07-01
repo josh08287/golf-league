@@ -28,19 +28,29 @@ public class TournamentResultsHandlerTests
     private static RoundParticipant MakeParticipant(
         int playerId, string name, int? totalGross = null, int? totalNet = null,
         int? grossPoints = null, int? netPoints = null, double handicapIndex = 10, int courseHandicap = 8,
-        params HoleScore[] holes) => new()
+        params HoleScore[] holes)
     {
-        Id = playerId,
-        PlayerId = playerId,
-        Player = MakePlayer(playerId, name),
-        TotalGrossStrokes = totalGross,
-        TotalNetStrokes = totalNet,
-        TotalGrossStablefordPoints = grossPoints,
-        TotalNetStablefordPoints = netPoints,
-        HandicapIndex = handicapIndex,
-        CourseHandicap = courseHandicap,
-        HoleScores = holes,
-    };
+        // Handler only considers participants who have hole scores ("active").
+        // When a test sets round totals without explicit holes, add a placeholder
+        // so ranking/matchup tests exercise total-based logic.
+        var holeList = holes;
+        if (holeList.Length == 0 && (totalGross.HasValue || totalNet.HasValue || grossPoints.HasValue || netPoints.HasValue))
+            holeList = [MakeHole(1, gross: 4, net: 4)];
+
+        return new()
+        {
+            Id = playerId,
+            PlayerId = playerId,
+            Player = MakePlayer(playerId, name),
+            TotalGrossStrokes = totalGross,
+            TotalNetStrokes = totalNet,
+            TotalGrossStablefordPoints = grossPoints,
+            TotalNetStablefordPoints = netPoints,
+            HandicapIndex = handicapIndex,
+            CourseHandicap = courseHandicap,
+            HoleScores = holeList,
+        };
+    }
 
     private static Round MakeRound(RoundType type = RoundType.Tournament) => new()
     {
@@ -287,7 +297,7 @@ public class TournamentResultsHandlerTests
     public async Task Handle_LongestDriveWinnersAndHoleExtras_AreMappedThrough()
     {
         var alice = MakeParticipant(1, "Alice", holes: MakeHole(1, gross: 4, net: 4));
-        var extra = new TournamentHoleExtra { HoleNumber: 3 = 3, RoundId = 1, ClosestToPinPlayerId = 1, ClosestToPinPlayer = alice.Player };
+        var extra = new TournamentHoleExtra { HoleNumber = 3, RoundId = 1, ClosestToPinPlayerId = 1, ClosestToPinPlayer = alice.Player };
         var ldWinner = new TournamentLongestDriveWinner { RoundId = 1, PlayerId = 1, Player = alice.Player };
 
         var m = new Mocks();
