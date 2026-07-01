@@ -6,26 +6,36 @@ import '../api/providers.dart';
 import '../auth/auth_providers.dart';
 import '../models/models.dart';
 
+/// Shows the tee-time schedule for a specific round, or — when [roundId] is
+/// null — for the next scheduled round (matching the web "/tee-times" page).
 class TeeTimesScreen extends ConsumerWidget {
-  const TeeTimesScreen({super.key, required this.roundId});
+  const TeeTimesScreen({super.key, this.roundId});
 
-  final int roundId;
+  final int? roundId;
+
+  void _invalidate(WidgetRef ref) {
+    if (roundId != null) {
+      ref.invalidate(roundTeeTimesProvider(roundId!));
+    } else {
+      ref.invalidate(nextRoundTeeTimesProvider);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scheduleAsync = ref.watch(roundTeeTimesProvider(roundId));
+    final scheduleAsync = roundId != null
+        ? ref.watch(roundTeeTimesProvider(roundId!))
+        : ref.watch(nextRoundTeeTimesProvider);
     final myStatus = ref.watch(myStatusProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
       appBar: AppBar(
-        title: const Text('Tee Times'),
+        title: Text(roundId != null ? 'Tee Times' : 'Next Round Tee Times'),
         leading: const BackButton(),
       ),
       body: RefreshIndicator(
-        onRefresh: () async {
-          ref.invalidate(roundTeeTimesProvider(roundId));
-        },
+        onRefresh: () async => _invalidate(ref),
         child: scheduleAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, _) => Center(
@@ -37,8 +47,7 @@ class TeeTimesScreen extends ConsumerWidget {
                 const Text('Could not load tee times.'),
                 const SizedBox(height: 8),
                 ElevatedButton(
-                  onPressed: () =>
-                      ref.invalidate(roundTeeTimesProvider(roundId)),
+                  onPressed: () => _invalidate(ref),
                   child: const Text('Retry'),
                 ),
               ],
@@ -46,16 +55,21 @@ class TeeTimesScreen extends ConsumerWidget {
           ),
           data: (schedule) {
             if (schedule == null) {
-              return const Center(
+              return Center(
                 child: Text(
-                  'No tee times available for this round.',
-                  style: TextStyle(color: Color(0xFF6B7280)),
+                  roundId != null
+                      ? 'No tee times available for this round.'
+                      : 'No upcoming round with tee times.',
+                  style: const TextStyle(color: Color(0xFF6B7280)),
                 ),
               );
             }
             return _TeeTimesView(
               schedule: schedule,
               myPlayerId: myStatus.playerId,
+              isAdmin:
+                  myStatus.role == 'admin' || myStatus.role == 'scorer',
+              onChanged: () => _invalidate(ref),
             );
           },
         ),
@@ -65,10 +79,17 @@ class TeeTimesScreen extends ConsumerWidget {
 }
 
 class _TeeTimesView extends ConsumerWidget {
-  const _TeeTimesView({required this.schedule, this.myPlayerId});
+  const _TeeTimesView({
+    required this.schedule,
+    this.myPlayerId,
+    this.isAdmin = false,
+    required this.onChanged,
+  });
 
   final RoundTeeTimeSchedule schedule;
   final int? myPlayerId;
+  final bool isAdmin;
+  final VoidCallback onChanged;
 
   String _formatCutoff(String cutoffUtc) {
     final cutoff = DateTime.parse(cutoffUtc);
@@ -163,6 +184,11 @@ class _TeeTimesView extends ConsumerWidget {
           ),
         ],
 
+        if (isParticipant && !schedule.isLocked) ...[
+          const SizedBox(height: 16),
+          _SkipWeekCard(schedule: schedule, onChanged: onChanged),
+        ],
+
         const SizedBox(height: 24),
 
         // Tee Time Slots
@@ -181,6 +207,8 @@ class _TeeTimesView extends ConsumerWidget {
             slot: slot,
             schedule: schedule,
             isParticipant: isParticipant,
+            isAdmin: isAdmin,
+            onChanged: onChanged,
           ),
         ),
 
@@ -272,16 +300,81 @@ class _InfoCard extends StatelessWidget {
   }
 }
 
+class _SkipWeekCard extends ConsumerStatefulWidget {
+  const _SkipWeekCard({required this.schedule, required this.onChanged});
+
+  final RoundTeeTimeSchedule schedule;
+  final VoidCallback onChanged;
+
+  @override
+  ConsumerState<_SkipWeekCard> createState() => _SkipWeekCardState();
+}
+
+class _SkipWeekCardState extends ConsumerState<_SkipWeekCard> {
+  bool _saving = false;
+
+  Future<void> _toggle(bool skipped) async {
+    setState(() => _saving = true);
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .skipMyWeek(widget.schedule.roundId, skipped);
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not update: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skipped = widget.schedule.currentUserSkippedWeek;
+    return Card(
+      elevation: 0,
+      color: skipped ? const Color(0xFFFFF7ED) : Colors.white,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: skipped ? Colors.orange.shade200 : const Color(0xFFE5E7EB),
+        ),
+      ),
+      child: SwitchListTile(
+        title: const Text(
+          'Skip this week',
+          style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        ),
+        subtitle: Text(
+          skipped
+              ? 'You\'re marked as skipping this round.'
+              : 'Sitting this one out? Flip the switch so auto-fill skips you.',
+          style: const TextStyle(fontSize: 12),
+        ),
+        value: skipped,
+        onChanged: _saving ? null : _toggle,
+      ),
+    );
+  }
+}
+
 class _TeeTimeSlotCard extends ConsumerStatefulWidget {
   const _TeeTimeSlotCard({
     required this.slot,
     required this.schedule,
     required this.isParticipant,
+    this.isAdmin = false,
+    required this.onChanged,
   });
 
   final TeeTimeSlot slot;
   final RoundTeeTimeSchedule schedule;
   final bool isParticipant;
+  final bool isAdmin;
+  final VoidCallback onChanged;
 
   @override
   ConsumerState<_TeeTimeSlotCard> createState() => _TeeTimeSlotCardState();
@@ -295,7 +388,7 @@ class _TeeTimeSlotCardState extends ConsumerState<_TeeTimeSlotCard> {
     try {
       final api = ref.read(apiServiceProvider);
       await api.joinTeeTime(widget.schedule.roundId, widget.slot.id);
-      ref.invalidate(roundTeeTimesProvider(widget.schedule.roundId));
+      widget.onChanged();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -312,12 +405,97 @@ class _TeeTimeSlotCardState extends ConsumerState<_TeeTimeSlotCard> {
     try {
       final api = ref.read(apiServiceProvider);
       await api.leaveTeeTime(widget.schedule.roundId);
-      ref.invalidate(roundTeeTimesProvider(widget.schedule.roundId));
+      widget.onChanged();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Could not leave slot: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _adminRemove(TeeTimeParticipant player) async {
+    setState(() => _isLoading = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.adminRemoveParticipantFromTeeTime(
+        widget.schedule.roundId,
+        player.participantId,
+      );
+      ref.invalidate(adminRoundParticipantsProvider(widget.schedule.roundId));
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not remove player: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _adminAddPlayer() async {
+    final participants = await ref.read(
+      adminRoundParticipantsProvider(widget.schedule.roundId).future,
+    );
+    if (!mounted) return;
+    // Players not in this slot already (those in other slots get moved).
+    final inThisSlot = widget.slot.players.map((p) => p.participantId).toSet();
+    final candidates = participants
+        .where((p) => !inThisSlot.contains(p.id) && !p.skippedWeek)
+        .toList();
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No players available to add.')),
+      );
+      return;
+    }
+    final selected = await showModalBottomSheet<AdminTeeTimeParticipant>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Add player to this tee time',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+              ),
+            ),
+            ...candidates.map(
+              (p) => ListTile(
+                title: Text(p.fullName),
+                subtitle: p.teeTimeNumber != null
+                    ? Text('Currently in tee time #${p.teeTimeNumber}')
+                    : const Text('Unassigned'),
+                onTap: () => Navigator.of(ctx).pop(p),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _isLoading = true);
+    try {
+      final api = ref.read(apiServiceProvider);
+      await api.adminMoveParticipantToTeeTime(
+        widget.schedule.roundId,
+        widget.slot.id,
+        selected.id,
+      );
+      ref.invalidate(adminRoundParticipantsProvider(widget.schedule.roundId));
+      widget.onChanged();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not move player: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -452,6 +630,12 @@ class _TeeTimeSlotCardState extends ConsumerState<_TeeTimeSlotCard> {
                         color: isCurrentUser ? const Color(0xFF1a5c38) : null,
                       ),
                     ),
+                    onDeleted: widget.isAdmin && !_isLoading
+                        ? () => _adminRemove(player)
+                        : null,
+                    deleteIcon: widget.isAdmin
+                        ? const Icon(Icons.close, size: 14)
+                        : null,
                     backgroundColor: isCurrentUser
                         ? const Color(0xFFE8F5E9)
                         : const Color(0xFFF3F4F6),
@@ -497,6 +681,17 @@ class _TeeTimeSlotCardState extends ConsumerState<_TeeTimeSlotCard> {
                     ),
                   ),
                 ),
+            ],
+            if (widget.isAdmin && !isFull && !_isLoading) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _adminAddPlayer,
+                  icon: const Icon(Icons.person_add, size: 16),
+                  label: const Text('Add player (admin)'),
+                ),
+              ),
             ],
             if (_isLoading)
               const Center(

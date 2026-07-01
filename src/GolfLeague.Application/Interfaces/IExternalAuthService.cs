@@ -15,7 +15,7 @@ public interface IExternalAuthService
     /// authorized by the token rather than requiring the provider's email to
     /// match the invited address.
     /// </param>
-    Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null);
+    Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null, string? envUrl = null);
 
     /// <summary>
     /// Exchange a provider auth code for tokens, fetch the user profile,

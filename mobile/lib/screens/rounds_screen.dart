@@ -118,6 +118,24 @@ class _RoundCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (round.isTournament)
+                    Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Text(
+                        '🏆 Tournament',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
@@ -165,6 +183,21 @@ class _RoundCard extends StatelessWidget {
                       color: const Color(0xFF1a5c38),
                     ),
                   ),
+                  if (round.isTournament) ...[
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: () => context
+                          .push('/rounds/${round.id}/tournament-results'),
+                      child: const Text(
+                        'Tournament Results',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF92400E),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],

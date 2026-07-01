@@ -11,6 +11,7 @@ class StatisticsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final coursesAsync = ref.watch(coursesProvider);
     final mostImprovedAsync = ref.watch(mostImprovedProvider);
+    final leaderboardsAsync = ref.watch(leagueLeaderboardsProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -22,6 +23,7 @@ class StatisticsScreen extends ConsumerWidget {
         onRefresh: () async {
           ref.invalidate(coursesProvider);
           ref.invalidate(mostImprovedProvider);
+          ref.invalidate(leagueLeaderboardsProvider);
         },
         child: ListView(
           padding: const EdgeInsets.all(16),
@@ -33,6 +35,25 @@ class StatisticsScreen extends ConsumerWidget {
               data: (result) => result != null && result.winner != null
                   ? _MostImprovedCard(result: result)
                   : const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 24),
+            // League Leaderboards
+            const Text(
+              'League Leaderboards',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827),
+              ),
+            ),
+            const SizedBox(height: 12),
+            leaderboardsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (_, _) =>
+                  const _ErrorCard('Could not load leaderboards.'),
+              data: (boards) => boards == null
+                  ? const SizedBox.shrink()
+                  : _LeagueLeaderboards(boards: boards),
             ),
             const SizedBox(height: 24),
             // Course Statistics Section
@@ -397,6 +418,176 @@ class _HoleStatRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _LeagueLeaderboards extends StatelessWidget {
+  const _LeagueLeaderboards({required this.boards});
+
+  final LeagueLeaderboards boards;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        _LeaderboardCard(
+          title: 'Avg Overall Gross Score',
+          rows: boards.lowGross
+              .map(
+                (e) => _LeaderboardRowData(
+                  e.playerName,
+                  e.average.toStringAsFixed(1),
+                  '${e.roundsPlayed} rounds',
+                ),
+              )
+              .toList(),
+        ),
+        _LeaderboardCard(
+          title: 'Avg Overall Net Score',
+          rows: boards.lowNet
+              .map(
+                (e) => _LeaderboardRowData(
+                  e.playerName,
+                  e.average.toStringAsFixed(1),
+                  '${e.roundsPlayed} rounds',
+                ),
+              )
+              .toList(),
+        ),
+        _LeaderboardCard(
+          title: 'Birdies & Eagles',
+          rows: boards.birdiesEagles
+              .map(
+                (e) => _LeaderboardRowData(
+                  e.playerName,
+                  '${e.total}',
+                  '${e.totalBirdies} birdies · ${e.totalEaglesOrBetter} eagles+',
+                ),
+              )
+              .toList(),
+        ),
+        _LeaderboardCard(
+          title: 'Par-3 Gross Skins',
+          rows: boards.par3Skins
+              .map(
+                (e) => _LeaderboardRowData(
+                  e.playerName,
+                  '${e.totalSkinsWon}',
+                  '${e.totalSkinValue} value',
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    );
+  }
+}
+
+class _LeaderboardRowData {
+  const _LeaderboardRowData(this.name, this.value, this.subtitle);
+  final String name;
+  final String value;
+  final String subtitle;
+}
+
+class _LeaderboardCard extends StatelessWidget {
+  const _LeaderboardCard({required this.title, required this.rows});
+
+  final String title;
+  final List<_LeaderboardRowData> rows;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: Color(0xFFE5E7EB)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+            ),
+            const SizedBox(height: 8),
+            if (rows.isEmpty)
+              const Text(
+                'No data yet.',
+                style: TextStyle(color: Color(0xFF9CA3AF), fontSize: 12),
+              )
+            else
+              ...rows.take(5).toList().asMap().entries.map((entry) {
+                final i = entry.key;
+                final row = entry.value;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: i == 0
+                              ? Colors.amber
+                              : const Color(0xFFF3F4F6),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Text(
+                            '${i + 1}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: i == 0
+                                  ? Colors.white
+                                  : const Color(0xFF6B7280),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              row.name,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                                fontSize: 13,
+                              ),
+                            ),
+                            Text(
+                              row.subtitle,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Color(0xFF9CA3AF),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        row.value,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                          color: Color(0xFF1a5c38),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }

@@ -185,8 +185,20 @@ export async function getCurrentUser(): Promise<CurrentUser> {
 interface StartResponse { authorizeUrl: string; state: string }
 
 export async function startExternalLogin(provider: Provider, inviteToken?: string): Promise<void> {
-  const redirectUri = `${window.location.origin}/auth/callback`;
-  const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri, inviteToken });
+  let redirectUri = `${window.location.origin}/auth/callback`;
+  let envUrl: string | undefined = undefined;
+
+  const configuredRedirectUri = import.meta.env.VITE_REDIRECT_URI;
+  if (configuredRedirectUri) {
+    const prodOrigin = new URL(configuredRedirectUri).origin;
+    // Use proxy if not on production origin and not local dev
+    if (window.location.origin !== prodOrigin && !window.location.hostname.includes('localhost')) {
+      redirectUri = `${prodOrigin}/auth-proxy.html`;
+      envUrl = window.location.origin;
+    }
+  }
+
+  const res = await authClient.post(`/auth/external/${provider}/start`, { redirectUri, inviteToken, envUrl });
   const { authorizeUrl } = unwrap<StartResponse>(res.data);
   sessionStorage.setItem('golf-league-oauth-provider', provider);
   sessionStorage.setItem('golf-league-oauth-redirect-uri', redirectUri);

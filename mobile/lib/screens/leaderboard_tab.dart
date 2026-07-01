@@ -73,7 +73,7 @@ class _FlightLeaderboardPreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final params = FlightStandingsParams(
       flightId: flight.id.toString(),
-      halfId: flight.seasonId.toString(),
+      halfId: (flight.halfId ?? flight.seasonId).toString(),
     );
     final standingsAsync = ref.watch(flightStandingsProvider(params));
 
@@ -89,7 +89,7 @@ class _FlightLeaderboardPreview extends ConsumerWidget {
         children: [
           InkWell(
             onTap: () => context.push(
-              '/flights/${flight.id}/leaderboard?halfId=${flight.seasonId}',
+              '/flights/${flight.id}/leaderboard?halfId=${flight.halfId ?? flight.seasonId}',
             ),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
             child: Padding(

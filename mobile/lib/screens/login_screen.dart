@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -50,6 +51,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
     try {
       final result = await action();
+      if (result.mfaEnrollmentRequired) {
+        if (mounted) {
+          setState(() => _loading = false);
+          context.push('/auth/mfa/enroll', extra: result.accessToken);
+        }
+        return;
+      }
       if (result.mfaRequired) {
         setState(() {
           _loading = false;
@@ -165,7 +173,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           obscureText: true,
           autofillHints: const [AutofillHints.password],
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton(
+            onPressed: _loading
+                ? null
+                : () => context.push('/auth/forgot-password'),
+            child: const Text('Forgot password?'),
+          ),
+        ),
+        const SizedBox(height: 8),
         SizedBox(
           width: double.infinity,
           height: 48,
@@ -200,6 +218,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             icon: const Icon(Icons.g_mobiledata),
             label: const Text('Continue with Google'),
           ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              'New to the league? ',
+              style: TextStyle(color: Color(0xFF6B7280)),
+            ),
+            TextButton(
+              onPressed: _loading ? null : () => context.go('/register'),
+              child: const Text('Create account'),
+            ),
+          ],
         ),
       ],
     );
@@ -252,6 +284,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String _errorMessage(Object e) {
+    if (e is PlatformException) {
+      // flutter_web_auth_2 throws CANCELED when the user closes the browser
+      // tab without completing sign-in.
+      return e.code == 'CANCELED'
+          ? 'Sign-in was cancelled.'
+          : 'Could not open the sign-in page. Please try again.';
+    }
     final dynamic dynamicError = e;
     try {
       final response = dynamicError.response;

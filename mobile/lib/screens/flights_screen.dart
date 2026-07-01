@@ -91,7 +91,9 @@ class _FlightCard extends StatelessWidget {
         side: const BorderSide(color: Color(0xFFE5E7EB)),
       ),
       child: InkWell(
-        onTap: () => context.push('/flights/${flight.id}/leaderboard?halfId=${flight.seasonId}'),
+        onTap: () => context.push(
+          '/flights/${flight.id}/leaderboard?halfId=${flight.halfId ?? flight.seasonId}',
+        ),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),

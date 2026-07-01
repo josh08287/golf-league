@@ -93,6 +93,18 @@ class FlightStandingsParams {
   final String flightId;
   final String halfId;
   final bool useGrossPoints;
+
+  // Value equality so the provider family caches by content — params are
+  // constructed fresh on every widget rebuild.
+  @override
+  bool operator ==(Object other) =>
+      other is FlightStandingsParams &&
+      other.flightId == flightId &&
+      other.halfId == halfId &&
+      other.useGrossPoints == useGrossPoints;
+
+  @override
+  int get hashCode => Object.hash(flightId, halfId, useGrossPoints);
 }
 
 // For backward compatibility
@@ -338,6 +350,190 @@ final courseStatisticsProvider = FutureProvider.family<CourseStatistics?, int>((
     return CourseStatistics.fromJson(data);
   }
   return _extractData(data, CourseStatistics.fromJson);
+});
+
+// ── Seasons ───────────────────────────────────────────────────────────────────
+
+final seasonsProvider = FutureProvider<List<Season>>((ref) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  final response = await dio.get<dynamic>(
+    '/seasons',
+    options: Options(
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    ),
+  );
+  final data = response.data;
+  if (data is List) {
+    return data.map((e) => Season.fromJson(e as Map<String, dynamic>)).toList();
+  }
+  return _extractList(data, Season.fromJson);
+});
+
+// ── Skins & Tournament Results ────────────────────────────────────────────────
+
+final roundSkinsProvider = FutureProvider.family<RoundSkins?, int>((
+  ref,
+  roundId,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  try {
+    final response = await dio.get<dynamic>(
+      '/rounds/$roundId/skins',
+      options: Options(
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      ),
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic> && !data.containsKey('data')) {
+      return RoundSkins.fromJson(data);
+    }
+    return _extractData(data, RoundSkins.fromJson);
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 404) return null;
+    rethrow;
+  }
+});
+
+final tournamentResultsProvider = FutureProvider.family<TournamentResults?, int>((
+  ref,
+  roundId,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  try {
+    final response = await dio.get<dynamic>(
+      '/tournament-rounds/$roundId/results',
+      options: Options(
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      ),
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic> && !data.containsKey('data')) {
+      return TournamentResults.fromJson(data);
+    }
+    return _extractData(data, TournamentResults.fromJson);
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 404) return null;
+    rethrow;
+  }
+});
+
+// ── League Leaderboards & Player Statistics ───────────────────────────────────
+
+final leagueLeaderboardsProvider = FutureProvider<LeagueLeaderboards?>((
+  ref,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  final response = await dio.get<dynamic>(
+    '/statistics/leaderboards',
+    options: Options(
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    ),
+  );
+  final data = response.data;
+  if (data is Map<String, dynamic> && !data.containsKey('data')) {
+    return LeagueLeaderboards.fromJson(data);
+  }
+  return _extractData(data, LeagueLeaderboards.fromJson);
+});
+
+final playerStatisticsProvider = FutureProvider.family<PlayerStatistics?, int>((
+  ref,
+  playerId,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  try {
+    final response = await dio.get<dynamic>(
+      '/players/$playerId/statistics',
+      options: Options(
+        headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+      ),
+    );
+    final data = response.data;
+    if (data is Map<String, dynamic> && !data.containsKey('data')) {
+      return PlayerStatistics.fromJson(data);
+    }
+    return _extractData(data, PlayerStatistics.fromJson);
+  } on DioException catch (e) {
+    if (e.response?.statusCode == 404) return null;
+    rethrow;
+  }
+});
+
+// ── Admin: score entry & tee time management ──────────────────────────────────
+
+final roundParticipantsProvider =
+    FutureProvider.family<List<RoundParticipant>, int>((ref, roundId) async {
+      final dio = ref.watch(apiClientProvider);
+      final auth = ref.watch(authServiceProvider);
+      final token = await auth.getAccessToken();
+      final response = await dio.get<dynamic>(
+        '/rounds/$roundId/participants',
+        options: Options(
+          headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+        ),
+      );
+      final data = response.data;
+      if (data is List) {
+        return data
+            .map((e) => RoundParticipant.fromJson(e as Map<String, dynamic>))
+            .toList();
+      }
+      return _extractList(data, RoundParticipant.fromJson);
+    });
+
+final adminRoundParticipantsProvider =
+    FutureProvider.family<List<AdminTeeTimeParticipant>, int>((
+      ref,
+      roundId,
+    ) async {
+      final dio = ref.watch(apiClientProvider);
+      final auth = ref.watch(authServiceProvider);
+      final token = await auth.getAccessToken();
+      final response = await dio.get<dynamic>(
+        '/admin/rounds/$roundId/participants',
+        options: Options(
+          headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+        ),
+      );
+      final data = response.data;
+      if (data is List) {
+        return data
+            .map(
+              (e) => AdminTeeTimeParticipant.fromJson(e as Map<String, dynamic>),
+            )
+            .toList();
+      }
+      return _extractList(data, AdminTeeTimeParticipant.fromJson);
+    });
+
+final courseDetailProvider = FutureProvider.family<CourseDetail?, int>((
+  ref,
+  courseId,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  final response = await dio.get<dynamic>(
+    '/courses/$courseId',
+    options: Options(
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    ),
+  );
+  final data = response.data;
+  if (data is Map<String, dynamic> && !data.containsKey('data')) {
+    return CourseDetail.fromJson(data);
+  }
+  return _extractData(data, CourseDetail.fromJson);
 });
 
 final mostImprovedProvider = FutureProvider<MostImprovedResult?>((ref) async {

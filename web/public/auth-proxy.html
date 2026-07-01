@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Authenticating...</title>
+</head>
+<body>
+    <p>Completing login, please wait...</p>
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const stateParam = params.get('state');
+        if (stateParam && stateParam.includes('|')) {
+            const parts = stateParam.split('|');
+            const targetHost = parts[1];
+            
+            // Reconstruct the parameters with the original full state
+            // It's safer to leave the state untouched because completeExternalLogin
+            // might rely on the exact string (the backend handles splitting it).
+            window.location.replace(`${targetHost}/auth/callback?${params.toString()}`);
+        } else {
+            // Fallback: just go to the current origin's callback if no envUrl is found
+            window.location.replace(`/auth/callback?${params.toString()}`);
+        }
+    </script>
+</body>
+</html>

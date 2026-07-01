@@ -3,20 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'auth/auth_providers.dart';
+import 'screens/admin/admin_rounds_screen.dart';
+import 'screens/admin/admin_score_entry_screen.dart';
 import 'screens/dashboard_screen.dart';
 import 'screens/flights_screen.dart';
 import 'screens/flight_leaderboard_screen.dart';
+import 'screens/forgot_password_screen.dart';
 import 'screens/leaderboard_tab.dart';
 import 'screens/login_screen.dart';
+import 'screens/mfa_enroll_screen.dart';
 import 'screens/not_invited_screen.dart';
 import 'screens/player_profile_screen.dart';
 import 'screens/players_screen.dart';
 import 'screens/register_screen.dart';
+import 'screens/reset_password_screen.dart';
 import 'screens/round_detail_screen.dart';
 import 'screens/rounds_screen.dart';
 import 'screens/score_entry_screen.dart';
 import 'screens/statistics_screen.dart';
 import 'screens/tee_times_screen.dart';
+import 'screens/tournament_results_screen.dart';
 
 final _router = GoRouter(
   initialLocation: '/splash',
@@ -25,6 +31,22 @@ final _router = GoRouter(
     GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
     GoRoute(path: '/register', builder: (_, _) => const RegisterScreen()),
     GoRoute(path: '/not-invited', builder: (_, _) => const NotInvitedScreen()),
+    GoRoute(
+      path: '/auth/forgot-password',
+      builder: (_, _) => const ForgotPasswordScreen(),
+    ),
+    GoRoute(
+      path: '/auth/reset-password',
+      builder: (_, state) => ResetPasswordScreen(
+        email: state.uri.queryParameters['email'],
+        token: state.uri.queryParameters['token'],
+      ),
+    ),
+    GoRoute(
+      path: '/auth/mfa/enroll',
+      builder: (_, state) =>
+          MfaEnrollScreen(challengeToken: state.extra as String?),
+    ),
     GoRoute(
       path: '/',
       builder: (context, state) => const MainNavigationScreen(),
@@ -58,12 +80,29 @@ final _router = GoRouter(
           TeeTimesScreen(roundId: int.parse(state.pathParameters['roundId']!)),
     ),
     GoRoute(
+      path: '/rounds/:roundId/tournament-results',
+      builder: (_, state) => TournamentResultsScreen(
+        roundId: int.parse(state.pathParameters['roundId']!),
+      ),
+    ),
+    GoRoute(path: '/tee-times', builder: (_, _) => const TeeTimesScreen()),
+    GoRoute(
       path: '/tee-times/:teeTimeId/enter-scores',
       builder: (_, state) => ScoreEntryScreen(
         teeTimeId: int.parse(state.pathParameters['teeTimeId']!),
       ),
     ),
     GoRoute(path: '/statistics', builder: (_, _) => const StatisticsScreen()),
+    GoRoute(
+      path: '/admin/rounds',
+      builder: (_, _) => const AdminRoundsScreen(),
+    ),
+    GoRoute(
+      path: '/admin/rounds/:roundId/scores',
+      builder: (_, state) => AdminScoreEntryScreen(
+        roundId: int.parse(state.pathParameters['roundId']!),
+      ),
+    ),
   ],
 );
 
@@ -271,7 +310,7 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
             title: const Text('Tee Times'),
             onTap: () {
               context.pop();
-              setState(() => _currentIndex = 0);
+              context.push('/tee-times');
             },
           ),
           ListTile(
@@ -282,6 +321,33 @@ class _MainNavigationScreenState extends ConsumerState<MainNavigationScreen> {
               context.push('/statistics');
             },
           ),
+          if (isAdmin) ...[
+            const Divider(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+              child: Text(
+                'ADMIN',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF9CA3AF),
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_calendar),
+              title: const Text('Manage Rounds'),
+              subtitle: const Text(
+                'Create, score, finalize',
+                style: TextStyle(fontSize: 11),
+              ),
+              onTap: () {
+                context.pop();
+                context.push('/admin/rounds');
+              },
+            ),
+          ],
           const Divider(),
           ListTile(
             leading: const Icon(Icons.logout, color: Colors.red),

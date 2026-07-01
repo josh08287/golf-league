@@ -62,11 +62,34 @@ class MyStatusNotifier extends StateNotifier<MyStatusState> {
         '/auth/me',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
-      final data = (response.data as Map<String, dynamic>)['data'] as Map<String, dynamic>;
+      // /auth/me returns the status object directly (no {data: ...}
+      // envelope), but tolerate both shapes.
+      final body = response.data;
+      final Map<String, dynamic> data;
+      if (body is Map<String, dynamic> && body['data'] is Map<String, dynamic>) {
+        data = body['data'] as Map<String, dynamic>;
+      } else if (body is Map<String, dynamic>) {
+        data = body;
+      } else {
+        state = state.copyWith(isLoading: false, error: 'Unexpected response');
+        return;
+      }
+
+      // The API returns a 'roles' list; derive the highest-privilege role.
+      final rawRoles = data['roles'];
+      final roles = rawRoles is List
+          ? rawRoles.map((e) => e.toString()).toList()
+          : [(data['role'] as String?) ?? 'player'];
+      const rolePriority = ['admin', 'scorer', 'player'];
+      final role = rolePriority.firstWhere(
+        roles.contains,
+        orElse: () => roles.isNotEmpty ? roles.first : 'player',
+      );
+
       state = MyStatusState(
-        status: data['status'] as String,
-        playerId: data['playerId'] as int?,
-        role: (data['role'] as String?) ?? 'player',
+        status: (data['status'] as String?) ?? 'none',
+        playerId: (data['playerId'] as num?)?.toInt(),
+        role: role,
       );
     } on DioException catch (e) {
       state = state.copyWith(isLoading: false, error: e.message);

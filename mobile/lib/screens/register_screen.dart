@@ -19,6 +19,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  final _inviteTokenController = TextEditingController();
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -31,6 +32,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();
+    _inviteTokenController.dispose();
     super.dispose();
   }
 
@@ -44,16 +46,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     try {
       final auth = ref.read(authServiceProvider);
+      final inviteToken = _inviteTokenController.text.trim();
       final result = await auth.register(
         email: _emailController.text.trim(),
         password: _passwordController.text,
+        inviteToken: inviteToken.isEmpty ? null : inviteToken,
         firstName: _firstNameController.text.trim(),
         lastName: _lastNameController.text.trim(),
       );
 
-      if (result.mfaRequired) {
+      if (result.mfaEnrollmentRequired) {
         if (mounted) {
-          context.go('/auth/mfa', extra: result.accessToken);
+          context.push('/auth/mfa/enroll', extra: result.accessToken);
         }
         return;
       }
@@ -142,6 +146,21 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
+
+                  // Invite code — links the new account to a league invite,
+                  // matching the web register flow. Optional: accounts created
+                  // without one land on the "not invited" screen.
+                  TextFormField(
+                    controller: _inviteTokenController,
+                    decoration: InputDecoration(
+                      labelText: 'Invite Code (from your invite email)',
+                      prefixIcon: const Icon(Icons.key_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
 
                   // First Name
                   TextFormField(

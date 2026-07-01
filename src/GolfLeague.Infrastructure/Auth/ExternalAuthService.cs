@@ -48,7 +48,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         _logger = logger;
     }
 
-    public Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null)
+    public Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null, string? envUrl = null)
     {
         if (!TryGetProvider(provider, out var p))
             return Result<ExternalAuthStartDto>.Fail($"Unknown provider: {provider}");
@@ -59,11 +59,12 @@ public sealed class ExternalAuthService : IExternalAuthService
         if (string.IsNullOrEmpty(clientId))
             return Result<ExternalAuthStartDto>.Fail($"{provider} OAuth is not configured on the server.");
 
-        var state = GenerateUrlSafeToken(32);
+        var stateKey = GenerateUrlSafeToken(32);
+        var state = string.IsNullOrWhiteSpace(envUrl) ? stateKey : $"{stateKey}|{envUrl}";
         var verifier = GenerateUrlSafeToken(64);
         var challenge = ComputeS256(verifier);
 
-        _cache.Set(CacheKey(provider, state), new PkceState(verifier, redirectUri, inviteToken), FlowLifetime);
+        _cache.Set(CacheKey(provider, stateKey), new PkceState(verifier, redirectUri, inviteToken), FlowLifetime);
 
         var url = p.BuildAuthorizeUrl(clientId, redirectUri, state, challenge);
         return Result<ExternalAuthStartDto>.Ok(new ExternalAuthStartDto(url, state));
@@ -79,10 +80,11 @@ public sealed class ExternalAuthService : IExternalAuthService
         if (!TryGetProvider(provider, out var p))
             return Result<AuthResponseDto>.Fail($"Unknown provider: {provider}");
 
-        if (!_cache.TryGetValue(CacheKey(provider, state), out PkceState? pkce) || pkce is null)
+        var stateKey = state.Split('|')[0];
+        if (!_cache.TryGetValue(CacheKey(provider, stateKey), out PkceState? pkce) || pkce is null)
             return Result<AuthResponseDto>.Fail("Invalid or expired authorization flow.");
 
-        _cache.Remove(CacheKey(provider, state));
+        _cache.Remove(CacheKey(provider, stateKey));
 
         if (!string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
             return Result<AuthResponseDto>.Fail("redirectUri mismatch.");

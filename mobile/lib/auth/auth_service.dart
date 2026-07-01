@@ -44,6 +44,7 @@ class AuthService {
   Future<AuthResult> register({
     required String email,
     required String password,
+    String? inviteToken,
     String? firstName,
     String? lastName,
   }) async {
@@ -52,6 +53,7 @@ class AuthService {
       data: {
         'email': email,
         'password': password,
+        'inviteToken': ?inviteToken,
         'firstName': ?firstName,
         'lastName': ?lastName,
       },
@@ -77,6 +79,14 @@ class AuthService {
     );
 
     final uri = Uri.parse(callback);
+    final providerError = uri.queryParameters['error'];
+    if (providerError != null && providerError.isNotEmpty) {
+      throw AuthException(
+        providerError == 'access_denied'
+            ? 'Sign-in was cancelled.'
+            : 'Sign-in failed: $providerError',
+      );
+    }
     final code = uri.queryParameters['code'];
     final returnedState = uri.queryParameters['state'];
     if (code == null || returnedState != state) {
@@ -108,6 +118,47 @@ class AuthService {
     await _dio.post<dynamic>(
       '/auth/password-reset/request',
       data: {'email': email},
+    );
+  }
+
+  Future<void> confirmPasswordReset({
+    required String email,
+    required String token,
+    required String newPassword,
+  }) async {
+    await _dio.post<dynamic>(
+      '/auth/password-reset/confirm',
+      data: {'email': email, 'token': token, 'newPassword': newPassword},
+    );
+  }
+
+  /// Start TOTP enrollment. During first-login enrollment the user only has
+  /// an MFA-challenge token; pass it via [bearerOverride]. Returns the shared
+  /// secret and otpauth:// URI to show in the enrollment UI.
+  Future<({String secret, String otpAuthUri})> startTotpEnrollment({
+    String? bearerOverride,
+  }) async {
+    final token = bearerOverride ?? await getAccessToken() ?? '';
+    final response = await _dio.post<dynamic>(
+      '/auth/mfa/totp/enroll',
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
+    );
+    final raw = response.data;
+    final data = raw is Map && raw.containsKey('data')
+        ? raw['data'] as Map<String, dynamic>
+        : raw as Map<String, dynamic>;
+    return (
+      secret: data['secret'] as String? ?? '',
+      otpAuthUri: data['otpAuthUri'] as String? ?? '',
+    );
+  }
+
+  Future<void> verifyTotpEnrollment(String code, {String? bearerOverride}) async {
+    final token = bearerOverride ?? await getAccessToken() ?? '';
+    await _dio.post<dynamic>(
+      '/auth/mfa/totp/verify-enrollment',
+      data: {'code': code},
+      options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
   }
 
@@ -147,6 +198,8 @@ class AuthService {
     final accessToken = data['accessToken'] as String;
     final refreshToken = (data['refreshToken'] as String?) ?? '';
     final mfaRequired = data['mfaRequired'] as bool? ?? false;
+    final mfaEnrollmentRequired =
+        data['mfaEnrollmentRequired'] as bool? ?? false;
 
     // Backend returns a 'roles' list; derive the highest-privilege role.
     final rawRoles = data['roles'];
@@ -159,13 +212,14 @@ class AuthService {
       orElse: () => roles.isNotEmpty ? roles.first : 'player',
     );
 
-    if (mfaRequired) {
+    if (mfaRequired || mfaEnrollmentRequired) {
       // Don't store the challenge token — caller must complete MFA first.
       return AuthResult(
         accessToken: accessToken,
         refreshToken: '',
         role: role,
-        mfaRequired: true,
+        mfaRequired: mfaRequired,
+        mfaEnrollmentRequired: mfaEnrollmentRequired,
       );
     }
 
@@ -188,12 +242,14 @@ class AuthResult {
     required this.refreshToken,
     required this.role,
     required this.mfaRequired,
+    this.mfaEnrollmentRequired = false,
   });
 
   final String accessToken;
   final String refreshToken;
   final String role;
   final bool mfaRequired;
+  final bool mfaEnrollmentRequired;
 }
 
 class AuthException implements Exception {
