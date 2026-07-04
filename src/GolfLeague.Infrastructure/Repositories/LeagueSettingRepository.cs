@@ -25,7 +25,11 @@ public sealed class LeagueSettingRepository : ILeagueSettingRepository
 
     public async Task UpsertAsync(int leagueId, string key, string value, CancellationToken cancellationToken = default)
     {
-        var existing = await GetAsync(leagueId, key, cancellationToken);
+        // The context defaults to NoTracking, so a plain read-then-mutate on the
+        // existing row is never picked up by SaveChangesAsync. Track it explicitly.
+        var existing = await _context.LeagueSettings
+            .AsTracking()
+            .FirstOrDefaultAsync(s => s.LeagueId == leagueId && s.Key == key, cancellationToken);
         if (existing is null)
         {
             _context.LeagueSettings.Add(new LeagueSetting { LeagueId = leagueId, Key = key, Value = value });
