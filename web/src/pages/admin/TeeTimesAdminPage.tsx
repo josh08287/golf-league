@@ -5,13 +5,14 @@ import {
   useAdminRoundParticipants,
   useAdminMoveParticipantToTeeTime,
   useAdminRemoveParticipantFromTeeTime,
+  useAdminSetParticipantSkipped,
   type AdminParticipant,
 } from '@/hooks/admin/useTeeTimeMutations';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
-import { Clock, Users, GripVertical, X, Calendar, ArrowRightLeft } from 'lucide-react';
+import { Clock, Users, GripVertical, X, Calendar, ArrowRightLeft, Ban } from 'lucide-react';
 import type { TeeTimeSlot, TeeTimeParticipant } from '@/types/api';
 
 const CAPACITY = 4;
@@ -19,12 +20,15 @@ const CAPACITY = 4;
 interface DraggablePlayerProps {
   participant: AdminParticipant;
   currentTeeTimeId: number | null;
+  roundId: number;
   onRemove?: () => void;
   isDragging?: boolean;
 }
 
-function DraggablePlayer({ participant, currentTeeTimeId, onRemove, isDragging }: DraggablePlayerProps) {
+function DraggablePlayer({ participant, currentTeeTimeId, roundId, onRemove, isDragging }: DraggablePlayerProps) {
   const [dragging, setDragging] = useState(false);
+  const setSkipped = useAdminSetParticipantSkipped(roundId);
+  const skipped = participant.skippedWeek;
 
   const handleDragStart = (e: React.DragEvent) => {
     setDragging(true);
@@ -41,6 +45,10 @@ function DraggablePlayer({ participant, currentTeeTimeId, onRemove, isDragging }
     setDragging(false);
   };
 
+  const handleToggleSkip = () => {
+    setSkipped.mutate({ playerId: participant.playerId, skipped: !skipped });
+  };
+
   return (
     <div
       draggable
@@ -48,19 +56,32 @@ function DraggablePlayer({ participant, currentTeeTimeId, onRemove, isDragging }
       onDragEnd={handleDragEnd}
       className={[
         'flex items-center gap-2 px-3 py-2 rounded-lg border cursor-move transition-all',
-        'bg-white border-gray-200 hover:border-[#1B5E20] hover:shadow-sm',
+        skipped ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-200 hover:border-[#1B5E20] hover:shadow-sm',
         (dragging || isDragging) && 'opacity-50 border-[#1B5E20]',
       ].filter(Boolean).join(' ')}
     >
       <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm text-gray-900 truncate">
+        <div className={`font-medium text-sm truncate ${skipped ? 'text-gray-400 line-through' : 'text-gray-900'}`}>
           {participant.fullName}
         </div>
         <div className="text-xs text-gray-500">
           {participant.name ?? 'No flight'} · HCP {participant.handicapIndex?.toFixed(1) ?? '—'}
         </div>
       </div>
+      <button
+        onClick={handleToggleSkip}
+        disabled={setSkipped.isPending}
+        className={[
+          'p-1 rounded transition-colors',
+          skipped
+            ? 'text-amber-600 hover:bg-amber-50'
+            : 'text-gray-400 hover:bg-amber-50 hover:text-amber-600',
+        ].join(' ')}
+        title={skipped ? 'Marked as skipped — click to unskip' : 'Mark as skipped this week'}
+      >
+        <Ban className="h-4 w-4" />
+      </button>
       {onRemove && (
         <button
           onClick={onRemove}
@@ -77,10 +98,11 @@ function DraggablePlayer({ participant, currentTeeTimeId, onRemove, isDragging }
 interface TeeTimeSlotCardProps {
   slot: TeeTimeSlot;
   roundId: number;
+  participants: AdminParticipant[];
   onPlayerMoved: () => void;
 }
 
-function TeeTimeSlotCard({ slot, roundId, onPlayerMoved }: TeeTimeSlotCardProps) {
+function TeeTimeSlotCard({ slot, roundId, participants, onPlayerMoved }: TeeTimeSlotCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const moveParticipant = useAdminMoveParticipantToTeeTime(roundId);
   const removeParticipant = useAdminRemoveParticipantFromTeeTime(roundId);
@@ -172,14 +194,17 @@ function TeeTimeSlotCard({ slot, roundId, onPlayerMoved }: TeeTimeSlotCardProps)
             </div>
           )}
           {slotPlayers.map((player) => {
-            // Find the full participant data for drag-and-drop
-            const fullParticipant: AdminParticipant = {
+            // Prefer the real participant record (has skippedWeek, handicap, etc.);
+            // fall back to a minimal shape built from the tee-time slot data.
+            const fullParticipant: AdminParticipant = participants.find(
+              (p) => p.id === player.participantId
+            ) ?? {
               id: player.participantId,
               playerId: player.playerId,
               fullName: player.playerName,
               flightId: player.flightId,
               name: player.flightName,
-              handicapIndex: 0, // Not available in TeeTimeParticipant
+              handicapIndex: 0,
               courseHandicap: 0,
               teeTimeId: slot.id,
               teeTimeNumber: slot.teeTimeNumber,
@@ -192,6 +217,7 @@ function TeeTimeSlotCard({ slot, roundId, onPlayerMoved }: TeeTimeSlotCardProps)
                 key={player.participantId}
                 participant={fullParticipant}
                 currentTeeTimeId={slot.id}
+                roundId={roundId}
                 onRemove={() => handleRemove(player.participantId)}
               />
             );
@@ -268,6 +294,7 @@ function UnassignedPlayers({ participants, roundId, onPlayerMoved }: UnassignedP
               key={participant.id}
               participant={participant}
               currentTeeTimeId={null}
+              roundId={roundId}
             />
           ))}
         </div>
@@ -373,6 +400,7 @@ export function TeeTimesAdminPage() {
                 key={slot.id}
                 slot={slot}
                 roundId={selectedRoundId}
+                participants={participants ?? []}
                 onPlayerMoved={handlePlayerMoved}
               />
             ))}

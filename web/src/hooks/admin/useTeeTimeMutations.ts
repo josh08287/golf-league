@@ -67,3 +67,17 @@ export function useAdminRoundParticipants(roundId: number | null) {
     enabled: roundId != null,
   });
 }
+
+export function useAdminSetParticipantSkipped(roundId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ playerId, skipped }: { playerId: number; skipped: boolean }) => {
+      const res = await apiClient.post(`/rounds/${roundId}/participants/${playerId}/skip`, { skipped });
+      return res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeKeys.forRound(roundId) });
+      qc.invalidateQueries({ queryKey: ['admin', 'rounds', roundId, 'participants'] });
+    },
+  });
+}
