@@ -104,6 +104,15 @@ public sealed class CreateInvitesCommandHandler : IRequestHandler<CreateInvitesC
             .Distinct()
             .ToList();
 
+        // A pre-linked player with no email on file should show the invite's
+        // address on their profile until they accept and it's replaced by
+        // their account email. Don't touch it if the admin already set one.
+        if (prelinkPlayer is not null && prelinkPlayer.Email is null && normalised.Count == 1)
+        {
+            prelinkPlayer.Email = normalised[0];
+            await _playerRepo.UpdateAsync(prelinkPlayer, cancellationToken);
+        }
+
         var allPlayers = await _playerRepo.GetAllActiveAsync(cancellationToken);
 
         foreach (var email in normalised)

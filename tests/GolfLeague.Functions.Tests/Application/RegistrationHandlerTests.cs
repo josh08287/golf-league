@@ -203,6 +203,74 @@ public class CreateInvitesCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PreLinkedPlayerWithNoEmail_BackfillsInviteEmailImmediately()
+    {
+        // A pre-linked player with no email configured should show the
+        // invite's email on their profile right away, not just after accept.
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+
+        var noEmailPlayer = MakePlayer(id: 42);
+        noEmailPlayer.Email = null;
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
+            .ReturnsAsync(new List<Player> { noEmailPlayer });
+        m.PlayerRepo.Setup(r => r.GetByIdAsync(42, default))
+            .ReturnsAsync(noEmailPlayer);
+        m.PlayerRepo.Setup(r => r.UpdateAsync(It.IsAny<Player>(), default))
+            .Returns(Task.CompletedTask);
+
+        var handler = m.BuildHandler();
+        var command = new CreateInvitesCommand(
+            new[] { "john@example.com" },
+            "admin-1",
+            "http://localhost:5173",
+            7,
+            "player",
+            42);
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        noEmailPlayer.Email.Should().Be("john@example.com");
+        m.PlayerRepo.Verify(r => r.UpdateAsync(
+            It.Is<Player>(p => p.Id == 42 && p.Email == "john@example.com"),
+            default), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_PreLinkedPlayerWithExistingEmail_DoesNotOverwriteOnInviteCreation()
+    {
+        // If the admin already set an email on the player profile, creating
+        // an invite for a different address must not clobber it — only the
+        // acceptance flow should replace it, with the account's own email.
+        var m = new Mocks();
+        m.InviteRepo.Setup(r => r.PendingInviteExistsForEmailAsync(It.IsAny<string>(), default))
+            .ReturnsAsync(false);
+
+        var existingEmailPlayer = MakePlayer(id: 42); // Email = "john@example.com"
+        m.PlayerRepo.Setup(r => r.GetAllActiveAsync(default))
+            .ReturnsAsync(new List<Player> { existingEmailPlayer });
+        m.PlayerRepo.Setup(r => r.GetByIdAsync(42, default))
+            .ReturnsAsync(existingEmailPlayer);
+
+        var handler = m.BuildHandler();
+        var command = new CreateInvitesCommand(
+            new[] { "someone-else@example.com" },
+            "admin-1",
+            "http://localhost:5173",
+            7,
+            "player",
+            42);
+
+        var result = await handler.Handle(command, default);
+
+        result.IsSuccess.Should().BeTrue();
+        existingEmailPlayer.Email.Should().Be("john@example.com");
+        m.PlayerRepo.Verify(r => r.UpdateAsync(It.IsAny<Player>(), default), Times.Never);
+    }
+
+    [Fact]
     public async Task Handle_EmailBelongsToExistingAppUser_AutoLinksWithoutSendingEmail()
     {
         // The invited email already has a login (e.g. member of another league).
