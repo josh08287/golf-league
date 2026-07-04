@@ -109,7 +109,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.Role)
                   .HasConversion(
                       v => v.ToString(),
-                      v => Enum.Parse<PlayerRole>(v))
+                      v => Enum.Parse<PlayerRole>(v, ignoreCase: true))
                   .HasMaxLength(20);
             entity.HasOne(e => e.League)
                   .WithMany(l => l.Memberships)
@@ -516,12 +516,12 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.Status)
                   .HasConversion(
                       v => v.ToString(),
-                      v => Enum.Parse<InviteStatus>(v))
+                      v => Enum.Parse<InviteStatus>(v, ignoreCase: true))
                   .HasMaxLength(20);
             entity.Property(e => e.Role)
                   .HasConversion(
                       v => v.ToString(),
-                      v => Enum.Parse<Domain.Enums.PlayerRole>(v))
+                      v => Enum.Parse<Domain.Enums.PlayerRole>(v, ignoreCase: true))
                   .HasMaxLength(20)
                   .IsRequired();
             entity.HasIndex(e => e.Token).IsUnique();
