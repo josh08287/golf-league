@@ -156,9 +156,11 @@ export function ScoreEntryPage() {
   const setSkipped = useSetParticipantSkipped(roundId);
 
   const [scores, setScores] = useState<ScoreGrid>({});
-  // Local skip overrides: maps playerId → true (skip) | false (unskip).
-  // Only populated when the user changes from the server value.
+  // Optimistic skip overlay: maps playerId → true (skip) | false (unskip).
+  // Cleared once the corresponding mutation settles, since the invalidated
+  // participants query then becomes the source of truth.
   const [localSkips, setLocalSkips] = useState<Record<number, boolean>>({});
+  const [skipError, setSkipError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
@@ -238,14 +240,30 @@ export function ScoreEntryPage() {
     return p.playerId in localSkips ? localSkips[p.playerId] : p.skippedWeek;
   }
 
-  function handleToggleSkipped(playerId: number, currentlySkipped: boolean) {
+  async function handleToggleSkipped(playerId: number, currentlySkipped: boolean) {
     const newSkipped = !currentlySkipped;
     setLocalSkips((prev) => ({ ...prev, [playerId]: newSkipped }));
+    setSkipError(null);
     // Clear any draft scores for a player being marked as skipped.
     if (newSkipped) {
       setScores((prev) => {
         const next = { ...prev };
         delete next[String(playerId)];
+        return next;
+      });
+    }
+    try {
+      await setSkipped.mutateAsync({ playerId, skipped: newSkipped });
+      setLocalSkips((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+    } catch {
+      setSkipError('Failed to update skip status. Please try again.');
+      setLocalSkips((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
         return next;
       });
     }
@@ -277,12 +295,6 @@ export function ScoreEntryPage() {
     setSubmitError(null);
 
     try {
-      // Flush any skip-state changes to the server first.
-      const skipChanges = participants.filter((p) => p.playerId in localSkips);
-      for (const p of skipChanges) {
-        await setSkipped.mutateAsync({ playerId: p.playerId, skipped: localSkips[p.playerId] });
-      }
-
       // Submit scores for non-skipped players.
       for (const p of participants) {
         if (resolveSkipped(p)) continue;
@@ -296,7 +308,6 @@ export function ScoreEntryPage() {
       }
 
       localStorage.removeItem(buildDraftKey(roundId));
-      setLocalSkips({});
       setSubmitSuccess(true);
     } catch {
       setSubmitError('Submission failed. Please try again.');
@@ -363,6 +374,12 @@ export function ScoreEntryPage() {
         </div>
       )}
 
+      {skipError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {skipError}
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full border-collapse text-sm">
           <thead>
@@ -425,7 +442,7 @@ export function ScoreEntryPage() {
                               type="checkbox"
                               checked={skipped}
                               onChange={() => handleToggleSkipped(participant.playerId, skipped)}
-                              disabled={submitting}
+                              disabled={submitting || setSkipped.isPending}
                               className="h-3.5 w-3.5 rounded border-gray-300 text-[#1B5E20] focus:ring-[#1B5E20]"
                             />
                             Skip
