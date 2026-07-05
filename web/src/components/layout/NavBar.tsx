@@ -5,6 +5,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useInvites } from '@/hooks/admin/useInvites';
 import { useLeagueName } from '@/context/LeagueContext';
 import { useMyLeagues } from '@/hooks/useMyLeagues';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useActiveRoundLeaderboardPresence } from '@/hooks/useRounds';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
@@ -70,12 +73,18 @@ export function NavBar() {
     }
   }
 
+  const featureFlags = useFeatureFlagStates();
+  const leaderboardFlagEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.activeRoundLeaderboardEnabled] ?? false;
+  const activeRoundLeaderboard = useActiveRoundLeaderboardPresence(leaderboardFlagEnabled);
+  const showLeaderboardLink = leaderboardFlagEnabled && activeRoundLeaderboard.data != null;
+
   const publicLinks = [
     { to: '/', label: 'Home' },
     { to: '/flights', label: 'Standings' },
     { to: '/rounds', label: 'Rounds' },
     { to: '/players', label: 'Players' },
     { to: '/statistics', label: 'Statistics' },
+    ...(showLeaderboardLink ? [{ to: '/leaderboard', label: 'Leaderboard' }] : []),
   ];
 
   const authedLinks = [

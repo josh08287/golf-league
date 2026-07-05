@@ -7,6 +7,7 @@ public interface IRoundRepository
 {
     Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default);
     Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default);

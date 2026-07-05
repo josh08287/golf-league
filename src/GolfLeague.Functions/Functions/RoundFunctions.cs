@@ -140,6 +140,15 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetActiveRoundLeaderboard")]
+    public async Task<IActionResult> GetActiveRoundLeaderboard(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/active-leaderboard")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetActiveRoundLeaderboardQuery(), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("GetRoundSkins")]
     public async Task<IActionResult> GetRoundSkins(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{id}/skins")] HttpRequest req,

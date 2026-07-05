@@ -29,6 +29,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Adds a button on the admin tee-times page to manually re-send the weekly tee time schedule email for a round. Sends still respect each league’s email setting and player opt-outs. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.activeRoundLeaderboardEnabled,
+    label: 'Active round leaderboard',
+    description:
+      'Shows a live "Leaderboard" nav link and page, grouped by flight, while a round is currently in progress. Applies to every league.',
+  },
 ];
 
 function Toggle({

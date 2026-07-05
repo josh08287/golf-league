@@ -122,10 +122,18 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string ResendTeeTimeEmailEnabled = "resend_tee_time_email_enabled";
 
+    /// <summary>
+    /// Shows a "Leaderboard" nav link and page with live, flight-grouped
+    /// standings for the round currently in progress. The link and page
+    /// only surface while a round is actually in progress.
+    /// </summary>
+    public const string ActiveRoundLeaderboardEnabled = "active_round_leaderboard_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
         [ClosestToPinEnabled] = false,
         [ResendTeeTimeEmailEnabled] = false,
+        [ActiveRoundLeaderboardEnabled] = false,
     };
 }

@@ -25,6 +25,7 @@ const TeeTimesNextPage = lazy(() => import('@/pages/TeeTimesPage').then((m) => (
 const TeeTimesRoundPage = lazy(() => import('@/pages/TeeTimesPage').then((m) => ({ default: m.TeeTimesRoundPage })));
 const TeeTimeScoreEntryPage = lazy(() => import('@/pages/TeeTimeScoreEntryPage').then((m) => ({ default: m.TeeTimeScoreEntryPage })));
 const StatisticsPage = lazy(() => import('@/pages/StatisticsPage').then((m) => ({ default: m.StatisticsPage })));
+const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const TournamentResultsPage = lazy(() => import('@/pages/TournamentResultsPage').then((m) => ({ default: m.TournamentResultsPage })));
 
 function NavigatorInjector() {
@@ -66,6 +67,7 @@ export default function App() {
               <Route path="rounds/:roundId/tee-times" element={<TeeTimesRoundPage />} />
               <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
               <Route path="statistics" element={<StatisticsPage />} />
+              <Route path="leaderboard" element={<LeaderboardPage />} />
               <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
               {adminRoutes}
               <Route path="*" element={<Navigate to="/" replace />} />

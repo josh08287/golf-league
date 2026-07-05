@@ -23,6 +23,11 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .FirstOrDefaultAsync(r => r.Status == RoundStatus.InProgress, cancellationToken);
+
     public async Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)

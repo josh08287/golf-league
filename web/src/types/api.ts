@@ -220,6 +220,35 @@ export interface RoundScorecard {
   holes: RoundScorecardHole[];
 }
 
+// ── Active Round Leaderboard ─────────────────────────────────────────────────
+
+export interface ActiveRoundLeaderboardEntry {
+  playerId: number;
+  playerName: string;
+  flightId: number | null;
+  flightName: string;
+  thruHoles: number;
+  grossScore: number | null;
+  netScore: number | null;
+  grossPoints: number | null;
+  netPoints: number | null;
+  rank: number;
+}
+
+export interface ActiveRoundLeaderboardFlight {
+  flightId: number | null;
+  flightName: string;
+  entries: ActiveRoundLeaderboardEntry[];
+}
+
+export interface ActiveRoundLeaderboard {
+  roundId: number;
+  courseName: string;
+  scheduledDate: string;
+  nineHoleSide: string;
+  flights: ActiveRoundLeaderboardFlight[];
+}
+
 // ── Skins ──────────────────────────────────────────────────────────────────────
 
 export interface HoleSkin {
@@ -815,4 +844,5 @@ export const FEATURE_FLAG_KEYS = {
   selfSkipRoundsEnabled: 'self_skip_rounds_enabled',
   closestToPinEnabled: 'closest_to_pin_enabled',
   resendTeeTimeEmailEnabled: 'resend_tee_time_email_enabled',
+  activeRoundLeaderboardEnabled: 'active_round_leaderboard_enabled',
 } as const;

@@ -8,6 +8,7 @@ import type {
   RoundSkins,
   TournamentResults,
   PagedResponse,
+  ActiveRoundLeaderboard,
 } from '@/types/api';
 
 // ── Query key factory ─────────────────────────────────────────────────────────
@@ -24,6 +25,7 @@ export const roundKeys = {
     [...roundKeys.all, 'scorecards', roundId, { sort: sort ?? null }] as const,
   skins: (roundId: string) => [...roundKeys.all, 'skins', roundId] as const,
   tournamentResults: (roundId: string) => [...roundKeys.all, 'tournament-results', roundId] as const,
+  activeLeaderboard: () => [...roundKeys.all, 'active-leaderboard'] as const,
 };
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
@@ -94,6 +96,40 @@ export function useRoundSkins(roundId: string) {
       return response.data;
     },
     enabled: Boolean(roundId),
+  });
+}
+
+/**
+ * For the leaderboard page itself: polls every 30s for live updates while a
+ * round is in progress and the page is mounted.
+ */
+export function useActiveRoundLeaderboard(enabled: boolean) {
+  return useQuery({
+    queryKey: roundKeys.activeLeaderboard(),
+    queryFn: async () => {
+      const response = await apiClient.get<ActiveRoundLeaderboard | null>('/rounds/active-leaderboard');
+      return response.data;
+    },
+    enabled,
+    refetchInterval: 30_000,
+  });
+}
+
+/**
+ * For nav/presence checks only (e.g. deciding whether to show the
+ * Leaderboard link): a single fetch with a long staleTime, no background
+ * polling, since this runs from a component mounted on every page.
+ */
+export function useActiveRoundLeaderboardPresence(enabled: boolean) {
+  return useQuery({
+    queryKey: roundKeys.activeLeaderboard(),
+    queryFn: async () => {
+      const response = await apiClient.get<ActiveRoundLeaderboard | null>('/rounds/active-leaderboard');
+      return response.data;
+    },
+    enabled,
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
   });
 }
 
