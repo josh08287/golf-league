@@ -38,6 +38,17 @@ function calculateHandicapStrokes(courseHandicap: number, strokeIndex: number): 
   return Math.floor(courseHandicap / 9) + (strokeIndex <= courseHandicap % 9 ? 1 : 0);
 }
 
+// Standard scorecard convention: one dot per handicap stroke a player
+// receives on a hole.
+function HandicapDots({ strokes }: { strokes: number }) {
+  if (strokes <= 0) return null;
+  return (
+    <span className="tracking-tight text-primary-700" aria-label={`${strokes} handicap stroke${strokes === 1 ? '' : 's'}`}>
+      {'•'.repeat(strokes)}
+    </span>
+  );
+}
+
 // Helper to calculate net strokes and cap at max
 function calculateNetStrokes(
   grossStrokes: number,
@@ -266,16 +277,19 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
             ? ((playerScore as number) - (putts as number)) <= hole.par - 2
             : null;
 
+          const handicapStrokes = calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
+
           return (
             <Card key={player.playerId} className={isSkipped ? 'opacity-50' : ''}>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-semibold text-gray-900">
+                    <p className="font-semibold text-gray-900 flex items-center gap-1.5">
                       {player.playerName}
                       {isSkipped && (
-                        <span className="ml-2 text-xs text-gray-500">(Skipped)</span>
+                        <span className="text-xs text-gray-500">(Skipped)</span>
                       )}
+                      {!isSkipped && <HandicapDots strokes={handicapStrokes} />}
                     </p>
                     <p className="text-xs text-gray-500">
                       HCP {formatHandicapPair(player.handicapIndex)} · CH {player.courseHandicap}
