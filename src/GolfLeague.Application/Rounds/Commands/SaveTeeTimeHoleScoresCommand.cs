@@ -16,10 +16,18 @@ public sealed record SaveTeeTimeHoleScoresCommand(
     int SubmittedByPlayerId,
     int HoleNumber,
     List<PlayerHoleScoresInput> PlayerScores,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId,
+    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SaveHoleScoresOutcome>>, IAmAuditableCommand;
+
+/// <summary>
+/// Result of a hole-score save attempt. When conflicts are present, Saved is
+/// false and nothing was written — the caller must resolve the conflicts
+/// (via ConfirmedOverwrites) and retry.
+/// </summary>
+public sealed record SaveHoleScoresOutcome(bool Saved, List<HoleScoreConflictDto> Conflicts);
 
 public sealed class SaveTeeTimeHoleScoresCommandHandler
-    : IRequestHandler<SaveTeeTimeHoleScoresCommand, Result<bool>>
+    : IRequestHandler<SaveTeeTimeHoleScoresCommand, Result<SaveHoleScoresOutcome>>
 {
     private readonly IRoundRepository _roundRepository;
     private readonly ITeeTimeRepository _teeTimeRepository;
@@ -35,28 +43,28 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
         _courseRepository = courseRepository;
     }
 
-    public async Task<Result<bool>> Handle(SaveTeeTimeHoleScoresCommand request, CancellationToken cancellationToken)
+    public async Task<Result<SaveHoleScoresOutcome>> Handle(SaveTeeTimeHoleScoresCommand request, CancellationToken cancellationToken)
     {
         var teeTime = await _teeTimeRepository.GetByIdAsync(request.TeeTimeId, cancellationToken);
         if (teeTime is null)
-            return Result<bool>.Fail($"Tee time {request.TeeTimeId} not found.");
+            return Result<SaveHoleScoresOutcome>.Fail($"Tee time {request.TeeTimeId} not found.");
 
         var submitter = teeTime.Participants.FirstOrDefault(p => p.PlayerId == request.SubmittedByPlayerId);
         if (submitter is null)
-            return Result<bool>.Fail("You must be a member of this tee time to save scores.");
+            return Result<SaveHoleScoresOutcome>.Fail("You must be a member of this tee time to save scores.");
 
         if (submitter.IsWithdrawn)
-            return Result<bool>.Fail("You have withdrawn from this round and cannot save scores.");
+            return Result<SaveHoleScoresOutcome>.Fail("You have withdrawn from this round and cannot save scores.");
 
         var round = await _roundRepository.GetByIdAsync(teeTime.RoundId, cancellationToken);
         if (round is null)
-            return Result<bool>.Fail($"Round for tee time {request.TeeTimeId} not found.");
+            return Result<SaveHoleScoresOutcome>.Fail($"Round for tee time {request.TeeTimeId} not found.");
 
         if (round.Status == RoundStatus.Finalized)
-            return Result<bool>.Fail("Cannot save scores — this round has already been finalized.");
+            return Result<SaveHoleScoresOutcome>.Fail("Cannot save scores — this round has already been finalized.");
 
         if (round.Status == RoundStatus.Cancelled)
-            return Result<bool>.Fail("Cannot save scores — this round has been cancelled.");
+            return Result<SaveHoleScoresOutcome>.Fail("Cannot save scores — this round has been cancelled.");
 
         var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
         var relevantHoles = round.NineHoleSide == NineHoleSide.Back
@@ -65,20 +73,62 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
 
         var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == request.HoleNumber);
         if (hole is null)
-            return Result<bool>.Fail($"Hole {request.HoleNumber} not found for this round.");
+            return Result<SaveHoleScoresOutcome>.Fail($"Hole {request.HoleNumber} not found for this round.");
 
         var allStrokeIndices = relevantHoles.Select(h => h.StrokeIndex).ToList();
         var holeScoreEntities = new List<HoleScore>();
 
-        foreach (var playerInput in request.PlayerScores)
+        var relevantPlayerInputs = request.PlayerScores
+            .Where(p => p.HoleScores.Any(h => h.HoleNumber == request.HoleNumber))
+            .ToList();
+        var participantIds = relevantPlayerInputs
+            .Select(p => teeTime.Participants.FirstOrDefault(pt => pt.PlayerId == p.PlayerId)?.Id)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+        var existingScores = await _roundRepository.GetHoleScoresForParticipantsAsync(request.HoleNumber, participantIds, cancellationToken);
+        var confirmedOverwrites = request.ConfirmedOverwrites ?? [];
+        var conflicts = new List<HoleScoreConflictDto>();
+
+        foreach (var playerInput in relevantPlayerInputs)
         {
             var participant = teeTime.Participants.FirstOrDefault(p => p.PlayerId == playerInput.PlayerId);
             if (participant is null || participant.IsWithdrawn || participant.SkippedWeek)
                 continue;
 
-            var holeInput = playerInput.HoleScores.FirstOrDefault(h => h.HoleNumber == request.HoleNumber);
-            if (holeInput is null)
+            var holeInput = playerInput.HoleScores.First(h => h.HoleNumber == request.HoleNumber);
+            var existing = existingScores.FirstOrDefault(h => h.ParticipantId == participant.Id);
+            var alreadyConfirmed = confirmedOverwrites.Any(c => c.PlayerId == playerInput.PlayerId && c.HoleNumber == request.HoleNumber);
+
+            if (existing is not null
+                && existing.LastModifiedByPlayerId.HasValue
+                && existing.LastModifiedByPlayerId.Value != request.SubmittedByPlayerId
+                && existing.GrossStrokes != holeInput.GrossStrokes
+                && !alreadyConfirmed)
+            {
+                var enteredByName = teeTime.Participants
+                    .FirstOrDefault(p => p.PlayerId == existing.LastModifiedByPlayerId.Value)?.Player.FullName;
+
+                conflicts.Add(new HoleScoreConflictDto(
+                    playerInput.PlayerId,
+                    participant.Player.FullName,
+                    request.HoleNumber,
+                    existing.GrossStrokes,
+                    enteredByName,
+                    holeInput.GrossStrokes));
+            }
+        }
+
+        if (conflicts.Count > 0)
+            return Result<SaveHoleScoresOutcome>.Ok(new SaveHoleScoresOutcome(false, conflicts));
+
+        foreach (var playerInput in relevantPlayerInputs)
+        {
+            var participant = teeTime.Participants.FirstOrDefault(p => p.PlayerId == playerInput.PlayerId);
+            if (participant is null || participant.IsWithdrawn || participant.SkippedWeek)
                 continue;
+
+            var holeInput = playerInput.HoleScores.First(h => h.HoleNumber == request.HoleNumber);
 
             var strokesOnHole = StablefordScoringService.StrokesOnHole(participant.CourseHandicap, hole.StrokeIndex, allStrokeIndices);
             var maxGross = StablefordScoringService.MaxGross(hole.Par, strokesOnHole);
@@ -107,6 +157,7 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
                 FirstPuttDistanceFeet = holeInput.FirstPuttDistanceFeet,
                 FairwayHit = holeInput.FairwayHit,
                 Gir = gir,
+                LastModifiedByPlayerId = request.SubmittedByPlayerId,
             });
         }
 
@@ -116,6 +167,6 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
         if (round.Status == RoundStatus.Scheduled)
             await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);
 
-        return Result<bool>.Ok(true);
+        return Result<SaveHoleScoresOutcome>.Ok(new SaveHoleScoresOutcome(true, []));
     }
 }

@@ -35,5 +35,11 @@ public class HoleScore
     /// </summary>
     public bool? Gir { get; set; }
 
+    /// <summary>
+    /// PlayerId of whoever last saved this hole's score (for conflict detection
+    /// when multiple group members enter scores for the same player).
+    /// </summary>
+    public int? LastModifiedByPlayerId { get; set; }
+
     public RoundParticipant Participant { get; set; } = null!;
 }

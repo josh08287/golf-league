@@ -24,7 +24,8 @@ public sealed record SubmitTeeTimeGroupScoresCommand(
     int TeeTimeId,
     int SubmittedByPlayerId,
     List<PlayerHoleScoresInput> PlayerScores,
-    string UserId) : IRequest<Result<TeeTimeGroupScoresResultDto>>, IAmAuditableCommand;
+    string UserId,
+    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SubmitScoresOutcome>>, IAmAuditableCommand;
 
 /// <summary>
 /// Result containing summary of submitted scores.
@@ -36,8 +37,15 @@ public sealed record TeeTimeGroupScoresResultDto(
     int TotalHolesSubmitted,
     string Message);
 
+/// <summary>
+/// Result of a group-submit attempt. When conflicts are present, Result is
+/// null and nothing was written — the caller must resolve the conflicts
+/// (via ConfirmedOverwrites) and retry.
+/// </summary>
+public sealed record SubmitScoresOutcome(TeeTimeGroupScoresResultDto? Result, List<HoleScoreConflictDto> Conflicts);
+
 public sealed class SubmitTeeTimeGroupScoresCommandHandler
-    : IRequestHandler<SubmitTeeTimeGroupScoresCommand, Result<TeeTimeGroupScoresResultDto>>
+    : IRequestHandler<SubmitTeeTimeGroupScoresCommand, Result<SubmitScoresOutcome>>
 {
     private readonly IRoundRepository _roundRepository;
     private readonly ITeeTimeRepository _teeTimeRepository;
@@ -56,35 +64,35 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
         _playerRepository = playerRepository;
     }
 
-    public async Task<Result<TeeTimeGroupScoresResultDto>> Handle(
+    public async Task<Result<SubmitScoresOutcome>> Handle(
         SubmitTeeTimeGroupScoresCommand request,
         CancellationToken cancellationToken)
     {
         // Get the tee time
         var teeTime = await _teeTimeRepository.GetByIdAsync(request.TeeTimeId, cancellationToken);
         if (teeTime is null)
-            return Result<TeeTimeGroupScoresResultDto>.Fail($"Tee time with ID {request.TeeTimeId} not found.");
+            return Result<SubmitScoresOutcome>.Fail($"Tee time with ID {request.TeeTimeId} not found.");
 
         // Verify the submitting player is in this tee time
         var submitterParticipant = teeTime.Participants
             .FirstOrDefault(p => p.PlayerId == request.SubmittedByPlayerId);
         if (submitterParticipant is null)
-            return Result<TeeTimeGroupScoresResultDto>.Fail("You must be a member of this tee time to submit scores.");
+            return Result<SubmitScoresOutcome>.Fail("You must be a member of this tee time to submit scores.");
 
         if (submitterParticipant.IsWithdrawn)
-            return Result<TeeTimeGroupScoresResultDto>.Fail("You have withdrawn from this round and cannot submit scores.");
+            return Result<SubmitScoresOutcome>.Fail("You have withdrawn from this round and cannot submit scores.");
 
         // Get the round
         var round = await _roundRepository.GetByIdAsync(teeTime.RoundId, cancellationToken);
         if (round is null)
-            return Result<TeeTimeGroupScoresResultDto>.Fail($"Round for tee time {request.TeeTimeId} not found.");
+            return Result<SubmitScoresOutcome>.Fail($"Round for tee time {request.TeeTimeId} not found.");
 
         // Check round status - only allow score entry for Scheduled or InProgress rounds
         if (round.Status == RoundStatus.Finalized)
-            return Result<TeeTimeGroupScoresResultDto>.Fail("Cannot submit scores - this round has already been finalized.");
+            return Result<SubmitScoresOutcome>.Fail("Cannot submit scores - this round has already been finalized.");
 
         if (round.Status == RoundStatus.Cancelled)
-            return Result<TeeTimeGroupScoresResultDto>.Fail("Cannot submit scores - this round has been cancelled.");
+            return Result<SubmitScoresOutcome>.Fail("Cannot submit scores - this round has been cancelled.");
 
         // Get course data
         var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
@@ -93,6 +101,69 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
             : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
 
         var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
+
+        // Pre-pass: validate holes and detect conflicts across all participants
+        // before writing anything (submit is atomic from the user's perspective).
+        var confirmedOverwrites = request.ConfirmedOverwrites ?? [];
+        var conflicts = new List<HoleScoreConflictDto>();
+
+        var submittingParticipantIds = request.PlayerScores
+            .Select(p => teeTime.Participants.FirstOrDefault(pt => pt.PlayerId == p.PlayerId)?.Id)
+            .Where(id => id.HasValue)
+            .Select(id => id!.Value)
+            .ToList();
+        var allExistingScores = await _roundRepository.GetHoleScoresForParticipantsAsync(submittingParticipantIds, cancellationToken);
+
+        foreach (var playerScoreInput in request.PlayerScores)
+        {
+            var participant = teeTime.Participants
+                .FirstOrDefault(p => p.PlayerId == playerScoreInput.PlayerId);
+
+            if (participant is null || participant.IsWithdrawn || participant.SkippedWeek)
+                continue;
+
+            var submittedHoleNumbers = playerScoreInput.HoleScores
+                .Select(h => h.HoleNumber)
+                .ToHashSet();
+
+            if (submittedHoleNumbers.Count != 9)
+                return Result<SubmitScoresOutcome>.Fail(
+                    $"Player {participant.Player.FullName}: Expected 9 holes, received {submittedHoleNumbers.Count}.");
+
+            var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
+            if (invalidHoles.Count > 0)
+                return Result<SubmitScoresOutcome>.Fail(
+                    $"Player {participant.Player.FullName}: Invalid hole numbers: {string.Join(", ", invalidHoles)}.");
+
+            var existingScores = allExistingScores.Where(h => h.ParticipantId == participant.Id).ToList();
+
+            foreach (var input in playerScoreInput.HoleScores)
+            {
+                var existing = existingScores.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
+                var alreadyConfirmed = confirmedOverwrites.Any(c => c.PlayerId == playerScoreInput.PlayerId && c.HoleNumber == input.HoleNumber);
+
+                if (existing is not null
+                    && existing.LastModifiedByPlayerId.HasValue
+                    && existing.LastModifiedByPlayerId.Value != request.SubmittedByPlayerId
+                    && existing.GrossStrokes != input.GrossStrokes
+                    && !alreadyConfirmed)
+                {
+                    var enteredByName = teeTime.Participants
+                        .FirstOrDefault(p => p.PlayerId == existing.LastModifiedByPlayerId.Value)?.Player.FullName;
+
+                    conflicts.Add(new HoleScoreConflictDto(
+                        playerScoreInput.PlayerId,
+                        participant.Player.FullName,
+                        input.HoleNumber,
+                        existing.GrossStrokes,
+                        enteredByName,
+                        input.GrossStrokes));
+                }
+            }
+        }
+
+        if (conflicts.Count > 0)
+            return Result<SubmitScoresOutcome>.Ok(new SubmitScoresOutcome(null, conflicts));
 
         // Process each player's scores
         var totalHolesSubmitted = 0;
@@ -110,20 +181,6 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
             if (participant.IsWithdrawn || participant.SkippedWeek)
                 continue; // Skip withdrawn/skipped players
 
-            // Validate the submitted holes
-            var submittedHoleNumbers = playerScoreInput.HoleScores
-                .Select(h => h.HoleNumber)
-                .ToHashSet();
-
-            if (submittedHoleNumbers.Count != 9)
-                return Result<TeeTimeGroupScoresResultDto>.Fail(
-                    $"Player {participant.Player.FullName}: Expected 9 holes, received {submittedHoleNumbers.Count}.");
-
-            var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
-            if (invalidHoles.Count > 0)
-                return Result<TeeTimeGroupScoresResultDto>.Fail(
-                    $"Player {participant.Player.FullName}: Invalid hole numbers: {string.Join(", ", invalidHoles)}.");
-
             var holeScoreEntities = new List<HoleScore>();
             var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
             foreach (var input in playerScoreInput.HoleScores)
@@ -131,7 +188,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == input.HoleNumber);
                 if (hole is null)
                 {
-                    return Result<TeeTimeGroupScoresResultDto>.Fail(
+                    return Result<SubmitScoresOutcome>.Fail(
                         $"Player {participant.Player.FullName}: Hole {input.HoleNumber} not found for this round's 9-hole side.");
                 }
 
@@ -166,6 +223,7 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                     FirstPuttDistanceFeet = input.FirstPuttDistanceFeet,
                     FairwayHit = input.FairwayHit,
                     Gir = gir,
+                    LastModifiedByPlayerId = request.SubmittedByPlayerId,
                 });
             }
 
@@ -196,6 +254,6 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
             totalHolesSubmitted,
             $"Successfully submitted scores for {playersSubmitted} player(s). An admin will review and finalize the round.");
 
-        return Result<TeeTimeGroupScoresResultDto>.Ok(result);
+        return Result<SubmitScoresOutcome>.Ok(new SubmitScoresOutcome(result, []));
     }
 }

@@ -434,6 +434,8 @@ export interface TeeTimePlayerHoleScore {
   firstPuttDistanceFeet: number | null;
   fairwayHit: boolean | null;
   gir: boolean | null;
+  lastModifiedByPlayerId: number | null;
+  lastModifiedByPlayerName: string | null;
 }
 
 export interface TeeTimePlayerScore {
@@ -487,6 +489,20 @@ export interface PlayerHoleScoreInput {
 export interface PlayerScoreInput {
   playerId: number;
   holeScores: PlayerHoleScoreInput[];
+}
+
+export interface HoleScoreConflict {
+  playerId: number;
+  playerName: string;
+  holeNumber: number;
+  existingGrossStrokes: number;
+  existingEnteredByName: string | null;
+  newGrossStrokes: number;
+}
+
+export interface ConfirmedOverwrite {
+  playerId: number;
+  holeNumber: number;
 }
 
 // ── Statistics ───────────────────────────────────────────────────────────────

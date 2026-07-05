@@ -71,6 +71,22 @@ public sealed class RoundRepository : IRoundRepository
             .OrderBy(h => h.HoleNumber)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(int holeNumber, IEnumerable<int> participantIds, CancellationToken cancellationToken = default)
+    {
+        var ids = participantIds.ToList();
+        return await _context.HoleScores
+            .Where(h => h.HoleNumber == holeNumber && ids.Contains(h.ParticipantId))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(IEnumerable<int> participantIds, CancellationToken cancellationToken = default)
+    {
+        var ids = participantIds.ToList();
+        return await _context.HoleScores
+            .Where(h => ids.Contains(h.ParticipantId))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task AddAsync(Round round, CancellationToken cancellationToken = default)
     {
         await _context.Rounds.AddAsync(round, cancellationToken);

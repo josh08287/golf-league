@@ -40,7 +40,9 @@ public sealed record TeeTimeHoleScoreDto(
     int? Putts,
     double? FirstPuttDistanceFeet,
     bool? FairwayHit,
-    bool? Gir);
+    bool? Gir,
+    int? LastModifiedByPlayerId,
+    string? LastModifiedByPlayerName);
 
 /// <summary>
 /// Complete scorecard for a tee time group including all players and their scores.
@@ -139,7 +141,11 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
                     h.Putts,
                     h.FirstPuttDistanceFeet,
                     h.FairwayHit,
-                    h.Gir))
+                    h.Gir,
+                    h.LastModifiedByPlayerId,
+                    h.LastModifiedByPlayerId.HasValue
+                        ? teeTime.Participants.FirstOrDefault(p => p.PlayerId == h.LastModifiedByPlayerId.Value)?.Player.FullName
+                        : null))
                 .ToList();
 
             playerDtos.Add(new TeeTimePlayerScoreDto(

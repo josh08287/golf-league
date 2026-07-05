@@ -257,13 +257,18 @@ public sealed class TeeTimeFunctions
         var playerScores = body.PlayerScores?.Select(p => new PlayerHoleScoresInput(
             p.PlayerId,
             p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes, h.Putts, h.FirstPuttDistanceFeet, h.FairwayHit)).ToList() ?? [])).ToList() ?? [];
+        var confirmedOverwrites = body.ConfirmedOverwrites?.Select(c => new ConfirmedOverwrite(c.PlayerId, c.HoleNumber)).ToList();
 
-        var command = new SubmitTeeTimeGroupScoresCommand(id, playerId.Value, playerScores, userId);
+        var command = new SubmitTeeTimeGroupScoresCommand(id, playerId.Value, playerScores, userId, confirmedOverwrites);
         var result = await _mediator.Send(command, cancellationToken);
 
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = result.Value })
-            : new BadRequestObjectResult(new { error = result.Error });
+        if (!result.IsSuccess)
+            return new BadRequestObjectResult(new { error = result.Error });
+
+        if (result.Value!.Conflicts.Count > 0)
+            return new ConflictObjectResult(new { error = "Score conflicts detected.", conflicts = result.Value.Conflicts });
+
+        return new OkObjectResult(new { data = result.Value.Result });
     }
 
     /// <summary>
@@ -335,19 +340,25 @@ public sealed class TeeTimeFunctions
         var playerScores = body.PlayerScores?.Select(p => new PlayerHoleScoresInput(
             p.PlayerId,
             p.HoleScores?.Select(h => new HoleScoreInput(h.HoleNumber, h.GrossStrokes, h.Putts, h.FirstPuttDistanceFeet, h.FairwayHit)).ToList() ?? [])).ToList() ?? [];
+        var confirmedOverwrites = body.ConfirmedOverwrites?.Select(c => new ConfirmedOverwrite(c.PlayerId, c.HoleNumber)).ToList();
 
-        var command = new SaveTeeTimeHoleScoresCommand(id, playerId.Value, holeNumber, playerScores, userId);
+        var command = new SaveTeeTimeHoleScoresCommand(id, playerId.Value, holeNumber, playerScores, userId, confirmedOverwrites);
         var result = await _mediator.Send(command, cancellationToken);
 
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = new { saved = true } })
-            : new BadRequestObjectResult(new { error = result.Error });
+        if (!result.IsSuccess)
+            return new BadRequestObjectResult(new { error = result.Error });
+
+        if (result.Value!.Conflicts.Count > 0)
+            return new ConflictObjectResult(new { error = "Score conflicts detected.", conflicts = result.Value.Conflicts });
+
+        return new OkObjectResult(new { data = new { saved = true } });
     }
 
     private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes, int? Putts = null, double? FirstPuttDistanceFeet = null, bool? FairwayHit = null);
     private sealed record PlayerScoreInputDto(int PlayerId, List<HoleScoreInputDto>? HoleScores);
-    private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
-    private sealed record SaveHoleScoresRequest(List<PlayerScoreInputDto>? PlayerScores);
+    private sealed record ConfirmedOverwriteDto(int PlayerId, int HoleNumber);
+    private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores, List<ConfirmedOverwriteDto>? ConfirmedOverwrites = null);
+    private sealed record SaveHoleScoresRequest(List<PlayerScoreInputDto>? PlayerScores, List<ConfirmedOverwriteDto>? ConfirmedOverwrites = null);
 
     /// <summary>
     /// POST /v1/admin/rounds/{roundId}/tee-times/{teeTimeId}/participants/{participantId}

@@ -12,6 +12,8 @@ public interface IRoundRepository
     Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsync(int roundId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(int holeNumber, IEnumerable<int> participantIds, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(IEnumerable<int> participantIds, CancellationToken cancellationToken = default);
     Task AddAsync(Round round, CancellationToken cancellationToken = default);
     Task UpdateAsync(Round round, CancellationToken cancellationToken = default);
     Task UpdateStatusAsync(int roundId, RoundStatus status, CancellationToken cancellationToken = default);

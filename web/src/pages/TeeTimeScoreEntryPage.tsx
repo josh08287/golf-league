@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
@@ -18,7 +18,14 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { Badge } from '@/components/ui/Badge';
 import { formatHandicapPair } from '@/lib/utils';
-import type { TeeTimePlayerScore, TeeTimeHoleInfo, PlayerScoreInput } from '@/types/api';
+import type {
+  TeeTimePlayerScore,
+  TeeTimeHoleInfo,
+  PlayerScoreInput,
+  TeeTimeGroupScorecard,
+  HoleScoreConflict,
+  ConfirmedOverwrite,
+} from '@/types/api';
 
 // Helper to calculate stableford points
 function calculateStablefordPoints(par: number, netStrokes: number): number {
@@ -579,11 +586,94 @@ function ClosestToPinSection({ roundId, canEdit }: { roundId: number; canEdit: b
   );
 }
 
+interface PendingConflictSave {
+  context: 'hole' | 'submit';
+  conflicts: HoleScoreConflict[];
+  holeNumber?: number;
+}
+
+interface ConflictDialogProps {
+  pending: PendingConflictSave;
+  choices: Record<string, 'existing' | 'new'>;
+  onChoiceChange: (playerId: number, holeNumber: number, choice: 'existing' | 'new') => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isSubmitting: boolean;
+}
+
+function conflictKey(playerId: number, holeNumber: number): string {
+  return `${playerId}:${holeNumber}`;
+}
+
+function ConflictDialog({ pending, choices, onChoiceChange, onConfirm, onCancel, isSubmitting }: ConflictDialogProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-amber-800">
+            <AlertTriangle className="h-5 w-5" />
+            Score Conflict{pending.conflicts.length > 1 ? 's' : ''} Detected
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-600">
+            Someone else already entered a different score. Choose which value to keep for each.
+          </p>
+          <div className="space-y-3">
+            {pending.conflicts.map((c) => {
+              const key = conflictKey(c.playerId, c.holeNumber);
+              const choice = choices[key] ?? 'existing';
+              return (
+                <div key={key} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                  <p className="text-sm font-semibold text-gray-900">
+                    Hole {c.holeNumber} — {c.playerName}
+                  </p>
+                  <div className="mt-2 space-y-2">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name={key}
+                        checked={choice === 'existing'}
+                        onChange={() => onChoiceChange(c.playerId, c.holeNumber, 'existing')}
+                      />
+                      Keep {c.existingGrossStrokes}
+                      <span className="text-gray-500">
+                        (entered by {c.existingEnteredByName ?? 'another player'})
+                      </span>
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        name={key}
+                        checked={choice === 'new'}
+                        onChange={() => onChoiceChange(c.playerId, c.holeNumber, 'new')}
+                      />
+                      Use {c.newGrossStrokes} <span className="text-gray-500">(your entry)</span>
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="outline" onClick={onCancel} disabled={isSubmitting}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={onConfirm} disabled={isSubmitting}>
+              {isSubmitting ? <Spinner className="h-4 w-4" /> : 'Confirm'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export function TeeTimeScoreEntryPage() {
   const { teeTimeId } = useParams<{ teeTimeId: string }>();
   const teeTimeIdNum = parseInt(teeTimeId ?? '0', 10);
 
-  const { data: scorecard, isLoading, error } = useTeeTimeGroupScorecard(teeTimeIdNum);
+  const { data: scorecard, isLoading, error, refetch: refetchScorecard } = useTeeTimeGroupScorecard(teeTimeIdNum);
   const submitScores = useSubmitTeeTimeGroupScores(teeTimeIdNum);
   const saveHoleScores = useSaveTeeTimeHoleScores(teeTimeIdNum);
   const setParticipantSkipped = useSetTeeTimeParticipantSkipped(teeTimeIdNum);
@@ -610,6 +700,9 @@ export function TeeTimeScoreEntryPage() {
   const [holeDataMap, setHoleDataMap] = useState<Record<number, Record<number, HoleData>>>({});
   const [showSummary, setShowSummary] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [isRefetchingHole, setIsRefetchingHole] = useState(false);
+  const [pendingConflict, setPendingConflict] = useState<PendingConflictSave | null>(null);
+  const [conflictChoices, setConflictChoices] = useState<Record<string, 'existing' | 'new'>>({});
 
   const rawPlayers = scorecard?.players ?? [];
   // Merge local skip overrides so the UI reacts immediately without waiting for refetch
@@ -620,9 +713,44 @@ export function TeeTimeScoreEntryPage() {
   const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
   const currentHole = holes[currentHoleIndex];
 
-  // Initialize scores from existing data when scorecard loads
+  const seededOnceRef = useRef(false);
+
+  const mergeHoleFromScorecard = useCallback((holeNumber: number, fresh: TeeTimeGroupScorecard) => {
+    setScores((prev) => {
+      const next = { ...prev };
+      fresh.players.forEach((player) => {
+        const hs = player.holeScores.find((h) => h.holeNumber === holeNumber);
+        next[player.playerId] = { ...next[player.playerId] };
+        if (hs && hs.grossStrokes != null) {
+          next[player.playerId][holeNumber] = hs.grossStrokes;
+        } else {
+          delete next[player.playerId][holeNumber];
+        }
+      });
+      return next;
+    });
+    setHoleDataMap((prev) => {
+      const next = { ...prev };
+      fresh.players.forEach((player) => {
+        const hs = player.holeScores.find((h) => h.holeNumber === holeNumber);
+        next[player.playerId] = {
+          ...next[player.playerId],
+          [holeNumber]: {
+            putts: hs?.putts ?? '',
+            firstPuttDistanceFeet: hs?.firstPuttDistanceFeet ?? '',
+            fairwayHit: hs?.fairwayHit ?? null,
+          },
+        };
+      });
+      return next;
+    });
+  }, []);
+
+  // One-time bulk seed of all holes on first load only, so GroupSetupStep /
+  // ScoreSummary have data before any navigation happens.
   useEffect(() => {
-    if (!scorecard) return;
+    if (!scorecard || seededOnceRef.current) return;
+    seededOnceRef.current = true;
 
     const initialScores: Record<number, Record<number, number | ''>> = {};
     const initialHoleData: Record<number, Record<number, HoleData>> = {};
@@ -643,6 +771,31 @@ export function TeeTimeScoreEntryPage() {
     setScores(initialScores);
     setHoleDataMap(initialHoleData);
   }, [scorecard]);
+
+  // Refetch fresh scores for the current hole whenever the user navigates to
+  // it (Next, Prev, or hole-dot jump) — including the initially-displayed
+  // hole, since currentHoleIndex starts at 0 and wouldn't otherwise change
+  // when the bulk seed completes.
+  useEffect(() => {
+    if (!scorecard || !currentHole) return;
+
+    let cancelled = false;
+    setIsRefetchingHole(true);
+    refetchScorecard()
+      .then((res) => {
+        if (!cancelled && res.data) {
+          mergeHoleFromScorecard(currentHole.holeNumber, res.data);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setIsRefetchingHole(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentHoleIndex, !!scorecard]);
 
   const handleScoreChange = useCallback((playerId: number, holeNumber: number, value: number | '') => {
     setScores((prev) => ({
@@ -702,42 +855,16 @@ export function TeeTimeScoreEntryPage() {
       .filter((p) => p.holeScores.length > 0);
   }, [players, scores, holeDataMap, holes]);
 
-  const handleNext = async () => {
-    if (!canEdit || !currentHole) {
-      if (currentHoleIndex < holes.length - 1) {
-        setCurrentHoleIndex((prev) => prev + 1);
-      } else {
-        setShowSummary(true);
-      }
-      return;
-    }
-
-    const payload = buildHoleScoresPayload(currentHole.holeNumber);
-    if (payload.length > 0) {
-      try {
-        await saveHoleScores.mutateAsync({ holeNumber: currentHole.holeNumber, playerScores: payload });
-      } catch {
-        // Non-fatal — user can still navigate; full submit will catch any issues
-      }
-    }
-
+  const advanceHole = useCallback(() => {
     if (currentHoleIndex < holes.length - 1) {
       setCurrentHoleIndex((prev) => prev + 1);
     } else {
       setShowSummary(true);
     }
-  };
+  }, [currentHoleIndex, holes.length]);
 
-  const handlePrev = () => {
-    if (showSummary) {
-      setShowSummary(false);
-    } else if (currentHoleIndex > 0) {
-      setCurrentHoleIndex((prev) => prev - 1);
-    }
-  };
-
-  const handleSubmit = async () => {
-    const playerScores: PlayerScoreInput[] = players
+  const buildSubmitPayload = useCallback((): PlayerScoreInput[] => {
+    return players
       .filter((p) => !p.skippedWeek)
       .map((player) => ({
         playerId: player.playerId,
@@ -752,12 +879,123 @@ export function TeeTimeScoreEntryPage() {
           };
         }),
       }));
+  }, [players, scores, holeDataMap, holes]);
+
+  function extractConflicts(err: unknown): HoleScoreConflict[] | null {
+    const axiosErr = err as { response?: { status?: number; data?: { conflicts?: HoleScoreConflict[] } } } | null;
+    if (axiosErr?.response?.status === 409 && axiosErr.response.data?.conflicts) {
+      return axiosErr.response.data.conflicts;
+    }
+    return null;
+  }
+
+  const handleNext = async () => {
+    if (!canEdit || !currentHole) {
+      advanceHole();
+      return;
+    }
+
+    const payload = buildHoleScoresPayload(currentHole.holeNumber);
+    if (payload.length > 0) {
+      try {
+        await saveHoleScores.mutateAsync({ holeNumber: currentHole.holeNumber, playerScores: payload });
+      } catch (err) {
+        const conflicts = extractConflicts(err);
+        if (conflicts && conflicts.length > 0) {
+          setPendingConflict({ context: 'hole', conflicts, holeNumber: currentHole.holeNumber });
+          return;
+        }
+        // Non-fatal otherwise — user can still navigate; full submit will catch any issues
+      }
+    }
+
+    advanceHole();
+  };
+
+  const handlePrev = () => {
+    if (showSummary) {
+      setShowSummary(false);
+    } else if (currentHoleIndex > 0) {
+      setCurrentHoleIndex((prev) => prev - 1);
+    }
+  };
+
+  const handleSubmit = async () => {
+    const playerScores = buildSubmitPayload();
 
     try {
-      await submitScores.mutateAsync(playerScores);
+      await submitScores.mutateAsync({ playerScores });
       setSubmitSuccess(true);
-    } catch {
-      // Error handled by mutation
+    } catch (err) {
+      const conflicts = extractConflicts(err);
+      if (conflicts && conflicts.length > 0) {
+        setPendingConflict({ context: 'submit', conflicts });
+      }
+      // Other errors are surfaced via submitScores.isError below
+    }
+  };
+
+  const handleConflictChoiceChange = useCallback((playerId: number, holeNumber: number, choice: 'existing' | 'new') => {
+    setConflictChoices((prev) => ({ ...prev, [conflictKey(playerId, holeNumber)]: choice }));
+  }, []);
+
+  const handleConflictCancel = () => {
+    setPendingConflict(null);
+    setConflictChoices({});
+  };
+
+  const handleConflictConfirm = async () => {
+    if (!pendingConflict) return;
+
+    const confirmedOverwrites: ConfirmedOverwrite[] = [];
+    // Revert local state for any conflicts the user chose to keep the existing value for,
+    // so the retried payload matches and won't re-trigger the same conflict.
+    for (const c of pendingConflict.conflicts) {
+      const key = conflictKey(c.playerId, c.holeNumber);
+      const choice = conflictChoices[key] ?? 'existing';
+      if (choice === 'new') {
+        confirmedOverwrites.push({ playerId: c.playerId, holeNumber: c.holeNumber });
+      } else {
+        setScores((prev) => ({
+          ...prev,
+          [c.playerId]: { ...prev[c.playerId], [c.holeNumber]: c.existingGrossStrokes },
+        }));
+      }
+    }
+
+    try {
+      if (pendingConflict.context === 'hole' && pendingConflict.holeNumber != null) {
+        const holeNumber = pendingConflict.holeNumber;
+        const payload = buildHoleScoresPayload(holeNumber).map((p) => {
+          const keptExisting = pendingConflict.conflicts.find(
+            (c) => c.playerId === p.playerId && (conflictChoices[conflictKey(c.playerId, c.holeNumber)] ?? 'existing') === 'existing'
+          );
+          if (!keptExisting) return p;
+          return {
+            ...p,
+            holeScores: p.holeScores.map((hs) =>
+              hs.holeNumber === holeNumber ? { ...hs, grossStrokes: keptExisting.existingGrossStrokes } : hs
+            ),
+          };
+        });
+        await saveHoleScores.mutateAsync({ holeNumber, playerScores: payload, confirmedOverwrites });
+        setPendingConflict(null);
+        setConflictChoices({});
+        advanceHole();
+      } else {
+        const payload = buildSubmitPayload();
+        await submitScores.mutateAsync({ playerScores: payload, confirmedOverwrites });
+        setPendingConflict(null);
+        setConflictChoices({});
+        setSubmitSuccess(true);
+      }
+    } catch (err) {
+      const conflicts = extractConflicts(err);
+      if (conflicts && conflicts.length > 0) {
+        // Still conflicting (e.g. a third player also changed it) — show the updated list.
+        setPendingConflict({ ...pendingConflict, conflicts });
+        setConflictChoices({});
+      }
     }
   };
 
@@ -812,7 +1050,7 @@ export function TeeTimeScoreEntryPage() {
         </Badge>
       </PageHeader>
 
-      {submitScores.isError && (
+      {submitScores.isError && !pendingConflict && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {(() => {
             const err = submitScores.error as { response?: { data?: { error?: string } } } | null;
@@ -883,6 +1121,7 @@ export function TeeTimeScoreEntryPage() {
       {(setupComplete || !canEdit) && !showSummary && (
         <p className="text-center text-sm text-gray-500">
           Hole {currentHoleIndex + 1} of {holes.length}
+          {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
         </p>
       )}
 
@@ -950,6 +1189,17 @@ export function TeeTimeScoreEntryPage() {
             )}
           </Button>
         </div>
+      )}
+
+      {pendingConflict && (
+        <ConflictDialog
+          pending={pendingConflict}
+          choices={conflictChoices}
+          onChoiceChange={handleConflictChoiceChange}
+          onConfirm={handleConflictConfirm}
+          onCancel={handleConflictCancel}
+          isSubmitting={saveHoleScores.isPending || submitScores.isPending}
+        />
       )}
     </div>
   );

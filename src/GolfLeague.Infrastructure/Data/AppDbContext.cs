@@ -516,6 +516,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.Property(e => e.FirstPuttDistanceFeet);
             entity.Property(e => e.FairwayHit);
             entity.Property(e => e.Gir);
+            entity.Property(e => e.LastModifiedByPlayerId);
         });
     }
 

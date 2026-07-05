@@ -5,6 +5,7 @@ import type {
   TeeTimeGroupScorecard,
   TeeTimeGroupScoresResult,
   PlayerScoreInput,
+  ConfirmedOverwrite,
 } from '@/types/api';
 
 function unwrap<T>(data: unknown): T {
@@ -97,26 +98,52 @@ export function useSetTeeTimeParticipantSkipped(teeTimeId: number | null) {
 /**
  * Save scores for a single hole for all players in a tee time group.
  * Called when the user presses Next on each hole for incremental persistence.
+ * Throws (with a 409 response) if a conflicting score was entered by another
+ * player and not included in confirmedOverwrites.
  */
 export function useSaveTeeTimeHoleScores(teeTimeId: number | null) {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ holeNumber, playerScores }: { holeNumber: number; playerScores: PlayerScoreInput[] }) => {
+    mutationFn: async ({
+      holeNumber,
+      playerScores,
+      confirmedOverwrites,
+    }: {
+      holeNumber: number;
+      playerScores: PlayerScoreInput[];
+      confirmedOverwrites?: ConfirmedOverwrite[];
+    }) => {
       if (teeTimeId == null) throw new Error('teeTimeId required');
-      await apiClient.put(`/tee-times/${teeTimeId}/holes/${holeNumber}/scores`, { playerScores });
+      await apiClient.put(`/tee-times/${teeTimeId}/holes/${holeNumber}/scores`, {
+        playerScores,
+        confirmedOverwrites,
+      });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
     },
   });
 }
 
 /**
  * Submit scores for all players in a tee time group.
+ * Throws (with a 409 response) if a conflicting score was entered by another
+ * player and not included in confirmedOverwrites.
  */
 export function useSubmitTeeTimeGroupScores(teeTimeId: number | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (playerScores: PlayerScoreInput[]) => {
+    mutationFn: async ({
+      playerScores,
+      confirmedOverwrites,
+    }: {
+      playerScores: PlayerScoreInput[];
+      confirmedOverwrites?: ConfirmedOverwrite[];
+    }) => {
       if (teeTimeId == null) throw new Error('teeTimeId required');
       const res = await apiClient.post(`/tee-times/${teeTimeId}/submit-scores`, {
         playerScores,
+        confirmedOverwrites,
       });
       return unwrap<TeeTimeGroupScoresResult>(res.data);
     },
