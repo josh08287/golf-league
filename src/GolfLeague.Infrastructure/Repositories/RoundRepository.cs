@@ -308,4 +308,34 @@ public sealed class RoundRepository : IRoundRepository
             .OrderBy(w => w.Player.LastName)
             .ThenBy(w => w.Player.FirstName)
             .ToListAsync(cancellationToken);
+
+    public async Task SetClosestToPinWinnersAsync(int roundId, IEnumerable<(int HoleNumber, int PlayerId)> winners, CancellationToken cancellationToken = default)
+    {
+        await _context.RoundClosestToPins
+            .Where(w => w.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var rows = winners
+            .GroupBy(w => w.HoleNumber)
+            .Select(g => new RoundClosestToPin
+            {
+                RoundId = roundId,
+                HoleNumber = g.Key,
+                PlayerId = g.First().PlayerId,
+            })
+            .ToList();
+
+        if (rows.Count > 0)
+        {
+            await _context.RoundClosestToPins.AddRangeAsync(rows, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.RoundClosestToPins
+            .Include(w => w.Player)
+            .Where(w => w.RoundId == roundId)
+            .OrderBy(w => w.HoleNumber)
+            .ToListAsync(cancellationToken);
 }

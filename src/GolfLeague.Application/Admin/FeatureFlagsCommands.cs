@@ -107,8 +107,16 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string SelfSkipRoundsEnabled = "self_skip_rounds_enabled";
 
+    /// <summary>
+    /// Tracks closest-to-the-pin winners on par-3 holes for regular league
+    /// rounds: a scorer/admin picks a winner (or None) per par 3 on the score
+    /// entry screen, and wins surface on the statistics leaderboards.
+    /// </summary>
+    public const string ClosestToPinEnabled = "closest_to_pin_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
+        [ClosestToPinEnabled] = false,
     };
 }

@@ -23,4 +23,5 @@ public class Round
     public ICollection<TournamentMatchup> TournamentMatchups { get; set; } = [];
     public ICollection<TournamentHoleExtra> TournamentHoleExtras { get; set; } = [];
     public ICollection<TournamentLongestDriveWinner> TournamentLongestDriveWinners { get; set; } = [];
+    public ICollection<RoundClosestToPin> ClosestToPinWinners { get; set; } = [];
 }

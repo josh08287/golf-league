@@ -636,11 +636,38 @@ export interface PlayerPar3Skins {
   totalSkinValue: number;
 }
 
+export interface PlayerCtpWins {
+  playerId: number;
+  playerName: string;
+  totalCtpWins: number;
+}
+
 export interface LeagueLeaderboards {
   lowGross: PlayerGrossLeaderboardEntry[];
   lowNet: PlayerNetLeaderboardEntry[];
   birdiesEagles: PlayerBirdiesEagles[];
   par3Skins: PlayerPar3Skins[];
+  ctpWins: PlayerCtpWins[];
+}
+
+// ── Closest to the Pin ────────────────────────────────────────────────────────
+
+export interface ClosestToPinHole {
+  holeNumber: number;
+  par: number;
+  playerId: number | null;
+  playerName: string | null;
+}
+
+export interface ClosestToPinParticipant {
+  playerId: number;
+  playerName: string;
+}
+
+export interface RoundClosestToPin {
+  roundId: number;
+  par3Holes: ClosestToPinHole[];
+  participants: ClosestToPinParticipant[];
 }
 
 // ── Tournament Rounds ─────────────────────────────────────────────────────────
@@ -770,4 +797,5 @@ export interface FeatureFlag {
 
 export const FEATURE_FLAG_KEYS = {
   selfSkipRoundsEnabled: 'self_skip_rounds_enabled',
+  closestToPinEnabled: 'closest_to_pin_enabled',
 } as const;

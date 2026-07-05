@@ -19,6 +19,8 @@ public class GetLeagueLeaderboardsHandicapVerificationTests
     {
         _roundRepo = new Mock<IRoundRepository>();
         _playerRepo = new Mock<IPlayerRepository>();
+        _roundRepo.Setup(r => r.GetClosestToPinWinnersAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundClosestToPin>());
         _handler = new GetLeagueLeaderboardsQueryHandler(_roundRepo.Object, _playerRepo.Object);
     }
 

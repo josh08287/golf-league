@@ -9,6 +9,22 @@ import { useFeatureFlags, useUpdateFeatureFlag } from '../../hooks/admin/useFeat
 import { useAuthStore } from '../../store/authStore';
 import { SETTING_KEYS, FEATURE_FLAG_KEYS } from '../../types/api';
 
+/** Global feature flags surfaced to super-admins, in display order. */
+const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] = [
+  {
+    key: FEATURE_FLAG_KEYS.selfSkipRoundsEnabled,
+    label: 'Player self-skip on profile page',
+    description:
+      'Lets players skip or unskip their own upcoming rounds directly from their player profile page. Applies to every league.',
+  },
+  {
+    key: FEATURE_FLAG_KEYS.closestToPinEnabled,
+    label: 'Closest-to-the-pin tracking',
+    description:
+      'Lets scorers and admins record which player was closest to the pin on each par 3 from the score entry screen, with wins shown on the statistics page. Applies to every league.',
+  },
+];
+
 function Toggle({
   label,
   description,
@@ -170,17 +186,17 @@ export function SettingsPage() {
                   </div>
                 )}
                 {flagsError && <ErrorMessage message="Could not load feature flags." />}
-                {featureFlags && (
-                  <Toggle
-                    label="Player self-skip on profile page"
-                    description="Lets players skip or unskip their own upcoming rounds directly from their player profile page. Applies to every league."
-                    checked={
-                      featureFlags.find((f) => f.key === FEATURE_FLAG_KEYS.selfSkipRoundsEnabled)?.enabled ?? false
-                    }
-                    onChange={(v) => updateFlag.mutate({ key: FEATURE_FLAG_KEYS.selfSkipRoundsEnabled, enabled: v })}
-                    disabled={updateFlag.isPending}
-                  />
-                )}
+                {featureFlags &&
+                  FEATURE_FLAG_DEFS.map((def) => (
+                    <Toggle
+                      key={def.key}
+                      label={def.label}
+                      description={def.description}
+                      checked={featureFlags.find((f) => f.key === def.key)?.enabled ?? false}
+                      onChange={(v) => updateFlag.mutate({ key: def.key, enabled: v })}
+                      disabled={updateFlag.isPending}
+                    />
+                  ))}
               </CardContent>
             </Card>
           )}

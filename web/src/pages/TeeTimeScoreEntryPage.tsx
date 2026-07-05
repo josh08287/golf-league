@@ -1,12 +1,16 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
   useSaveTeeTimeHoleScores,
   useSetTeeTimeParticipantSkipped,
 } from '@/hooks/useTeeTimeScoreEntry';
+import { useRoundClosestToPin, useSetRoundClosestToPin } from '@/hooks/useClosestToPin';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useAuthStore } from '@/store/authStore';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -483,6 +487,98 @@ function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit 
   );
 }
 
+/**
+ * Closest-to-the-pin selection for each par 3 of the round. Scorer/admin
+ * only; the winner may be any active participant of the round (not just
+ * this tee-time group), or "None".
+ */
+function ClosestToPinSection({ roundId, canEdit }: { roundId: number; canEdit: boolean }) {
+  const ctp = useRoundClosestToPin(roundId);
+  const saveCtp = useSetRoundClosestToPin(roundId);
+  // holeNumber -> playerId | null; only holds unsaved local edits
+  const [edits, setEdits] = useState<Record<number, number | null>>({});
+
+  if (ctp.isPending) {
+    return (
+      <Card>
+        <CardContent className="flex justify-center py-6">
+          <Spinner />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (ctp.isError || !ctp.data || ctp.data.par3Holes.length === 0) return null;
+
+  const { par3Holes, participants } = ctp.data;
+
+  const selectionFor = (holeNumber: number, savedPlayerId: number | null): number | null =>
+    holeNumber in edits ? edits[holeNumber] : savedPlayerId;
+
+  const isDirty = par3Holes.some(
+    (h) => h.holeNumber in edits && edits[h.holeNumber] !== h.playerId,
+  );
+
+  const handleSave = () => {
+    const selections = par3Holes.map((h) => ({
+      holeNumber: h.holeNumber,
+      playerId: selectionFor(h.holeNumber, h.playerId),
+    }));
+    saveCtp.mutate(selections, { onSuccess: () => setEdits({}) });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="h-5 w-5 text-[#1B5E20]" />
+          Closest to the Pin
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Select the player who was closest to the pin on each par 3 for this round.
+        </p>
+        {par3Holes.map((hole) => (
+          <div key={hole.holeNumber} className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-gray-900">Hole {hole.holeNumber}</span>
+            <select
+              value={selectionFor(hole.holeNumber, hole.playerId) ?? ''}
+              onChange={(e) =>
+                setEdits((prev) => ({
+                  ...prev,
+                  [hole.holeNumber]: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                }))
+              }
+              disabled={!canEdit || saveCtp.isPending}
+              className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50 disabled:bg-gray-50"
+            >
+              <option value="">None</option>
+              {participants.map((p) => (
+                <option key={p.playerId} value={p.playerId}>
+                  {p.playerName}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        {canEdit && (
+          <div className="flex items-center gap-3 pt-2">
+            <Button size="sm" onClick={handleSave} disabled={!isDirty || saveCtp.isPending}>
+              {saveCtp.isPending ? 'Saving…' : 'Save Closest to Pin'}
+            </Button>
+            {saveCtp.isError && (
+              <span className="text-sm text-red-600">Failed to save. Please try again.</span>
+            )}
+            {saveCtp.isSuccess && !isDirty && !saveCtp.isPending && (
+              <span className="text-sm text-green-700">Saved!</span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function TeeTimeScoreEntryPage() {
   const { teeTimeId } = useParams<{ teeTimeId: string }>();
   const teeTimeIdNum = parseInt(teeTimeId ?? '0', 10);
@@ -491,6 +587,14 @@ export function TeeTimeScoreEntryPage() {
   const submitScores = useSubmitTeeTimeGroupScores(teeTimeIdNum);
   const saveHoleScores = useSaveTeeTimeHoleScores(teeTimeIdNum);
   const setParticipantSkipped = useSetTeeTimeParticipantSkipped(teeTimeIdNum);
+
+  const user = useAuthStore((s) => s.user);
+  const featureFlags = useFeatureFlagStates();
+  const ctpEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.closestToPinEnabled] ?? false;
+  const isScorerOrAdmin =
+    (user?.isSuperAdmin ?? false) ||
+    (user?.roles?.some((r) => r === 'scorer' || r === 'admin') ?? false);
+  const showClosestToPin = ctpEnabled && isScorerOrAdmin;
 
   // setup step state
   const [setupComplete, setSetupComplete] = useState(false);
@@ -784,14 +888,20 @@ export function TeeTimeScoreEntryPage() {
 
       {/* Main content */}
       {(setupComplete || !canEdit) && showSummary ? (
-        <ScoreSummary
-          players={players}
-          holes={holes}
-          scores={scores}
-          onSubmit={handleSubmit}
-          isSubmitting={submitScores.isPending}
-          canEdit={canEdit}
-        />
+        <>
+          {/* Closest to the pin — scorer/admin only, feature-flagged */}
+          {showClosestToPin && (
+            <ClosestToPinSection roundId={scorecard.roundId} canEdit={canEdit} />
+          )}
+          <ScoreSummary
+            players={players}
+            holes={holes}
+            scores={scores}
+            onSubmit={handleSubmit}
+            isSubmitting={submitScores.isPending}
+            canEdit={canEdit}
+          />
+        </>
       ) : currentHole ? (
         <HoleView
           hole={currentHole}

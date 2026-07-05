@@ -41,4 +41,8 @@ public interface IRoundRepository
     Task<IReadOnlyList<TournamentHoleExtra>> GetTournamentHoleExtrasAsync(int roundId, CancellationToken cancellationToken = default);
     Task SetLongestDriveWinnersAsync(int roundId, IEnumerable<int> playerIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TournamentLongestDriveWinner>> GetLongestDriveWinnersAsync(int roundId, CancellationToken cancellationToken = default);
+
+    // Closest to the pin (regular league rounds)
+    Task SetClosestToPinWinnersAsync(int roundId, IEnumerable<(int HoleNumber, int PlayerId)> winners, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersAsync(int roundId, CancellationToken cancellationToken = default);
 }

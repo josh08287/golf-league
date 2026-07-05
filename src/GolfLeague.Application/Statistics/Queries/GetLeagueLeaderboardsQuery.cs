@@ -32,11 +32,17 @@ public sealed record PlayerPar3SkinsDto(
     int TotalSkinsWon,
     int TotalSkinValue);
 
+public sealed record PlayerCtpWinsDto(
+    int PlayerId,
+    string PlayerName,
+    int TotalCtpWins);
+
 public sealed record LeagueLeaderboardsDto(
     List<PlayerGrossLeaderboardEntryDto> LowGross,
     List<PlayerNetLeaderboardEntryDto> LowNet,
     List<PlayerBirdiesEaglesDto> BirdiesEagles,
-    List<PlayerPar3SkinsDto> Par3Skins);
+    List<PlayerPar3SkinsDto> Par3Skins,
+    List<PlayerCtpWinsDto> CtpWins);
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
@@ -71,6 +77,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         var netByPlayer = new Dictionary<int, (string Name, long TotalStrokes, int Rounds)>();
         var birdiesByPlayer = new Dictionary<int, (string Name, int Birdies, int Eagles)>();
         var skinsByPlayer = new Dictionary<int, (string Name, int Count, int Value)>();
+        var ctpByPlayer = new Dictionary<int, (string Name, int Wins)>();
 
         // Par-3 skins carryover accumulates across rounds in chronological order
         int par3Carryover = 0;
@@ -132,6 +139,17 @@ public sealed class GetLeagueLeaderboardsQueryHandler
                 else
                     skinsByPlayer[playerId] = (playerName, cs.Count + skinsWon, cs.Value + skinValue);
             }
+
+            // Closest-to-pin wins recorded for this round
+            var ctpWinners = await _roundRepository.GetClosestToPinWinnersAsync(round.Id, cancellationToken);
+            foreach (var winner in ctpWinners)
+            {
+                var name = winner.Player?.FullName ?? string.Empty;
+                if (!ctpByPlayer.TryGetValue(winner.PlayerId, out var cc))
+                    ctpByPlayer[winner.PlayerId] = (name, 1);
+                else
+                    ctpByPlayer[winner.PlayerId] = (name, cc.Wins + 1);
+            }
         }
 
         var lowGross = grossByPlayer
@@ -166,7 +184,13 @@ public sealed class GetLeagueLeaderboardsQueryHandler
             .ThenBy(x => x.PlayerName)
             .ToList();
 
-        return Result<LeagueLeaderboardsDto>.Ok(new LeagueLeaderboardsDto(lowGross, lowNet, birdiesEagles, par3Skins));
+        var ctpWins = ctpByPlayer
+            .Select(kv => new PlayerCtpWinsDto(kv.Key, kv.Value.Name, kv.Value.Wins))
+            .OrderByDescending(x => x.TotalCtpWins)
+            .ThenBy(x => x.PlayerName)
+            .ToList();
+
+        return Result<LeagueLeaderboardsDto>.Ok(new LeagueLeaderboardsDto(lowGross, lowNet, birdiesEagles, par3Skins, ctpWins));
     }
 
     private static Par3RoundResult CalculatePar3Skins(

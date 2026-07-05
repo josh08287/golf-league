@@ -38,6 +38,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
     public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
+    public DbSet<RoundClosestToPin> RoundClosestToPins => Set<RoundClosestToPin>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
@@ -66,6 +67,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureTournamentMatchups(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
         ConfigureTournamentLongestDriveWinners(modelBuilder);
+        ConfigureRoundClosestToPins(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
@@ -457,6 +459,24 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
+        });
+    }
+
+    private static void ConfigureRoundClosestToPins(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<RoundClosestToPin>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.ClosestToPinWinners)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Player)
+                  .WithMany()
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            // One winner per hole per round; "None" is simply the absence of a row.
+            entity.HasIndex(e => new { e.RoundId, e.HoleNumber }).IsUnique();
         });
     }
 

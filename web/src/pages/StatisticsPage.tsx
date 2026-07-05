@@ -22,6 +22,8 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import type { HoleStatistics, MostImprovedPlayer, LeagueLeaderboards } from '@/types/api';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 
 function scoreToParLabel(val: number | null) {
   if (val == null) return '—';
@@ -252,10 +254,13 @@ function LeagueLeaderboardsSection() {
   const [netExpanded, setNetExpanded] = useState(false);
   const [birdiesExpanded, setBirdiesExpanded] = useState(false);
 
+  const featureFlags = useFeatureFlagStates();
+  const ctpEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.closestToPinEnabled] ?? false;
+
   if (isPending) return null;
   if (isError || !data) return <ErrorMessage message="Could not load league leaderboards." />;
 
-  const { lowGross, lowNet, birdiesEagles, par3Skins } = data as LeagueLeaderboards;
+  const { lowGross, lowNet, birdiesEagles, par3Skins, ctpWins } = data as LeagueLeaderboards;
 
   const visibleGross = grossExpanded ? lowGross : lowGross.slice(0, PAGE_SIZE);
   const visibleNet = netExpanded ? lowNet : lowNet.slice(0, PAGE_SIZE);
@@ -419,6 +424,44 @@ function LeagueLeaderboardsSection() {
           </TableBody>
         </Table>
       </LeaderboardTable>
+
+      {/* Closest to the Pin — feature-flagged */}
+      {ctpEnabled && (
+        <LeaderboardTable
+          title="Closest to the Pin"
+          total={ctpWins.length}
+          expanded={true}
+        >
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-gray-50">
+                <TableHead className="w-10 text-center">#</TableHead>
+                <TableHead>Player</TableHead>
+                <TableHead className="text-right">CTP Wins</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {ctpWins.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={3} className="text-center text-gray-400">No data yet</TableCell>
+                </TableRow>
+              ) : (
+                ctpWins.map((entry, i) => (
+                  <TableRow key={entry.playerId}>
+                    <TableCell className="text-center font-semibold text-gray-500">{i + 1}</TableCell>
+                    <TableCell>
+                      <Link to={`${prefix}/players/${entry.playerId}`} className="font-medium text-primary-900 hover:underline">
+                        {entry.playerName}
+                      </Link>
+                    </TableCell>
+                    <TableCell className="text-right tabular-nums font-semibold">{entry.totalCtpWins}</TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </LeaderboardTable>
+      )}
     </div>
   );
 }
