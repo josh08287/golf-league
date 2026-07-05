@@ -85,6 +85,11 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 ? $"Invalid hole numbers for 18-hole round: {string.Join(", ", invalidHoles)}."
                 : $"Invalid hole numbers for this {round.NineHoleSide} nine: {string.Join(", ", invalidHoles)}.");
 
+        var missingOrInvalidScores = request.HoleScores.Where(h => h.GrossStrokes < 1).ToList();
+        if (missingOrInvalidScores.Count > 0)
+            return Result<ScorecardDto>.Fail(
+                $"Hole(s) {string.Join(", ", missingOrInvalidScores.Select(h => h.HoleNumber))} are missing a valid score.");
+
         var holeScoreEntities = new List<HoleScore>();
         var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
 
