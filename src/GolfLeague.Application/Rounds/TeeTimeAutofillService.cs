@@ -14,8 +14,9 @@ namespace GolfLeague.Application.Rounds;
 ///    their flight (1+2 together, 3+4 together, …), pairing adjacent-ranked
 ///    players from different flights per slot. Time preferences are ignored.
 ///  - All other rounds: top off any partial existing tee times first, then
-///    assign remaining participants respecting time preferences with 2+2 flight
-///    pairing across the largest remaining flights.
+///    assign remaining participants with 2+2 flight pairing across the largest
+///    remaining flights. Time preferences are a soft weight when ordering
+///    candidates for a slot, never a guarantee of (or bar to) any slot.
 /// </summary>
 public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 {
@@ -64,6 +65,17 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         var assignedCount = 0;
         var touchedSlotIds = new HashSet<int>();
 
+        // SetParticipantTeeTimeAsync writes straight to the DB and never
+        // updates the in-memory slot.Participants collections fetched above,
+        // so track this run's assignments ourselves. Effective occupancy =
+        // what was loaded + what we've added; without it a later phase sees
+        // a stale count of 0 and overfills a slot past capacity.
+        var addedThisRun = new Dictionary<int, int>();
+        int EffectiveCount(RoundTeeTime slot)
+            => slot.Participants.Count + addedThisRun.GetValueOrDefault(slot.Id);
+        void NoteAssigned(int slotId)
+            => addedThisRun[slotId] = addedThisRun.GetValueOrDefault(slotId) + 1;
+
         // --- Phase 0 (final round of half only): standings-based pairing.
         // On the last scheduled round of the half, ignore time preferences and
         // group players so that adjacent standings rivals share a tee time:
@@ -104,6 +116,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                     assignedCount++;
                     touchedSlotIds.Add(slot.Id);
                     placedInPhase0.Add(p.Id);
+                    NoteAssigned(slot.Id);
                 }
             }
 
@@ -115,7 +128,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         var unassignedQueue = new List<RoundParticipant>(unassigned);
         foreach (var slot in slots.OrderBy(s => s.TeeTimeNumber))
         {
-            var occupied = slot.Participants.Count;
+            var occupied = EffectiveCount(slot);
             if (occupied == 0 || occupied >= TeeTimeSchedule.CapacityPerTeeTime) continue;
 
             var seatsLeft = TeeTimeSchedule.CapacityPerTeeTime - occupied;
@@ -132,6 +145,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                 unassignedQueue.Remove(p);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
+                NoteAssigned(slot.Id);
                 seatsLeft--;
             }
             if (seatsLeft == 0) continue;
@@ -145,88 +159,43 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                 unassignedQueue.Remove(fill);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
+                NoteAssigned(slot.Id);
                 seatsLeft--;
             }
         }
 
         // --- Phase 2: assign everyone else to empty slots, greedy 2+2.
-        // Players with a slot preference are placed into their preferred band
-        // first; players with None are used to fill whatever remains.
-        // Exclude slots already filled by Phase 0 (touchedSlotIds tracks them).
+        // Tee-time preferences act as a WEIGHT, not a guarantee: when picking
+        // from the donor flight, players who prefer this slot's band come
+        // first, players with no preference next, and players preferring a
+        // different band last — but anyone may be seated anywhere when the
+        // remaining seats demand it.
         var emptySlots = slots
-            .Where(s => s.Participants.Count == 0 && !touchedSlotIds.Contains(s.Id))
+            .Where(s => EffectiveCount(s) == 0)
             .OrderBy(s => s.TeeTimeNumber)
             .ToList();
 
         var totalSlots = slots.Count;
 
-        // Split unassigned queue by whether they have a preference.
-        var preferenceQueue = unassignedQueue
-            .Where(p => p.Player.PreferredTeeTimeSlots != TeeTimeSlotPreference.None)
-            .ToList();
-        var noPreferenceQueue = unassignedQueue
-            .Where(p => p.Player.PreferredTeeTimeSlots == TeeTimeSlotPreference.None)
-            .ToList();
-
-        // First pass: players with preferences — place them into a slot in
-        // their preferred band when one is available; otherwise defer to
-        // the no-preference pool.
-        var deferred = new List<RoundParticipant>();
         foreach (var slot in emptySlots)
         {
-            if (preferenceQueue.Count == 0 && deferred.Count == 0) break;
+            if (unassignedQueue.Count == 0) break;
 
-            var band = SlotBand(slot.TeeTimeNumber, totalSlots);
-            var bandFlag = BandToFlag(band);
+            var seatsLeft = TeeTimeSchedule.CapacityPerTeeTime - EffectiveCount(slot);
+            if (seatsLeft <= 0) continue;
 
-            // Prefer players whose preference includes this slot's band.
-            var willing = preferenceQueue
-                .Where(p => (p.Player.PreferredTeeTimeSlots & bandFlag) != 0)
-                .ToList();
+            var bandFlag = SlotBand(slot.TeeTimeNumber, totalSlots);
 
-            var picks = new List<RoundParticipant>();
-            picks.AddRange(TakeFromLargestFlight(willing, 2));
-            // Remove picked from preferenceQueue.
-            foreach (var w in picks) preferenceQueue.Remove(w);
-            willing = preferenceQueue
-                .Where(p => (p.Player.PreferredTeeTimeSlots & bandFlag) != 0)
-                .ToList();
-            var picks2 = TakeFromLargestFlight(willing, 2);
-            foreach (var w in picks2) preferenceQueue.Remove(w);
-            picks.AddRange(picks2);
-
-            if (picks.Count == 0) continue; // no willing players for this slot
+            var picks = TakeFromLargestFlight(unassignedQueue, Math.Min(2, seatsLeft), bandFlag);
+            if (picks.Count < seatsLeft)
+                picks.AddRange(TakeFromLargestFlight(unassignedQueue, seatsLeft - picks.Count, bandFlag));
 
             foreach (var p in picks)
             {
                 await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
-                unassignedQueue.Remove(p);
-            }
-        }
-
-        // Players with preferences who didn't find a matching band slot
-        // fall back into the no-preference pool.
-        noPreferenceQueue.AddRange(preferenceQueue);
-        preferenceQueue.Clear();
-
-        // Second pass: fill remaining empty slots with no-preference players
-        // (and any preference players who couldn't be matched above).
-        foreach (var slot in emptySlots)
-        {
-            if (noPreferenceQueue.Count == 0) break;
-            if (slot.Participants.Count > 0) continue; // already filled above
-
-            var picks = TakeFromLargestFlight(noPreferenceQueue, 2);
-            picks.AddRange(TakeFromLargestFlight(noPreferenceQueue, 2));
-
-            foreach (var p in picks)
-            {
-                await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
-                assignedCount++;
-                touchedSlotIds.Add(slot.Id);
-                unassignedQueue.Remove(p);
+                NoteAssigned(slot.Id);
             }
         }
 
@@ -264,21 +233,37 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         return TeeTimeSlotPreference.Late;
     }
 
-    private static TeeTimeSlotPreference BandToFlag(TeeTimeSlotPreference band) => band;
-
     private static int? LargestFlight(List<RoundParticipant> pool)
         => pool.GroupBy(p => p.FlightId)
                .OrderByDescending(g => g.Count())
                .ThenBy(g => g.Key)        // deterministic tie-break
                .First().Key;
 
-    private static List<RoundParticipant> TakeFromLargestFlight(List<RoundParticipant> pool, int max)
+    /// <summary>
+    /// Weight used to order candidates for a slot: prefer players whose
+    /// preference includes the slot's band, then players with no preference,
+    /// and defer players who prefer a different band — without ever
+    /// excluding anyone.
+    /// </summary>
+    private static int PreferenceWeight(TeeTimeSlotPreference preference, TeeTimeSlotPreference bandFlag)
+    {
+        if (preference == TeeTimeSlotPreference.None) return 0;
+        return (preference & bandFlag) != 0 ? 1 : -1;
+    }
+
+    private static List<RoundParticipant> TakeFromLargestFlight(
+        List<RoundParticipant> pool, int max, TeeTimeSlotPreference bandFlag)
     {
         var result = new List<RoundParticipant>();
         if (pool.Count == 0) return result;
 
         var donorFlightId = LargestFlight(pool);
-        var donors = pool.Where(p => p.FlightId == donorFlightId).Take(max).ToList();
+        var donors = pool
+            .Where(p => p.FlightId == donorFlightId)
+            .OrderByDescending(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, bandFlag))
+            .ThenBy(p => p.PlayerId)       // deterministic tie-break
+            .Take(max)
+            .ToList();
         foreach (var d in donors)
         {
             result.Add(d);

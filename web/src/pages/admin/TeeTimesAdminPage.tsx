@@ -6,14 +6,18 @@ import {
   useAdminMoveParticipantToTeeTime,
   useAdminRemoveParticipantFromTeeTime,
   useAdminSetParticipantSkipped,
+  useResendTeeTimeEmails,
   type AdminParticipant,
 } from '@/hooks/admin/useTeeTimeMutations';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { Badge } from '@/components/ui/Badge';
-import { Clock, Users, GripVertical, X, Calendar, ArrowRightLeft, Ban } from 'lucide-react';
+import { Clock, Users, GripVertical, X, Calendar, ArrowRightLeft, Ban, Mail } from 'lucide-react';
 import type { TeeTimeSlot, TeeTimeParticipant } from '@/types/api';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 
 const CAPACITY = 4;
 
@@ -312,6 +316,9 @@ export function TeeTimesAdminPage() {
   const { data: roundsPage, isLoading: roundsLoading } = useRounds(1, { sortBy: 'scheduledDate', sortDir: 'desc' });
   const { data: schedule, isLoading: scheduleLoading } = useRoundTeeTimes(selectedRoundId);
   const { data: participants, isLoading: participantsLoading, refetch: refetchParticipants } = useAdminRoundParticipants(selectedRoundId);
+  const featureFlags = useFeatureFlagStates();
+  const resendEmailEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.resendTeeTimeEmailEnabled] ?? false;
+  const resendEmails = useResendTeeTimeEmails();
 
   const rounds = roundsPage?.data ?? [];
 
@@ -377,7 +384,7 @@ export function TeeTimesAdminPage() {
       {selectedRoundId && !isLoading && schedule && (
         <div className="space-y-6">
           {/* Schedule Info */}
-          <div className="flex items-center gap-4 text-sm text-gray-600">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
             <span>
               <strong>{schedule.participantCount}</strong> participants
             </span>
@@ -390,6 +397,30 @@ export function TeeTimesAdminPage() {
                 <span>·</span>
                 <Badge variant="amber">Sign-ups locked</Badge>
               </>
+            )}
+            {/* Re-send tee time email — feature-flagged */}
+            {resendEmailEnabled && (
+              <div className="ml-auto flex items-center gap-3">
+                {resendEmails.isSuccess && !resendEmails.isPending && (
+                  <span className="text-green-700">
+                    {resendEmails.data.sent > 0
+                      ? `Sent to ${resendEmails.data.sent} player${resendEmails.data.sent === 1 ? '' : 's'}.`
+                      : 'No emails sent — check the league’s tee time email setting.'}
+                  </span>
+                )}
+                {resendEmails.isError && (
+                  <span className="text-red-600">Failed to send. Please try again.</span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => resendEmails.mutate(selectedRoundId)}
+                  disabled={resendEmails.isPending}
+                >
+                  <Mail className="h-4 w-4 mr-1" />
+                  {resendEmails.isPending ? 'Sending…' : 'Re-send Tee Time Email'}
+                </Button>
+              </div>
             )}
           </div>
 

@@ -798,4 +798,5 @@ export interface FeatureFlag {
 export const FEATURE_FLAG_KEYS = {
   selfSkipRoundsEnabled: 'self_skip_rounds_enabled',
   closestToPinEnabled: 'closest_to_pin_enabled',
+  resendTeeTimeEmailEnabled: 'resend_tee_time_email_enabled',
 } as const;

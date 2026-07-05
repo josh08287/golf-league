@@ -81,3 +81,16 @@ export function useAdminSetParticipantSkipped(roundId: number) {
     },
   });
 }
+
+/**
+ * Re-send the weekly tee time schedule email for a round. Returns the number
+ * of emails actually sent (0 when the league has tee time emails disabled).
+ */
+export function useResendTeeTimeEmails() {
+  return useMutation({
+    mutationFn: async (roundId: number) => {
+      const res = await apiClient.post(`/rounds/${roundId}/tee-times/send-emails`);
+      return unwrap<{ sent: number }>(res.data);
+    },
+  });
+}

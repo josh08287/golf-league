@@ -23,6 +23,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Lets scorers and admins record which player was closest to the pin on each par 3 from the score entry screen, with wins shown on the statistics page. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.resendTeeTimeEmailEnabled,
+    label: 'Re-send tee time email button',
+    description:
+      'Adds a button on the admin tee-times page to manually re-send the weekly tee time schedule email for a round. Sends still respect each league’s email setting and player opt-outs. Applies to every league.',
+  },
 ];
 
 function Toggle({

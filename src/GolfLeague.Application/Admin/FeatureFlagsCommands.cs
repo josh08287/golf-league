@@ -114,9 +114,18 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string ClosestToPinEnabled = "closest_to_pin_enabled";
 
+    /// <summary>
+    /// Adds a button on the admin tee-times page to manually re-send the
+    /// weekly tee time schedule email for a round (e.g. after reshuffling
+    /// assignments). Sending still respects the per-league
+    /// tee_time_email_enabled setting and player opt-outs.
+    /// </summary>
+    public const string ResendTeeTimeEmailEnabled = "resend_tee_time_email_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
         [ClosestToPinEnabled] = false,
+        [ResendTeeTimeEmailEnabled] = false,
     };
 }
