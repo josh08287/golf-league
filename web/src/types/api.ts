@@ -758,3 +758,16 @@ export const SETTING_KEYS = {
   teeTimeEmailEnabled: 'tee_time_email_enabled',
   standingsDropCount: 'standings_drop_count',
 } as const;
+
+// ── Feature Flags ──────────────────────────────────────────────────────────────
+// Global, application-wide toggles (not per-league) used to roll out or
+// kill-switch new features. Distinct from LeagueSettings above.
+
+export interface FeatureFlag {
+  key: string;
+  enabled: boolean;
+}
+
+export const FEATURE_FLAG_KEYS = {
+  selfSkipRoundsEnabled: 'self_skip_rounds_enabled',
+} as const;

@@ -160,6 +160,14 @@ public sealed class TeeTimeFunctions
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
+        var round = await _rounds.GetByIdAsync(id, cancellationToken);
+        if (round is null)
+            return new NotFoundObjectResult(new { error = "Round not found." });
+
+        var easternToday = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TeeTimeSchedule.EasternTimeZone));
+        if (round.RoundDate < easternToday)
+            return new BadRequestObjectResult(new { error = "This round has already started." });
+
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(new SetParticipantSkippedCommand(id, playerId.Value, body.Skipped, userId), cancellationToken);
         if (!result.IsSuccess)

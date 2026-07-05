@@ -2,13 +2,14 @@ import { useParams, Link } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowLeft, Trophy, TrendingDown, TrendingUp, Target } from 'lucide-react';
 import { useState } from 'react';
-import { usePlayer, useHandicapHistory, usePlayerRounds } from '@/hooks/usePlayers';
+import { usePlayer, useHandicapHistory, usePlayerRounds, usePlayerSkipRound } from '@/hooks/usePlayers';
 import { usePlayerStatistics } from '@/hooks/useStatistics';
 import { useSetTeeTimePreference } from '@/hooks/useTeeTimes';
 import { useSetTeeTimeEmailOptOut } from '@/hooks/usePlayers';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { useAuthStore } from '@/store/authStore';
-import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '@/types/api';
-import type { TeeTimeSlotName, PlayerStatistics } from '@/types/api';
+import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG, FEATURE_FLAG_KEYS } from '@/types/api';
+import type { TeeTimeSlotName, PlayerStatistics, PlayerRoundSummary } from '@/types/api';
 import {
   Card,
   CardContent,
@@ -184,6 +185,55 @@ function TeeTimeEmailOptOutToggle({ playerId, optOut }: { playerId: number; optO
         </div>
       )}
     </div>
+  );
+}
+
+function isUpcoming(round: PlayerRoundSummary): boolean {
+  if (normalizeRoundStatus(round.status) !== 'Scheduled') return false;
+  // round.roundDate is a "YYYY-MM-DD" DateOnly string; compare lexically
+  // against today's UTC calendar date to avoid local-timezone parsing
+  // shifting a round to the "wrong" day (matches formatShortDate's use of
+  // the UTC timezone for the same date strings).
+  const todayUtc = new Date().toISOString().slice(0, 10);
+  return round.roundDate.slice(0, 10) >= todayUtc;
+}
+
+function UpcomingRoundsSection({ rounds }: { rounds: PlayerRoundSummary[] }) {
+  const skipRound = usePlayerSkipRound();
+  const upcoming = rounds.filter(isUpcoming).sort((a, b) => a.roundDate.localeCompare(b.roundDate));
+
+  if (upcoming.length === 0) return null;
+
+  return (
+    <section>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">Upcoming Rounds</h2>
+      <div className="rounded-lg border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
+        {upcoming.map((r) => (
+          <div key={r.roundId} className="flex items-center justify-between gap-4 px-4 py-3">
+            <div className="min-w-0">
+              <p className={['text-sm font-medium', r.skippedWeek ? 'line-through text-gray-400' : 'text-gray-900'].join(' ')}>
+                {formatShortDate(r.roundDate)} — {r.courseName}{' '}
+                <span className="text-gray-400 text-xs font-normal">(Week {r.weekNumber})</span>
+              </p>
+              {r.skippedWeek && (
+                <Badge variant="secondary" className="mt-1">Skipped</Badge>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant={r.skippedWeek ? 'outline' : 'secondary'}
+              onClick={() => skipRound.mutate({ roundId: r.roundId, skipped: !r.skippedWeek })}
+              disabled={skipRound.isPending}
+            >
+              {r.skippedWeek ? 'Unskip' : 'Skip'}
+            </Button>
+          </div>
+        ))}
+      </div>
+      {skipRound.isError && (
+        <p className="mt-2 text-sm text-red-600">Failed to update. Please try again.</p>
+      )}
+    </section>
   );
 }
 
@@ -543,11 +593,17 @@ export function PlayerProfilePage() {
   const roundsSort = useSortableTable('playerPastRounds');
   const handicapHistory = useHandicapHistory(playerId ?? '', handicapSort.sort);
   const playerRounds = usePlayerRounds(playerId ?? '', roundsSort.sort);
+  const featureFlags = useFeatureFlagStates();
 
   const playerData = player.data;
   const isOwnProfile = user?.playerId != null && user.playerId === playerId;
   const history = handicapHistory.data ?? [];
   const rounds = playerRounds.data ?? [];
+  const selfSkipEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.selfSkipRoundsEnabled] ?? false;
+  const showUpcomingSection = isOwnProfile && selfSkipEnabled;
+  // When the upcoming-rounds section has its own home for a round, don't
+  // also duplicate it in the Past Rounds table below.
+  const pastRounds = showUpcomingSection ? rounds.filter((r) => !isUpcoming(r)) : rounds;
 
   return (
     <div className="space-y-6">
@@ -694,6 +750,11 @@ export function PlayerProfilePage() {
         )}
       </section>
 
+      {/* Upcoming rounds — self-skip/unskip, feature-flagged */}
+      {showUpcomingSection && !playerRounds.isPending && (
+        <UpcomingRoundsSection rounds={rounds} />
+      )}
+
       {/* Past rounds */}
       <section>
         <h2 className="text-lg font-semibold text-gray-900 mb-4">
@@ -705,7 +766,7 @@ export function PlayerProfilePage() {
           <ErrorMessage message="Could not load round history." />
         )}
 
-        {playerRounds.data && rounds.length > 0 && (
+        {playerRounds.data && pastRounds.length > 0 && (
           <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
             <Table>
               <TableHeader>
@@ -741,7 +802,7 @@ export function PlayerProfilePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rounds.map((r) => {
+                {pastRounds.map((r) => {
                   const statusNormalized = normalizeRoundStatus(r.status);
                   const statusVariant =
                     statusNormalized === 'Finalized'
@@ -791,7 +852,7 @@ export function PlayerProfilePage() {
             </Table>
           </div>
         )}
-        {!playerRounds.isPending && rounds.length === 0 && (
+        {!playerRounds.isPending && pastRounds.length === 0 && (
           <p className="text-gray-500 text-sm">No rounds played yet.</p>
         )}
       </section>

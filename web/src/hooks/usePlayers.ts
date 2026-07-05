@@ -105,6 +105,24 @@ export function useSetTeeTimeEmailOptOut() {
   });
 }
 
+/**
+ * Skip or unskip one of the current player's own upcoming rounds, from the
+ * player profile page. Reuses the same self-skip endpoint as the tee-times
+ * page, but also invalidates this player's rounds list so the profile page
+ * strikethrough/unskip UI refreshes immediately.
+ */
+export function usePlayerSkipRound() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ roundId, skipped }: { roundId: number; skipped: boolean }) => {
+      await apiClient.post(`/rounds/${roundId}/tee-times/me/skip`, { skipped });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+    },
+  });
+}
+
 export function usePlayerRounds(playerId: string, sort?: TableSort) {
   return useQuery({
     queryKey: [...playerKeys.rounds(playerId), { sort: sort ?? null }] as const,

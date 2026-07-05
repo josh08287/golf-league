@@ -5,7 +5,9 @@ import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { useLeagueSettings, useUpdateLeagueSetting } from '../../hooks/admin/useLeagueSettings';
-import { SETTING_KEYS } from '../../types/api';
+import { useFeatureFlags, useUpdateFeatureFlag } from '../../hooks/admin/useFeatureFlags';
+import { useAuthStore } from '../../store/authStore';
+import { SETTING_KEYS, FEATURE_FLAG_KEYS } from '../../types/api';
 
 function Toggle({
   label,
@@ -55,6 +57,9 @@ function Toggle({
 export function SettingsPage() {
   const { data: settings, isLoading, isError } = useLeagueSettings();
   const update = useUpdateLeagueSetting();
+  const isSuperAdmin = useAuthStore((s) => s.user?.isSuperAdmin ?? false);
+  const { data: featureFlags, isLoading: flagsLoading, isError: flagsError } = useFeatureFlags(isSuperAdmin);
+  const updateFlag = useUpdateFeatureFlag();
 
   function getSetting(key: string): boolean {
     const s = settings?.find((s) => s.key === key);
@@ -152,11 +157,41 @@ export function SettingsPage() {
               />
             </CardContent>
           </Card>
+
+          {isSuperAdmin && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Feature Flags</CardTitle>
+              </CardHeader>
+              <CardContent className="divide-y divide-gray-100">
+                {flagsLoading && (
+                  <div className="flex justify-center py-4">
+                    <Spinner />
+                  </div>
+                )}
+                {flagsError && <ErrorMessage message="Could not load feature flags." />}
+                {featureFlags && (
+                  <Toggle
+                    label="Player self-skip on profile page"
+                    description="Lets players skip or unskip their own upcoming rounds directly from their player profile page. Applies to every league."
+                    checked={
+                      featureFlags.find((f) => f.key === FEATURE_FLAG_KEYS.selfSkipRoundsEnabled)?.enabled ?? false
+                    }
+                    onChange={(v) => updateFlag.mutate({ key: FEATURE_FLAG_KEYS.selfSkipRoundsEnabled, enabled: v })}
+                    disabled={updateFlag.isPending}
+                  />
+                )}
+              </CardContent>
+            </Card>
+          )}
         </>
       )}
 
       {update.isError && (
         <p className="text-sm text-red-600 text-center">Failed to save setting. Please try again.</p>
+      )}
+      {updateFlag.isError && (
+        <p className="text-sm text-red-600 text-center">Failed to save feature flag. Please try again.</p>
       )}
     </div>
   );

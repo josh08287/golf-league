@@ -1,5 +1,6 @@
 using FluentAssertions;
 using GolfLeague.Application.Common;
+using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Entities;
@@ -353,6 +354,58 @@ public class TeeTimeFunctionsTests
         result.Should().BeOfType<OkObjectResult>();
         captured!.RoundId.Should().Be(10);
         captured.PlayerId.Should().Be(99);
+        captured.Skipped.Should().BeTrue();
+    }
+
+    // ── SkipMyWeek ────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task SkipMyWeek_WhenRoundAlreadyStarted_ReturnsBadRequest()
+    {
+        // RoundDate is in the past relative to "now" — should be rejected
+        // before the command even runs, regardless of round Status.
+        var m = new Mocks();
+        var round = new Round { Id = 1, RoundDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)) };
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        var sut = m.BuildSut();
+        var body = JsonSerializer.Serialize(new { Skipped = true });
+
+        var result = await sut.SkipMyWeek(MakeRequest(body, playerId: 7), 1, CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        m.Mediator.Verify(med => med.Send(It.IsAny<SetParticipantSkippedCommand>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SkipMyWeek_WhenRoundIsUpcoming_SkipsForCallingPlayer()
+    {
+        var m = new Mocks();
+        var round = new Round { Id = 1, RoundDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(3)) };
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        SetParticipantSkippedCommand? captured = null;
+        m.Mediator.Setup(med => med.Send(It.IsAny<SetParticipantSkippedCommand>(), It.IsAny<CancellationToken>()))
+            .Callback<IRequest<Result<bool>>, CancellationToken>((c, _) => captured = (SetParticipantSkippedCommand)c)
+            .ReturnsAsync(Result<bool>.Ok(true));
+        m.Service.Setup(s => s.GetScheduleAsync(1, 7, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<RoundTeeTimeScheduleDto>.Ok(new RoundTeeTimeScheduleDto(
+                RoundId: 1,
+                CutoffUtc: DateTime.UtcNow,
+                IsLocked: false,
+                ParticipantCount: 1,
+                CurrentUserParticipantId: 1,
+                CurrentUserTeeTimeId: null,
+                Slots: [],
+                WeekNumber: 1,
+                RoundDate: "2026-07-08",
+                CourseName: "Test Course")));
+        var sut = m.BuildSut();
+        var body = JsonSerializer.Serialize(new { Skipped = true });
+
+        var result = await sut.SkipMyWeek(MakeRequest(body, playerId: 7), 1, CancellationToken.None);
+
+        result.Should().BeOfType<OkObjectResult>();
+        captured!.RoundId.Should().Be(1);
+        captured.PlayerId.Should().Be(7);
         captured.Skipped.Should().BeTrue();
     }
 

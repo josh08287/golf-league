@@ -20,6 +20,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<League> Leagues => Set<League>();
     public DbSet<LeagueMembership> LeagueMemberships => Set<LeagueMembership>();
     public DbSet<LeagueSetting> LeagueSettings => Set<LeagueSetting>();
+    public DbSet<FeatureFlag> FeatureFlags => Set<FeatureFlag>();
     public DbSet<Season> Seasons => Set<Season>();
     public DbSet<SeasonHalf> SeasonHalves => Set<SeasonHalf>();
     public DbSet<Flight> Flights => Set<Flight>();
@@ -49,6 +50,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureLeagues(modelBuilder);
         ConfigureLeagueMemberships(modelBuilder);
         ConfigureLeagueSettings(modelBuilder);
+        ConfigureFeatureFlags(modelBuilder);
         ConfigureSeasons(modelBuilder);
         ConfigureSeasonHalves(modelBuilder);
         ConfigureFlights(modelBuilder);
@@ -98,6 +100,16 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.LeagueId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => new { e.LeagueId, e.Key }).IsUnique();
+        });
+    }
+
+    private static void ConfigureFeatureFlags(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<FeatureFlag>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.HasIndex(e => e.Key).IsUnique();
         });
     }
 
