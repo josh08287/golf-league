@@ -863,22 +863,33 @@ export function TeeTimeScoreEntryPage() {
     }
   }, [currentHoleIndex, holes.length]);
 
-  const buildSubmitPayload = useCallback((): PlayerScoreInput[] => {
-    return players
-      .filter((p) => !p.skippedWeek)
-      .map((player) => ({
-        playerId: player.playerId,
-        holeScores: holes.map((hole) => {
-          const hd = holeDataMap[player.playerId]?.[hole.holeNumber];
-          return {
-            holeNumber: hole.holeNumber,
-            grossStrokes: scores[player.playerId]?.[hole.holeNumber] as number || 0,
-            putts: hd?.putts !== '' && hd?.putts != null ? hd.putts as number : null,
-            firstPuttDistanceFeet: hd?.firstPuttDistanceFeet !== '' && hd?.firstPuttDistanceFeet != null ? hd.firstPuttDistanceFeet as number : null,
-            fairwayHit: hole.par >= 4 ? hd?.fairwayHit ?? null : null,
-          };
-        }),
-      }));
+  // Returns null if any non-skipped player is missing a gross score for any
+  // hole — callers must not submit a payload with fabricated placeholder
+  // scores for holes that were never actually entered.
+  const buildSubmitPayload = useCallback((): PlayerScoreInput[] | null => {
+    const activePlayers = players.filter((p) => !p.skippedWeek);
+    const result: PlayerScoreInput[] = [];
+
+    for (const player of activePlayers) {
+      const holeScores = [];
+      for (const hole of holes) {
+        const gross = scores[player.playerId]?.[hole.holeNumber];
+        if (gross === undefined || gross === '') {
+          return null;
+        }
+        const hd = holeDataMap[player.playerId]?.[hole.holeNumber];
+        holeScores.push({
+          holeNumber: hole.holeNumber,
+          grossStrokes: gross,
+          putts: hd?.putts !== '' && hd?.putts != null ? hd.putts as number : null,
+          firstPuttDistanceFeet: hd?.firstPuttDistanceFeet !== '' && hd?.firstPuttDistanceFeet != null ? hd.firstPuttDistanceFeet as number : null,
+          fairwayHit: hole.par >= 4 ? hd?.fairwayHit ?? null : null,
+        });
+      }
+      result.push({ playerId: player.playerId, holeScores });
+    }
+
+    return result;
   }, [players, scores, holeDataMap, holes]);
 
   function extractConflicts(err: unknown): HoleScoreConflict[] | null {
@@ -922,6 +933,11 @@ export function TeeTimeScoreEntryPage() {
 
   const handleSubmit = async () => {
     const playerScores = buildSubmitPayload();
+    if (playerScores === null) {
+      // Should be prevented by the ScoreSummary "allComplete" gate, but never
+      // submit a payload with holes missing real scores.
+      return;
+    }
 
     try {
       await submitScores.mutateAsync({ playerScores });
@@ -984,6 +1000,11 @@ export function TeeTimeScoreEntryPage() {
         advanceHole();
       } else {
         const payload = buildSubmitPayload();
+        if (payload === null) {
+          setPendingConflict(null);
+          setConflictChoices({});
+          return;
+        }
         await submitScores.mutateAsync({ playerScores: payload, confirmedOverwrites });
         setPendingConflict(null);
         setConflictChoices({});

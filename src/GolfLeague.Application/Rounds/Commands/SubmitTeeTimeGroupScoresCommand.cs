@@ -135,6 +135,11 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 return Result<SubmitScoresOutcome>.Fail(
                     $"Player {participant.Player.FullName}: Invalid hole numbers: {string.Join(", ", invalidHoles)}.");
 
+            var missingOrInvalidScores = playerScoreInput.HoleScores.Where(h => h.GrossStrokes < 1).ToList();
+            if (missingOrInvalidScores.Count > 0)
+                return Result<SubmitScoresOutcome>.Fail(
+                    $"Player {participant.Player.FullName}: Hole(s) {string.Join(", ", missingOrInvalidScores.Select(h => h.HoleNumber))} are missing a valid score.");
+
             var existingScores = allExistingScores.Where(h => h.ParticipantId == participant.Id).ToList();
 
             foreach (var input in playerScoreInput.HoleScores)
