@@ -9,14 +9,18 @@ using Microsoft.Extensions.Logging;
 namespace GolfLeague.Application.Rounds;
 
 /// <summary>
-/// Greedy 2+2 flight pairing:
+/// Fills tee times front to back (earliest slot first), always finishing a
+/// slot to a full foursome before moving to the next:
 ///  - On the final round of a half: group participants by standings rank within
 ///    their flight (1+2 together, 3+4 together, …), pairing adjacent-ranked
 ///    players from different flights per slot. Time preferences are ignored.
 ///  - All other rounds: top off any partial existing tee times first, then
-///    assign remaining participants with 2+2 flight pairing across the largest
-///    remaining flights. Time preferences are a soft weight when ordering
-///    candidates for a slot, never a guarantee of (or bar to) any slot.
+///    assign remaining participants slot by slot, seat by seat. Same-flight
+///    grouping (2+2) is a soft preference, not a hard rule — it's relaxed
+///    whenever needed to complete full foursomes (e.g. flights of 3/3/2 must
+///    still pack into two full foursomes rather than stranding a lone
+///    player). Time preferences are a soft weight when ordering candidates
+///    for a slot, never a guarantee of (or bar to) any slot.
 /// </summary>
 public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 {
@@ -71,10 +75,19 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         // what was loaded + what we've added; without it a later phase sees
         // a stale count of 0 and overfills a slot past capacity.
         var addedThisRun = new Dictionary<int, int>();
+        // Participants this run placed into each slot, by slot id — used by
+        // the twosome rebalance below, which may only move a player autofill
+        // itself just seated, never a pre-existing manual pick.
+        var placedThisRun = new Dictionary<int, List<RoundParticipant>>();
         int EffectiveCount(RoundTeeTime slot)
             => slot.Participants.Count + addedThisRun.GetValueOrDefault(slot.Id);
-        void NoteAssigned(int slotId)
-            => addedThisRun[slotId] = addedThisRun.GetValueOrDefault(slotId) + 1;
+        void NoteAssigned(int slotId, RoundParticipant participant)
+        {
+            addedThisRun[slotId] = addedThisRun.GetValueOrDefault(slotId) + 1;
+            if (!placedThisRun.TryGetValue(slotId, out var list))
+                placedThisRun[slotId] = list = new List<RoundParticipant>();
+            list.Add(participant);
+        }
 
         // --- Phase 0 (final round of half only): standings-based pairing.
         // On the last scheduled round of the half, ignore time preferences and
@@ -116,7 +129,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                     assignedCount++;
                     touchedSlotIds.Add(slot.Id);
                     placedInPhase0.Add(p.Id);
-                    NoteAssigned(slot.Id);
+                    NoteAssigned(slot.Id, p);
                 }
             }
 
@@ -145,7 +158,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                 unassignedQueue.Remove(p);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
-                NoteAssigned(slot.Id);
+                NoteAssigned(slot.Id, p);
                 seatsLeft--;
             }
             if (seatsLeft == 0) continue;
@@ -159,7 +172,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                 unassignedQueue.Remove(fill);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
-                NoteAssigned(slot.Id);
+                NoteAssigned(slot.Id, fill);
                 seatsLeft--;
             }
         }
@@ -185,18 +198,52 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             if (seatsLeft <= 0) continue;
 
             var bandFlag = SlotBand(slot.TeeTimeNumber, totalSlots);
+            var flightCounts = new Dictionary<int, int>();
 
-            var picks = TakeFromLargestFlight(unassignedQueue, Math.Min(2, seatsLeft), bandFlag);
-            if (picks.Count < seatsLeft)
-                picks.AddRange(TakeFromLargestFlight(unassignedQueue, seatsLeft - picks.Count, bandFlag));
-
-            foreach (var p in picks)
+            // Fill one seat at a time so a full foursome is never blocked by
+            // fragmented flight remainders (e.g. flights of 3/3/2 must still
+            // pack into two full foursomes). Prefer a flight already in this
+            // slot with fewer than 2 picks so far (soft "2 from the same
+            // flight" grouping), then fall back to the largest remaining
+            // flight overall, so seats are always filled when players remain.
+            while (seatsLeft > 0 && unassignedQueue.Count > 0)
             {
-                await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
+                var pick = TakeOneForSlot(unassignedQueue, flightCounts, bandFlag);
+                await _teeTimes.SetParticipantTeeTimeAsync(pick.Id, slot.Id, cancellationToken);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
-                NoteAssigned(slot.Id);
+                NoteAssigned(slot.Id, pick);
+                var flightKey = pick.FlightId ?? NoFlightKey;
+                flightCounts[flightKey] = flightCounts.GetValueOrDefault(flightKey) + 1;
+                seatsLeft--;
             }
+        }
+
+        // --- Phase 3: avoid a trailing twosome. ceil(n/4) slots can leave
+        // exactly one slot with only 2 occupants (n mod 4 == 2). Rather than
+        // publish a twosome, borrow one player from a full foursome slot to
+        // make two threesomes. The threesomes don't have to be adjacent —
+        // any full slot will do — but only a player autofill placed THIS RUN
+        // may be moved; pre-existing (manual or prior-run) occupants are
+        // never touched, per the rule that manual picks are permanent.
+        foreach (var slot in slots)
+        {
+            if (EffectiveCount(slot) != 2) continue;
+
+            var donorSlot = slots.FirstOrDefault(s =>
+                s.Id != slot.Id &&
+                EffectiveCount(s) == TeeTimeSchedule.CapacityPerTeeTime &&
+                placedThisRun.GetValueOrDefault(s.Id)?.Count > 0);
+            if (donorSlot is null) continue;
+
+            var mover = placedThisRun[donorSlot.Id][0];
+            await _teeTimes.SetParticipantTeeTimeAsync(mover.Id, slot.Id, cancellationToken);
+
+            placedThisRun[donorSlot.Id].Remove(mover);
+            addedThisRun[donorSlot.Id]--;
+            NoteAssigned(slot.Id, mover);
+            touchedSlotIds.Add(slot.Id);
+            touchedSlotIds.Add(donorSlot.Id);
         }
 
         foreach (var id in touchedSlotIds)
@@ -221,12 +268,31 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
     }
 
     /// <summary>
-    /// Returns which third (Early/Middle/Late) the given 1-based slot number
+    /// Number of tee times per Early/Middle band when there are enough slots
+    /// to use fixed-size bands (see <see cref="SlotBand"/>).
+    /// </summary>
+    private const int FixedBandSize = 3;
+
+    /// <summary>
+    /// Returns which band (Early/Middle/Late) the given 1-based slot number
     /// falls into for a round with <paramref name="totalSlots"/> slots.
+    /// With 9 or more slots, Early = tee times 1-3, Middle = 4-6, and Late =
+    /// 7 through the end (absorbing any overflow beyond 9). With fewer than
+    /// 9 slots there aren't enough tee times for that fixed split, so the
+    /// slots are divided into three bands as evenly as proportional thirds
+    /// allow.
     /// </summary>
     private static TeeTimeSlotPreference SlotBand(int teeTimeNumber, int totalSlots)
     {
         if (totalSlots <= 0) return TeeTimeSlotPreference.Early;
+
+        if (totalSlots >= FixedBandSize * 3)
+        {
+            if (teeTimeNumber <= FixedBandSize) return TeeTimeSlotPreference.Early;
+            if (teeTimeNumber <= FixedBandSize * 2) return TeeTimeSlotPreference.Middle;
+            return TeeTimeSlotPreference.Late;
+        }
+
         var third = Math.Max(1, totalSlots / 3);
         if (teeTimeNumber <= third) return TeeTimeSlotPreference.Early;
         if (teeTimeNumber <= third * 2) return TeeTimeSlotPreference.Middle;
@@ -251,25 +317,44 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         return (preference & bandFlag) != 0 ? 1 : -1;
     }
 
-    private static List<RoundParticipant> TakeFromLargestFlight(
-        List<RoundParticipant> pool, int max, TeeTimeSlotPreference bandFlag)
-    {
-        var result = new List<RoundParticipant>();
-        if (pool.Count == 0) return result;
+    /// <summary>Sentinel dictionary key standing in for a null FlightId.</summary>
+    private const int NoFlightKey = -1;
 
-        var donorFlightId = LargestFlight(pool);
-        var donors = pool
+    /// <summary>
+    /// Picks a single participant to seat next in a slot that's being built
+    /// up from empty. Prefers a flight already represented in this slot with
+    /// fewer than 2 picks so far (so foursomes lean 2+2 by flight when
+    /// possible), otherwise falls back to whichever remaining flight is
+    /// largest — guaranteeing every seat gets filled even when flight sizes
+    /// don't split evenly into pairs (e.g. flights of 3/3/2 must still pack
+    /// into full foursomes rather than stranding a lone player).
+    /// </summary>
+    private static RoundParticipant TakeOneForSlot(
+        List<RoundParticipant> pool,
+        Dictionary<int, int> flightCountsInSlot,
+        TeeTimeSlotPreference bandFlag)
+    {
+        int? donorFlightId = null;
+        var foundFlightAlreadyInSlot = false;
+        foreach (var (flightKey, count) in flightCountsInSlot)
+        {
+            var flightId = flightKey == NoFlightKey ? (int?)null : flightKey;
+            if (count >= 2 || !pool.Any(p => p.FlightId == flightId)) continue;
+            donorFlightId = flightId;
+            foundFlightAlreadyInSlot = true;
+            break;
+        }
+        if (!foundFlightAlreadyInSlot)
+            donorFlightId = LargestFlight(pool);
+
+        var pick = pool
             .Where(p => p.FlightId == donorFlightId)
             .OrderByDescending(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, bandFlag))
             .ThenBy(p => p.PlayerId)       // deterministic tie-break
-            .Take(max)
-            .ToList();
-        foreach (var d in donors)
-        {
-            result.Add(d);
-            pool.Remove(d);
-        }
-        return result;
+            .First();
+
+        pool.Remove(pick);
+        return pick;
     }
 
     /// <summary>

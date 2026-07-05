@@ -31,6 +31,20 @@ public class TeeTimeAutofillServiceTests
         },
     };
 
+    private static RoundParticipant MakeParticipant(int id, int? flightId) => new()
+    {
+        Id = id,
+        PlayerId = id,
+        FlightId = flightId,
+        Player = new Player
+        {
+            Id = id,
+            FirstName = "P",
+            LastName = id.ToString(),
+            PreferredTeeTimeSlots = TeeTimeSlotPreference.None,
+        },
+    };
+
     private static (TeeTimeAutofillService Sut, Dictionary<int, int> Assignments) BuildSut(
         Round round, List<RoundTeeTime> slots)
     {
@@ -87,8 +101,8 @@ public class TeeTimeAutofillServiceTests
     public async Task RunAsync_PartialPreferenceFill_TopsOffSlotInsteadOfStrandingPlayers()
     {
         // Only 2 players prefer Early, 4 have none; 6 players need 2 slots.
-        // The no-preference pass must top slot 1 off to 4 (not skip it and
-        // strand players, and not overfill it).
+        // A naive top-off would produce 4+2, but the no-twosome rebalance
+        // must turn that into two threesomes (3+3) instead.
         var participants = Enumerable.Range(1, 2).Select(i => MakeParticipant(i, TeeTimeSlotPreference.Early))
             .Concat(Enumerable.Range(3, 4).Select(i => MakeParticipant(i, TeeTimeSlotPreference.None)))
             .ToList();
@@ -106,8 +120,9 @@ public class TeeTimeAutofillServiceTests
         assignments.Should().HaveCount(6, "every participant should get a tee time");
         var bySlot = assignments.Values.GroupBy(slotId => slotId).ToDictionary(g => g.Key, g => g.Count());
         bySlot.Values.Should().OnlyContain(c => c <= 4, "no tee time may hold more than 4 players");
-        bySlot[101].Should().Be(4, "slot 1 should be topped off to capacity");
-        bySlot[102].Should().Be(2);
+        bySlot.Values.Should().NotContain(2, "a leftover twosome should be rebalanced into two threesomes");
+        bySlot[101].Should().Be(3);
+        bySlot[102].Should().Be(3);
     }
 
     [Fact]
@@ -188,5 +203,128 @@ public class TeeTimeAutofillServiceTests
         var addedToSlot1 = assignments.Values.Count(s => s == 201);
         addedToSlot1.Should().Be(1, "slot 1 already had 3 occupants so only 1 seat was free");
         assignments.Values.Count(s => s == 202).Should().Be(4);
+    }
+
+    [Fact]
+    public async Task RunAsync_FragmentedFlights_StillPackIntoFullFoursomes()
+    {
+        // Two threesomes and a twosome (flights of 3, 3, 2 = 8 players) must
+        // pack into two full foursomes, not get stranded as odd-sized groups
+        // because a rigid 2+2-per-flight split doesn't divide evenly.
+        var participants = Enumerable.Range(1, 3).Select(i => MakeParticipant(i, flightId: 1))
+            .Concat(Enumerable.Range(4, 3).Select(i => MakeParticipant(i, flightId: 2)))
+            .Concat(Enumerable.Range(7, 2).Select(i => MakeParticipant(i, flightId: 3)))
+            .ToList();
+        var round = new Round { Id = 1, Participants = participants };
+        var slots = new List<RoundTeeTime>
+        {
+            new() { Id = 101, RoundId = 1, TeeTimeNumber = 1, Participants = [] },
+            new() { Id = 102, RoundId = 1, TeeTimeNumber = 2, Participants = [] },
+        };
+        var (sut, assignments) = BuildSut(round, slots);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeTrue();
+        assignments.Should().HaveCount(8, "every participant should get a tee time");
+        assignments.Values.GroupBy(slotId => slotId)
+            .Should().OnlyContain(g => g.Count() == 4, "flight fragments must still pack into full foursomes");
+    }
+
+    [Fact]
+    public async Task RunAsync_ManuallySelectedPlayers_AreNeverReassigned()
+    {
+        // Player 1 manually joined slot 2 (the later of the two). Autofill
+        // must leave that seat alone even though slot-ordering/flight/band
+        // rules would otherwise place player 1 elsewhere.
+        var manual = MakeParticipant(1, TeeTimeSlotPreference.None);
+        manual.TeeTimeId = 102;
+        var others = Enumerable.Range(2, 7)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.None))
+            .ToList();
+        var round = new Round { Id = 1, Participants = new List<RoundParticipant> { manual }.Concat(others).ToList() };
+        var slots = new List<RoundTeeTime>
+        {
+            new() { Id = 101, RoundId = 1, TeeTimeNumber = 1, Participants = [] },
+            new() { Id = 102, RoundId = 1, TeeTimeNumber = 2, Participants = [manual] },
+        };
+        var (sut, assignments) = BuildSut(round, slots);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeTrue();
+        assignments.Should().NotContainKey(1, "a manually-selected player must never be reassigned by autofill");
+    }
+
+    [Fact]
+    public async Task RunAsync_NineOrMoreSlots_UsesFixedThreeSlotBands()
+    {
+        // 12 slots (up to 48 players). With fixed bands, Early = tee times
+        // 1-3, Middle = 4-6, Late = 7-12. Seat exactly 12 Early-preferrers
+        // (fills bands 1-3 to capacity) plus 4 Middle-preferrers: the
+        // Middle-preferrers must NOT be able to displace Early-preferrers
+        // out of slots 1-3, and must land in slots 4-6 (the Middle band),
+        // not slot 4 alone or spilled into slot 7+ (which would indicate a
+        // proportional 4/4/4 split instead of the fixed 3/3/3+ split).
+        var earlyPreferrers = Enumerable.Range(1, 12)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.Early))
+            .ToList();
+        var middlePreferrers = Enumerable.Range(13, 4)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.Middle))
+            .ToList();
+        var round = new Round
+        {
+            Id = 1,
+            Participants = earlyPreferrers.Concat(middlePreferrers).ToList(),
+        };
+        var slots = Enumerable.Range(1, 12)
+            .Select(n => new RoundTeeTime { Id = 100 + n, RoundId = 1, TeeTimeNumber = n, Participants = [] })
+            .ToList();
+        var (sut, assignments) = BuildSut(round, slots);
+
+        await sut.RunAsync(1);
+
+        var earlySlotIds = new[] { 101, 102, 103 };
+        var middleSlotIds = new[] { 104, 105, 106 };
+
+        Enumerable.Range(1, 12).Select(id => assignments[id])
+            .Should().OnlyContain(id => earlySlotIds.Contains(id),
+                "with fixed 3-slot bands, tee times 1-3 are the entire Early band and hold exactly the 12 Early-preferrers");
+        Enumerable.Range(13, 4).Select(id => assignments[id])
+            .Should().OnlyContain(id => middleSlotIds.Contains(id),
+                "tee times 4-6 are the fixed Middle band, not 4-7 (which a proportional 4/4/4 split would use)");
+    }
+
+    [Fact]
+    public async Task RunAsync_TrailingTwosome_IsRebalancedEvenWhenOtherSlotHasManualPick()
+    {
+        // Slot 1 has 1 manual pick already seated; 5 more players need seats
+        // (6 total), needing 2 slots. Phase 1 tops slot 1 off to 4 (adding 3
+        // autofill-placed players around the manual pick), leaving 2
+        // newcomers for slot 2 -- a twosome that must be rebalanced by
+        // borrowing one AUTOFILL-PLACED player from slot 1, never the
+        // manual pick itself.
+        var manual = MakeParticipant(1, TeeTimeSlotPreference.None);
+        manual.TeeTimeId = 101;
+        var newcomers = Enumerable.Range(2, 5)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.None))
+            .ToList();
+        var round = new Round { Id = 1, Participants = new List<RoundParticipant> { manual }.Concat(newcomers).ToList() };
+        var slots = new List<RoundTeeTime>
+        {
+            new() { Id = 101, RoundId = 1, TeeTimeNumber = 1, Participants = [manual] },
+            new() { Id = 102, RoundId = 1, TeeTimeNumber = 2, Participants = [] },
+        };
+        var (sut, assignments) = BuildSut(round, slots);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeTrue();
+        assignments.Should().NotContainKey(1, "the manual pick must stay put");
+        var bySlot = assignments.Values.GroupBy(slotId => slotId).ToDictionary(g => g.Key, g => g.Count());
+        // Slot 1's manual pick isn't in `assignments`, so its total
+        // occupancy is bySlot[101] + 1.
+        (bySlot.GetValueOrDefault(101) + 1).Should().Be(3, "one autofill-placed player moves out of slot 1 to avoid a twosome");
+        bySlot[102].Should().Be(3, "slot 2 becomes a threesome instead of a lone twosome");
     }
 }
