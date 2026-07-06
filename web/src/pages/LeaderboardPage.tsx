@@ -16,7 +16,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { HandicapDots } from '@/components/scoring/HandicapDots';
+import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import type { ActiveRoundLeaderboardFlight, ActiveRoundLeaderboardEntry } from '@/types/api';
 
@@ -98,10 +98,11 @@ function FlightLeaderboardTable({ flight }: { flight: ActiveRoundLeaderboardFlig
                     return (
                       <TableCell key={holeNumber} className="text-center px-2">
                         {hole ? (
-                          <div className="flex flex-col items-center leading-tight">
-                            <span>{hole.grossStrokes}</span>
-                            <HandicapDots strokes={hole.handicapStrokes} />
-                          </div>
+                          <ScoreBadge
+                            strokes={hole.grossStrokes}
+                            par={hole.par}
+                            handicapStrokes={hole.handicapStrokes}
+                          />
                         ) : (
                           <span className="text-gray-300">—</span>
                         )}

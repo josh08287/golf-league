@@ -80,11 +80,11 @@ export function NavBar() {
 
   const publicLinks = [
     { to: '/', label: 'Home' },
+    ...(showLeaderboardLink ? [{ to: '/leaderboard', label: 'Leaderboard' }] : []),
     { to: '/flights', label: 'Standings' },
     { to: '/rounds', label: 'Rounds' },
     { to: '/players', label: 'Players' },
     { to: '/statistics', label: 'Statistics' },
-    ...(showLeaderboardLink ? [{ to: '/leaderboard', label: 'Leaderboard' }] : []),
   ];
 
   const authedLinks = [

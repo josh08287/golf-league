@@ -4,10 +4,12 @@ import { useLeagueName, useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
-import { useRounds, useRoundScorecards, useRoundSkins } from '@/hooks/useRounds';
+import { useRounds, useRoundScorecards, useRoundSkins, useActiveRoundLeaderboardPresence } from '@/hooks/useRounds';
 import { GrossPar3SkinsDisplay } from '@/components/GrossPar3SkinsDisplay';
 import { useMyTodaysTeeTime } from '@/hooks/useTeeTimeScoreEntry';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { useAuthStore } from '@/store/authStore';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 import {
   Card,
   CardContent,
@@ -275,6 +277,10 @@ export function HomePage() {
   const rounds = useRounds(1, { sortBy: 'date', sortDir: 'desc' });
   const isAuthed = useAuthStore((s) => !!s.user);
   const todaysTeeTime = useMyTodaysTeeTime(isAuthed);
+  const featureFlags = useFeatureFlagStates();
+  const leaderboardFlagEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.activeRoundLeaderboardEnabled] ?? false;
+  const activeRoundLeaderboard = useActiveRoundLeaderboardPresence(leaderboardFlagEnabled);
+  const showLeaderboardLink = leaderboardFlagEnabled && activeRoundLeaderboard.data != null;
 
   const allRounds = rounds.data?.data ?? [];
   const featured = pickFeaturedRound(allRounds);
@@ -295,6 +301,14 @@ export function HomePage() {
           Track standings, scores, and handicaps all season long.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-3">
+          {showLeaderboardLink && (
+            <Button
+              className="bg-amber-400 text-primary-900 hover:bg-amber-300"
+              asChild
+            >
+              <Link to={`${prefix}/leaderboard`}>Live Leaderboard</Link>
+            </Button>
+          )}
           <Button variant="secondary" asChild>
             <Link to={`${prefix}/flights`}>View Flights</Link>
           </Button>
