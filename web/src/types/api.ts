@@ -201,6 +201,7 @@ export interface RoundScorecardHole {
   strokeIndex: number;
   grossPoints: number;
   netPoints: number;
+  handicapStrokes: number;
 }
 
 export interface RoundScorecard {

@@ -21,6 +21,7 @@ import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { normalizeRoundStatus } from '@/lib/enumUtils';
 import { GrossPar3SkinsDisplay } from '@/components/GrossPar3SkinsDisplay';
+import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import type { RoundScorecard, RoundScorecardHole, RoundStatus, FlightSkins, HoleSkin } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
@@ -34,23 +35,14 @@ function statusVariant(status: RoundStatus) {
   }
 }
 
-function holeScoreClass(hole: RoundScorecardHole): string {
-  const diff = hole.strokes - hole.par;
-  if (diff <= -2) return 'bg-yellow-400 text-yellow-900 font-bold';
-  if (diff === -1) return 'bg-green-500 text-white font-semibold';
-  if (diff === 0)  return 'bg-white text-gray-800';
-  if (diff === 1)  return 'bg-gray-200 text-gray-700';
-  return 'bg-red-500 text-white font-semibold';
-}
-
 function HoleScoreCell({ hole, skin }: { hole: RoundScorecardHole; skin?: { skinValue: number; wasCarryover: boolean } }) {
   return (
     <td
-      className={cn('px-2 py-2 text-center text-xs rounded relative', holeScoreClass(hole))}
+      className="px-2 py-2 text-center text-xs relative"
       title={`Hole ${hole.holeNumber}: par ${hole.par}${skin ? ` — Skin worth ${skin.skinValue}` : ''}`}
     >
       <span className="flex items-center justify-center gap-0.5">
-        {hole.strokes}
+        <ScoreBadge strokes={hole.strokes} par={hole.par} handicapStrokes={hole.handicapStrokes} />
         {skin && skin.skinValue > 0 && (
           <Trophy className={cn('h-3 w-3', skin.wasCarryover ? 'text-amber-600' : 'text-amber-500')} />
         )}
@@ -350,18 +342,12 @@ function FlightScorecardsGrid({ scorecards, flightSkins }: FlightScorecardsGridP
                     title={isSkinWinner ? `Skin winner! Value: ${skin.skinValue}` : undefined}
                   >
                     {hole ? (
-                      <span className={cn(
-                        'inline-flex items-center justify-center w-7 h-6 rounded text-xs',
-                        isSkinWinner
-                          ? 'bg-amber-500 text-white'
-                          : hole.strokes === hole.par
-                            ? 'bg-white text-gray-700'
-                            : hole.strokes < hole.par
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-gray-100 text-gray-600'
-                      )}>
-                        {hole.strokes}
-                      </span>
+                      <ScoreBadge
+                        strokes={hole.strokes}
+                        par={hole.par}
+                        handicapStrokes={hole.handicapStrokes}
+                        highlight={isSkinWinner}
+                      />
                     ) : (
                       <span className="text-gray-300">—</span>
                     )}
