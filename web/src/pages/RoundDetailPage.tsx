@@ -128,8 +128,8 @@ function ScorecardTable({ scorecard, flightSkins }: ScorecardTableProps) {
           <TableRow>
             <TableCell className="text-xs font-medium text-gray-600">Net</TableCell>
             {holes.map((h) => (
-              <td key={h.holeNumber} className="px-2 py-2 text-center text-xs text-gray-500">
-                {h.netStrokes}
+              <td key={h.holeNumber} className="px-2 py-2 text-center text-xs">
+                <ScoreBadge strokes={h.netStrokes} par={h.par} handicapStrokes={0} />
               </td>
             ))}
             <TableCell className="text-center text-sm text-gray-500">
