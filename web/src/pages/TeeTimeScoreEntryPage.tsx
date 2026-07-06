@@ -18,6 +18,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { Badge } from '@/components/ui/Badge';
 import { formatHandicapPair } from '@/lib/utils';
+import { HandicapDots } from '@/components/scoring/HandicapDots';
 import type {
   TeeTimePlayerScore,
   TeeTimeHoleInfo,
@@ -36,17 +37,6 @@ function calculateStablefordPoints(par: number, netStrokes: number): number {
 // strokeIndex is the normalized 1–9 rank within the nine (sent by the scorecard API).
 function calculateHandicapStrokes(courseHandicap: number, strokeIndex: number): number {
   return Math.floor(courseHandicap / 9) + (strokeIndex <= courseHandicap % 9 ? 1 : 0);
-}
-
-// Standard scorecard convention: one dot per handicap stroke a player
-// receives on a hole.
-function HandicapDots({ strokes }: { strokes: number }) {
-  if (strokes <= 0) return null;
-  return (
-    <span className="tracking-tight text-primary-700" aria-label={`${strokes} handicap stroke${strokes === 1 ? '' : 's'}`}>
-      {'•'.repeat(strokes)}
-    </span>
-  );
 }
 
 // Helper to calculate net strokes and cap at max

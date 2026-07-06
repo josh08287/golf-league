@@ -5,6 +5,13 @@ using static GolfLeague.Application.Common.FlightDisplayName;
 
 namespace GolfLeague.Application.Rounds.Queries;
 
+public sealed record ActiveRoundLeaderboardHoleDto(
+    int HoleNumber,
+    int Par,
+    int StrokeIndex,
+    int GrossStrokes,
+    int HandicapStrokes);
+
 public sealed record ActiveRoundLeaderboardEntryDto(
     int PlayerId,
     string PlayerName,
@@ -15,7 +22,8 @@ public sealed record ActiveRoundLeaderboardEntryDto(
     int? NetScore,
     int? GrossPoints,
     int? NetPoints,
-    int Rank);
+    int Rank,
+    List<ActiveRoundLeaderboardHoleDto> Holes);
 
 public sealed record ActiveRoundLeaderboardFlightDto(
     int? FlightId,
@@ -88,6 +96,16 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
                     if (!samePoints)
                         rank = i + 1;
 
+                    var holes = p.HoleScores
+                        .OrderBy(h => h.HoleNumber)
+                        .Select(h => new ActiveRoundLeaderboardHoleDto(
+                            h.HoleNumber,
+                            h.Par,
+                            h.StrokeIndex,
+                            h.GrossStrokes,
+                            h.HandicapStrokes))
+                        .ToList();
+
                     entries.Add(new ActiveRoundLeaderboardEntryDto(
                         p.PlayerId,
                         p.Player.FullName,
@@ -98,7 +116,8 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
                         p.TotalNetStrokes,
                         p.TotalGrossStablefordPoints,
                         p.TotalNetStablefordPoints,
-                        rank));
+                        rank,
+                        holes));
 
                     previousPoints = p.TotalNetStablefordPoints;
                     previousGross = p.TotalGrossStrokes;

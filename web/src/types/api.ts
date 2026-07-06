@@ -222,6 +222,14 @@ export interface RoundScorecard {
 
 // ── Active Round Leaderboard ─────────────────────────────────────────────────
 
+export interface ActiveRoundLeaderboardHole {
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+  grossStrokes: number;
+  handicapStrokes: number;
+}
+
 export interface ActiveRoundLeaderboardEntry {
   playerId: number;
   playerName: string;
@@ -233,6 +241,7 @@ export interface ActiveRoundLeaderboardEntry {
   grossPoints: number | null;
   netPoints: number | null;
   rank: number;
+  holes: ActiveRoundLeaderboardHole[];
 }
 
 export interface ActiveRoundLeaderboardFlight {
