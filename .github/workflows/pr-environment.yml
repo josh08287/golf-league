@@ -1,0 +1,149 @@
+name: PR Environment
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    paths:
+      - 'src/**'
+      - 'web/**'
+      - '.github/workflows/pr-environment.yml'
+
+jobs:
+  deploy:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # IMPORTANT: To run az cli commands (copy db, create slot), this workflow
+      # requires an Azure Service Principal. You must configure the AZURE_CREDENTIALS
+      # secret in GitHub with your Azure AD credentials.
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          
+      - name: Parse Azure SQL Connection
+        id: sql-parse
+        run: |
+          # Extract server and db name from connection string.
+          CONN_STRING="${{ secrets.SQL_CONNECTION_STRING }}"
+          SERVER=$(echo "$CONN_STRING" | grep -oP 'Server=tcp:\K[^,]+')
+          DB=$(echo "$CONN_STRING" | grep -oP 'Initial Catalog=\K[^;]+')
+          echo "SERVER_NAME=${SERVER%%.*}" >> $GITHUB_ENV
+          echo "PROD_DB_NAME=$DB" >> $GITHUB_ENV
+          echo "PR_DB_NAME=${DB}-pr-${{ github.event.number }}" >> $GITHUB_ENV
+          
+          # Hardcode from deploy-api.yml for reliability
+          echo "FUNCTION_APP_NAME=golf-league-fn-g5vkqe" >> $GITHUB_ENV
+          
+          # Look up the resource group of the function app
+          RG=$(az functionapp show --name golf-league-fn-g5vkqe --query resourceGroup -o tsv)
+          echo "RESOURCE_GROUP=$RG" >> $GITHUB_ENV
+
+      - name: Copy Database
+        run: |
+          # Copy the production database to a new PR-specific database
+          az sql db copy --resource-group $RESOURCE_GROUP --server $SERVER_NAME --name $PROD_DB_NAME --dest-name $PR_DB_NAME --dest-server $SERVER_NAME
+          
+      - name: Provision Function App Slot
+        run: |
+          # Create deployment slot, cloning settings from production
+          az functionapp deployment slot create --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --slot pr-${{ github.event.number }} --configuration-source $FUNCTION_APP_NAME
+          
+          # Replace SQL Connection string to point to the PR db
+          NEW_CONN_STRING=$(echo "${{ secrets.SQL_CONNECTION_STRING }}" | sed "s/Initial Catalog=$PROD_DB_NAME;/Initial Catalog=$PR_DB_NAME;/")
+          az functionapp config appsettings set --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --slot pr-${{ github.event.number }} --settings "SQL_CONNECTION_STRING=$NEW_CONN_STRING"
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Build and Publish Backend
+        run: |
+          dotnet publish src/GolfLeague.Functions/GolfLeague.Functions.csproj \
+            --configuration Release \
+            --output ./api-publish
+            
+      - name: Deploy to Function App Slot
+        uses: Azure/functions-action@v1
+        with:
+          app-name: ${{ env.FUNCTION_APP_NAME }}
+          slot-name: pr-${{ github.event.number }}
+          package: ./api-publish
+          # No publish-profile needed because azure/login handles auth
+
+      - name: Get Slot URL
+        run: |
+          SLOT_URL=$(az functionapp show --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --slot pr-${{ github.event.number }} --query defaultHostName -o tsv)
+          echo "SLOT_URL=https://$SLOT_URL" >> $GITHUB_ENV
+          
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build Web App
+        working-directory: web
+        run: npm ci && npm run build
+        env:
+          VITE_API_BASE_URL: ${{ env.SLOT_URL }}/api/v1
+          # VITE_REDIRECT_URI uses the production URL via secrets, the app automatically switches to the auth proxy if hosted elsewhere
+          VITE_REDIRECT_URI: ${{ secrets.VITE_REDIRECT_URI }}
+
+      - name: Deploy to Azure Static Web Apps
+        id: swa-deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: web/dist
+          skip_app_build: true
+          
+      - name: Configure CORS and Origins
+        run: |
+          SWA_URL="https://${{ steps.swa-deploy.outputs.static_web_app_url }}"
+          # Add SWA URL to CORS for the backend slot
+          az functionapp cors add -g $RESOURCE_GROUP -n $FUNCTION_APP_NAME --slot pr-${{ github.event.number }} --allowed-origins $SWA_URL
+          
+          # Update WEB_BASE_URL and FIDO2_RP_ORIGINS for the backend slot so passkeys and invites work properly
+          az functionapp config appsettings set -g $RESOURCE_GROUP -n $FUNCTION_APP_NAME --slot pr-${{ github.event.number }} --settings "WEB_BASE_URL=$SWA_URL" "FIDO2_RP_ORIGINS=$SWA_URL"
+
+  teardown:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+          
+      - name: Parse Azure SQL Connection
+        run: |
+          CONN_STRING="${{ secrets.SQL_CONNECTION_STRING }}"
+          SERVER=$(echo "$CONN_STRING" | grep -oP 'Server=tcp:\K[^,]+')
+          DB=$(echo "$CONN_STRING" | grep -oP 'Initial Catalog=\K[^;]+')
+          echo "SERVER_NAME=${SERVER%%.*}" >> $GITHUB_ENV
+          echo "PR_DB_NAME=${DB}-pr-${{ github.event.number }}" >> $GITHUB_ENV
+          echo "FUNCTION_APP_NAME=golf-league-fn-g5vkqe" >> $GITHUB_ENV
+          RG=$(az functionapp show --name golf-league-fn-g5vkqe --query resourceGroup -o tsv)
+          echo "RESOURCE_GROUP=$RG" >> $GITHUB_ENV
+
+      - name: Clean up Database
+        run: |
+          az sql db delete --resource-group $RESOURCE_GROUP --server $SERVER_NAME --name $PR_DB_NAME --yes
+
+      - name: Clean up Function App Slot
+        run: |
+          az functionapp deployment slot delete --name $FUNCTION_APP_NAME --resource-group $RESOURCE_GROUP --slot pr-${{ github.event.number }}
+
+      - name: Clean up SWA Environment
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: close
