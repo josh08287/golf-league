@@ -4,14 +4,19 @@ import { useQuery } from '@tanstack/react-query';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
 import { useRound, useRoundScorecards } from '../../hooks/useRounds';
 import { useSubmitHoleScores, useSetParticipantSkipped } from '../../hooks/admin/useRoundMutations';
+import { useRoundClosestToPin, useSetRoundClosestToPin } from '../../hooks/useClosestToPin';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { useAuthStore } from '../../store/authStore';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { ArrowLeft, Save } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
+import { ArrowLeft, Save, Target } from 'lucide-react';
 import { api } from '../../lib/api';
 import { normalizeNineHoleSide, isRoundFinalized } from '../../lib/enumUtils';
 import type { CourseDetail, Participant } from '../../types/api';
+import { FEATURE_FLAG_KEYS } from '../../types/api';
 
 function holesForSide(nineHoleSide: string | number): number[] {
   const side = normalizeNineHoleSide(nineHoleSide);
@@ -131,6 +136,97 @@ function DerivedStablefordRow({
   );
 }
 
+/**
+ * Closest-to-the-pin selection for each par 3 of the round. Scorer/admin
+ * only; the winner may be any active participant of the round, or "None".
+ */
+function ClosestToPinSection({ roundId, canEdit }: { roundId: number; canEdit: boolean }) {
+  const ctp = useRoundClosestToPin(roundId);
+  const saveCtp = useSetRoundClosestToPin(roundId);
+  // holeNumber -> playerId | null; only holds unsaved local edits
+  const [edits, setEdits] = useState<Record<number, number | null>>({});
+
+  if (ctp.isPending) {
+    return (
+      <Card>
+        <CardContent className="flex justify-center py-6">
+          <Spinner />
+        </CardContent>
+      </Card>
+    );
+  }
+  if (ctp.isError || !ctp.data || ctp.data.par3Holes.length === 0) return null;
+
+  const { par3Holes, participants } = ctp.data;
+
+  const selectionFor = (holeNumber: number, savedPlayerId: number | null): number | null =>
+    holeNumber in edits ? edits[holeNumber] : savedPlayerId;
+
+  const isDirty = par3Holes.some(
+    (h) => h.holeNumber in edits && edits[h.holeNumber] !== h.playerId,
+  );
+
+  const handleSave = () => {
+    const selections = par3Holes.map((h) => ({
+      holeNumber: h.holeNumber,
+      playerId: selectionFor(h.holeNumber, h.playerId),
+    }));
+    saveCtp.mutate(selections, { onSuccess: () => setEdits({}) });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Target className="h-5 w-5 text-[#1B5E20]" />
+          Closest to the Pin
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-gray-500">
+          Select the player who was closest to the pin on each par 3 for this round.
+        </p>
+        {par3Holes.map((hole) => (
+          <div key={hole.holeNumber} className="flex items-center justify-between gap-4">
+            <span className="text-sm font-medium text-gray-900">Hole {hole.holeNumber}</span>
+            <select
+              value={selectionFor(hole.holeNumber, hole.playerId) ?? ''}
+              onChange={(e) =>
+                setEdits((prev) => ({
+                  ...prev,
+                  [hole.holeNumber]: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                }))
+              }
+              disabled={!canEdit || saveCtp.isPending}
+              className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50 disabled:bg-gray-50"
+            >
+              <option value="">None</option>
+              {participants.map((p) => (
+                <option key={p.playerId} value={p.playerId}>
+                  {p.playerName}
+                </option>
+              ))}
+            </select>
+          </div>
+        ))}
+        {canEdit && (
+          <div className="flex items-center gap-3 pt-2">
+            <Button size="sm" onClick={handleSave} disabled={!isDirty || saveCtp.isPending}>
+              {saveCtp.isPending ? 'Saving…' : 'Save Closest to Pin'}
+            </Button>
+            {saveCtp.isError && (
+              <span className="text-sm text-red-600">Failed to save. Please try again.</span>
+            )}
+            {saveCtp.isSuccess && !isDirty && !saveCtp.isPending && (
+              <span className="text-sm text-green-700">Saved!</span>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ScoreEntryPage() {
   const { id: roundId = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -154,6 +250,14 @@ export function ScoreEntryPage() {
 
   const submitScores = useSubmitHoleScores(roundId);
   const setSkipped = useSetParticipantSkipped(roundId);
+
+  const user = useAuthStore((s) => s.user);
+  const featureFlags = useFeatureFlagStates();
+  const ctpEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.closestToPinEnabled] ?? false;
+  const isScorerOrAdmin =
+    (user?.isSuperAdmin ?? false) ||
+    (user?.roles?.some((r) => r === 'scorer' || r === 'admin') ?? false);
+  const showClosestToPin = ctpEnabled && isScorerOrAdmin;
 
   const [scores, setScores] = useState<ScoreGrid>({});
   // Optimistic skip overlay: maps playerId → true (skip) | false (unskip).
@@ -504,6 +608,10 @@ export function ScoreEntryPage() {
           </tbody>
         </table>
       </div>
+
+      {showClosestToPin && (
+        <ClosestToPinSection roundId={round.id} canEdit={!isFinalized} />
+      )}
 
       {!isFinalized && overwritePending && (
         <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
