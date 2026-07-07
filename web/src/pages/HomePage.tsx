@@ -142,12 +142,17 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
         <Table>
           <TableHeader>
             <TableRow className="bg-gray-50">
-              <TableHead className="w-7 text-center">#</TableHead>
-              <TableHead>Player</TableHead>
-              <TableHead className="text-right">HCP</TableHead>
-              <TableHead className="text-right">Gross</TableHead>
+              <TableHead className="w-7 text-center" rowSpan={2}>#</TableHead>
+              <TableHead rowSpan={2}>Player</TableHead>
+              <TableHead className="text-right" rowSpan={2}>HCP</TableHead>
+              <TableHead className="text-center border-l border-gray-100" colSpan={2}>Strokes</TableHead>
+              <TableHead className="text-center border-l border-gray-100" colSpan={2}>Points</TableHead>
+            </TableRow>
+            <TableRow className="bg-gray-50">
+              <TableHead className="text-right border-l border-gray-100">Gross</TableHead>
               <TableHead className="text-right">Net</TableHead>
-              <TableHead className="text-right">Pts</TableHead>
+              <TableHead className="text-right border-l border-gray-100">Gross</TableHead>
+              <TableHead className="text-right">Net</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -165,8 +170,9 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
                 <TableCell className="text-right text-gray-600 tabular-nums whitespace-nowrap" title={HANDICAP_PAIR_TOOLTIP}>
                   {formatHandicapPair(sc.handicapAtTime)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{sc.grossScore ?? '—'}</TableCell>
+                <TableCell className="text-right tabular-nums border-l border-gray-100">{sc.grossScore ?? '—'}</TableCell>
                 <TableCell className="text-right tabular-nums">{sc.netScore ?? '—'}</TableCell>
+                <TableCell className="text-right tabular-nums border-l border-gray-100">{sc.grossPoints ?? '—'}</TableCell>
                 <TableCell className="text-right font-semibold tabular-nums">
                   {sc.netPoints ?? '—'}
                 </TableCell>
