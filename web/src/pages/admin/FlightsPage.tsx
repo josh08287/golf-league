@@ -99,7 +99,8 @@ function HalfSection({ half, flights, players, locked, onDelete, onInitialize, i
 
       {locked && (
         <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Flight assignments are locked because rounds have started for this half. Assignments cannot be changed until a new half is created.
+          Rounds have started for this half. You can still reassign players between flights below —
+          just remember to recalculate all rounds afterward so standings and skins stay accurate.
         </p>
       )}
 
@@ -123,50 +124,12 @@ function HalfSection({ half, flights, players, locked, onDelete, onInitialize, i
         </div>
       )}
 
-      {flights.length > 0 && !locked && (
+      {flights.length > 0 && (
         <div>
           <p className="mb-3 text-sm text-gray-500">
-            Drag players between columns to adjust flight assignments for {half.name}. Assignments lock once the first round starts.
+            Drag players between columns to adjust flight assignments for {half.name}.
           </p>
           <FlightPlayerAssignment halfId={half.id} flights={flights} />
-        </div>
-      )}
-
-      {flights.length > 0 && locked && (
-        <div>
-          <p className="mb-3 text-sm font-medium text-gray-600">Current assignments:</p>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {flights.map((f) => {
-              const members = players.filter((p) =>
-                (p.flightMemberships ?? []).some(
-                  (m) => m.halfId === half.id && m.flightId === f.id,
-                ),
-              );
-              return (
-                <div key={f.id} className="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-                    {f.name} ({members.length})
-                  </p>
-                  <ul className="space-y-1">
-                    {members.map((p) => (
-                      <li
-                        key={p.id}
-                        className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700"
-                      >
-                        {p.fullName}
-                        <span className="ml-2 text-xs text-gray-400">
-                          ({p.currentHandicap?.toFixed(1) ?? '—'})
-                        </span>
-                      </li>
-                    ))}
-                    {members.length === 0 && (
-                      <li className="text-xs text-gray-400 italic">No players assigned</li>
-                    )}
-                  </ul>
-                </div>
-              );
-            })}
-          </div>
         </div>
       )}
     </section>

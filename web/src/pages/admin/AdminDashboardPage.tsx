@@ -188,6 +188,7 @@ export function AdminDashboardPage() {
                 <li>{recalculateRounds.data.roundsProcessed} rounds processed</li>
                 <li>{recalculateRounds.data.participantsProcessed} participants updated</li>
                 <li>{recalculateRounds.data.holeScoresUpdated} hole scores recalculated</li>
+                <li>{recalculateRounds.data.flightAssignmentsUpdated} flight assignments synced</li>
               </ul>
             </div>
           )}

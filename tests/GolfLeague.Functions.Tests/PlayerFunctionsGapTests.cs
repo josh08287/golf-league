@@ -51,12 +51,10 @@ public class PlayerFunctionsGapTests
     private static PlayerFunctions MakeSut(
         Mock<IMediator>? mediator = null,
         Mock<IPlayerRepository>? playerRepo = null,
-        Mock<IFlightRepository>? flightRepo = null,
         Mock<IAdminUserService>? adminUserService = null) =>
         new(
             (mediator ?? new Mock<IMediator>()).Object,
             (playerRepo ?? new Mock<IPlayerRepository>()).Object,
-            (flightRepo ?? new Mock<IFlightRepository>()).Object,
             (adminUserService ?? new Mock<IAdminUserService>()).Object);
 
     // ── GetUnlinkedPlayers ───────────────────────────────────────────────
@@ -302,36 +300,12 @@ public class PlayerFunctionsGapTests
         result.Should().BeOfType<NotFoundObjectResult>();
     }
 
-    // ── PatchPlayer: flight-lock rejection branch ───────────────────────
+    // ── PatchPlayer: flight reassignment is allowed at any time ─────────
 
     [Fact]
-    public async Task PatchPlayer_WhenTargetFlightHalfIsLocked_ReturnsConflict()
+    public async Task PatchPlayer_WhenTargetFlightHalfIsLocked_StillAssignsFlight()
     {
         var player = new Player { Id = 1, FirstName = "John", LastName = "Doe", Email = "john@example.com" };
-        var flight = new Flight { Id = 2, HalfId = 9 };
-
-        var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
-
-        var flightRepo = new Mock<IFlightRepository>();
-        flightRepo.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>())).ReturnsAsync(flight);
-        flightRepo.Setup(r => r.IsHalfLockedAsync(9, It.IsAny<CancellationToken>())).ReturnsAsync(true);
-
-        var sut = MakeSut(playerRepo: playerRepo, flightRepo: flightRepo);
-        var body = JsonSerializer.Serialize(new { FlightId = "2" });
-
-        var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
-
-        var obj = result.Should().BeOfType<ObjectResult>().Subject;
-        obj.StatusCode.Should().Be(409);
-        playerRepo.Verify(r => r.AssignToFlightAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [Fact]
-    public async Task PatchPlayer_WhenTargetFlightHalfIsNotLocked_AssignsFlight()
-    {
-        var player = new Player { Id = 1, FirstName = "John", LastName = "Doe", Email = "john@example.com" };
-        var flight = new Flight { Id = 2, HalfId = 9 };
         var mediator = new Mock<IMediator>();
         mediator.Setup(m => m.Send(It.IsAny<UpdatePlayerCommand>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Result<PlayerDto>.Ok(MakePlayerDto()));
@@ -339,11 +313,7 @@ public class PlayerFunctionsGapTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
 
-        var flightRepo = new Mock<IFlightRepository>();
-        flightRepo.Setup(r => r.GetByIdAsync(2, It.IsAny<CancellationToken>())).ReturnsAsync(flight);
-        flightRepo.Setup(r => r.IsHalfLockedAsync(9, It.IsAny<CancellationToken>())).ReturnsAsync(false);
-
-        var sut = MakeSut(mediator: mediator, playerRepo: playerRepo, flightRepo: flightRepo);
+        var sut = MakeSut(mediator: mediator, playerRepo: playerRepo);
         var body = JsonSerializer.Serialize(new { FlightId = "2" });
 
         var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
@@ -353,7 +323,7 @@ public class PlayerFunctionsGapTests
     }
 
     [Fact]
-    public async Task PatchPlayer_WhenFlightIdClearedToEmpty_UnassignsWithoutLockCheck()
+    public async Task PatchPlayer_WhenFlightIdClearedToEmpty_Unassigns()
     {
         var player = new Player { Id = 1, FirstName = "John", LastName = "Doe", Email = "john@example.com" };
         var mediator = new Mock<IMediator>();
@@ -362,15 +332,13 @@ public class PlayerFunctionsGapTests
 
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(player);
-        var flightRepo = new Mock<IFlightRepository>();
 
-        var sut = MakeSut(mediator: mediator, playerRepo: playerRepo, flightRepo: flightRepo);
+        var sut = MakeSut(mediator: mediator, playerRepo: playerRepo);
         var body = JsonSerializer.Serialize(new { FlightId = "" });
 
         var result = await sut.PatchPlayer(MakeRequest(body, "admin"), "1", CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
-        flightRepo.Verify(r => r.IsHalfLockedAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
         playerRepo.Verify(r => r.AssignToFlightAsync(1, null, It.IsAny<CancellationToken>()), Times.Once);
     }
 

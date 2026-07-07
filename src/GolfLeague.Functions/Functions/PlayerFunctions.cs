@@ -17,18 +17,15 @@ public sealed class PlayerFunctions
 {
     private readonly IMediator _mediator;
     private readonly IPlayerRepository _playerRepository;
-    private readonly IFlightRepository _flightRepository;
     private readonly IAdminUserService _adminUserService;
 
     public PlayerFunctions(
         IMediator mediator,
         IPlayerRepository playerRepository,
-        IFlightRepository flightRepository,
         IAdminUserService adminUserService)
     {
         _mediator = mediator;
         _playerRepository = playerRepository;
-        _flightRepository = flightRepository;
         _adminUserService = adminUserService;
     }
 
@@ -149,16 +146,10 @@ public sealed class PlayerFunctions
 
         if (body.FlightId is not null)
         {
+            // Admins may reassign flights at any time, even after rounds have
+            // started for a half. Historical rounds are brought back in sync
+            // via RecalculateAllRoundsCommand, which admins are prompted to run.
             int? flightId = body.FlightId == "" ? null : int.TryParse(body.FlightId, out var fid) ? fid : null;
-
-            // Reject reassignment if the target flight's half already has started rounds
-            if (flightId is not null)
-            {
-                var targetFlight = await _flightRepository.GetByIdAsync(flightId.Value, cancellationToken);
-                if (targetFlight is not null && await _flightRepository.IsHalfLockedAsync(targetFlight.HalfId, cancellationToken))
-                    return new ObjectResult(new { error = "Flight assignments are locked once rounds have started for this half." }) { StatusCode = 409 };
-            }
-
             await _playerRepository.AssignToFlightAsync(playerId, flightId, cancellationToken);
         }
 

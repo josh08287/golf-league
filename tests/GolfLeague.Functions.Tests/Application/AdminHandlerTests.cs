@@ -94,6 +94,7 @@ public class RecalculateAllRoundsCommandHandlerTests
     private readonly Mock<IRoundRepository> _roundRepo;
     private readonly Mock<ICourseRepository> _courseRepo;
     private readonly Mock<IHandicapRepository> _handicapRepo;
+    private readonly Mock<IFlightRepository> _flightRepo;
     private readonly Mock<Microsoft.Extensions.Logging.ILogger<RecalculateAllRoundsCommandHandler>> _logger;
     private readonly RecalculateAllRoundsCommandHandler _handler;
 
@@ -102,11 +103,15 @@ public class RecalculateAllRoundsCommandHandlerTests
         _roundRepo = new Mock<IRoundRepository>();
         _courseRepo = new Mock<ICourseRepository>();
         _handicapRepo = new Mock<IHandicapRepository>();
+        _flightRepo = new Mock<IFlightRepository>();
+        _flightRepo.Setup(r => r.GetMembershipsByHalfAsync(It.IsAny<int>(), default))
+            .ReturnsAsync(new List<FlightMembership>());
         _logger = new Mock<Microsoft.Extensions.Logging.ILogger<RecalculateAllRoundsCommandHandler>>();
         _handler = new RecalculateAllRoundsCommandHandler(
             _roundRepo.Object,
             _courseRepo.Object,
             _handicapRepo.Object,
+            _flightRepo.Object,
             _logger.Object);
     }
 
@@ -273,5 +278,52 @@ public class RecalculateAllRoundsCommandHandlerTests
         result.Value!.RoundsProcessed.Should().Be(1);
         result.Value.ParticipantsProcessed.Should().Be(0); // None processed
         result.Value.HoleScoresUpdated.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPlayerFlightMembershipChanged_ResyncsParticipantFlightId()
+    {
+        var round = new Round
+        {
+            Id = 1,
+            Status = RoundStatus.Finalized,
+            RoundDate = new DateOnly(2026, 1, 1),
+            CourseId = 1,
+            SeasonId = 1,
+            HalfId = 1,
+            WeekNumber = 1,
+            NineHoleSide = NineHoleSide.Front
+        };
+
+        var course = new Course { Id = 1, Name = "Test Course", SlopeRating = 113, CourseRating = 72.0 };
+
+        var participant = new RoundParticipant
+        {
+            Id = 1,
+            RoundId = 1,
+            PlayerId = 1,
+            FlightId = 1, // Stale: player was in flight 1 when the round was played
+            HandicapIndex = 18.0,
+            CourseHandicap = 9,
+            IsWithdrawn = false,
+            SkippedWeek = false,
+            HoleScores = new List<HoleScore>()
+        };
+
+        _roundRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Round> { round });
+        _courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        _courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(new List<CourseHole>());
+        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default)).ReturnsAsync(new List<RoundParticipant> { participant });
+
+        // Admin has since moved the player to flight 2 for this half.
+        _flightRepo.Setup(r => r.GetMembershipsByHalfAsync(1, default))
+            .ReturnsAsync(new List<FlightMembership> { new() { PlayerId = 1, FlightId = 2, HalfId = 1 } });
+
+        var result = await _handler.Handle(new RecalculateAllRoundsCommand("admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.FlightAssignmentsUpdated.Should().Be(1);
+        participant.FlightId.Should().Be(2);
+        _roundRepo.Verify(r => r.UpdateParticipantAsync(participant, default), Times.Once);
     }
 }

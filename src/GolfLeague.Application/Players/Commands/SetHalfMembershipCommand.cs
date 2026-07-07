@@ -10,8 +10,9 @@ namespace GolfLeague.Application.Players.Commands;
 /// <summary>
 /// Sets a player's flight membership for a single half. A non-null
 /// <see cref="FlightId"/> adds the player to that flight (and half); a null
-/// <see cref="FlightId"/> removes them from the half. Rejected when the half is
-/// locked (its rounds have started).
+/// <see cref="FlightId"/> removes them from the half. Allowed even after the
+/// half's rounds have started — admins are prompted to run
+/// RecalculateAllRoundsCommand afterward to bring historical rounds back in sync.
 /// </summary>
 public sealed record SetHalfMembershipCommand(
     int PlayerId,
@@ -44,10 +45,6 @@ public sealed class SetHalfMembershipCommandHandler : IRequestHandler<SetHalfMem
         var half = await _flightRepository.GetHalfByIdAsync(request.HalfId, cancellationToken);
         if (half is null)
             return Result<PlayerDto>.Fail($"Half with ID {request.HalfId} not found.");
-
-        // Once a half's rounds have started, its roster is frozen.
-        if (await _flightRepository.IsHalfLockedAsync(request.HalfId, cancellationToken))
-            return Result<PlayerDto>.Fail("This half is locked because its rounds have started. Membership cannot be changed.");
 
         if (request.FlightId is int flightId)
         {

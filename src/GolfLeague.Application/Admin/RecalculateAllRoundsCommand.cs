@@ -13,7 +13,8 @@ public sealed record RecalculateAllRoundsCommand(string UserId) : IRequest<Resul
 public sealed record RecalculateAllRoundsResult(
     int RoundsProcessed,
     int ParticipantsProcessed,
-    int HoleScoresUpdated);
+    int HoleScoresUpdated,
+    int FlightAssignmentsUpdated);
 
 public sealed class RecalculateAllRoundsCommandHandler
     : IRequestHandler<RecalculateAllRoundsCommand, Result<RecalculateAllRoundsResult>>
@@ -21,17 +22,20 @@ public sealed class RecalculateAllRoundsCommandHandler
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly IFlightRepository _flightRepository;
     private readonly ILogger<RecalculateAllRoundsCommandHandler> _logger;
 
     public RecalculateAllRoundsCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
         IHandicapRepository handicapRepository,
+        IFlightRepository flightRepository,
         ILogger<RecalculateAllRoundsCommandHandler> logger)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _handicapRepository = handicapRepository;
+        _flightRepository = flightRepository;
         _logger = logger;
     }
 
@@ -50,6 +54,11 @@ public sealed class RecalculateAllRoundsCommandHandler
             var roundsProcessed = 0;
             var participantsProcessed = 0;
             var holeScoresUpdated = 0;
+            var flightAssignmentsUpdated = 0;
+
+            // Cache current flight membership per half so repeated rounds in the
+            // same half don't re-query it. Keyed by (halfId, playerId) -> flightId.
+            var membershipsByHalf = new Dictionary<int, Dictionary<int, int>>();
 
             foreach (var round in finalizedRounds)
             {
@@ -72,6 +81,35 @@ public sealed class RecalculateAllRoundsCommandHandler
                     var activeParticipants = participants
                         .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
                         .ToList();
+
+                    // Bring each participant's stored FlightId back in sync with the
+                    // player's current flight membership for this round's half, so
+                    // standings/skins (which read RoundParticipant.FlightId) reflect
+                    // any flight moves an admin has made since the round was played.
+                    if (round.HalfId.HasValue)
+                    {
+                        if (!membershipsByHalf.TryGetValue(round.HalfId.Value, out var halfMemberships))
+                        {
+                            var memberships = await _flightRepository.GetMembershipsByHalfAsync(round.HalfId.Value, cancellationToken);
+                            halfMemberships = memberships.ToDictionary(m => m.PlayerId, m => m.FlightId);
+                            membershipsByHalf[round.HalfId.Value] = halfMemberships;
+                        }
+
+                        foreach (var participant in activeParticipants)
+                        {
+                            if (!halfMemberships.TryGetValue(participant.PlayerId, out var currentFlightId))
+                                continue;
+
+                            if (participant.FlightId != currentFlightId)
+                            {
+                                _logger.LogInformation(
+                                    "Updating FlightId for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
+                                    participant.Id, round.Id, participant.FlightId, currentFlightId);
+                                participant.FlightId = currentFlightId;
+                                flightAssignmentsUpdated++;
+                            }
+                        }
+                    }
 
                     foreach (var participant in activeParticipants)
                     {
@@ -172,7 +210,7 @@ public sealed class RecalculateAllRoundsCommandHandler
             }
 
             return Result<RecalculateAllRoundsResult>.Ok(
-                new RecalculateAllRoundsResult(roundsProcessed, participantsProcessed, holeScoresUpdated));
+                new RecalculateAllRoundsResult(roundsProcessed, participantsProcessed, holeScoresUpdated, flightAssignmentsUpdated));
         }
         catch (Exception ex)
         {

@@ -9,6 +9,8 @@ public interface IFlightRepository
     Task<IReadOnlyList<Flight>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Flight>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<FlightMembership>> GetMembershipsAsync(int flightId, CancellationToken cancellationToken = default);
+    /// <summary>All flight memberships for every flight within a half, keyed by player via PlayerId.</summary>
+    Task<IReadOnlyList<FlightMembership>> GetMembershipsByHalfAsync(int halfId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetStandingsAsync(int flightId, int halfId, CancellationToken cancellationToken = default);
     Task AddAsync(Flight flight, CancellationToken cancellationToken = default);
     Task AddHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default);

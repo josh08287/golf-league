@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { Save, Undo2 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
 import { usePlayers, playerKeys } from '../../hooks/usePlayers';
+import { useRecalculateRounds } from '../../hooks/admin/useRecalculateRounds';
 import { Spinner } from '../ui/Spinner';
+import { Button } from '../ui/Button';
+import { ConfirmDialog } from './ConfirmDialog';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
-import type { Flight, Player, PagedResponse } from '../../types/api';
+import type { Flight, Player } from '../../types/api';
 
 interface FlightPlayerAssignmentProps {
   halfId: number;
@@ -20,91 +24,139 @@ export function FlightPlayerAssignment({ halfId, flights }: FlightPlayerAssignme
 
   const [draggingId, setDraggingId] = useState<number | null>(null);
   const [overFlightId, setOverFlightId] = useState<number | 'unassigned' | null>(null);
+  // Pending, unsaved moves: playerId -> new flightId (null = unassigned).
+  const [pendingMoves, setPendingMoves] = useState<Map<number, number | null>>(new Map());
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [showRecalculatePrompt, setShowRecalculatePrompt] = useState(false);
+
+  const recalculateRounds = useRecalculateRounds();
+
+  const dirtyCount = pendingMoves.size;
 
   if (isLoading) return <Spinner />;
 
   // Resolve each player's flight for THIS half from the per-half memberships array
-  function playerFlightIdForHalf(player: Player): number | null {
+  function committedFlightIdForHalf(player: Player): number | null {
     return player.flightMemberships?.find((m) => m.halfId === halfId)?.flightId ?? null;
   }
 
-  function playersInFlight(flightId: number | null) {
-    return players.filter((p) => playerFlightIdForHalf(p) === flightId);
+  function flightIdForHalf(player: Player): number | null {
+    return pendingMoves.has(player.id) ? pendingMoves.get(player.id)! : committedFlightIdForHalf(player);
   }
 
-  async function handleDropToFlight(flightId: number | null) {
+  function playersInFlight(flightId: number | null) {
+    return players.filter((p) => flightIdForHalf(p) === flightId);
+  }
+
+  function handleDropToFlight(flightId: number | null) {
     if (!draggingId) return;
     const player = players.find((p) => p.id === draggingId);
-    if (!player || playerFlightIdForHalf(player) === flightId) return;
-
-    const movedId = draggingId;
-    const newFlight = flightId === null ? null : flights.find((f) => f.id === flightId) ?? null;
-
     setDraggingId(null);
     setOverFlightId(null);
+    if (!player || flightIdForHalf(player) === flightId) return;
 
-    // Optimistic update: patch every cached players list so the UI moves the
-    // card instantly. Snapshots let us roll back if the PATCH fails.
-    const snapshots = qc.getQueriesData<PagedResponse<Player>>({ queryKey: playerKeys.lists() });
-    for (const [key, prev] of snapshots) {
-      if (!prev) continue;
-      qc.setQueryData<PagedResponse<Player>>(key, {
-        ...prev,
-        data: prev.data.map((p) => {
-          if (p.id !== movedId) return p;
-          // Update the per-half membership entry optimistically
-          const otherHalfMemberships = (p.flightMemberships ?? []).filter(
-            (m) => m.halfId !== halfId,
-          );
-          const updatedMemberships = newFlight
-            ? [...otherHalfMemberships, { halfId, flightId: newFlight.id, flightName: newFlight.name }]
-            : otherHalfMemberships;
-          return { ...p, flightMemberships: updatedMemberships };
-        }),
-      });
-    }
-
-    try {
-      await apiClient.patch(`/players/${movedId}`, {
-        flightId: flightId === null ? '' : String(flightId),
-      });
-    } catch (err) {
-      // Roll back on failure.
-      for (const [key, prev] of snapshots) {
-        qc.setQueryData(key, prev);
+    setPendingMoves((prev) => {
+      const next = new Map(prev);
+      if (committedFlightIdForHalf(player) === flightId) {
+        // Back to the original assignment — no longer a pending change.
+        next.delete(player.id);
+      } else {
+        next.set(player.id, flightId);
       }
-      throw err;
-    }
+      return next;
+    });
+  }
 
-    // Refresh from the server to pick up any server-side changes
-    await qc.invalidateQueries({ queryKey: playerKeys.all });
+  function handleDiscard() {
+    setPendingMoves(new Map());
+    setSaveError(null);
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    setSaveError(null);
+    try {
+      await Promise.all(
+        Array.from(pendingMoves.entries()).map(([playerId, flightId]) =>
+          apiClient.patch(`/players/${playerId}`, { flightId: flightId === null ? '' : String(flightId) }),
+        ),
+      );
+      setPendingMoves(new Map());
+      await qc.invalidateQueries({ queryKey: playerKeys.all });
+      setShowRecalculatePrompt(true);
+    } catch {
+      setSaveError('Failed to save flight assignments. Try again.');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleConfirmRecalculate() {
+    await recalculateRounds.mutateAsync();
+    setShowRecalculatePrompt(false);
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-3">
-      <FlightColumn
-        label="Unassigned"
-        players={playersInFlight(null)}
-        draggingId={draggingId}
-        isOver={overFlightId === 'unassigned'}
-        onDragStart={(id) => setDraggingId(id)}
-        onDragOver={() => setOverFlightId('unassigned')}
-        onDrop={() => void handleDropToFlight(null)}
-        onDragLeave={() => setOverFlightId(null)}
-      />
-      {flights.map((f) => (
+    <div className="space-y-3">
+      {dirtyCount > 0 && (
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm text-amber-800">
+            {dirtyCount} unsaved flight {dirtyCount === 1 ? 'change' : 'changes'}
+          </p>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={handleDiscard} disabled={isSaving}>
+              <Undo2 className="mr-1.5 h-3.5 w-3.5" />
+              Discard
+            </Button>
+            <Button variant="primary" size="sm" onClick={() => void handleSave()} disabled={isSaving}>
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {isSaving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+
+      <div className="grid gap-4 lg:grid-cols-3">
         <FlightColumn
-          key={f.id}
-          label={f.name}
-          players={playersInFlight(f.id)}
+          label="Unassigned"
+          players={playersInFlight(null)}
           draggingId={draggingId}
-          isOver={overFlightId === f.id}
+          isOver={overFlightId === 'unassigned'}
           onDragStart={(id) => setDraggingId(id)}
-          onDragOver={() => setOverFlightId(f.id)}
-          onDrop={() => void handleDropToFlight(f.id)}
+          onDragOver={() => setOverFlightId('unassigned')}
+          onDrop={() => handleDropToFlight(null)}
           onDragLeave={() => setOverFlightId(null)}
+          isPending={(id) => pendingMoves.has(id)}
         />
-      ))}
+        {flights.map((f) => (
+          <FlightColumn
+            key={f.id}
+            label={f.name}
+            players={playersInFlight(f.id)}
+            draggingId={draggingId}
+            isOver={overFlightId === f.id}
+            onDragStart={(id) => setDraggingId(id)}
+            onDragOver={() => setOverFlightId(f.id)}
+            onDrop={() => handleDropToFlight(f.id)}
+            onDragLeave={() => setOverFlightId(null)}
+            isPending={(id) => pendingMoves.has(id)}
+          />
+        ))}
+      </div>
+
+      <ConfirmDialog
+        open={showRecalculatePrompt}
+        title="Recalculate All Rounds?"
+        description="Flight assignments were saved. Since flights affect standings and skins for past rounds, it's recommended to recalculate all rounds now so results reflect the updated assignments."
+        confirmLabel={recalculateRounds.isPending ? 'Recalculating...' : 'Recalculate All Rounds'}
+        cancelLabel="Skip for Now"
+        isLoading={recalculateRounds.isPending}
+        onConfirm={() => void handleConfirmRecalculate()}
+        onCancel={() => setShowRecalculatePrompt(false)}
+      />
     </div>
   );
 }
@@ -118,6 +170,7 @@ interface FlightColumnProps {
   onDragOver: () => void;
   onDrop: () => void;
   onDragLeave: () => void;
+  isPending: (id: number) => boolean;
 }
 
 function FlightColumn({
@@ -129,6 +182,7 @@ function FlightColumn({
   onDragOver,
   onDrop,
   onDragLeave,
+  isPending,
 }: FlightColumnProps) {
   return (
     <div
@@ -156,7 +210,8 @@ function FlightColumn({
             draggable
             onDragStart={() => onDragStart(p.id)}
             className={[
-              'cursor-grab select-none rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm transition-opacity',
+              'cursor-grab select-none rounded-lg border bg-white px-3 py-2 text-sm shadow-sm transition-opacity',
+              isPending(p.id) ? 'border-amber-300 ring-1 ring-amber-300' : 'border-gray-200',
               draggingId === p.id ? 'opacity-40' : 'opacity-100',
             ].join(' ')}
           >
