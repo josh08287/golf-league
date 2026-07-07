@@ -372,4 +372,49 @@ public class RecalculateAllRoundsCommandHandlerTests
         result.Value.RoundsProcessed.Should().Be(0);
         _roundRepo.Verify(r => r.UpdateParticipantAsync(participant, default), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_WhenRoundIsScheduled_StillResyncsFlightIdSoRoundsPageIsAccurate()
+    {
+        var round = new Round
+        {
+            Id = 1,
+            Status = RoundStatus.Scheduled,
+            RoundDate = new DateOnly(2026, 2, 1),
+            CourseId = 1,
+            SeasonId = 1,
+            HalfId = 1,
+            WeekNumber = 2,
+            NineHoleSide = NineHoleSide.Front
+        };
+
+        var participant = new RoundParticipant
+        {
+            Id = 1,
+            RoundId = 1,
+            PlayerId = 1,
+            FlightId = 1, // Stale: player was in flight 1 when the schedule was generated
+            HandicapIndex = 18.0,
+            CourseHandicap = 9,
+            IsWithdrawn = false,
+            SkippedWeek = false,
+            HoleScores = new List<HoleScore>()
+        };
+
+        _roundRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Round> { round });
+        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default)).ReturnsAsync(new List<RoundParticipant> { participant });
+
+        // Admin has since moved the player to flight 2 for this half, before the round has started.
+        _flightRepo.Setup(r => r.GetMembershipsByHalfAsync(1, default))
+            .ReturnsAsync(new List<FlightMembership> { new() { PlayerId = 1, FlightId = 2, HalfId = 1 } });
+
+        var result = await _handler.Handle(new RecalculateAllRoundsCommand("admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.FlightAssignmentsUpdated.Should().Be(1);
+        participant.FlightId.Should().Be(2);
+        // Scheduled rounds are never score-recalculated, only flight-resynced.
+        result.Value.RoundsProcessed.Should().Be(0);
+        _roundRepo.Verify(r => r.UpdateParticipantAsync(participant, default), Times.Once);
+    }
 }

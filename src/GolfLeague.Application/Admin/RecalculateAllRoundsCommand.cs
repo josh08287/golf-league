@@ -56,13 +56,13 @@ public sealed class RecalculateAllRoundsCommandHandler
             // same half don't re-query it. Keyed by (halfId, playerId) -> flightId.
             var membershipsByHalf = new Dictionary<int, Dictionary<int, int>>();
 
-            // Flight assignments are resynced for every round that isn't purely
-            // scheduled (i.e. has participants worth caring about) — this includes
-            // in-progress rounds, since the live leaderboard groups by the same
-            // stored RoundParticipant.FlightId and would otherwise show stale
-            // flights until the round is finalized.
+            // Flight assignments are resynced for every round with participants,
+            // including scheduled (not yet started) rounds — the admin rounds
+            // page, live leaderboard, and standings/skins all group by the same
+            // stored RoundParticipant.FlightId, which would otherwise show a
+            // stale flight until the round is finalized.
             var roundsNeedingFlightSync = allRounds
-                .Where(r => r.Status is RoundStatus.InProgress or RoundStatus.PendingFinalization or RoundStatus.Finalized)
+                .Where(r => r.Status is RoundStatus.Scheduled or RoundStatus.InProgress or RoundStatus.PendingFinalization or RoundStatus.Finalized)
                 .OrderBy(r => r.RoundDate)
                 .ToList();
 
