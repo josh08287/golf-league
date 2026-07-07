@@ -46,10 +46,6 @@ public sealed class RecalculateAllRoundsCommandHandler
         try
         {
             var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
-            var finalizedRounds = allRounds
-                .Where(r => r.Status == RoundStatus.Finalized)
-                .OrderBy(r => r.RoundDate)
-                .ToList();
 
             var roundsProcessed = 0;
             var participantsProcessed = 0;
@@ -59,6 +55,55 @@ public sealed class RecalculateAllRoundsCommandHandler
             // Cache current flight membership per half so repeated rounds in the
             // same half don't re-query it. Keyed by (halfId, playerId) -> flightId.
             var membershipsByHalf = new Dictionary<int, Dictionary<int, int>>();
+
+            // Flight assignments are resynced for every round that isn't purely
+            // scheduled (i.e. has participants worth caring about) — this includes
+            // in-progress rounds, since the live leaderboard groups by the same
+            // stored RoundParticipant.FlightId and would otherwise show stale
+            // flights until the round is finalized.
+            var roundsNeedingFlightSync = allRounds
+                .Where(r => r.Status is RoundStatus.InProgress or RoundStatus.PendingFinalization or RoundStatus.Finalized)
+                .OrderBy(r => r.RoundDate)
+                .ToList();
+
+            foreach (var round in roundsNeedingFlightSync)
+            {
+                if (!round.HalfId.HasValue)
+                    continue;
+
+                var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
+                var activeParticipants = participants
+                    .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
+                    .ToList();
+
+                if (!membershipsByHalf.TryGetValue(round.HalfId.Value, out var halfMemberships))
+                {
+                    var memberships = await _flightRepository.GetMembershipsByHalfAsync(round.HalfId.Value, cancellationToken);
+                    halfMemberships = memberships.ToDictionary(m => m.PlayerId, m => m.FlightId);
+                    membershipsByHalf[round.HalfId.Value] = halfMemberships;
+                }
+
+                foreach (var participant in activeParticipants)
+                {
+                    if (!halfMemberships.TryGetValue(participant.PlayerId, out var currentFlightId))
+                        continue;
+
+                    if (participant.FlightId != currentFlightId)
+                    {
+                        _logger.LogInformation(
+                            "Updating FlightId for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
+                            participant.Id, round.Id, participant.FlightId, currentFlightId);
+                        participant.FlightId = currentFlightId;
+                        flightAssignmentsUpdated++;
+                        await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+                    }
+                }
+            }
+
+            var finalizedRounds = allRounds
+                .Where(r => r.Status == RoundStatus.Finalized)
+                .OrderBy(r => r.RoundDate)
+                .ToList();
 
             foreach (var round in finalizedRounds)
             {
@@ -81,35 +126,6 @@ public sealed class RecalculateAllRoundsCommandHandler
                     var activeParticipants = participants
                         .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
                         .ToList();
-
-                    // Bring each participant's stored FlightId back in sync with the
-                    // player's current flight membership for this round's half, so
-                    // standings/skins (which read RoundParticipant.FlightId) reflect
-                    // any flight moves an admin has made since the round was played.
-                    if (round.HalfId.HasValue)
-                    {
-                        if (!membershipsByHalf.TryGetValue(round.HalfId.Value, out var halfMemberships))
-                        {
-                            var memberships = await _flightRepository.GetMembershipsByHalfAsync(round.HalfId.Value, cancellationToken);
-                            halfMemberships = memberships.ToDictionary(m => m.PlayerId, m => m.FlightId);
-                            membershipsByHalf[round.HalfId.Value] = halfMemberships;
-                        }
-
-                        foreach (var participant in activeParticipants)
-                        {
-                            if (!halfMemberships.TryGetValue(participant.PlayerId, out var currentFlightId))
-                                continue;
-
-                            if (participant.FlightId != currentFlightId)
-                            {
-                                _logger.LogInformation(
-                                    "Updating FlightId for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
-                                    participant.Id, round.Id, participant.FlightId, currentFlightId);
-                                participant.FlightId = currentFlightId;
-                                flightAssignmentsUpdated++;
-                            }
-                        }
-                    }
 
                     foreach (var participant in activeParticipants)
                     {
