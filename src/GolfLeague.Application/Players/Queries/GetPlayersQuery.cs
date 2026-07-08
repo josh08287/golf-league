@@ -102,10 +102,15 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
         var latestMembership = activeMemberships.FirstOrDefault();
 
         // Per-half memberships: one entry per half (latest membership wins if multiple exist per half)
+        var optInByHalf = player.HalfSettings.ToDictionary(s => s.HalfId, s => s.Par3GrossSkinsOptIn);
         var perHalf = activeMemberships
             .GroupBy(fm => fm.HalfId)
             .Select(g => g.OrderByDescending(fm => fm.JoinedAt).First())
-            .Select(fm => new HalfFlightMembership(fm.HalfId, fm.FlightId, Format(fm.Season.Year, fm.Half.HalfNumber, fm.Flight.Name)))
+            .Select(fm => new HalfFlightMembership(
+                fm.HalfId,
+                fm.FlightId,
+                Format(fm.Season.Year, fm.Half.HalfNumber, fm.Flight.Name),
+                optInByHalf.TryGetValue(fm.HalfId, out var optIn) ? optIn : true))
             .ToList();
 
         return new PlayerDto(

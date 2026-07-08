@@ -139,6 +139,12 @@ export function GrossPar3SkinsDisplay({ grossPar3Skins, roundId }: GrossPar3Skin
           <div className="flex flex-wrap gap-2 text-xs">
             {grossPar3Skins.holeResults.map((hole, idx) => {
               const carrying = runningCarryByHole[idx];
+              const notOptedInNote = hole.notOptedInPlayerId != null
+                ? `${hole.notOptedInPlayerName} shot ${hole.notOptedInGrossScore} but isn't opted in to par-3 gross skins`
+                : null;
+              const baseTitle = hole.skinValue > 0
+                ? `${hole.winnerPlayerName} won with gross ${hole.winningGrossScore}${hole.wasCarryover ? ' (carryover)' : ''}`
+                : `Tie — ${carrying} skin${carrying === 1 ? '' : 's'} carrying`;
               return (
                 <span
                   key={hole.holeNumber}
@@ -148,11 +154,7 @@ export function GrossPar3SkinsDisplay({ grossPar3Skins, roundId }: GrossPar3Skin
                       ? 'bg-amber-100 text-amber-800 font-medium'
                       : 'bg-gray-100 text-gray-500'
                   )}
-                  title={
-                    hole.skinValue > 0
-                      ? `${hole.winnerPlayerName} won with gross ${hole.winningGrossScore}${hole.wasCarryover ? ' (carryover)' : ''}`
-                      : `Tie — ${carrying} skin${carrying === 1 ? '' : 's'} carrying`
-                  }
+                  title={notOptedInNote ? `${baseTitle} — ${notOptedInNote}` : baseTitle}
                 >
                   Hole {hole.holeNumber}
                   {hole.skinValue > 0 ? (
@@ -163,10 +165,16 @@ export function GrossPar3SkinsDisplay({ grossPar3Skins, roundId }: GrossPar3Skin
                   ) : (
                     <span className="text-gray-400">↻ {carrying}</span>
                   )}
+                  {notOptedInNote && <span className="text-gray-400">*</span>}
                 </span>
               );
             })}
           </div>
+          {grossPar3Skins.holeResults.some((h) => h.notOptedInPlayerId != null) && (
+            <p className="mt-2 text-xs text-gray-400">
+              * A player with the best score wasn&apos;t opted in to par-3 gross skins for this half.
+            </p>
+          )}
         </div>
         <ClosestToPinPanel roundId={roundId} />
       </div>

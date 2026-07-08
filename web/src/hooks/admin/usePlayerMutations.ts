@@ -87,6 +87,25 @@ export function useSetHalfMembership(playerId: string) {
   });
 }
 
+/**
+ * Sets whether a player is opted in to par-3 gross skins for a single half.
+ * Independent of flight assignment, so it survives flight reassignment.
+ */
+export function useSetPar3GrossSkinsOptIn(playerId: string) {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ halfId, optIn }: { halfId: number; optIn: boolean }) =>
+      apiClient
+        .put(`/players/${playerId}/half-settings/${halfId}/par3-gross-skins-opt-in`, { optIn })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+      qc.invalidateQueries({ queryKey: playerKeys.detail(playerId) });
+    },
+  });
+}
+
 export function useDeactivatePlayer(playerId: string) {
   const qc = useQueryClient();
 

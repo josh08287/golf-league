@@ -51,7 +51,15 @@ public sealed record GrossPar3SkinDto(
     int? WinnerFlightId,
     string WinnerFlightName,
     int WinningGrossScore,
-    bool WasCarryover);
+    bool WasCarryover,
+    /// <summary>
+    /// Set when a player with a strictly lower gross score on this hole was
+    /// not opted in to par-3 gross skins, so the actual skin (if any) went to
+    /// the next-best opted-in player instead. Null when no such player exists.
+    /// </summary>
+    int? NotOptedInPlayerId = null,
+    string? NotOptedInPlayerName = null,
+    int? NotOptedInGrossScore = null);
 
 /// <summary>
 /// Summary of gross par 3 skins for the entire round.
@@ -81,15 +89,18 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IFlightRepository _flightRepository;
+    private readonly IPlayerHalfSettingRepository _halfSettingRepository;
 
     public GetRoundSkinsQueryHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
-        IFlightRepository flightRepository)
+        IFlightRepository flightRepository,
+        IPlayerHalfSettingRepository halfSettingRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _flightRepository = flightRepository;
+        _halfSettingRepository = halfSettingRepository;
     }
 
     public async Task<Result<RoundSkinsDto>> Handle(GetRoundSkinsQuery request, CancellationToken cancellationToken)
@@ -132,10 +143,12 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
             .ToList();
 
+        var par3OptIns = await GetPar3OptInLookupAsync(round.HalfId, cancellationToken);
+
         // Check for carryover from previous round
         int incomingCarryover = await CalculateIncomingPar3CarryoverAsync(round, flightNameLookup, cancellationToken);
 
-        var grossPar3Skins = CalculateGrossPar3Skins(allParticipants, flightNameLookup, incomingCarryover);
+        var grossPar3Skins = CalculateGrossPar3Skins(allParticipants, flightNameLookup, par3OptIns, incomingCarryover);
 
         var result = new RoundSkinsDto(
             round.Id,
@@ -164,7 +177,12 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             if (prevParticipants.Count == 0)
                 continue;
 
-            var prevSkins = CalculateGrossPar3Skins(prevParticipants, flightNameLookup, carryover);
+            // Each prior round may belong to a different half (carryover is
+            // season-scoped and crosses the half boundary), so its opt-in
+            // lookup must be resolved per-round, not reused from the caller.
+            var prevOptIns = await GetPar3OptInLookupAsync(prev.HalfId, cancellationToken);
+
+            var prevSkins = CalculateGrossPar3Skins(prevParticipants, flightNameLookup, prevOptIns, carryover);
             if (prevSkins is null)
                 continue;
 
@@ -172,6 +190,15 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
         }
 
         return carryover;
+    }
+
+    private async Task<IReadOnlyDictionary<int, bool>> GetPar3OptInLookupAsync(int? halfId, CancellationToken cancellationToken)
+    {
+        if (halfId is not int id)
+            return new Dictionary<int, bool>();
+
+        var settings = await _halfSettingRepository.GetForHalfAsync(id, cancellationToken);
+        return settings.ToDictionary(s => s.PlayerId, s => s.Par3GrossSkinsOptIn);
     }
 
     private static int ComputeEndingCarryover(List<GrossPar3SkinDto> holeResults, int incomingCarryover)
@@ -301,6 +328,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
     private static GrossPar3SkinsSummaryDto? CalculateGrossPar3Skins(
         List<RoundParticipant> allParticipants,
         Dictionary<int, string> flightNameLookup,
+        IReadOnlyDictionary<int, bool> par3OptIns,
         int incomingCarryover = 0)
     {
         // Get all par 3 hole scores across all participants
@@ -348,9 +376,44 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
             if (holeScores.Count == 0)
                 continue;
 
-            // Find the lowest gross score
-            var minGrossScore = holeScores.Min(h => h.GrossStrokes);
-            var lowestScorers = holeScores.Where(h => h.GrossStrokes == minGrossScore).ToList();
+            bool IsOptedIn(int playerId) => !par3OptIns.TryGetValue(playerId, out var optIn) || optIn;
+
+            // Note when a non-opted-in player would otherwise have had the
+            // outright best score on this hole, so it can be surfaced on the
+            // card even though they're not eligible to win the skin.
+            var minGrossScoreOverall = holeScores.Min(h => h.GrossStrokes);
+            var notOptedInBest = holeScores
+                .Where(h => h.GrossStrokes == minGrossScoreOverall && !IsOptedIn(h.PlayerId))
+                .FirstOrDefault();
+
+            var eligibleScores = holeScores.Where(h => IsOptedIn(h.PlayerId)).ToList();
+
+            if (eligibleScores.Count == 0)
+            {
+                // Nobody on this hole is opted in — no skin can be awarded and
+                // the carryover is preserved for the next hole (not lost),
+                // same as an ordinary tie.
+                carryoverSkins += 1;
+
+                holeResults.Add(new GrossPar3SkinDto(
+                    holeNumber,
+                    3, // par 3
+                    0,
+                    0,
+                    string.Empty,
+                    0,
+                    string.Empty,
+                    minGrossScoreOverall,
+                    false,
+                    notOptedInBest?.PlayerId,
+                    notOptedInBest?.FullName,
+                    notOptedInBest?.GrossStrokes));
+                continue;
+            }
+
+            // Find the lowest gross score among opted-in players
+            var minGrossScore = eligibleScores.Min(h => h.GrossStrokes);
+            var lowestScorers = eligibleScores.Where(h => h.GrossStrokes == minGrossScore).ToList();
 
             int skinValue = 1 + carryoverSkins;
 
@@ -368,7 +431,10 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
                     winner.FlightId,
                     flightName,
                     winner.GrossStrokes,
-                    carryoverSkins > 0);
+                    carryoverSkins > 0,
+                    notOptedInBest?.PlayerId,
+                    notOptedInBest?.FullName,
+                    notOptedInBest?.GrossStrokes);
 
                 holeResults.Add(holeSkin);
 
@@ -391,7 +457,10 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
                     0,
                     string.Empty,
                     minGrossScore,
-                    false));
+                    false,
+                    notOptedInBest?.PlayerId,
+                    notOptedInBest?.FullName,
+                    notOptedInBest?.GrossStrokes));
             }
         }
 

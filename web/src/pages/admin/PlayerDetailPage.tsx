@@ -12,6 +12,7 @@ import {
   useDeactivatePlayer,
   useSetHandicap,
   useSetHalfMembership,
+  useSetPar3GrossSkinsOptIn,
 } from '../../hooks/admin/usePlayerMutations';
 import { useFlights } from '../../hooks/useFlights';
 import { useSeasons } from '../../hooks/useSeasons';
@@ -198,14 +199,20 @@ interface HalfMembershipRowProps {
   half: SeasonHalf;
   currentFlightId: number | null;
   flights: Flight[];
+  par3GrossSkinsOptIn: boolean;
 }
 
 /** One half's flight assignment: a dropdown, or read-only when the half is locked. */
-function HalfMembershipRow({ playerId, half, currentFlightId, flights }: HalfMembershipRowProps) {
+function HalfMembershipRow({ playerId, half, currentFlightId, flights, par3GrossSkinsOptIn }: HalfMembershipRowProps) {
   const setMembership = useSetHalfMembership(playerId);
+  const setPar3OptIn = useSetPar3GrossSkinsOptIn(playerId);
   const serverValue = currentFlightId != null ? String(currentFlightId) : '';
   const [value, setValue] = useState(serverValue);
   const [saved, setSaved] = useState(false);
+
+  async function toggleOptIn() {
+    await setPar3OptIn.mutateAsync({ halfId: half.id, optIn: !par3GrossSkinsOptIn });
+  }
 
   // Re-sync the dropdown when the server's membership for THIS half changes
   // (e.g. after a refetch). Without this, the row keeps stale local state and
@@ -264,6 +271,20 @@ function HalfMembershipRow({ playerId, half, currentFlightId, flights }: HalfMem
             ?? 'Failed to update. Try again.'}
         </p>
       )}
+      {currentFlightId != null && (
+        <label className="col-span-2 flex items-center gap-2 text-sm text-gray-600">
+          <input
+            type="checkbox"
+            checked={par3GrossSkinsOptIn}
+            disabled={setPar3OptIn.isPending}
+            onChange={toggleOptIn}
+          />
+          Opted in to par-3 gross skins this half
+        </label>
+      )}
+      {setPar3OptIn.isError && (
+        <p className="col-span-2 text-sm text-red-600">Failed to update opt-in. Try again.</p>
+      )}
     </div>
   );
 }
@@ -273,9 +294,10 @@ interface HalfMembershipsCardProps {
   halves: SeasonHalf[];
   flights: Flight[];
   membershipFlightByHalf: Map<number, number>;
+  par3OptInByHalf: Map<number, boolean>;
 }
 
-function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf }: HalfMembershipsCardProps) {
+function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf, par3OptInByHalf }: HalfMembershipsCardProps) {
   const ordered = useMemo(
     () => [...halves].sort((a, b) => a.halfNumber - b.halfNumber),
     [halves],
@@ -290,6 +312,7 @@ function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf
           half={half}
           currentFlightId={membershipFlightByHalf.get(half.id) ?? null}
           flights={flights}
+          par3GrossSkinsOptIn={par3OptInByHalf.get(half.id) ?? true}
         />
       ))}
     </div>
@@ -381,6 +404,12 @@ export function PlayerDetailPage() {
   const membershipFlightByHalf = useMemo(() => {
     const map = new Map<number, number>();
     for (const m of player?.flightMemberships ?? []) map.set(m.halfId, m.flightId);
+    return map;
+  }, [player]);
+
+  const par3OptInByHalf = useMemo(() => {
+    const map = new Map<number, boolean>();
+    for (const m of player?.flightMemberships ?? []) map.set(m.halfId, m.par3GrossSkinsOptIn);
     return map;
   }, [player]);
 
@@ -492,6 +521,7 @@ export function PlayerDetailPage() {
               halves={activeSeason.halves}
               flights={activeSeasonFlights}
               membershipFlightByHalf={membershipFlightByHalf}
+              par3OptInByHalf={par3OptInByHalf}
             />
           ) : (
             <p className="text-sm text-gray-500">No active season.</p>

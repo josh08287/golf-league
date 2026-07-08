@@ -54,13 +54,16 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 {
     private readonly IRoundRepository _roundRepository;
     private readonly IPlayerRepository _playerRepository;
+    private readonly IPlayerHalfSettingRepository _halfSettingRepository;
 
     public GetLeagueLeaderboardsQueryHandler(
         IRoundRepository roundRepository,
-        IPlayerRepository playerRepository)
+        IPlayerRepository playerRepository,
+        IPlayerHalfSettingRepository halfSettingRepository)
     {
         _roundRepository = roundRepository;
         _playerRepository = playerRepository;
+        _halfSettingRepository = halfSettingRepository;
     }
 
     public async Task<Result<LeagueLeaderboardsDto>> Handle(
@@ -106,6 +109,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         // only resets on a new season — so we walk every round in the season even
         // when filtering to one half, but only record stats for in-half rounds.
         int par3Carryover = 0;
+        var optInsByHalf = new Dictionary<int, IReadOnlyDictionary<int, bool>>();
 
         foreach (var round in finalizedRounds)
         {
@@ -160,7 +164,22 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
             // Par-3 gross skins for this round — always computed to keep the
             // season-long carryover chain intact, regardless of half filtering.
-            var roundSkins = CalculatePar3Skins(participantScores, par3Carryover);
+            IReadOnlyDictionary<int, bool> roundOptIns;
+            if (round.HalfId is int roundHalfId)
+            {
+                if (!optInsByHalf.TryGetValue(roundHalfId, out roundOptIns!))
+                {
+                    var settings = await _halfSettingRepository.GetForHalfAsync(roundHalfId, cancellationToken);
+                    roundOptIns = settings.ToDictionary(s => s.PlayerId, s => s.Par3GrossSkinsOptIn);
+                    optInsByHalf[roundHalfId] = roundOptIns;
+                }
+            }
+            else
+            {
+                roundOptIns = new Dictionary<int, bool>();
+            }
+
+            var roundSkins = CalculatePar3Skins(participantScores, roundOptIns, par3Carryover);
             par3Carryover = roundSkins.EndingCarryover;
 
             if (includeInResults)
@@ -230,6 +249,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
     private static Par3RoundResult CalculatePar3Skins(
         List<(Domain.Entities.RoundParticipant Participant, List<Domain.Entities.HoleScore> HoleScores)> participantScores,
+        IReadOnlyDictionary<int, bool> par3OptIns,
         int incomingCarryover)
     {
         var par3Entries = participantScores
@@ -251,11 +271,22 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         var playerTotals = new Dictionary<int, (string Name, int Count, int Value)>();
         int carryover = incomingCarryover;
 
+        bool IsOptedIn(int playerId) => !par3OptIns.TryGetValue(playerId, out var optIn) || optIn;
+
         foreach (var holeNumber in holesPlayed)
         {
             var holeScores = par3Entries.Where(x => x.HoleNumber == holeNumber).ToList();
-            var minScore = holeScores.Min(x => x.GrossStrokes);
-            var winners = holeScores.Where(x => x.GrossStrokes == minScore).ToList();
+            var eligibleScores = holeScores.Where(x => IsOptedIn(x.PlayerId)).ToList();
+
+            if (eligibleScores.Count == 0)
+            {
+                // Nobody on this hole is opted in — no skin awarded, carryover preserved.
+                carryover += 1;
+                continue;
+            }
+
+            var minScore = eligibleScores.Min(x => x.GrossStrokes);
+            var winners = eligibleScores.Where(x => x.GrossStrokes == minScore).ToList();
             int skinValue = 1 + carryover;
 
             if (winners.Count == 1)

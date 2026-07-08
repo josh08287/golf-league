@@ -32,6 +32,7 @@ export interface HalfFlightMembership {
   halfId: number;
   flightId: number;
   flightName: string;
+  par3GrossSkinsOptIn: boolean;
 }
 
 export interface Player {
@@ -297,6 +298,10 @@ export interface GrossPar3Skin {
   winnerFlightName: string;
   winningGrossScore: number;
   wasCarryover: boolean;
+  /** Set when a player with a strictly better score wasn't opted in to par-3 gross skins. */
+  notOptedInPlayerId: number | null;
+  notOptedInPlayerName: string | null;
+  notOptedInGrossScore: number | null;
 }
 
 export interface GrossPar3SkinsSummary {

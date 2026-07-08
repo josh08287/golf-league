@@ -3,7 +3,7 @@ using GolfLeague.Domain.Enums;
 namespace GolfLeague.Application.DTOs;
 
 /// <summary>A player's flight assignment for a specific half.</summary>
-public sealed record HalfFlightMembership(int HalfId, int FlightId, string FlightName);
+public sealed record HalfFlightMembership(int HalfId, int FlightId, string FlightName, bool Par3GrossSkinsOptIn = true);
 
 public sealed record PlayerDto(
     int Id,

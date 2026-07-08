@@ -13,15 +13,19 @@ public class GetLeagueLeaderboardsHandicapVerificationTests
 {
     private readonly Mock<IRoundRepository> _roundRepo;
     private readonly Mock<IPlayerRepository> _playerRepo;
+    private readonly Mock<IPlayerHalfSettingRepository> _halfSettingRepo;
     private readonly GetLeagueLeaderboardsQueryHandler _handler;
 
     public GetLeagueLeaderboardsHandicapVerificationTests()
     {
         _roundRepo = new Mock<IRoundRepository>();
         _playerRepo = new Mock<IPlayerRepository>();
+        _halfSettingRepo = new Mock<IPlayerHalfSettingRepository>();
         _roundRepo.Setup(r => r.GetClosestToPinWinnersAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<RoundClosestToPin>());
-        _handler = new GetLeagueLeaderboardsQueryHandler(_roundRepo.Object, _playerRepo.Object);
+        _halfSettingRepo.Setup(s => s.GetForHalfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlayerHalfSetting>());
+        _handler = new GetLeagueLeaderboardsQueryHandler(_roundRepo.Object, _playerRepo.Object, _halfSettingRepo.Object);
     }
 
     [Fact]

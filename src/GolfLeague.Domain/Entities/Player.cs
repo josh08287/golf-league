@@ -45,4 +45,5 @@ public class Player
     public ICollection<FlightMembership> FlightMemberships { get; set; } = [];
     public ICollection<Handicap> Handicaps { get; set; } = [];
     public ICollection<RoundParticipant> RoundParticipants { get; set; } = [];
+    public ICollection<PlayerHalfSetting> HalfSettings { get; set; } = [];
 }

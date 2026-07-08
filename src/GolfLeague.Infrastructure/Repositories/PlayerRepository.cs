@@ -20,6 +20,7 @@ public sealed class PlayerRepository : IPlayerRepository
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Flight)
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Season)
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Half)
+            .Include(p => p.HalfSettings)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
     public async Task<IReadOnlyList<Player>> GetAllActiveAsync(CancellationToken cancellationToken = default)
@@ -27,6 +28,7 @@ public sealed class PlayerRepository : IPlayerRepository
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Flight)
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Season)
             .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Half)
+            .Include(p => p.HalfSettings)
             .Where(p => p.IsActive)
             .OrderBy(p => p.LastName)
             .ThenBy(p => p.FirstName)

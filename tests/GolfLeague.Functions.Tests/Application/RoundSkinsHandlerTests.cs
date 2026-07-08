@@ -68,6 +68,7 @@ public class RoundSkinsHandlerTests
         public Mock<IRoundRepository> Rounds { get; } = new();
         public Mock<ICourseRepository> Courses { get; } = new();
         public Mock<IFlightRepository> Flights { get; } = new();
+        public Mock<IPlayerHalfSettingRepository> HalfSettings { get; } = new();
 
         public Mocks()
         {
@@ -75,9 +76,11 @@ public class RoundSkinsHandlerTests
                 .ReturnsAsync(new List<Round>());
             Courses.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
+            HalfSettings.Setup(s => s.GetForHalfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<PlayerHalfSetting>());
         }
 
-        public GetRoundSkinsQueryHandler BuildSut() => new(Rounds.Object, Courses.Object, Flights.Object);
+        public GetRoundSkinsQueryHandler BuildSut() => new(Rounds.Object, Courses.Object, Flights.Object, HalfSettings.Object);
     }
 
     [Fact]
@@ -337,5 +340,69 @@ public class RoundSkinsHandlerTests
 
         var par3 = result.Value!.GrossPar3Skins!;
         par3.IncomingCarryover.Should().Be(1, "the unresolved tie from the end of H1 should carry into H2");
+    }
+
+    [Fact]
+    public async Task Handle_GrossPar3Skins_NonOptedInPlayerCannotWinButIsNoted()
+    {
+        var season = MakeSeason();
+        var half = MakeHalf(season);
+        var flightA = MakeFlight(1, half, name: "A");
+
+        // Alice has the best gross score but isn't opted in — Bob should win instead,
+        // with the hole result noting Alice's score would have won.
+        var alice = MakeParticipant(1, "Alice", 1, MakeHole(3, gross: 2, net: 1, par: 3));
+        var bob = MakeParticipant(2, "Bob", 1, MakeHole(3, gross: 4, net: 3, par: 3));
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Flights.Setup(f => f.GetByHalfAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<Flight> { flightA });
+        m.HalfSettings.Setup(s => s.GetForHalfAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlayerHalfSetting> { new() { PlayerId = 1, HalfId = 1, SeasonId = 1, Par3GrossSkinsOptIn = false } });
+
+        var result = await m.BuildSut().Handle(new GetRoundSkinsQuery(1), CancellationToken.None);
+
+        var par3 = result.Value!.GrossPar3Skins!;
+        var hole = par3.HoleResults.Single();
+        hole.WinnerPlayerId.Should().Be(2, "Bob is the best-scoring opted-in player");
+        hole.WinningGrossScore.Should().Be(4);
+        hole.SkinValue.Should().Be(1);
+        hole.NotOptedInPlayerId.Should().Be(1);
+        hole.NotOptedInPlayerName.Should().Be("Alice P");
+        hole.NotOptedInGrossScore.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Handle_GrossPar3Skins_WhenNoOneOptedInOnHole_NoSkinAwardedAndCarryoverPreserved()
+    {
+        var season = MakeSeason();
+        var half = MakeHalf(season);
+        var flightA = MakeFlight(1, half, name: "A");
+
+        var alice = MakeParticipant(1, "Alice", 1, MakeHole(3, gross: 2, net: 1, par: 3));
+        var bob = MakeParticipant(2, "Bob", 1, MakeHole(3, gross: 3, net: 2, par: 3));
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Flights.Setup(f => f.GetByHalfAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<Flight> { flightA });
+        m.HalfSettings.Setup(s => s.GetForHalfAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<PlayerHalfSetting>
+            {
+                new() { PlayerId = 1, HalfId = 1, SeasonId = 1, Par3GrossSkinsOptIn = false },
+                new() { PlayerId = 2, HalfId = 1, SeasonId = 1, Par3GrossSkinsOptIn = false },
+            });
+
+        var result = await m.BuildSut().Handle(new GetRoundSkinsQuery(1), CancellationToken.None);
+
+        var par3 = result.Value!.GrossPar3Skins!;
+        var hole = par3.HoleResults.Single();
+        hole.SkinValue.Should().Be(0);
+        hole.WinnerPlayerId.Should().Be(0);
+        hole.NotOptedInPlayerId.Should().Be(1, "Alice had the outright best score even though she's not opted in");
+        par3.PlayerSummaries.Should().BeEmpty();
     }
 }

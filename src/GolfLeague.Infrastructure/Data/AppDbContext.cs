@@ -26,6 +26,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<Flight> Flights => Set<Flight>();
     public DbSet<Player> Players => Set<Player>();
     public DbSet<FlightMembership> FlightMemberships => Set<FlightMembership>();
+    public DbSet<PlayerHalfSetting> PlayerHalfSettings => Set<PlayerHalfSetting>();
     public DbSet<Handicap> Handicaps => Set<Handicap>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseHole> CourseHoles => Set<CourseHole>();
@@ -57,6 +58,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureFlights(modelBuilder);
         ConfigurePlayers(modelBuilder);
         ConfigureFlightMemberships(modelBuilder);
+        ConfigurePlayerHalfSettings(modelBuilder);
         ConfigureHandicaps(modelBuilder);
         ConfigureCourses(modelBuilder);
         ConfigureCourseHoles(modelBuilder);
@@ -236,6 +238,23 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasOne(e => e.Season)
                   .WithMany()
                   .HasForeignKey(e => e.SeasonId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Half)
+                  .WithMany()
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.PlayerId, e.HalfId }).IsUnique();
+        });
+    }
+
+    private static void ConfigurePlayerHalfSettings(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlayerHalfSetting>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Player)
+                  .WithMany(p => p.HalfSettings)
+                  .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(e => e.Half)
                   .WithMany()
