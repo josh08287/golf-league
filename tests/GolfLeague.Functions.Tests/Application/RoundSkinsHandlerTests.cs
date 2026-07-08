@@ -53,12 +53,13 @@ public class RoundSkinsHandlerTests
         HoleScores = holes,
     };
 
-    private static Round MakeRound(int id = 1, int? halfId = 1, int weekNumber = 1) => new()
+    private static Round MakeRound(int id = 1, int? halfId = 1, int weekNumber = 1, int seasonId = 1, DateOnly? roundDate = null) => new()
     {
         Id = id,
+        SeasonId = seasonId,
         HalfId = halfId,
         WeekNumber = weekNumber,
-        RoundDate = new DateOnly(2026, 6, 1),
+        RoundDate = roundDate ?? new DateOnly(2026, 6, 1),
         CourseId = 1,
     };
 
@@ -70,7 +71,7 @@ public class RoundSkinsHandlerTests
 
         public Mocks()
         {
-            Rounds.Setup(r => r.GetPreviousRoundsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            Rounds.Setup(r => r.GetPreviousRoundsAsync(It.IsAny<int>(), It.IsAny<DateOnly>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<Round>());
             Courses.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
@@ -282,14 +283,16 @@ public class RoundSkinsHandlerTests
         // into the current round instead of resolving.
         var prevAlice = MakeParticipant(1, "Alice", 1, MakeHole(3, gross: 4, net: 3, par: 3));
         var prevBob = MakeParticipant(2, "Bob", 1, MakeHole(3, gross: 4, net: 3, par: 3));
-        var previousRound = MakeRound(id: 0, halfId: 1, weekNumber: 0);
+        var previousRound = MakeRound(id: 0, halfId: 1, weekNumber: 0, seasonId: 1, roundDate: new DateOnly(2026, 5, 25));
         previousRound.Participants = new List<RoundParticipant> { prevAlice, prevBob };
 
+        var currentRound = MakeRound(weekNumber: 1, seasonId: 1, roundDate: new DateOnly(2026, 6, 1));
+
         var m = new Mocks();
-        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound(weekNumber: 1));
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(currentRound);
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<RoundParticipant> { alice, bob });
-        m.Rounds.Setup(r => r.GetPreviousRoundsAsync(1, 1, It.IsAny<CancellationToken>()))
+        m.Rounds.Setup(r => r.GetPreviousRoundsAsync(1, currentRound.RoundDate, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<Round> { previousRound });
         m.Flights.Setup(f => f.GetByHalfAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<Flight> { flightA });
 
@@ -300,5 +303,39 @@ public class RoundSkinsHandlerTests
         var par3 = result.Value!.GrossPar3Skins!;
         par3.IncomingCarryover.Should().Be(1);
         par3.HoleResults.Single().SkinValue.Should().Be(0, "still tied, so no winner this round either");
+    }
+
+    [Fact]
+    public async Task Handle_GrossPar3Skins_CarriesOverAcrossHalfBoundaryWithinSameSeason()
+    {
+        var season = MakeSeason();
+        var half2 = MakeHalf(season, halfNumber: 2);
+        var flightA = MakeFlight(1, half2, name: "A");
+
+        // Current round is in half 2, tied again — should still see the carryover
+        // from an unresolved tie in half 1 of the SAME season.
+        var alice = MakeParticipant(1, "Alice", 1, MakeHole(3, gross: 3, net: 2, par: 3));
+        var bob = MakeParticipant(2, "Bob", 1, MakeHole(3, gross: 3, net: 2, par: 3));
+
+        // Previous round: last round of half 1, same season, also tied.
+        var prevAlice = MakeParticipant(1, "Alice", 1, MakeHole(3, gross: 4, net: 3, par: 3));
+        var prevBob = MakeParticipant(2, "Bob", 1, MakeHole(3, gross: 4, net: 3, par: 3));
+        var previousRound = MakeRound(id: 0, halfId: 1, weekNumber: 9, seasonId: season.Id, roundDate: new DateOnly(2026, 6, 15));
+        previousRound.Participants = new List<RoundParticipant> { prevAlice, prevBob };
+
+        var currentRound = MakeRound(id: 1, halfId: half2.Id, weekNumber: 1, seasonId: season.Id, roundDate: new DateOnly(2026, 7, 1));
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(currentRound);
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Rounds.Setup(r => r.GetPreviousRoundsAsync(season.Id, currentRound.RoundDate, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<Round> { previousRound });
+        m.Flights.Setup(f => f.GetByHalfAsync(half2.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<Flight> { flightA });
+
+        var result = await m.BuildSut().Handle(new GetRoundSkinsQuery(1), CancellationToken.None);
+
+        var par3 = result.Value!.GrossPar3Skins!;
+        par3.IncomingCarryover.Should().Be(1, "the unresolved tie from the end of H1 should carry into H2");
     }
 }

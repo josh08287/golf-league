@@ -67,11 +67,29 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         GetLeagueLeaderboardsQuery request,
         CancellationToken cancellationToken)
     {
-        var allRounds = request.HalfId is int halfId
-            ? await _roundRepository.GetByHalfAsync(halfId, cancellationToken)
-            : request.SeasonId is int seasonId
-                ? await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken)
-                : await _roundRepository.GetAllAsync(cancellationToken);
+        // Par-3 skins carryover only resets on a new season, so when filtering to a
+        // specific half we still need to walk the whole season chronologically to
+        // seed the correct incoming carryover — we just don't record stats for
+        // rounds outside the requested half into the returned leaderboards.
+        int? halfFilter = request.HalfId;
+        IReadOnlyList<Domain.Entities.Round> allRounds;
+        if (request.HalfId is int halfId)
+        {
+            var half = await _roundRepository.GetByHalfAsync(halfId, cancellationToken);
+            var seasonId = half.FirstOrDefault()?.SeasonId;
+            allRounds = seasonId is int sid
+                ? await _roundRepository.GetBySeasonAsync(sid, cancellationToken)
+                : half;
+        }
+        else if (request.SeasonId is int seasonId)
+        {
+            allRounds = await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken);
+        }
+        else
+        {
+            allRounds = await _roundRepository.GetAllAsync(cancellationToken);
+        }
+
         var finalizedRounds = allRounds
             .Where(r => r.Status == RoundStatus.Finalized)
             .OrderBy(r => r.RoundDate)
@@ -84,11 +102,15 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         var skinsByPlayer = new Dictionary<int, (string Name, int Count, int Value)>();
         var ctpByPlayer = new Dictionary<int, (string Name, int Wins)>();
 
-        // Par-3 skins carryover accumulates across rounds in chronological order
+        // Par-3 skins carryover accumulates across rounds in chronological order and
+        // only resets on a new season — so we walk every round in the season even
+        // when filtering to one half, but only record stats for in-half rounds.
         int par3Carryover = 0;
 
         foreach (var round in finalizedRounds)
         {
+            var includeInResults = halfFilter is null || round.HalfId == halfFilter;
+
             var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
             var active = participants
                 .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
@@ -103,49 +125,57 @@ public sealed class GetLeagueLeaderboardsQueryHandler
             }
 
             // Avg gross / avg net / birdies + eagles
-            foreach (var (p, holeScores) in participantScores)
+            if (includeInResults)
             {
-                if (!p.TotalGrossStrokes.HasValue) continue;
-
-                var playerName = p.Player?.FullName ?? string.Empty;
-
-                // Avg gross — accumulate total strokes and round count
-                if (!grossByPlayer.TryGetValue(p.PlayerId, out var currentGross))
-                    grossByPlayer[p.PlayerId] = (playerName, p.TotalGrossStrokes.Value, 1);
-                else
-                    grossByPlayer[p.PlayerId] = (playerName, currentGross.TotalStrokes + p.TotalGrossStrokes.Value, currentGross.Rounds + 1);
-
-                // Avg net — accumulate total strokes and round count
-                if (p.TotalNetStrokes.HasValue)
+                foreach (var (p, holeScores) in participantScores)
                 {
-                    if (!netByPlayer.TryGetValue(p.PlayerId, out var currentNet))
-                        netByPlayer[p.PlayerId] = (playerName, p.TotalNetStrokes.Value, 1);
-                    else
-                        netByPlayer[p.PlayerId] = (playerName, currentNet.TotalStrokes + p.TotalNetStrokes.Value, currentNet.Rounds + 1);
-                }
+                    if (!p.TotalGrossStrokes.HasValue) continue;
 
-                // Birdies + eagles
-                var birdies = holeScores.Count(s => s.GrossStrokes == s.Par - 1);
-                var eagles = holeScores.Count(s => s.GrossStrokes <= s.Par - 2);
-                if (!birdiesByPlayer.TryGetValue(p.PlayerId, out var current))
-                    birdiesByPlayer[p.PlayerId] = (playerName, birdies, eagles);
-                else
-                    birdiesByPlayer[p.PlayerId] = (playerName, current.Birdies + birdies, current.Eagles + eagles);
+                    var playerName = p.Player?.FullName ?? string.Empty;
+
+                    // Avg gross — accumulate total strokes and round count
+                    if (!grossByPlayer.TryGetValue(p.PlayerId, out var currentGross))
+                        grossByPlayer[p.PlayerId] = (playerName, p.TotalGrossStrokes.Value, 1);
+                    else
+                        grossByPlayer[p.PlayerId] = (playerName, currentGross.TotalStrokes + p.TotalGrossStrokes.Value, currentGross.Rounds + 1);
+
+                    // Avg net — accumulate total strokes and round count
+                    if (p.TotalNetStrokes.HasValue)
+                    {
+                        if (!netByPlayer.TryGetValue(p.PlayerId, out var currentNet))
+                            netByPlayer[p.PlayerId] = (playerName, p.TotalNetStrokes.Value, 1);
+                        else
+                            netByPlayer[p.PlayerId] = (playerName, currentNet.TotalStrokes + p.TotalNetStrokes.Value, currentNet.Rounds + 1);
+                    }
+
+                    // Birdies + eagles
+                    var birdies = holeScores.Count(s => s.GrossStrokes == s.Par - 1);
+                    var eagles = holeScores.Count(s => s.GrossStrokes <= s.Par - 2);
+                    if (!birdiesByPlayer.TryGetValue(p.PlayerId, out var current))
+                        birdiesByPlayer[p.PlayerId] = (playerName, birdies, eagles);
+                    else
+                        birdiesByPlayer[p.PlayerId] = (playerName, current.Birdies + birdies, current.Eagles + eagles);
+                }
             }
 
-            // Par-3 gross skins for this round
+            // Par-3 gross skins for this round — always computed to keep the
+            // season-long carryover chain intact, regardless of half filtering.
             var roundSkins = CalculatePar3Skins(participantScores, par3Carryover);
             par3Carryover = roundSkins.EndingCarryover;
 
-            foreach (var (playerId, playerName, skinsWon, skinValue) in roundSkins.PlayerTotals)
+            if (includeInResults)
             {
-                if (!skinsByPlayer.TryGetValue(playerId, out var cs))
-                    skinsByPlayer[playerId] = (playerName, skinsWon, skinValue);
-                else
-                    skinsByPlayer[playerId] = (playerName, cs.Count + skinsWon, cs.Value + skinValue);
+                foreach (var (playerId, playerName, skinsWon, skinValue) in roundSkins.PlayerTotals)
+                {
+                    if (!skinsByPlayer.TryGetValue(playerId, out var cs))
+                        skinsByPlayer[playerId] = (playerName, skinsWon, skinValue);
+                    else
+                        skinsByPlayer[playerId] = (playerName, cs.Count + skinsWon, cs.Value + skinValue);
+                }
             }
 
             // Closest-to-pin wins recorded for this round
+            if (!includeInResults) continue;
             var ctpWinners = await _roundRepository.GetClosestToPinWinnersAsync(round.Id, cancellationToken);
             foreach (var winner in ctpWinners)
             {

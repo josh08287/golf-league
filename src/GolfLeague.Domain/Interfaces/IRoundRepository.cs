@@ -27,7 +27,14 @@ public interface IRoundRepository
     Task UpsertHoleScoresAsync(int holeNumber, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default);
     Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// All rounds in <paramref name="seasonId"/> strictly before <paramref name="currentRoundDate"/>,
+    /// ordered chronologically. Scoped to the season (not the half) so that state carried
+    /// across rounds — e.g. par-3 skins carryover — persists across a season's half boundary
+    /// and only resets when a new season begins.
+    /// </summary>
+    Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int seasonId, DateOnly currentRoundDate, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Shifts RoundDate and WeekNumber of all non-cancelled rounds in <paramref name="halfId"/>

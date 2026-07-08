@@ -149,10 +149,10 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
     private async Task<int> CalculateIncomingPar3CarryoverAsync(Round round, Dictionary<int, string> flightNameLookup, CancellationToken cancellationToken)
     {
-        // Walk every prior round in the half (chronological order) and feed each round's
+        // Walk every prior round in the season (chronological order) and feed each round's
         // ending carryover into the next, so unresolved par-3 ties accumulate across rounds.
-        if (!round.HalfId.HasValue) return 0;
-        var previousRounds = await _roundRepository.GetPreviousRoundsAsync(round.HalfId.Value, round.WeekNumber, cancellationToken);
+        // Scoped to the season (not the half) — carryover only resets on a new season.
+        var previousRounds = await _roundRepository.GetPreviousRoundsAsync(round.SeasonId, round.RoundDate, cancellationToken);
 
         int carryover = 0;
         foreach (var prev in previousRounds)

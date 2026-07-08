@@ -231,14 +231,15 @@ public sealed class RoundRepository : IRoundRepository
             .OrderByDescending(r => r.WeekNumber)
             .FirstOrDefaultAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int seasonId, DateOnly currentRoundDate, CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)
             .Include(r => r.Half)
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)
             .Include(r => r.Participants).ThenInclude(rp => rp.HoleScores)
-            .Where(r => r.HalfId == halfId && r.WeekNumber < currentWeekNumber)
-            .OrderBy(r => r.WeekNumber)
+            .Where(r => r.SeasonId == seasonId && r.RoundDate < currentRoundDate)
+            .OrderBy(r => r.RoundDate)
+            .ThenBy(r => r.WeekNumber)
             .ToListAsync(cancellationToken);
 
     public async Task ShiftRoundsForwardAsync(int halfId, int afterWeekNumber, int daysToAdd, int weekNumberIncrement, CancellationToken cancellationToken = default)
