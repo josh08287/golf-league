@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLeagueName, useLeaguePrefix } from '@/context/LeagueContext';
-import { ArrowRight, Trophy, Calendar, Edit3 } from 'lucide-react';
+import { ArrowRight, Calendar, Edit3 } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
 import { useRounds, useRoundScorecards, useRoundSkins, useActiveRoundLeaderboardPresence } from '@/hooks/useRounds';
@@ -192,6 +192,161 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
   );
 }
 
+interface NotableEntry {
+  playerId: number;
+  playerName: string;
+  value: number;
+}
+
+function lowEntries(scorecards: RoundScorecard[], selector: (sc: RoundScorecard) => number | null): NotableEntry[] {
+  const withValue = scorecards
+    .map((sc) => ({ sc, value: selector(sc) }))
+    .filter((x): x is { sc: RoundScorecard; value: number } => x.value != null);
+  if (withValue.length === 0) return [];
+  const best = Math.min(...withValue.map((x) => x.value));
+  return withValue
+    .filter((x) => x.value === best)
+    .map((x) => ({ playerId: x.sc.playerId, playerName: x.sc.playerName, value: x.value }));
+}
+
+function highEntries(scorecards: RoundScorecard[], selector: (sc: RoundScorecard) => number | null): NotableEntry[] {
+  const withValue = scorecards
+    .map((sc) => ({ sc, value: selector(sc) }))
+    .filter((x): x is { sc: RoundScorecard; value: number } => x.value != null);
+  if (withValue.length === 0) return [];
+  const best = Math.max(...withValue.map((x) => x.value));
+  return withValue
+    .filter((x) => x.value === best)
+    .map((x) => ({ playerId: x.sc.playerId, playerName: x.sc.playerName, value: x.value }));
+}
+
+interface BirdieEagleEntry {
+  playerId: number;
+  playerName: string;
+  holeNumber: number;
+  par: number;
+  strokes: number;
+  isEagle: boolean;
+}
+
+function findBirdiesAndEagles(scorecards: RoundScorecard[]): BirdieEagleEntry[] {
+  const entries: BirdieEagleEntry[] = [];
+  for (const sc of scorecards) {
+    for (const hole of sc.holes) {
+      const diff = hole.strokes - hole.par;
+      if (diff <= -1) {
+        entries.push({
+          playerId: sc.playerId,
+          playerName: sc.playerName,
+          holeNumber: hole.holeNumber,
+          par: hole.par,
+          strokes: hole.strokes,
+          isEagle: diff <= -2,
+        });
+      }
+    }
+  }
+  return entries.sort((a, b) => {
+    if (a.isEagle !== b.isEagle) return a.isEagle ? -1 : 1;
+    return a.holeNumber - b.holeNumber;
+  });
+}
+
+function formatEntries(entries: NotableEntry[]): string {
+  return entries.map((e) => e.playerName).join(', ');
+}
+
+interface NotablesCardProps {
+  scorecards: RoundScorecard[];
+}
+
+function NotablesCard({ scorecards }: NotablesCardProps) {
+  const prefix = useLeaguePrefix();
+
+  const lowGross = useMemo(() => lowEntries(scorecards, (sc) => sc.grossScore), [scorecards]);
+  const lowNet = useMemo(() => lowEntries(scorecards, (sc) => sc.netScore), [scorecards]);
+  const highGrossPoints = useMemo(() => highEntries(scorecards, (sc) => sc.grossPoints), [scorecards]);
+  const highNetPoints = useMemo(() => highEntries(scorecards, (sc) => sc.netPoints), [scorecards]);
+  const birdiesAndEagles = useMemo(() => findBirdiesAndEagles(scorecards), [scorecards]);
+
+  if (
+    lowGross.length === 0 &&
+    lowNet.length === 0 &&
+    highGrossPoints.length === 0 &&
+    highNetPoints.length === 0 &&
+    birdiesAndEagles.length === 0
+  ) {
+    return null;
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Notables</CardTitle>
+        <CardDescription>League-wide highlights for this round</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {lowGross.length > 0 && (
+            <div className="rounded-md bg-gray-50 px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Low Gross</p>
+              <p className="text-sm font-semibold text-gray-900">{lowGross[0].value}</p>
+              <p className="text-sm text-gray-600">{formatEntries(lowGross)}</p>
+            </div>
+          )}
+          {lowNet.length > 0 && (
+            <div className="rounded-md bg-gray-50 px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">Low Net</p>
+              <p className="text-sm font-semibold text-gray-900">{lowNet[0].value}</p>
+              <p className="text-sm text-gray-600">{formatEntries(lowNet)}</p>
+            </div>
+          )}
+          {highGrossPoints.length > 0 && (
+            <div className="rounded-md bg-gray-50 px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">High Gross Points</p>
+              <p className="text-sm font-semibold text-gray-900">{highGrossPoints[0].value}</p>
+              <p className="text-sm text-gray-600">{formatEntries(highGrossPoints)}</p>
+            </div>
+          )}
+          {highNetPoints.length > 0 && (
+            <div className="rounded-md bg-gray-50 px-3 py-2">
+              <p className="text-xs font-medium uppercase tracking-wide text-gray-500">High Net Points</p>
+              <p className="text-sm font-semibold text-gray-900">{highNetPoints[0].value}</p>
+              <p className="text-sm text-gray-600">{formatEntries(highNetPoints)}</p>
+            </div>
+          )}
+        </div>
+
+        {birdiesAndEagles.length > 0 && (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+              Birdies &amp; Eagles
+            </p>
+            <ul className="space-y-1">
+              {birdiesAndEagles.map((e, i) => (
+                <li key={`${e.playerId}-${e.holeNumber}-${i}`} className="flex items-center gap-2 text-sm">
+                  <Badge variant={e.isEagle ? 'amber' : 'green'}>
+                    {e.isEagle ? 'Eagle' : 'Birdie'}
+                  </Badge>
+                  <Link
+                    to={`${prefix}/players/${e.playerId}`}
+                    className="font-medium text-primary-900 hover:underline"
+                  >
+                    {e.playerName}
+                  </Link>
+                  <span className="text-gray-500">
+                    Hole {e.holeNumber} (Par {e.par}) &middot; {e.strokes}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface FeaturedRoundProps {
   round: Round;
 }
@@ -246,6 +401,10 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
         <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} />
       )}
 
+      {scorecards.data && (scorecards.data.data?.length ?? 0) > 0 && (
+        <NotablesCard scorecards={scorecards.data.data} />
+      )}
+
       {scorecards.isPending && (
         <div className="flex justify-center py-8">
           <Spinner />
@@ -276,7 +435,6 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
 export function HomePage() {
   const leagueName = useLeagueName();
   const prefix = useLeaguePrefix();
-  const flights = useFlights();
   // Most recent first so page 1 holds the latest rounds across all halves —
   // otherwise (default ascending) page 1 is the earliest rounds and the
   // featured round is stuck in the first half once the season grows past a page.
@@ -290,9 +448,6 @@ export function HomePage() {
 
   const allRounds = rounds.data?.data ?? [];
   const featured = pickFeaturedRound(allRounds);
-  const olderRounds = featured
-    ? allRounds.filter((r) => r.id !== featured.id).slice(0, 3)
-    : [];
 
   const hasTodaysTeeTime = todaysTeeTime.data != null;
 
@@ -360,88 +515,6 @@ export function HomePage() {
         {featured && <FeaturedRound round={featured} />}
       </section>
 
-      {/* Flights overview */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-            <Trophy className="h-5 w-5 text-primary-700" />
-            Flights &amp; Standings
-          </h2>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to={`${prefix}/flights`} className="flex items-center gap-1">
-              All flights <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        </div>
-
-        {flights.isPending && (
-          <div className="flex justify-center py-12">
-            <Spinner />
-          </div>
-        )}
-        {flights.isError && (
-          <ErrorMessage message="Could not load flights. Please try again." />
-        )}
-        {flights.data && (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {flights.data.data.map((flight) => (
-              <Card key={flight.id} className="hover:shadow-md transition-shadow">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <CardTitle className="text-base">{flight.name}</CardTitle>
-                    <Badge variant="secondary">
-                      {flight.playerCount} players
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {flight.playerCount} players
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Button variant="outline" size="sm" asChild className="w-full">
-                    <Link to={`${prefix}/flights/${flight.id}`}>
-                      View Leaderboard
-                    </Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Older rounds (compact) */}
-      {olderRounds.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="flex items-center gap-2 text-xl font-bold text-gray-900">
-              <Calendar className="h-5 w-5 text-primary-700" />
-              Recent Rounds
-            </h2>
-          </div>
-          <div className="space-y-3">
-            {olderRounds.map((round) => (
-              <Link
-                key={round.id}
-                to={`${prefix}/rounds/${round.id}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
-              >
-                <div>
-                  <p className="font-medium text-gray-900">{round.courseName}</p>
-                  <p className="text-sm text-gray-500">
-                    Week {round.weekNumber} &middot; {round.nineHoleSide} 9 &middot;{' '}
-                    {formatShortDate(round.scheduledDate)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Badge variant={statusVariant(round.status)}>{round.status}</Badge>
-                  <ArrowRight className="h-4 w-4 text-gray-400" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
