@@ -24,14 +24,14 @@ function ClosestToPinPanel({ roundId }: { roundId: number }) {
   if (wonHoles.length === 0) return null;
 
   return (
-    <div className="sm:w-56 sm:shrink-0 sm:border-l sm:border-amber-200 sm:pl-4">
+    <div className="sm:flex-1 sm:min-w-0 sm:border-l sm:border-amber-200 sm:pl-4">
       <div className="flex items-center gap-2 mb-3">
         <Crosshair className="h-5 w-5 text-amber-600" />
         <span className="font-semibold text-gray-900">Closest to the Pin</span>
       </div>
-      <ul className="space-y-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {wonHoles.map((hole) => (
-          <li
+          <div
             key={hole.holeNumber}
             className="flex items-center justify-between bg-white border border-amber-200 rounded-lg px-3 py-2 text-sm"
           >
@@ -42,9 +42,9 @@ function ClosestToPinPanel({ roundId }: { roundId: number }) {
             >
               {hole.playerName}
             </Link>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -112,7 +112,7 @@ export function GrossPar3SkinsDisplay({ grossPar3Skins, roundId }: GrossPar3Skin
           {header}
 
           {/* Winners Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             {grossPar3Skins.playerSummaries.map((player) => (
               <div
                 key={player.playerId}

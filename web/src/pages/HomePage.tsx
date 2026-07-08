@@ -345,12 +345,11 @@ function NotablesCard({ scorecards, seasonId, halfId }: NotablesCardProps) {
                 ))}
               </ul>
             </div>
-            <Link
-              to={`${prefix}/statistics?seasonId=${seasonId}&halfId=${halfId}`}
-              className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary-900 hover:underline"
-            >
-              This half's stats <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
+            <Button variant="outline" size="sm" asChild className="shrink-0">
+              <Link to={`${prefix}/statistics?seasonId=${seasonId}&halfId=${halfId}`}>
+                This Half's Stats <ArrowRight className="ml-1 h-3.5 w-3.5" />
+              </Link>
+            </Button>
           </div>
         )}
       </CardContent>
