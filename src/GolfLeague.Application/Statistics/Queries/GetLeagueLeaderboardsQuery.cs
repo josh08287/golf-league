@@ -46,7 +46,8 @@ public sealed record LeagueLeaderboardsDto(
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
-public sealed record GetLeagueLeaderboardsQuery : IRequest<Result<LeagueLeaderboardsDto>>;
+public sealed record GetLeagueLeaderboardsQuery(int? SeasonId = null, int? HalfId = null)
+    : IRequest<Result<LeagueLeaderboardsDto>>;
 
 public sealed class GetLeagueLeaderboardsQueryHandler
     : IRequestHandler<GetLeagueLeaderboardsQuery, Result<LeagueLeaderboardsDto>>
@@ -66,7 +67,11 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         GetLeagueLeaderboardsQuery request,
         CancellationToken cancellationToken)
     {
-        var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
+        var allRounds = request.HalfId is int halfId
+            ? await _roundRepository.GetByHalfAsync(halfId, cancellationToken)
+            : request.SeasonId is int seasonId
+                ? await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken)
+                : await _roundRepository.GetAllAsync(cancellationToken);
         var finalizedRounds = allRounds
             .Where(r => r.Status == RoundStatus.Finalized)
             .OrderBy(r => r.RoundDate)

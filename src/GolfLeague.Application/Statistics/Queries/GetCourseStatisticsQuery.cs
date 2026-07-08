@@ -40,7 +40,8 @@ public sealed record CourseStatisticsDto(
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
-public sealed record GetCourseStatisticsQuery(int CourseId) : IRequest<Result<CourseStatisticsDto>>;
+public sealed record GetCourseStatisticsQuery(int CourseId, int? SeasonId = null, int? HalfId = null)
+    : IRequest<Result<CourseStatisticsDto>>;
 
 public sealed class GetCourseStatisticsQueryHandler
     : IRequestHandler<GetCourseStatisticsQuery, Result<CourseStatisticsDto>>
@@ -65,7 +66,11 @@ public sealed class GetCourseStatisticsQueryHandler
             return Result<CourseStatisticsDto>.Fail($"Course with ID {request.CourseId} not found.");
 
         var holes = await _courseRepository.GetHolesAsync(request.CourseId, cancellationToken);
-        var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
+        var allRounds = request.HalfId is int halfId
+            ? await _roundRepository.GetByHalfAsync(halfId, cancellationToken)
+            : request.SeasonId is int seasonId
+                ? await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken)
+                : await _roundRepository.GetAllAsync(cancellationToken);
         var courseRounds = allRounds
             .Where(r => r.CourseId == request.CourseId && r.Status == RoundStatus.Finalized)
             .ToList();

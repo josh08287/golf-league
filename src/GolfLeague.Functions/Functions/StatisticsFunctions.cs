@@ -25,7 +25,8 @@ public sealed class StatisticsFunctions
         if (!int.TryParse(id, out var courseId))
             return new BadRequestObjectResult(new { error = "Invalid course ID." });
 
-        var result = await _mediator.Send(new GetCourseStatisticsQuery(courseId), cancellationToken);
+        var (seasonId, halfId, _) = ParsePeriod(req);
+        var result = await _mediator.Send(new GetCourseStatisticsQuery(courseId, seasonId, halfId), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -47,7 +48,8 @@ public sealed class StatisticsFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/statistics/most-improved")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetMostImprovedPlayerQuery(), cancellationToken);
+        var (seasonId, halfId, allTime) = ParsePeriod(req);
+        var result = await _mediator.Send(new GetMostImprovedPlayerQuery(seasonId, halfId, allTime), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -56,7 +58,16 @@ public sealed class StatisticsFunctions
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/statistics/leaderboards")] HttpRequest req,
         CancellationToken cancellationToken)
     {
-        var result = await _mediator.Send(new GetLeagueLeaderboardsQuery(), cancellationToken);
+        var (seasonId, halfId, _) = ParsePeriod(req);
+        var result = await _mediator.Send(new GetLeagueLeaderboardsQuery(seasonId, halfId), cancellationToken);
         return result.ToOkResult();
+    }
+
+    private static (int? SeasonId, int? HalfId, bool AllTime) ParsePeriod(HttpRequest req)
+    {
+        int? seasonId = int.TryParse(req.Query["seasonId"], out var s) ? s : null;
+        int? halfId = int.TryParse(req.Query["halfId"], out var h) ? h : null;
+        bool allTime = string.Equals(req.Query["all"], "true", StringComparison.OrdinalIgnoreCase);
+        return (seasonId, halfId, allTime);
     }
 }

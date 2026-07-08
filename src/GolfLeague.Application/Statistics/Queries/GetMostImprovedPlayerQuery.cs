@@ -35,13 +35,14 @@ public sealed record MostImprovedResultDto(
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
-public sealed record GetMostImprovedPlayerQuery : IRequest<Result<MostImprovedResultDto>>;
+public sealed record GetMostImprovedPlayerQuery(int? SeasonId = null, int? HalfId = null, bool AllTime = false)
+    : IRequest<Result<MostImprovedResultDto>>;
 
 public sealed class GetMostImprovedPlayerQueryHandler
     : IRequestHandler<GetMostImprovedPlayerQuery, Result<MostImprovedResultDto>>
 {
     /// <summary>
-    /// Minimum finalized rounds a player must have in the half to qualify.
+    /// Minimum finalized rounds a player must have in the period to qualify.
     /// A player needs at least 2 rounds so we can compare first vs last.
     /// </summary>
     private const int MinRounds = 2;
@@ -64,26 +65,56 @@ public sealed class GetMostImprovedPlayerQueryHandler
         GetMostImprovedPlayerQuery request,
         CancellationToken cancellationToken)
     {
-        var season = await _seasonRepository.GetActiveAsync(cancellationToken);
-        if (season is null)
-            return Result<MostImprovedResultDto>.Fail("No active season found.");
+        string periodName;
+        IReadOnlyList<Domain.Entities.Round> rounds;
 
-        // Determine the current half based on today's date
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var currentHalf = season.Halves
-            .Where(h => h.StartDate <= today)
-            .OrderByDescending(h => h.StartDate)
-            .FirstOrDefault();
+        if (request.HalfId is int halfId)
+        {
+            // Resolve the half's display name across all seasons
+            var seasons = await _seasonRepository.GetAllAsync(cancellationToken);
+            var half = seasons.SelectMany(s => s.Halves).FirstOrDefault(h => h.Id == halfId);
+            if (half is null)
+                return Result<MostImprovedResultDto>.Fail("Season half not found.");
 
-        currentHalf ??= season.Halves.OrderBy(h => h.HalfNumber).FirstOrDefault();
+            periodName = half.Name;
+            rounds = await _roundRepository.GetByHalfAsync(halfId, cancellationToken);
+        }
+        else if (request.SeasonId is int seasonId)
+        {
+            var season = await _seasonRepository.GetByIdAsync(seasonId, cancellationToken);
+            if (season is null)
+                return Result<MostImprovedResultDto>.Fail("Season not found.");
 
-        if (currentHalf is null)
-            return Result<MostImprovedResultDto>.Fail("No season halves configured.");
+            periodName = season.Name;
+            rounds = await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken);
+        }
+        else if (request.AllTime)
+        {
+            periodName = "Overall";
+            rounds = await _roundRepository.GetAllAsync(cancellationToken);
+        }
+        else
+        {
+            var season = await _seasonRepository.GetActiveAsync(cancellationToken);
+            if (season is null)
+                return Result<MostImprovedResultDto>.Fail("No active season found.");
 
-        var halfStartDate = currentHalf.StartDate;
+            // Determine the current half based on today's date
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var currentHalf = season.Halves
+                .Where(h => h.StartDate <= today)
+                .OrderByDescending(h => h.StartDate)
+                .FirstOrDefault();
 
-        // Get all finalized rounds in this half, ordered chronologically
-        var rounds = await _roundRepository.GetByHalfAsync(currentHalf.Id, cancellationToken);
+            currentHalf ??= season.Halves.OrderBy(h => h.HalfNumber).FirstOrDefault();
+
+            if (currentHalf is null)
+                return Result<MostImprovedResultDto>.Fail("No season halves configured.");
+
+            periodName = currentHalf.Name;
+            rounds = await _roundRepository.GetByHalfAsync(currentHalf.Id, cancellationToken);
+        }
+
         var finalizedRounds = rounds
             .Where(r => r.Status == RoundStatus.Finalized)
             .OrderBy(r => r.RoundDate)
@@ -93,7 +124,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
         if (finalizedRounds.Count == 0)
         {
             return Result<MostImprovedResultDto>.Ok(new MostImprovedResultDto(
-                null, [], currentHalf.Name, MinRounds));
+                null, [], periodName, MinRounds));
         }
 
         // Count finalized rounds per player and track their first round date
@@ -130,7 +161,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
         if (qualifyingPlayerIds.Count == 0)
         {
             return Result<MostImprovedResultDto>.Ok(new MostImprovedResultDto(
-                null, [], currentHalf.Name, MinRounds));
+                null, [], periodName, MinRounds));
         }
 
         // For each qualifying player, look up their handicap history to find:
@@ -182,7 +213,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
             leaderboard.Add(new MostImprovedPlayerDto(
                 playerId,
                 playerNames[playerId],
-                currentHalf.Name,
+                periodName,
                 Math.Round(startingHi, 1),
                 Math.Round(currentHi, 1),
                 improvementFactor,
@@ -198,6 +229,6 @@ public sealed class GetMostImprovedPlayerQueryHandler
         var winner = leaderboard.FirstOrDefault();
 
         return Result<MostImprovedResultDto>.Ok(new MostImprovedResultDto(
-            winner, leaderboard, currentHalf.Name, MinRounds));
+            winner, leaderboard, periodName, MinRounds));
     }
 }

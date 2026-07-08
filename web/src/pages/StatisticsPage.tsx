@@ -1,7 +1,14 @@
 import React, { useState, useMemo } from 'react';
 import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp } from 'lucide-react';
-import { useCourses, useCourseStatistics, useMostImproved, useLeagueLeaderboards } from '@/hooks/useStatistics';
-import { Link } from 'react-router-dom';
+import {
+  useCourses,
+  useCourseStatistics,
+  useMostImproved,
+  useLeagueLeaderboards,
+  type StatisticsPeriod,
+} from '@/hooks/useStatistics';
+import { useSeasons } from '@/hooks/useSeasons';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import {
   Card,
@@ -89,9 +96,9 @@ function HandicapReductionBadge({ value }: { value: number }) {
   );
 }
 
-function MostImprovedSection() {
+function MostImprovedSection({ period }: { period: StatisticsPeriod }) {
   const prefix = useLeaguePrefix();
-  const { data, isPending, isError } = useMostImproved();
+  const { data, isPending, isError } = useMostImproved(period);
   const [showLeaderboard, setShowLeaderboard] = useState(false);
 
   if (isPending || isError || !data) return null;
@@ -247,9 +254,9 @@ function LeaderboardTable({
   );
 }
 
-function LeagueLeaderboardsSection() {
+function LeagueLeaderboardsSection({ period }: { period: StatisticsPeriod }) {
   const prefix = useLeaguePrefix();
-  const { data, isPending, isError } = useLeagueLeaderboards();
+  const { data, isPending, isError } = useLeagueLeaderboards(period);
   const [grossExpanded, setGrossExpanded] = useState(false);
   const [netExpanded, setNetExpanded] = useState(false);
   const [birdiesExpanded, setBirdiesExpanded] = useState(false);
@@ -466,14 +473,101 @@ function LeagueLeaderboardsSection() {
   );
 }
 
+function PeriodSelector({
+  seasonId,
+  halfId,
+  onChange,
+}: {
+  seasonId: number | null;
+  halfId: number | null;
+  onChange: (next: { seasonId: number | null; halfId: number | null }) => void;
+}) {
+  const seasons = useSeasons();
+
+  if (seasons.isPending || seasons.isError || !seasons.data || seasons.data.length === 0) {
+    return null;
+  }
+
+  const orderedSeasons = [...seasons.data].sort((a, b) => b.year - a.year);
+  const activeSeason = orderedSeasons.find((s) => s.id === seasonId) ?? null;
+
+  const pill = (active: boolean) =>
+    [
+      'rounded-full px-4 py-1.5 text-sm font-medium border transition-colors',
+      active
+        ? 'bg-primary-900 text-white border-primary-900'
+        : 'bg-white text-gray-700 border-gray-300 hover:border-primary-500',
+    ].join(' ');
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        <button
+          className={pill(seasonId === null)}
+          onClick={() => onChange({ seasonId: null, halfId: null })}
+        >
+          Overall
+        </button>
+        {orderedSeasons.map((s) => (
+          <button
+            key={s.id}
+            className={pill(seasonId === s.id)}
+            onClick={() => onChange({ seasonId: s.id, halfId: null })}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+
+      {activeSeason && activeSeason.halves.length > 0 && (
+        <div className="flex flex-wrap gap-2 pl-2">
+          <button
+            className={pill(halfId === null)}
+            onClick={() => onChange({ seasonId: activeSeason.id, halfId: null })}
+          >
+            Full Season
+          </button>
+          {[...activeSeason.halves]
+            .sort((a, b) => a.halfNumber - b.halfNumber)
+            .map((h) => (
+              <button
+                key={h.id}
+                className={pill(halfId === h.id)}
+                onClick={() => onChange({ seasonId: activeSeason.id, halfId: h.id })}
+              >
+                {h.name}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StatisticsPage() {
   const courses = useCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const seasonIdParam = searchParams.get('seasonId');
+  const halfIdParam = searchParams.get('halfId');
+  const periodSeasonId = seasonIdParam ? Number(seasonIdParam) : null;
+  const periodHalfId = halfIdParam ? Number(halfIdParam) : null;
+  const period: StatisticsPeriod = { seasonId: periodSeasonId, halfId: periodHalfId };
+
+  const handlePeriodChange = (next: { seasonId: number | null; halfId: number | null }) => {
+    const params = new URLSearchParams(searchParams);
+    if (next.seasonId == null) params.delete('seasonId');
+    else params.set('seasonId', String(next.seasonId));
+    if (next.halfId == null) params.delete('halfId');
+    else params.set('halfId', String(next.halfId));
+    setSearchParams(params, { replace: true });
+  };
 
   const firstCourseId = courses.data?.[0]?.id ?? null;
   const activeCourseId = selectedCourseId ?? firstCourseId;
 
-  const stats = useCourseStatistics(activeCourseId ?? '');
+  const stats = useCourseStatistics(activeCourseId ?? '', period);
 
   const hardestHole = useMemo(
     () =>
@@ -504,11 +598,18 @@ export function StatisticsPage() {
         <BarChart3 className="h-6 w-6 text-primary-700" />
       </PageHeader>
 
+      {/* Period selector: Overall / Season / Half */}
+      <PeriodSelector
+        seasonId={periodSeasonId}
+        halfId={periodHalfId}
+        onChange={handlePeriodChange}
+      />
+
       {/* Most Improved Player */}
-      <MostImprovedSection />
+      <MostImprovedSection period={period} />
 
       {/* League-wide leaderboards */}
-      <LeagueLeaderboardsSection />
+      <LeagueLeaderboardsSection period={period} />
 
       {/* Course picker */}
       {courses.isPending && <FullPageSpinner />}
