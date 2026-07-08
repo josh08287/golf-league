@@ -259,9 +259,11 @@ function formatEntries(entries: NotableEntry[]): string {
 
 interface NotablesCardProps {
   scorecards: RoundScorecard[];
+  seasonId: number;
+  halfId: number;
 }
 
-function NotablesCard({ scorecards }: NotablesCardProps) {
+function NotablesCard({ scorecards, seasonId, halfId }: NotablesCardProps) {
   const prefix = useLeaguePrefix();
 
   const lowGross = useMemo(() => lowEntries(scorecards, (sc) => sc.grossScore), [scorecards]);
@@ -319,28 +321,36 @@ function NotablesCard({ scorecards }: NotablesCardProps) {
         </div>
 
         {birdiesAndEagles.length > 0 && (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
-              Birdies &amp; Eagles
-            </p>
-            <ul className="space-y-1">
-              {birdiesAndEagles.map((e, i) => (
-                <li key={`${e.playerId}-${e.holeNumber}-${i}`} className="flex items-center gap-2 text-sm">
-                  <Badge variant={e.isEagle ? 'amber' : 'green'}>
-                    {e.isEagle ? 'Eagle' : 'Birdie'}
-                  </Badge>
-                  <Link
-                    to={`${prefix}/players/${e.playerId}`}
-                    className="font-medium text-primary-900 hover:underline"
-                  >
-                    {e.playerName}
-                  </Link>
-                  <span className="text-gray-500">
-                    Hole {e.holeNumber} (Par {e.par}) &middot; {e.strokes}
-                  </span>
-                </li>
-              ))}
-            </ul>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-gray-500">
+                Birdies &amp; Eagles
+              </p>
+              <ul className="space-y-1">
+                {birdiesAndEagles.map((e, i) => (
+                  <li key={`${e.playerId}-${e.holeNumber}-${i}`} className="flex items-center gap-2 text-sm">
+                    <Badge variant={e.isEagle ? 'amber' : 'green'}>
+                      {e.isEagle ? 'Eagle' : 'Birdie'}
+                    </Badge>
+                    <Link
+                      to={`${prefix}/players/${e.playerId}`}
+                      className="font-medium text-primary-900 hover:underline"
+                    >
+                      {e.playerName}
+                    </Link>
+                    <span className="text-gray-500">
+                      Hole {e.holeNumber} (Par {e.par}) &middot; {e.strokes}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <Link
+              to={`${prefix}/statistics?seasonId=${seasonId}&halfId=${halfId}`}
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap text-xs font-medium text-primary-900 hover:underline"
+            >
+              This half's stats <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         )}
       </CardContent>
@@ -399,11 +409,15 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
       </Link>
 
       {skins.data?.grossPar3Skins && (
-        <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} />
+        <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} roundId={round.id} />
       )}
 
       {scorecards.data && (scorecards.data.data?.length ?? 0) > 0 && (
-        <NotablesCard scorecards={scorecards.data.data} />
+        <NotablesCard
+          scorecards={scorecards.data.data}
+          seasonId={round.seasonId}
+          halfId={round.halfId}
+        />
       )}
 
       {scorecards.isPending && (

@@ -442,8 +442,8 @@ export function RoundDetailPage() {
       {scorecards.isError && <ErrorMessage message="Could not load scorecards." />}
       {skins.isError && <ErrorMessage message="Could not load skins data." />}
 
-      {skins.data?.grossPar3Skins && (
-        <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} />
+      {skins.data?.grossPar3Skins && round.data && (
+        <GrossPar3SkinsDisplay grossPar3Skins={skins.data.grossPar3Skins} roundId={round.data.id} />
       )}
 
       {scorecards.data && (
