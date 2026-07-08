@@ -7,6 +7,12 @@ public interface IPlayerRepository
     Task<Player?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Player>> GetAllActiveAsync(CancellationToken cancellationToken = default);
     /// <summary>
+    /// All players regardless of active status, active players first.
+    /// Used by the admin roster view, which lists deactivated players
+    /// below the active ones instead of hiding them.
+    /// </summary>
+    Task<IReadOnlyList<Player>> GetAllAsync(CancellationToken cancellationToken = default);
+    /// <summary>
     /// Looks up the Player profile for this user within a specific league.
     /// A user may hold one Player row per league, so league scoping is
     /// required to get a unique result.

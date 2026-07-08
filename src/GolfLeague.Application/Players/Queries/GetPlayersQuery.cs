@@ -24,7 +24,8 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
     /// </summary>
     private static readonly SortMap<PlayerDto> SortMap = new SortMap<PlayerDto>(
             source => source
-                .OrderBy(p => p.FlightName ?? string.Empty)
+                .OrderByDescending(p => p.IsActive)
+                .ThenBy(p => p.FlightName ?? string.Empty)
                 .ThenBy(p => LastName(p.FullName), StringComparer.OrdinalIgnoreCase)
                 .ThenBy(p => FirstName(p.FullName), StringComparer.OrdinalIgnoreCase))
         .Add("name", p => p.FullName)
@@ -48,7 +49,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
 
     public async Task<Result<PagedResult<PlayerDto>>> Handle(GetPlayersQuery request, CancellationToken cancellationToken)
     {
-        var players = await _playerRepository.GetAllActiveAsync(cancellationToken);
+        var players = await _playerRepository.GetAllAsync(cancellationToken);
 
         var appUserIds = players
             .Where(p => p.AppUserId.HasValue)

@@ -272,7 +272,7 @@ public class GetPlayersQueryHandlerTests
         }).ToList();
 
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetAllActiveAsync(default)).ReturnsAsync(players);
+        playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(players);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(It.IsAny<int>(), default))
             .ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
@@ -303,7 +303,7 @@ public class GetPlayersQueryHandlerTests
         };
 
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetAllActiveAsync(default)).ReturnsAsync(new List<Player> { player });
+        playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Player> { player });
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync((Handicap?)null);
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
@@ -324,7 +324,7 @@ public class GetPlayersQueryHandlerTests
         };
 
         var playerRepo = new Mock<IPlayerRepository>();
-        playerRepo.Setup(r => r.GetAllActiveAsync(default)).ReturnsAsync(new List<Player> { player });
+        playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Player> { player });
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync((Handicap?)null);
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
@@ -333,6 +333,30 @@ public class GetPlayersQueryHandlerTests
 
         result.Value!.Data[0].FlightId.Should().BeNull();
         result.Value.Data[0].FlightName.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_IncludesInactivePlayers_SortedAfterActiveOnes()
+    {
+        var players = new List<Player>
+        {
+            new() { Id = 1, FirstName = "Amy", LastName = "Adams", Email = "a@e.com", IsActive = false, FlightMemberships = [] },
+            new() { Id = 2, FirstName = "Zack", LastName = "Zeeman", Email = "z@e.com", IsActive = true, FlightMemberships = [] },
+        };
+
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(players);
+        var handicapRepo = new Mock<IHandicapRepository>();
+        handicapRepo.Setup(r => r.GetCurrentAsync(It.IsAny<int>(), default)).ReturnsAsync((Handicap?)null);
+        var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
+
+        var result = await handler.Handle(new GetPlayersQuery(1, 10), default);
+
+        result.Value!.Data.Should().HaveCount(2);
+        result.Value.Data[0].Id.Should().Be(2);
+        result.Value.Data[0].IsActive.Should().BeTrue();
+        result.Value.Data[1].Id.Should().Be(1);
+        result.Value.Data[1].IsActive.Should().BeFalse();
     }
 }
 

@@ -34,6 +34,17 @@ public sealed class PlayerRepository : IPlayerRepository
             .ThenBy(p => p.FirstName)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Player>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _context.Players
+            .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Flight)
+            .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Season)
+            .Include(p => p.FlightMemberships).ThenInclude(fm => fm.Half)
+            .Include(p => p.HalfSettings)
+            .OrderByDescending(p => p.IsActive)
+            .ThenBy(p => p.LastName)
+            .ThenBy(p => p.FirstName)
+            .ToListAsync(cancellationToken);
+
     // A user may hold one Player row per league, so the lookup must be
     // scoped by league to return a unique result. IgnoreQueryFilters is used
     // because this can run outside the current league context (e.g. invite
