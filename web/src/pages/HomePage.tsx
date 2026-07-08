@@ -201,7 +201,8 @@ interface NotableEntry {
 function lowEntries(scorecards: RoundScorecard[], selector: (sc: RoundScorecard) => number | null): NotableEntry[] {
   const withValue = scorecards
     .map((sc) => ({ sc, value: selector(sc) }))
-    .filter((x): x is { sc: RoundScorecard; value: number } => x.value != null);
+    // A skipped week records 0 strokes, which would otherwise win "low" categories.
+    .filter((x): x is { sc: RoundScorecard; value: number } => x.value != null && x.value > 0);
   if (withValue.length === 0) return [];
   const best = Math.min(...withValue.map((x) => x.value));
   return withValue
