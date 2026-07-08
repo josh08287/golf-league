@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Users, ArrowRight } from 'lucide-react';
 import { useFlights, useFlightStandings } from '@/hooks/useFlights';
@@ -114,23 +114,76 @@ function FlightCard({ flight, useGross }: FlightCardProps) {
   );
 }
 
+function PeriodSelector({
+  seasonId,
+  halfId,
+  onChange,
+}: {
+  seasonId: number | null;
+  halfId: number | null;
+  onChange: (next: { seasonId: number; halfId: number }) => void;
+}) {
+  const seasons = useSeasons();
+
+  if (seasons.isPending || seasons.isError || !seasons.data || seasons.data.length === 0) {
+    return null;
+  }
+
+  const orderedSeasons = [...seasons.data].sort((a, b) => b.year - a.year);
+  const activeSeason = orderedSeasons.find((s) => s.id === seasonId) ?? orderedSeasons[0];
+
+  const pill = (active: boolean) =>
+    [
+      'rounded-full px-4 py-1.5 text-sm font-medium border transition-colors',
+      active
+        ? 'bg-primary-900 text-white border-primary-900'
+        : 'bg-white text-gray-700 border-gray-300 hover:border-primary-500',
+    ].join(' ');
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap gap-2">
+        {orderedSeasons.map((s) => (
+          <button
+            key={s.id}
+            className={pill(activeSeason.id === s.id)}
+            onClick={() => {
+              const firstHalf = [...s.halves].sort((a, b) => a.halfNumber - b.halfNumber)[0];
+              if (firstHalf) onChange({ seasonId: s.id, halfId: firstHalf.id });
+            }}
+          >
+            {s.name}
+          </button>
+        ))}
+      </div>
+
+      {activeSeason.halves.length > 0 && (
+        <div className="flex flex-wrap gap-2 pl-2">
+          {[...activeSeason.halves]
+            .sort((a, b) => a.halfNumber - b.halfNumber)
+            .map((h) => (
+              <button
+                key={h.id}
+                className={pill(halfId === h.id)}
+                onClick={() => onChange({ seasonId: activeSeason.id, halfId: h.id })}
+              >
+                {h.name}
+              </button>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function FlightsPage() {
-  const { data, isPending, isError } = useFlights();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: seasons } = useSeasons();
   // Pull a generous window of rounds (most recent first) so we can find the
-  // last finalized round per half across every season for ordering.
+  // last finalized round per half across every season, to pick a sensible
+  // default half when no season/half is selected yet.
   const { data: roundsPage } = useRounds(1, { sortBy: 'date', sortDir: 'desc' }, 500);
   const [useGross, setUseGross] = useState(false);
-
-  // halfId → { season, half } across ALL seasons (not just the active one), so
-  // every group can be labelled with its season year and half name.
-  const halfInfoById = useMemo(() => {
-    const map = new Map<number, { season: Season; half: SeasonHalf }>();
-    for (const season of seasons ?? []) {
-      for (const half of season.halves) map.set(half.id, { season, half });
-    }
-    return map;
-  }, [seasons]);
 
   // halfId → most recent finalized round date. Rounds arrive newest-first, so
   // the first finalized round we see for a half is its latest.
@@ -143,50 +196,56 @@ export function FlightsPage() {
     return map;
   }, [roundsPage]);
 
-  // Group flights by half, label with "{year} — {half name}", and order so the
-  // half whose most recent round was finalized most recently comes first. Halves
-  // with no finalized round yet sort last, newest season/half first.
-  const groupedByHalf = useMemo(() => {
-    const flights = data?.data ?? [];
-    const byHalf = new Map<number, Flight[]>();
-    for (const f of flights) {
-      const list = byHalf.get(f.halfId) ?? [];
-      list.push(f);
-      byHalf.set(f.halfId, list);
+  // halfId → { season, half } across ALL seasons, for default-half resolution.
+  const halfInfoById = useMemo(() => {
+    const map = new Map<number, { season: Season; half: SeasonHalf }>();
+    for (const season of seasons ?? []) {
+      for (const half of season.halves) map.set(half.id, { season, half });
     }
-    return [...byHalf.entries()]
-      .map(([halfId, halfFlights]) => {
-        const info = halfInfoById.get(halfId) ?? null;
-        const year = info?.season.year ?? 0;
-        const halfName = info?.half.name ?? 'Other';
-        const lastFinalized = lastFinalizedByHalf.get(halfId) ?? null;
-        return {
-          halfId,
-          half: info?.half ?? null,
-          year,
-          name: info ? `${year} — ${halfName}` : 'Other',
-          halfNumber: info?.half.halfNumber ?? Number.MAX_SAFE_INTEGER,
-          lastFinalized,
-          flights: halfFlights
-            .slice()
-            .sort((a, b) => a.displayOrder - b.displayOrder),
-        };
-      })
-      .sort((a, b) => {
-        // Primary: most recent finalized round first; halves with none go last.
-        if (a.lastFinalized && b.lastFinalized) {
-          if (a.lastFinalized !== b.lastFinalized)
-            return a.lastFinalized < b.lastFinalized ? 1 : -1;
-        } else if (a.lastFinalized) {
-          return -1;
-        } else if (b.lastFinalized) {
-          return 1;
-        }
-        // Tiebreak: newest season first, then later half first.
-        if (a.year !== b.year) return b.year - a.year;
-        return b.halfNumber - a.halfNumber;
-      });
-  }, [data, halfInfoById, lastFinalizedByHalf]);
+    return map;
+  }, [seasons]);
+
+  // Pick the half whose most recent round was finalized most recently; if none
+  // have finalized rounds yet, fall back to the active season's latest half.
+  const defaultHalf = useMemo(() => {
+    let best: { seasonId: number; halfId: number; date: string } | null = null;
+    for (const [halfId, date] of lastFinalizedByHalf.entries()) {
+      const info = halfInfoById.get(halfId);
+      if (!info) continue;
+      if (!best || date > best.date) {
+        best = { seasonId: info.season.id, halfId, date };
+      }
+    }
+    if (best) return { seasonId: best.seasonId, halfId: best.halfId };
+
+    const activeSeason = seasons?.find((s) => s.isActive) ?? seasons?.[0] ?? null;
+    const latestHalf = activeSeason
+      ? [...activeSeason.halves].sort((a, b) => b.halfNumber - a.halfNumber)[0]
+      : null;
+    return activeSeason && latestHalf
+      ? { seasonId: activeSeason.id, halfId: latestHalf.id }
+      : null;
+  }, [lastFinalizedByHalf, halfInfoById, seasons]);
+
+  const seasonIdParam = searchParams.get('seasonId');
+  const halfIdParam = searchParams.get('halfId');
+  const selectedSeasonId = seasonIdParam ? Number(seasonIdParam) : defaultHalf?.seasonId ?? null;
+  const selectedHalfId = halfIdParam ? Number(halfIdParam) : defaultHalf?.halfId ?? null;
+
+  const handlePeriodChange = (next: { seasonId: number; halfId: number }) => {
+    const params = new URLSearchParams(searchParams);
+    params.set('seasonId', String(next.seasonId));
+    params.set('halfId', String(next.halfId));
+    setSearchParams(params, { replace: true });
+  };
+
+  const selectedHalfInfo = selectedHalfId != null ? halfInfoById.get(selectedHalfId) ?? null : null;
+
+  const { data, isPending, isError } = useFlights(selectedHalfId ?? undefined);
+  const flightsForHalf = useMemo(
+    () => (data?.data ?? []).slice().sort((a, b) => a.displayOrder - b.displayOrder),
+    [data],
+  );
 
   return (
     <div className="space-y-6">
@@ -210,35 +269,40 @@ export function FlightsPage() {
         </div>
       </PageHeader>
 
+      <PeriodSelector
+        seasonId={selectedSeasonId}
+        halfId={selectedHalfId}
+        onChange={handlePeriodChange}
+      />
+
       {isPending && <FullPageSpinner />}
       {isError && (
         <ErrorMessage message="Could not load flights. Please try again." />
       )}
 
-      {data && groupedByHalf.length === 0 && (
+      {data && flightsForHalf.length === 0 && (
         <p className="text-gray-500 text-sm">
-          No flights have been created yet.
+          No flights have been created for this half yet.
         </p>
       )}
 
-      {data &&
-        groupedByHalf.map((group) => (
-          <section key={group.halfId} className="space-y-4">
-            <div className="flex items-baseline justify-between border-b border-gray-200 pb-2">
-              <h2 className="text-lg font-semibold text-gray-900">{group.name}</h2>
-              {group.half && (
-                <span className="text-sm text-gray-500">
-                  {group.half.startDate} – {group.half.endDate}
-                </span>
-              )}
-            </div>
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {group.flights.map((flight) => (
-                <FlightCard key={flight.id} flight={flight} useGross={useGross} />
-              ))}
-            </div>
-          </section>
-        ))}
+      {data && flightsForHalf.length > 0 && selectedHalfInfo && (
+        <section className="space-y-4">
+          <div className="flex items-baseline justify-between border-b border-gray-200 pb-2">
+            <h2 className="text-lg font-semibold text-gray-900">
+              {selectedHalfInfo.season.year} — {selectedHalfInfo.half.name}
+            </h2>
+            <span className="text-sm text-gray-500">
+              {selectedHalfInfo.half.startDate} – {selectedHalfInfo.half.endDate}
+            </span>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {flightsForHalf.map((flight) => (
+              <FlightCard key={flight.id} flight={flight} useGross={useGross} />
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
