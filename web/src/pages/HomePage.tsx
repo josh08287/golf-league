@@ -2,7 +2,6 @@ import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useLeagueName, useLeaguePrefix } from '@/context/LeagueContext';
 import { ArrowRight, Calendar, Edit3 } from 'lucide-react';
-import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '@/lib/utils';
 import { useFlights } from '@/hooks/useFlights';
 import { useRounds, useRoundScorecards, useRoundSkins, useActiveRoundLeaderboardPresence } from '@/hooks/useRounds';
 import { GrossPar3SkinsDisplay } from '@/components/GrossPar3SkinsDisplay';
@@ -167,8 +166,8 @@ function FlightScorecardCard({ flightId, flightName, scorecards }: FlightScoreca
                     {sc.playerName}
                   </Link>
                 </TableCell>
-                <TableCell className="text-right text-gray-600 tabular-nums whitespace-nowrap" title={HANDICAP_PAIR_TOOLTIP}>
-                  {formatHandicapPair(sc.handicapAtTime)}
+                <TableCell className="text-right text-gray-600 tabular-nums whitespace-nowrap" title="Course Handicap for this round">
+                  {sc.courseHandicap}
                 </TableCell>
                 <TableCell className="text-right tabular-nums border-l border-gray-100">{sc.grossScore ?? '—'}</TableCell>
                 <TableCell className="text-right tabular-nums">{sc.netScore ?? '—'}</TableCell>
