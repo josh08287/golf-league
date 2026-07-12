@@ -59,6 +59,19 @@ public static class TeeTimeSchedule
         => utcNow >= ComputeSundayNoonCutoffUtc(roundDate);
 
     /// <summary>
+    /// True when <paramref name="utcNow"/> falls on the same US/Eastern
+    /// calendar date as <paramref name="roundDate"/>. Used to gate the
+    /// round-day self-service "move to another slot" exception to the
+    /// sign-up cutoff.
+    /// </summary>
+    public static bool IsRoundDay(DateOnly roundDate, DateTime utcNow)
+    {
+        var easternNow = TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), EasternTimeZone);
+        return DateOnly.FromDateTime(easternNow) == roundDate;
+    }
+
+    /// <summary>
     /// UTC instant of the last tee time on the given round date, for the given
     /// player count. Used to decide when a week's play is "over" so the next
     /// week's tee times can open. With zero players we fall back to the first

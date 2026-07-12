@@ -442,6 +442,7 @@ export interface RoundTeeTimeSchedule {
   weekNumber: number;
   roundDate: string; // "yyyy-MM-dd"
   courseName: string;
+  isRoundDay: boolean;
 }
 
 // ── Tee Time Score Entry ───────────────────────────────────────────────────────
@@ -860,4 +861,5 @@ export const FEATURE_FLAG_KEYS = {
   closestToPinEnabled: 'closest_to_pin_enabled',
   resendTeeTimeEmailEnabled: 'resend_tee_time_email_enabled',
   activeRoundLeaderboardEnabled: 'active_round_leaderboard_enabled',
+  roundDayTeeTimeSwitchEnabled: 'round_day_tee_time_switch_enabled',
 } as const;

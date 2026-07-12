@@ -28,4 +28,5 @@ public sealed record RoundTeeTimeScheduleDto(
     string RoundDate, // "yyyy-MM-dd"
     string CourseName,
     TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None,
-    bool CurrentUserSkippedWeek = false);
+    bool CurrentUserSkippedWeek = false,
+    bool IsRoundDay = false);

@@ -15,7 +15,9 @@ public interface ITeeTimeService
     /// <summary>
     /// Caller joins the supplied tee-time slot. If they were already in
     /// another slot in the same round, they're moved (single atomic step).
-    /// Returns the refreshed schedule.
+    /// Blocked once the sign-up window closes, EXCEPT: an already-assigned
+    /// participant may still move to a different open slot on the day of
+    /// the round itself. Returns the refreshed schedule.
     /// </summary>
     Task<Result<RoundTeeTimeScheduleDto>> JoinAsync(int roundId, int teeTimeId, int callingPlayerId, CancellationToken cancellationToken = default);
 

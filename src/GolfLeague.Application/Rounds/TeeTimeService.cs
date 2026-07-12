@@ -77,7 +77,8 @@ public sealed class TeeTimeService : ITeeTimeService
         var slots = await _teeTimes.GetByRoundAsync(roundId, cancellationToken);
 
         var (isOpen, _, closesUtc) = await GetSignupWindowDetailAsync(round, DateTime.UtcNow, cancellationToken);
-        var dto = BuildDto(round, slots, callingPlayerId, isLocked: !isOpen, closesUtc: closesUtc);
+        var isRoundDay = TeeTimeSchedule.IsRoundDay(round.RoundDate, DateTime.UtcNow);
+        var dto = BuildDto(round, slots, callingPlayerId, isLocked: !isOpen, closesUtc: closesUtc, isRoundDay: isRoundDay);
         return Result<RoundTeeTimeScheduleDto>.Ok(dto);
     }
 
@@ -130,7 +131,19 @@ public sealed class TeeTimeService : ITeeTimeService
 
         var (isOpen, lockReason) = await GetSignupWindowAsync(round, DateTime.UtcNow, cancellationToken);
         if (!isOpen)
-            return Result<RoundTeeTimeScheduleDto>.Fail(lockReason!);
+        {
+            // Narrow exception: an already-assigned participant may still move
+            // to a different slot on the day of the round, even after the
+            // general sign-up window has closed. This does not reopen fresh
+            // claims (participant must already have a TeeTimeId) and does not
+            // apply to LeaveAsync.
+            var existingParticipant = round.Participants
+                .FirstOrDefault(p => p.PlayerId == callingPlayerId && !p.IsWithdrawn && !p.SkippedWeek);
+            var isRoundDayMove = existingParticipant?.TeeTimeId is not null
+                && TeeTimeSchedule.IsRoundDay(round.RoundDate, DateTime.UtcNow);
+            if (!isRoundDayMove)
+                return Result<RoundTeeTimeScheduleDto>.Fail(lockReason!);
+        }
 
         var participant = round.Participants
             .FirstOrDefault(p => p.PlayerId == callingPlayerId && !p.IsWithdrawn && !p.SkippedWeek);
@@ -182,7 +195,8 @@ public sealed class TeeTimeService : ITeeTimeService
         IReadOnlyList<RoundTeeTime> slots,
         int? callingPlayerId,
         bool isLocked,
-        DateTime closesUtc)
+        DateTime closesUtc,
+        bool isRoundDay)
     {
         var participantCount = round.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek);
         // The DTO's "cutoff" is now the moment sign-ups close for this round
@@ -222,6 +236,7 @@ public sealed class TeeTimeService : ITeeTimeService
             round.RoundDate.ToString("yyyy-MM-dd"),
             round.Course?.Name ?? string.Empty,
             callerParticipant?.Player.PreferredTeeTimeSlots ?? Domain.Enums.TeeTimeSlotPreference.None,
-            callerParticipant?.SkippedWeek ?? false);
+            callerParticipant?.SkippedWeek ?? false,
+            isRoundDay);
     }
 }

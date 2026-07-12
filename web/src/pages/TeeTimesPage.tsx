@@ -11,6 +11,7 @@ import {
   useSetTeeTimePreference,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardContent } from '@/components/ui/Card';
@@ -19,7 +20,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatShortDate } from '@/lib/utils';
 import type { RoundTeeTimeSchedule, TeeTimeSlot, TeeTimeSlotName } from '@/types/api';
-import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '@/types/api';
+import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG, FEATURE_FLAG_KEYS } from '@/types/api';
 
 // ── Countdown helper ──────────────────────────────────────────────────────────
 
@@ -60,16 +61,35 @@ interface SlotCardProps {
   slot: TeeTimeSlot;
   schedule: RoundTeeTimeSchedule;
   isParticipant: boolean;
+  roundDaySwitchEnabled: boolean;
   onJoin: (teeTimeId: number) => void;
+  onSwitch: (teeTimeId: number) => void;
   onLeave: () => void;
   mutating: boolean;
 }
 
-function SlotCard({ slot, schedule, isParticipant, onJoin, onLeave, mutating }: SlotCardProps) {
+function SlotCard({
+  slot,
+  schedule,
+  isParticipant,
+  roundDaySwitchEnabled,
+  onJoin,
+  onSwitch,
+  onLeave,
+  mutating,
+}: SlotCardProps) {
   const isMine = schedule.currentUserTeeTimeId === slot.id;
   const isFull = slot.players.length >= CAPACITY;
   const canJoin = isParticipant && !schedule.isLocked && !isMine && !isFull;
   const canLeave = isParticipant && !schedule.isLocked && isMine;
+  const canSwitch =
+    roundDaySwitchEnabled &&
+    isParticipant &&
+    schedule.isLocked &&
+    schedule.isRoundDay &&
+    schedule.currentUserTeeTimeId != null &&
+    !isMine &&
+    !isFull;
   const isEmpty = slot.players.length === 0;
 
   return (
@@ -114,7 +134,7 @@ function SlotCard({ slot, schedule, isParticipant, onJoin, onLeave, mutating }: 
           )}
         </ul>
 
-        {(canJoin || canLeave) && (
+        {(canJoin || canLeave || canSwitch) && (
           <div className="mt-3 pt-3 border-t border-gray-100">
             {canJoin && (
               <Button
@@ -137,6 +157,17 @@ function SlotCard({ slot, schedule, isParticipant, onJoin, onLeave, mutating }: 
               >
                 <LogOut className="h-4 w-4 mr-1" />
                 Leave slot
+              </Button>
+            )}
+            {canSwitch && (
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={mutating}
+                onClick={() => onSwitch(slot.id)}
+              >
+                <LogIn className="h-4 w-4 mr-1" />
+                Move to this group
               </Button>
             )}
           </div>
@@ -238,6 +269,9 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
   const leave = useLeaveTeeTime();
   const skipMyWeek = useSkipMyWeek();
   const mutating = join.isPending || leave.isPending || skipMyWeek.isPending;
+  const featureFlags = useFeatureFlagStates();
+  const roundDaySwitchEnabled =
+    featureFlags.data?.[FEATURE_FLAG_KEYS.roundDayTeeTimeSwitchEnabled] ?? false;
 
   const isParticipant = schedule.currentUserParticipantId != null;
   const hasPlayerId = user?.playerId != null;
@@ -258,6 +292,15 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
         },
       },
     );
+  }
+
+  function handleSwitch(teeTimeId: number) {
+    const proceed = window.confirm(
+      "Move to this group? If you've already entered scores today, they'll move with you — " +
+      "your current group's scorecard will no longer include you, and this group's scorecard will.",
+    );
+    if (!proceed) return;
+    handleJoin(teeTimeId);
   }
 
   function handleLeave() {
@@ -379,7 +422,9 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
             slot={slot}
             schedule={schedule}
             isParticipant={isParticipant}
+            roundDaySwitchEnabled={roundDaySwitchEnabled}
             onJoin={handleJoin}
+            onSwitch={handleSwitch}
             onLeave={handleLeave}
             mutating={mutating}
           />

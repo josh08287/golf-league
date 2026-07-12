@@ -35,6 +35,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Shows a live "Leaderboard" nav link and page, grouped by flight, while a round is currently in progress. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.roundDayTeeTimeSwitchEnabled,
+    label: 'Round-day tee-time group switch',
+    description:
+      'Lets an already-assigned player move themselves to a different, open tee-time group on the day of their round, bypassing the normal sign-up cutoff for that one action. Applies to every league.',
+  },
 ];
 
 function Toggle({

@@ -129,11 +129,28 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string ActiveRoundLeaderboardEnabled = "active_round_leaderboard_enabled";
 
+    /// <summary>
+    /// Lets admins opt individual players in or out of par-3 gross skins for
+    /// a given season half. While disabled, every player is treated as
+    /// opted in (unchanged legacy behavior) and no opt-out UI is shown.
+    /// </summary>
+    public const string Par3GrossSkinsOptInEnabled = "par3_gross_skins_opt_in_enabled";
+
+    /// <summary>
+    /// Lets an already-assigned player move themselves to a different (open)
+    /// tee-time slot on the day of their round, bypassing the normal
+    /// Sunday-noon sign-up cutoff for that one action. Initial join, leave,
+    /// and skip-week remain cutoff-gated regardless of this flag.
+    /// </summary>
+    public const string RoundDayTeeTimeSwitchEnabled = "round_day_tee_time_switch_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
         [ClosestToPinEnabled] = false,
         [ResendTeeTimeEmailEnabled] = false,
         [ActiveRoundLeaderboardEnabled] = false,
+        [Par3GrossSkinsOptInEnabled] = false,
+        [RoundDayTeeTimeSwitchEnabled] = false,
     };
 }
