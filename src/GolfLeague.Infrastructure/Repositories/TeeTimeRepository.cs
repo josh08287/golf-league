@@ -69,6 +69,21 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task SwapParticipantTeeTimesAsync(int participantAId, int participantBId, CancellationToken cancellationToken = default)
+    {
+        var participants = await _context.RoundParticipants
+            .AsTracking()
+            .Where(p => p.Id == participantAId || p.Id == participantBId)
+            .ToListAsync(cancellationToken);
+
+        var a = participants.FirstOrDefault(p => p.Id == participantAId);
+        var b = participants.FirstOrDefault(p => p.Id == participantBId);
+        if (a is null || b is null) return;
+
+        (a.TeeTimeId, b.TeeTimeId) = (b.TeeTimeId, a.TeeTimeId);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task MarkAutoFilledAsync(int teeTimeId, DateTime utcNow, CancellationToken cancellationToken = default)
     {
         var slot = await _context.RoundTeeTimes

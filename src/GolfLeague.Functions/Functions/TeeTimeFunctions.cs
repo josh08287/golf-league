@@ -405,6 +405,48 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// POST /v1/admin/rounds/{roundId}/tee-times/participants/{participantId}/swap/{otherParticipantId}
+    /// Admin-only: Swap two participants' tee-time slots in one step. Works
+    /// even when both slots are full since capacity never changes — each
+    /// participant simply takes the other's seat. Also works when one side
+    /// is unassigned (equivalent to a move, but expressed as a swap by the
+    /// drag-and-drop UI when dropping onto an occupied seat).
+    /// </summary>
+    [Function("AdminSwapTeeTimeParticipants")]
+    public async Task<IActionResult> AdminSwapParticipants(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/admin/rounds/{roundId:int}/tee-times/participants/{participantId:int}/swap/{otherParticipantId:int}")] HttpRequest req,
+        int roundId,
+        int participantId,
+        int otherParticipantId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (participantId == otherParticipantId)
+            return new BadRequestObjectResult(new { error = "Cannot swap a participant with themselves." });
+
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null)
+            return new NotFoundObjectResult(new { error = "Round not found." });
+
+        var participant = round.Participants.FirstOrDefault(p => p.Id == participantId);
+        if (participant is null)
+            return new NotFoundObjectResult(new { error = "Participant not found in this round." });
+
+        var otherParticipant = round.Participants.FirstOrDefault(p => p.Id == otherParticipantId);
+        if (otherParticipant is null)
+            return new NotFoundObjectResult(new { error = "Participant not found in this round." });
+
+        await _teeTimes.SwapParticipantTeeTimesAsync(participantId, otherParticipantId, cancellationToken);
+
+        var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
     /// DELETE /v1/admin/rounds/{roundId}/tee-times/participants/{participantId}
     /// Admin-only: Remove a participant from their current tee time slot, bypassing the cutoff check.
     /// </summary>

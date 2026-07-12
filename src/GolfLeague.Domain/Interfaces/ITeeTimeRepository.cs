@@ -28,6 +28,12 @@ public interface ITeeTimeRepository
     Task SetParticipantTeeTimeAsync(int participantId, int? teeTimeId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Exchange the TeeTimeId of two participants in one save, so swapping
+    /// two players between (possibly full) slots never touches capacity.
+    /// </summary>
+    Task SwapParticipantTeeTimesAsync(int participantAId, int participantBId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Mark a tee time as auto-filled at the supplied UTC instant.
     /// </summary>
     Task MarkAutoFilledAsync(int teeTimeId, DateTime utcNow, CancellationToken cancellationToken = default);

@@ -4,6 +4,7 @@ import { useRoundTeeTimes } from '@/hooks/useTeeTimes';
 import {
   useAdminRoundParticipants,
   useAdminMoveParticipantToTeeTime,
+  useAdminSwapTeeTimeParticipants,
   useAdminRemoveParticipantFromTeeTime,
   useAdminSetParticipantSkipped,
   useResendTeeTimeEmails,
@@ -26,11 +27,13 @@ interface DraggablePlayerProps {
   currentTeeTimeId: number | null;
   roundId: number;
   onRemove?: () => void;
+  onSwap?: (draggedParticipantId: number) => void;
   isDragging?: boolean;
 }
 
-function DraggablePlayer({ participant, currentTeeTimeId, roundId, onRemove, isDragging }: DraggablePlayerProps) {
+function DraggablePlayer({ participant, currentTeeTimeId, roundId, onRemove, onSwap, isDragging }: DraggablePlayerProps) {
   const [dragging, setDragging] = useState(false);
+  const [isSwapTarget, setIsSwapTarget] = useState(false);
   const setSkipped = useAdminSetParticipantSkipped(roundId);
   const skipped = participant.skippedWeek;
 
@@ -53,15 +56,42 @@ function DraggablePlayer({ participant, currentTeeTimeId, roundId, onRemove, isD
     setSkipped.mutate({ playerId: participant.playerId, skipped: !skipped });
   };
 
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!onSwap) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.dataTransfer.dropEffect = 'move';
+    setIsSwapTarget(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsSwapTarget(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!onSwap) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setIsSwapTarget(false);
+    const data = JSON.parse(e.dataTransfer.getData('application/json'));
+    if (data.participantId === participant.id) return;
+    onSwap(data.participantId);
+  };
+
   return (
     <div
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      title={onSwap ? 'Drag a player here to swap tee times with them' : undefined}
       className={[
         'flex items-center gap-2 px-3 py-2 rounded-lg border cursor-move transition-all',
         skipped ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-gray-200 hover:border-[#1B5E20] hover:shadow-sm',
         (dragging || isDragging) && 'opacity-50 border-[#1B5E20]',
+        isSwapTarget && 'ring-2 ring-blue-500 bg-blue-50',
       ].filter(Boolean).join(' ')}
     >
       <GripVertical className="h-4 w-4 text-gray-400 flex-shrink-0" />
@@ -109,6 +139,7 @@ interface TeeTimeSlotCardProps {
 function TeeTimeSlotCard({ slot, roundId, participants, onPlayerMoved }: TeeTimeSlotCardProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const moveParticipant = useAdminMoveParticipantToTeeTime(roundId);
+  const swapParticipants = useAdminSwapTeeTimeParticipants(roundId);
   const removeParticipant = useAdminRemoveParticipantFromTeeTime(roundId);
 
   const slotPlayers = useMemo(() => {
@@ -133,6 +164,9 @@ function TeeTimeSlotCard({ slot, roundId, participants, onPlayerMoved }: TeeTime
     setIsDragOver(false);
   };
 
+  // Dropping on the slot itself (not on a specific player card) moves the
+  // player into an open seat. Full slots reject this — swap by dropping
+  // onto one of the seated players instead (see handleSwap below).
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -161,6 +195,17 @@ function TeeTimeSlotCard({ slot, roundId, participants, onPlayerMoved }: TeeTime
       onPlayerMoved();
     } catch (err) {
       console.error('Failed to remove participant:', err);
+    }
+  };
+
+  // Dropping a dragged player directly onto a seated player swaps their
+  // tee times, even when both slots are full.
+  const handleSwap = async (targetParticipantId: number, draggedParticipantId: number) => {
+    try {
+      await swapParticipants.mutateAsync({ participantId: draggedParticipantId, otherParticipantId: targetParticipantId });
+      onPlayerMoved();
+    } catch (err) {
+      console.error('Failed to swap participants:', err);
     }
   };
 
@@ -223,6 +268,7 @@ function TeeTimeSlotCard({ slot, roundId, participants, onPlayerMoved }: TeeTime
                 currentTeeTimeId={slot.id}
                 roundId={roundId}
                 onRemove={() => handleRemove(player.participantId)}
+                onSwap={(draggedParticipantId) => handleSwap(player.participantId, draggedParticipantId)}
               />
             );
           })}
@@ -344,7 +390,7 @@ export function TeeTimesAdminPage() {
     <div className="space-y-6">
       <PageHeader title="Tee Time Management">
         <p className="text-sm text-gray-500">
-          Drag and drop players between tee times to manage assignments.
+          Drag and drop players between tee times to manage assignments. Drop a player onto another player to swap their tee times.
         </p>
       </PageHeader>
 

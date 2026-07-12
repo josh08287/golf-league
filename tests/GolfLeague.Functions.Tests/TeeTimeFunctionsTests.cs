@@ -187,6 +187,77 @@ public class TeeTimeFunctionsTests
         m.TeeTimes.Verify(t => t.SetParticipantTeeTimeAsync(3, 2, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    // ── AdminSwapTeeTimeParticipants ─────────────────────────────────────
+
+    [Fact]
+    public async Task AdminSwapParticipants_WhenNotAdmin_ReturnsForbidden()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+
+        var result = await sut.AdminSwapParticipants(MakeRequest(), 1, 3, 4, CancellationToken.None);
+
+        result.Should().BeOfType<UnauthorizedResult>();
+    }
+
+    [Fact]
+    public async Task AdminSwapParticipants_WhenSameParticipantTwice_ReturnsBadRequest()
+    {
+        var m = new Mocks();
+        var sut = m.BuildSut();
+
+        var result = await sut.AdminSwapParticipants(MakeRequest(role: "admin"), 1, 3, 3, CancellationToken.None);
+
+        result.Should().BeOfType<BadRequestObjectResult>();
+        m.TeeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdminSwapParticipants_WhenRoundNotFound_ReturnsNotFound()
+    {
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync((Round?)null);
+        var sut = m.BuildSut();
+
+        var result = await sut.AdminSwapParticipants(MakeRequest(role: "admin"), 1, 3, 4, CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+    }
+
+    [Fact]
+    public async Task AdminSwapParticipants_WhenEitherParticipantNotInRound_ReturnsNotFound()
+    {
+        var m = new Mocks();
+        var participant = new RoundParticipant { Id = 3, RoundId = 1, PlayerId = 10, TeeTimeId = 2, Player = MakePlayer(10) };
+        var round = new Round { Id = 1, Participants = [participant] };
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        var sut = m.BuildSut();
+
+        var result = await sut.AdminSwapParticipants(MakeRequest(role: "admin"), 1, 3, 99, CancellationToken.None);
+
+        result.Should().BeOfType<NotFoundObjectResult>();
+        m.TeeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task AdminSwapParticipants_WhenBothInRound_SwapsEvenWhenSlotsAreFull()
+    {
+        // Swapping never changes slot occupant counts, so it must succeed
+        // even when both participants are already sitting in full foursomes.
+        var m = new Mocks();
+        var participantA = new RoundParticipant { Id = 3, RoundId = 1, PlayerId = 10, TeeTimeId = 2, Player = MakePlayer(10) };
+        var participantB = new RoundParticipant { Id = 4, RoundId = 1, PlayerId = 11, TeeTimeId = 5, Player = MakePlayer(11) };
+        var round = new Round { Id = 1, Participants = [participantA, participantB] };
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        m.Service.Setup(s => s.GetScheduleAsync(1, It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Result<GolfLeague.Application.DTOs.RoundTeeTimeScheduleDto>.Fail("n/a"));
+        var sut = m.BuildSut();
+
+        await sut.AdminSwapParticipants(MakeRequest(role: "admin"), 1, 3, 4, CancellationToken.None);
+
+        m.TeeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(3, 4, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     // ── AdminRemoveParticipantFromTeeTime ────────────────────────────────
 
     [Fact]

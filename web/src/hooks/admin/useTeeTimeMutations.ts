@@ -40,6 +40,22 @@ export function useAdminMoveParticipantToTeeTime(roundId: number) {
   });
 }
 
+export function useAdminSwapTeeTimeParticipants(roundId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ participantId, otherParticipantId }: { participantId: number; otherParticipantId: number }) => {
+      const res = await apiClient.post(
+        `/admin/rounds/${roundId}/tee-times/participants/${participantId}/swap/${otherParticipantId}`,
+      );
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeKeys.forRound(roundId) });
+      qc.invalidateQueries({ queryKey: ['admin', 'rounds', roundId, 'participants'] });
+    },
+  });
+}
+
 export function useAdminRemoveParticipantFromTeeTime(roundId: number) {
   const qc = useQueryClient();
   return useMutation({
