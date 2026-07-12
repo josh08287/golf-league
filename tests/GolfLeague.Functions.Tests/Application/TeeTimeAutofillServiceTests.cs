@@ -206,6 +206,52 @@ public class TeeTimeAutofillServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_ToppingOffPartialSlot_PrefersMatchingBandOverMismatched()
+    {
+        // 3 slots (proportional bands: 1=Early, 2=Middle, 3=Late). Slot 1
+        // (Early band) already has 1 occupant from a manual sign-up, leaving
+        // 3 open seats. One unassigned player prefers Early, two prefer Late,
+        // and there are enough no-preference players that the total (8) packs
+        // evenly into two full foursomes with no trailing-twosome rebalance
+        // to muddy the result. Topping off slot 1 must seat the Early-preferrer
+        // there, not a Late-preferrer, even though the Late-preferrers are
+        // queued first and everyone shares the same (no) flight.
+        var manual = MakeParticipant(1, TeeTimeSlotPreference.None);
+        manual.TeeTimeId = 101;
+
+        var latePreferrers = Enumerable.Range(2, 2)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.Late))
+            .ToList();
+        var earlyPreferrer = MakeParticipant(4, TeeTimeSlotPreference.Early);
+        var noPreference = Enumerable.Range(5, 4)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.None))
+            .ToList();
+
+        var round = new Round
+        {
+            Id = 1,
+            Participants = new List<RoundParticipant> { manual, earlyPreferrer }
+                .Concat(latePreferrers)
+                .Concat(noPreference)
+                .ToList(),
+        };
+        var slots = new List<RoundTeeTime>
+        {
+            new() { Id = 101, RoundId = 1, TeeTimeNumber = 1, Participants = [manual] },
+            new() { Id = 102, RoundId = 1, TeeTimeNumber = 2, Participants = [] },
+            new() { Id = 103, RoundId = 1, TeeTimeNumber = 3, Participants = [] },
+        };
+        var (sut, assignments) = BuildSut(round, slots);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeTrue();
+        assignments[4].Should().Be(101, "the Early-preferrer should win an open seat in the Early-band slot being topped off");
+        assignments[2].Should().NotBe(101, "a Late-preferrer should not be stuffed into the Early-band slot when an Early-preferrer is available");
+        assignments[3].Should().NotBe(101, "a Late-preferrer should not be stuffed into the Early-band slot when an Early-preferrer is available");
+    }
+
+    [Fact]
     public async Task RunAsync_FragmentedFlights_StillPackIntoFullFoursomes()
     {
         // Two threesomes and a twosome (flights of 3, 3, 2 = 8 players) must
@@ -254,6 +300,44 @@ public class TeeTimeAutofillServiceTests
 
         result.IsSuccess.Should().BeTrue();
         assignments.Should().NotContainKey(1, "a manually-selected player must never be reassigned by autofill");
+    }
+
+    [Fact]
+    public async Task RunAsync_TrailingTwosomeRebalance_PrefersBumpingMismatchedPreferenceOverMatched()
+    {
+        // 3 slots (bands: 1=Early, 2=Middle, 3=Late). Slot 1 fills to a full
+        // foursome this run with 3 Early-preferrers plus 1 no-preference
+        // filler. Slot 2 ends up a trailing twosome. The rebalance must
+        // borrow the no-preference filler from slot 1, not one of the
+        // Early-preferrers who were deliberately matched to the Early slot.
+        var earlyPreferrers = Enumerable.Range(1, 3)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.Early))
+            .ToList();
+        var filler = MakeParticipant(4, TeeTimeSlotPreference.None);
+        var twosome = Enumerable.Range(5, 2)
+            .Select(i => MakeParticipant(i, TeeTimeSlotPreference.None))
+            .ToList();
+
+        var round = new Round
+        {
+            Id = 1,
+            Participants = earlyPreferrers.Concat(new[] { filler }).Concat(twosome).ToList(),
+        };
+        var slots = new List<RoundTeeTime>
+        {
+            new() { Id = 101, RoundId = 1, TeeTimeNumber = 1, Participants = [] },
+            new() { Id = 102, RoundId = 1, TeeTimeNumber = 2, Participants = [] },
+            new() { Id = 103, RoundId = 1, TeeTimeNumber = 3, Participants = [] },
+        };
+        var (sut, assignments) = BuildSut(round, slots);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeTrue();
+        Enumerable.Range(1, 3).Select(id => assignments[id])
+            .Should().OnlyContain(slotId => slotId == 101,
+                "Early-preferrers seated in the Early slot must not be bumped out by the trailing-twosome rebalance");
+        assignments[4].Should().Be(102, "the no-preference filler is the one that should be borrowed to fix the twosome");
     }
 
     [Fact]

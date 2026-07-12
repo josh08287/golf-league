@@ -137,8 +137,12 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         }
 
         // --- Phase 1: top off partial slots (1-3 occupants). Prefer adding
-        // players whose flight is already present in the slot.
+        // players whose flight is already present in the slot. Time
+        // preferences are a soft weight here too — same as Phase 2 — so a
+        // player who asked for an early slot isn't shoved into topping off a
+        // partial late slot just because a same-flight seat is open there.
         var unassignedQueue = new List<RoundParticipant>(unassigned);
+        var totalSlots = slots.Count;
         foreach (var slot in slots.OrderBy(s => s.TeeTimeNumber))
         {
             var occupied = EffectiveCount(slot);
@@ -146,10 +150,13 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 
             var seatsLeft = TeeTimeSchedule.CapacityPerTeeTime - occupied;
             var existingFlightIds = slot.Participants.Select(p => p.FlightId).ToHashSet();
+            var slotBand = SlotBand(slot.TeeTimeNumber, totalSlots);
 
-            // First pass: same-flight matches.
+            // First pass: same-flight matches, best preference match first.
             var sameFlight = unassignedQueue
                 .Where(p => existingFlightIds.Contains(p.FlightId))
+                .OrderByDescending(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, slotBand))
+                .ThenBy(p => p.PlayerId)
                 .Take(seatsLeft)
                 .ToList();
             foreach (var p in sameFlight)
@@ -163,11 +170,16 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             }
             if (seatsLeft == 0) continue;
 
-            // Second pass: fill remaining seats with the largest available flight.
+            // Second pass: fill remaining seats from the largest available
+            // flight, preferring the best preference match within that flight.
             while (seatsLeft > 0 && unassignedQueue.Count > 0)
             {
                 var donorFlightId = LargestFlight(unassignedQueue);
-                var fill = unassignedQueue.First(p => p.FlightId == donorFlightId);
+                var fill = unassignedQueue
+                    .Where(p => p.FlightId == donorFlightId)
+                    .OrderByDescending(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, slotBand))
+                    .ThenBy(p => p.PlayerId)
+                    .First();
                 await _teeTimes.SetParticipantTeeTimeAsync(fill.Id, slot.Id, cancellationToken);
                 unassignedQueue.Remove(fill);
                 assignedCount++;
@@ -187,8 +199,6 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             .Where(s => EffectiveCount(s) == 0)
             .OrderBy(s => s.TeeTimeNumber)
             .ToList();
-
-        var totalSlots = slots.Count;
 
         foreach (var slot in emptySlots)
         {
@@ -225,18 +235,33 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         // make two threesomes. The threesomes don't have to be adjacent —
         // any full slot will do — but only a player autofill placed THIS RUN
         // may be moved; pre-existing (manual or prior-run) occupants are
-        // never touched, per the rule that manual picks are permanent.
+        // never touched, per the rule that manual picks are permanent. Among
+        // candidate donor slots, prefer one whose this-run placements include
+        // a mover that doesn't prefer the donor slot's band — a player
+        // deliberately matched there by Phase 1/2's preference weighting
+        // shouldn't be bumped out just because they happened to be added
+        // first, when a worse-fit mover is available in another full slot.
         foreach (var slot in slots)
         {
             if (EffectiveCount(slot) != 2) continue;
 
-            var donorSlot = slots.FirstOrDefault(s =>
-                s.Id != slot.Id &&
-                EffectiveCount(s) == TeeTimeSchedule.CapacityPerTeeTime &&
-                placedThisRun.GetValueOrDefault(s.Id)?.Count > 0);
-            if (donorSlot is null) continue;
+            var donorCandidates = slots
+                .Where(s => s.Id != slot.Id
+                         && EffectiveCount(s) == TeeTimeSchedule.CapacityPerTeeTime
+                         && placedThisRun.GetValueOrDefault(s.Id)?.Count > 0)
+                .Select(s =>
+                {
+                    var band = SlotBand(s.TeeTimeNumber, totalSlots);
+                    var mover = placedThisRun[s.Id]
+                        .OrderBy(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, band))
+                        .First();
+                    return (Slot: s, Mover: mover, MoverWeight: PreferenceWeight(mover.Player.PreferredTeeTimeSlots, band));
+                })
+                .OrderBy(x => x.MoverWeight)
+                .ToList();
+            if (donorCandidates.Count == 0) continue;
 
-            var mover = placedThisRun[donorSlot.Id][0];
+            var (donorSlot, mover, _) = donorCandidates[0];
             await _teeTimes.SetParticipantTeeTimeAsync(mover.Id, slot.Id, cancellationToken);
 
             placedThisRun[donorSlot.Id].Remove(mover);
