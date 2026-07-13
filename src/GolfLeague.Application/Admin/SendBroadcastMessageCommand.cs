@@ -15,7 +15,11 @@ public sealed record SendBroadcastMessageCommand(
     IReadOnlyList<int>? PlayerIds,
     /// <summary>Ad-hoc email addresses added directly by the admin.</summary>
     IReadOnlyList<string>? AdHocEmails,
-    string UserId) : IRequest<Result<BroadcastMessageResultDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<BroadcastMessageResultDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Broadcast";
+    public string AuditEntityId => Subject;
+}
 
 public sealed record BroadcastMessageResultDto(int Sent, int Skipped, IReadOnlyList<string> SkippedNames);
 

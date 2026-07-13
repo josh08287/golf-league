@@ -25,7 +25,11 @@ public sealed record SubmitTeeTimeGroupScoresCommand(
     int SubmittedByPlayerId,
     List<PlayerHoleScoresInput> PlayerScores,
     string UserId,
-    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SubmitScoresOutcome>>, IAmAuditableCommand;
+    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SubmitScoresOutcome>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "TeeTime";
+    public string AuditEntityId => TeeTimeId.ToString();
+}
 
 /// <summary>
 /// Result containing summary of submitted scores.

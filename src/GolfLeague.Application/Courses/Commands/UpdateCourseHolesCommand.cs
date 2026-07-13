@@ -11,7 +11,11 @@ public sealed record HoleInput(int HoleNumber, int Par, int StrokeIndex);
 public sealed record UpdateCourseHolesCommand(
     int CourseId,
     List<HoleInput> Holes,
-    string UserId) : IRequest<Result<CourseDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<CourseDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Course";
+    public string AuditEntityId => CourseId.ToString();
+}
 
 public sealed class UpdateCourseHolesCommandHandler : IRequestHandler<UpdateCourseHolesCommand, Result<CourseDto>>
 {

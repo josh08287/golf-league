@@ -13,7 +13,11 @@ public sealed record AddTeeBoxCommand(
     int SlopeRating,
     int TotalYardage,
     int Par,
-    string UserId) : IRequest<Result<TeeBox>>;
+    string UserId) : IRequest<Result<TeeBox>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Course";
+    public string AuditEntityId => CourseId.ToString();
+}
 
 public sealed class AddTeeBoxCommandHandler : IRequestHandler<AddTeeBoxCommand, Result<TeeBox>>
 {

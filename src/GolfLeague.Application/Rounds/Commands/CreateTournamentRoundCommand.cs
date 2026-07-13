@@ -21,7 +21,11 @@ public sealed record CreateTournamentRoundCommand(
     List<int> PlayerIds,
     List<MatchupInput>? Matchups,
     string? Notes,
-    string UserId) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed record MatchupInput(int Player1Id, int Player2Id);
 

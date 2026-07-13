@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Functions.Helpers;
 using Microsoft.AspNetCore.Http;
@@ -9,10 +10,12 @@ namespace GolfLeague.Functions.Functions;
 public sealed class ExternalAuthFunctions
 {
     private readonly IExternalAuthService _externalAuth;
+    private readonly AuditWriter _auditWriter;
 
-    public ExternalAuthFunctions(IExternalAuthService externalAuth)
+    public ExternalAuthFunctions(IExternalAuthService externalAuth, AuditWriter auditWriter)
     {
         _externalAuth = externalAuth;
+        _auditWriter = auditWriter;
     }
 
     /// <summary>
@@ -62,6 +65,10 @@ public sealed class ExternalAuthFunctions
 
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
+
+        await _auditWriter.WriteAsync(
+            $"LoginExternal:{provider}", "Session", result.Value!.UserId.ToString(), result.Value.UserId.ToString(),
+            cancellationToken: cancellationToken);
 
         return new OkObjectResult(new { data = result.Value });
     }

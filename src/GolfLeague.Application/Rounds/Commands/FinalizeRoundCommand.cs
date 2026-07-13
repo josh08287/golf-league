@@ -11,7 +11,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 
 public sealed record FinalizeRoundCommand(
     int RoundId,
-    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundCommand, Result<RoundDto>>
 {

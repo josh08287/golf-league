@@ -16,7 +16,11 @@ public sealed record SetParticipantSkippedCommand(
     int RoundId,
     int PlayerId,
     bool Skipped,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SetParticipantSkippedCommandHandler
     : IRequestHandler<SetParticipantSkippedCommand, Result<bool>>

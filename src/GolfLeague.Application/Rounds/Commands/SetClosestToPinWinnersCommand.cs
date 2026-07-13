@@ -16,7 +16,11 @@ public sealed record ClosestToPinSelection(int HoleNumber, int? PlayerId);
 public sealed record SetClosestToPinWinnersCommand(
     int RoundId,
     List<ClosestToPinSelection> Selections,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SetClosestToPinWinnersCommandHandler
     : IRequestHandler<SetClosestToPinWinnersCommand, Result<bool>>

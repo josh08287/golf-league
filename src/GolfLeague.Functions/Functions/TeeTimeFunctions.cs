@@ -20,6 +20,7 @@ public sealed class TeeTimeFunctions
     private readonly IRoundRepository _rounds;
     private readonly ITeeTimeRepository _teeTimes;
     private readonly IMediator _mediator;
+    private readonly AuditWriter _auditWriter;
     private readonly ILogger<TeeTimeFunctions> _logger;
 
     public TeeTimeFunctions(
@@ -28,6 +29,7 @@ public sealed class TeeTimeFunctions
         IRoundRepository rounds,
         ITeeTimeRepository teeTimes,
         IMediator mediator,
+        AuditWriter auditWriter,
         ILogger<TeeTimeFunctions> logger)
     {
         _service = service;
@@ -35,6 +37,7 @@ public sealed class TeeTimeFunctions
         _rounds = rounds;
         _teeTimes = teeTimes;
         _mediator = mediator;
+        _auditWriter = auditWriter;
         _logger = logger;
     }
 
@@ -423,6 +426,9 @@ public sealed class TeeTimeFunctions
         if (participant.TeeTimeId != teeTimeId)
         {
             await _teeTimes.SetParticipantTeeTimeAsync(participantId, teeTimeId, cancellationToken);
+            await _auditWriter.WriteAsync(
+                "AdminTeeTimeMove", "Round", roundId.ToString(), req.GetUserId() ?? string.Empty,
+                leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
         }
 
         var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);
@@ -466,6 +472,9 @@ public sealed class TeeTimeFunctions
             return new NotFoundObjectResult(new { error = "Participant not found in this round." });
 
         await _teeTimes.SwapParticipantTeeTimesAsync(participantId, otherParticipantId, cancellationToken);
+        await _auditWriter.WriteAsync(
+            "AdminTeeTimeSwap", "Round", roundId.ToString(), req.GetUserId() ?? string.Empty,
+            leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
 
         var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);
         return result.IsSuccess
@@ -498,6 +507,9 @@ public sealed class TeeTimeFunctions
         if (participant.TeeTimeId is not null)
         {
             await _teeTimes.SetParticipantTeeTimeAsync(participantId, null, cancellationToken);
+            await _auditWriter.WriteAsync(
+                "AdminTeeTimeRemove", "Round", roundId.ToString(), req.GetUserId() ?? string.Empty,
+                leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
         }
 
         var result = await _service.GetScheduleAsync(roundId, req.GetPlayerId(), cancellationToken);

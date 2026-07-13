@@ -12,7 +12,11 @@ public sealed record CreateFlightCommand(
     string Name,
     int HalfId,
     int DisplayOrder,
-    string UserId) : IRequest<Result<FlightDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<FlightDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Flight";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed class CreateFlightCommandHandler : IRequestHandler<CreateFlightCommand, Result<FlightDto>>
 {

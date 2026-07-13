@@ -6,7 +6,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 
 public sealed record DeleteRoundCommand(
     int Id,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class DeleteRoundCommandHandler : IRequestHandler<DeleteRoundCommand, Result<bool>>
 {

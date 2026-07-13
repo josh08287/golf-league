@@ -8,7 +8,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 
 public sealed record ReopenRoundCommand(
     int RoundId,
-    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class ReopenRoundCommandHandler : IRequestHandler<ReopenRoundCommand, Result<RoundDto>>
 {

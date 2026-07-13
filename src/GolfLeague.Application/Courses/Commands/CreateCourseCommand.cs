@@ -10,7 +10,11 @@ public sealed record CreateCourseCommand(
     string Name,
     double Rating,
     int Slope,
-    string UserId) : IRequest<Result<CourseDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<CourseDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Course";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed class CreateCourseCommandHandler : IRequestHandler<CreateCourseCommand, Result<CourseDto>>
 {

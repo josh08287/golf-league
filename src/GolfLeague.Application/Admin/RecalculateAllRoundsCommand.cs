@@ -8,7 +8,12 @@ using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Application.Admin;
 
-public sealed record RecalculateAllRoundsCommand(string UserId) : IRequest<Result<RecalculateAllRoundsResult>>;
+public sealed record RecalculateAllRoundsCommand(string UserId)
+    : IRequest<Result<RecalculateAllRoundsResult>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => "all";
+}
 
 public sealed record RecalculateAllRoundsResult(
     int RoundsProcessed,

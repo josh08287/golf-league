@@ -6,7 +6,11 @@ namespace GolfLeague.Application.Seasons.Commands;
 
 public sealed record DeleteSeasonCommand(
     int Id,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Season";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class DeleteSeasonCommandHandler : IRequestHandler<DeleteSeasonCommand, Result<bool>>
 {

@@ -16,7 +16,10 @@ public class GetAuditLogQueryHandlerTests
         Mock<IPlayerRepository>? playerRepo = null,
         Mock<IRoundRepository>? roundRepo = null,
         Mock<IFlightRepository>? flightRepo = null,
-        Mock<ICourseRepository>? courseRepo = null)
+        Mock<ICourseRepository>? courseRepo = null,
+        Mock<ISeasonRepository>? seasonRepo = null,
+        Mock<IInviteRepository>? inviteRepo = null,
+        Mock<ITeeTimeRepository>? teeTimeRepo = null)
     {
         // Only apply an empty-result default when the caller didn't supply
         // their own mock — otherwise this would clobber the caller's Setup
@@ -47,9 +50,24 @@ public class GetAuditLogQueryHandlerTests
             courseRepo = new Mock<ICourseRepository>();
             courseRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Course>());
         }
+        if (seasonRepo is null)
+        {
+            seasonRepo = new Mock<ISeasonRepository>();
+            seasonRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Season>());
+        }
+        if (inviteRepo is null)
+        {
+            inviteRepo = new Mock<IInviteRepository>();
+            inviteRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<PlayerInvite>());
+        }
+        if (teeTimeRepo is null)
+        {
+            teeTimeRepo = new Mock<ITeeTimeRepository>();
+        }
 
         return new GetAuditLogQueryHandler(
-            repo.Object, appUserRepo.Object, playerRepo.Object, roundRepo.Object, flightRepo.Object, courseRepo.Object);
+            repo.Object, appUserRepo.Object, playerRepo.Object, roundRepo.Object, flightRepo.Object, courseRepo.Object,
+            seasonRepo.Object, inviteRepo.Object, teeTimeRepo.Object);
     }
 
     [Fact]

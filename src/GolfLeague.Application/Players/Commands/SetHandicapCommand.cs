@@ -11,7 +11,11 @@ public sealed record SetHandicapCommand(
     int PlayerId,
     double HandicapIndex,
     string? Notes,
-    string UserId) : IRequest<Result<HandicapDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<HandicapDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => PlayerId.ToString();
+}
 
 public sealed class SetHandicapCommandHandler : IRequestHandler<SetHandicapCommand, Result<HandicapDto>>
 {

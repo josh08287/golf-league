@@ -23,7 +23,12 @@ public sealed record AcceptInviteCommand(
     string FirstName,
     string LastName,
     string Email,
-    string? Phone) : IRequest<Result<PlayerDto>>;
+    string? Phone) : IRequest<Result<PlayerDto>>, IAmAuditableCommand
+{
+    public string UserId => AppUserId.ToString();
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed class AcceptInviteCommandHandler : IRequestHandler<AcceptInviteCommand, Result<PlayerDto>>
 {

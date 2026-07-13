@@ -10,6 +10,8 @@ public sealed record RevokeInviteCommand(
     string AdminUserId) : IRequest<Result<bool>>, IAmAuditableCommand
 {
     public string UserId => AdminUserId;
+    public string AuditEntityType => "Invite";
+    public string AuditEntityId => InviteId.ToString();
 }
 
 public sealed class RevokeInviteCommandHandler : IRequestHandler<RevokeInviteCommand, Result<bool>>

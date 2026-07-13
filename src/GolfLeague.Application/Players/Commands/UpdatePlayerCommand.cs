@@ -13,7 +13,11 @@ public sealed record UpdatePlayerCommand(
     string LastName,
     string? Email,
     string UserId,
-    IReadOnlyList<string>? Roles = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    IReadOnlyList<string>? Roles = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class UpdatePlayerCommandHandler : IRequestHandler<UpdatePlayerCommand, Result<PlayerDto>>
 {

@@ -9,7 +9,11 @@ public sealed record UpdateSeasonHalfCommand(
     int HalfId,
     DateOnly StartDate,
     DateOnly EndDate,
-    string UserId) : IRequest<Result<SeasonHalfDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<SeasonHalfDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "SeasonHalf";
+    public string AuditEntityId => HalfId.ToString();
+}
 
 public sealed class UpdateSeasonHalfCommandHandler : IRequestHandler<UpdateSeasonHalfCommand, Result<SeasonHalfDto>>
 {

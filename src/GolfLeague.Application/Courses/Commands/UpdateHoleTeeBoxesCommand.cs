@@ -12,7 +12,11 @@ public sealed record UpdateHoleTeeBoxesCommand(
     int CourseId,
     int TeeBoxId,
     List<HoleTeeBoxInput> Holes,
-    string UserId) : IRequest<Result<bool>>;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Course";
+    public string AuditEntityId => CourseId.ToString();
+}
 
 public sealed class UpdateHoleTeeBoxesCommandHandler : IRequestHandler<UpdateHoleTeeBoxesCommand, Result<bool>>
 {

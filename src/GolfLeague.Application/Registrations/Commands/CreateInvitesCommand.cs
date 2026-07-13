@@ -25,6 +25,8 @@ public sealed record CreateInvitesCommand(
     int? PreLinkedPlayerId = null) : IRequest<Result<CreateInvitesResult>>, IAmAuditableCommand
 {
     public string UserId => AdminUserId;
+    public string AuditEntityType => "Invite";
+    public string AuditEntityId => string.Join(",", Emails);
 }
 
 public sealed record CreateInvitesResult(

@@ -6,7 +6,11 @@ using MediatR;
 
 namespace GolfLeague.Application.Seasons.Commands;
 
-public sealed record SetActiveSeasonCommand(int SeasonId, string UserId) : IRequest<Result<SeasonDto>>, IAmAuditableCommand;
+public sealed record SetActiveSeasonCommand(int SeasonId, string UserId) : IRequest<Result<SeasonDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Season";
+    public string AuditEntityId => SeasonId.ToString();
+}
 
 public sealed class SetActiveSeasonCommandHandler : IRequestHandler<SetActiveSeasonCommand, Result<SeasonDto>>
 {

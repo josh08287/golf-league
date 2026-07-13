@@ -19,7 +19,11 @@ namespace GolfLeague.Application.Flights.Commands;
 public sealed record InitializeHalfFlightsCommand(
     int HalfId,
     string UserId,
-    int MaxPlayersPerFlight = 8) : IRequest<Result<List<FlightDto>>>, IAmAuditableCommand;
+    int MaxPlayersPerFlight = 8) : IRequest<Result<List<FlightDto>>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "SeasonHalf";
+    public string AuditEntityId => HalfId.ToString();
+}
 
 public sealed class InitializeHalfFlightsCommandHandler
     : IRequestHandler<InitializeHalfFlightsCommand, Result<List<FlightDto>>>

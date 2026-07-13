@@ -1,4 +1,5 @@
 using FluentAssertions;
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Rounds;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
@@ -78,7 +79,8 @@ public class TeeTimeServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditRepository.Object, new Mock<ILogger<TeeTimeService>>().Object);
+        var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes);
     }
 
@@ -99,7 +101,8 @@ public class TeeTimeServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditRepository.Object, new Mock<ILogger<TeeTimeService>>().Object);
+        var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes, auditRepository);
     }
 

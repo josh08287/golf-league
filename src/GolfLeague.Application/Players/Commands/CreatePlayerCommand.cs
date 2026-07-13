@@ -14,7 +14,11 @@ public sealed record CreatePlayerCommand(
     string? Email,
     double InitialHandicapIndex,
     string UserId,
-    int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    int? FlightId = null) : IRequest<Result<PlayerDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => "0"; // assigned by the DB; unknown until Handle runs
+}
 
 public sealed class CreatePlayerCommandHandler : IRequestHandler<CreatePlayerCommand, Result<PlayerDto>>
 {

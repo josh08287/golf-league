@@ -20,7 +20,11 @@ public sealed record CreateRoundCommand(
     DateOnly RoundDate,
     NineHoleSide? NineHoleSide,
     string? Notes,
-    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<RoundDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundCommand, Result<RoundDto>>
 {

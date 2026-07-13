@@ -19,7 +19,11 @@ public sealed record SubmitHoleScoresCommand(
     int RoundId,
     int PlayerId,
     List<HoleScoreInput> HoleScores,
-    string UserId) : IRequest<Result<ScorecardDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<ScorecardDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleScoresCommand, Result<ScorecardDto>>
 {

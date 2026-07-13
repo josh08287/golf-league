@@ -6,7 +6,11 @@ namespace GolfLeague.Application.Courses.Commands;
 
 public sealed record DeleteCourseCommand(
     int Id,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Course";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class DeleteCourseCommandHandler : IRequestHandler<DeleteCourseCommand, Result<bool>>
 {

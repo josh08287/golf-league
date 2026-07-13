@@ -9,7 +9,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 public sealed record SetLongestDriveWinnersCommand(
     int RoundId,
     List<int> PlayerIds,
-    string UserId) : IRequest<Result<List<LongestDriveWinnerDto>>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<List<LongestDriveWinnerDto>>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SetLongestDriveWinnersCommandHandler : IRequestHandler<SetLongestDriveWinnersCommand, Result<List<LongestDriveWinnerDto>>>
 {

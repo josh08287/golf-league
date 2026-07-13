@@ -55,10 +55,12 @@ public class TeeTimeFunctionsTests
         public Mock<IRoundRepository> Rounds { get; } = new();
         public Mock<ITeeTimeRepository> TeeTimes { get; } = new();
         public Mock<IMediator> Mediator { get; } = new();
+        public Mock<IAuditRepository> AuditRepo { get; } = new();
         public Mock<ILogger<TeeTimeFunctions>> Logger { get; } = new();
 
         public TeeTimeFunctions BuildSut() => new(
-            Service.Object, Autofill.Object, Rounds.Object, TeeTimes.Object, Mediator.Object, Logger.Object);
+            Service.Object, Autofill.Object, Rounds.Object, TeeTimes.Object, Mediator.Object,
+            new AuditWriter(AuditRepo.Object, new Mock<ILogger<AuditWriter>>().Object), Logger.Object);
     }
 
     // ── AdminMoveParticipantToTeeTime ────────────────────────────────────

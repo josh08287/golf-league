@@ -18,7 +18,11 @@ public sealed record SetHalfMembershipCommand(
     int PlayerId,
     int HalfId,
     int? FlightId,
-    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => PlayerId.ToString();
+}
 
 public sealed class SetHalfMembershipCommandHandler : IRequestHandler<SetHalfMembershipCommand, Result<PlayerDto>>
 {

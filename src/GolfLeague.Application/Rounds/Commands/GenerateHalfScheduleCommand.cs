@@ -19,7 +19,11 @@ public sealed record GenerateHalfScheduleCommand(
     int CourseId,
     IReadOnlyList<DateOnly> WeekDates,
     NineHoleSide StartingSide,
-    string UserId) : IRequest<Result<List<RoundDto>>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<List<RoundDto>>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "SeasonHalf";
+    public string AuditEntityId => HalfId.ToString();
+}
 
 public sealed class GenerateHalfScheduleCommandHandler : IRequestHandler<GenerateHalfScheduleCommand, Result<List<RoundDto>>>
 {

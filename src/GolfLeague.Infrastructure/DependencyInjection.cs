@@ -75,6 +75,7 @@ public static class DependencyInjection
         services.AddScoped<ICourseRepository, CourseRepository>();
         services.AddScoped<IHandicapRepository, HandicapRepository>();
         services.AddScoped<IAuditRepository, AuditRepository>();
+        services.AddScoped<AuditWriter>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
         services.AddScoped<IInviteRepository, InviteRepository>();
         services.AddScoped<IAppUserRepository, AppUserRepository>();

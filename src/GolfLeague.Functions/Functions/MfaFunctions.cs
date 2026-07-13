@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Functions.Helpers;
 using Microsoft.AspNetCore.Http;
@@ -9,10 +10,12 @@ namespace GolfLeague.Functions.Functions;
 public sealed class MfaFunctions
 {
     private readonly IMfaService _mfaService;
+    private readonly AuditWriter _auditWriter;
 
-    public MfaFunctions(IMfaService mfaService)
+    public MfaFunctions(IMfaService mfaService, AuditWriter auditWriter)
     {
         _mfaService = mfaService;
+        _auditWriter = auditWriter;
     }
 
     /// <summary>
@@ -57,6 +60,9 @@ public sealed class MfaFunctions
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
 
+        await _auditWriter.WriteAsync(
+            "MfaEnrolled", "Session", userId.ToString(), userId.ToString(), cancellationToken: cancellationToken);
+
         return new OkObjectResult(new { data = new { enrolled = true } });
     }
 
@@ -78,6 +84,10 @@ public sealed class MfaFunctions
         var result = await _mfaService.CompleteMfaWithTotpAsync(body.MfaToken, body.Code, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
+
+        await _auditWriter.WriteAsync(
+            "Login", "Session", result.Value!.UserId.ToString(), result.Value.UserId.ToString(),
+            cancellationToken: cancellationToken);
 
         return new OkObjectResult(new { data = result.Value });
     }

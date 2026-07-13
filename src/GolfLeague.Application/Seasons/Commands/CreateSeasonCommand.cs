@@ -14,7 +14,11 @@ public sealed record CreateSeasonCommand(
     DateOnly StartDate,
     DateOnly EndDate,
     int? BestNRounds,
-    string UserId) : IRequest<Result<SeasonDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<SeasonDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Season";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
+}
 
 public sealed class CreateSeasonCommandHandler : IRequestHandler<CreateSeasonCommand, Result<SeasonDto>>
 {

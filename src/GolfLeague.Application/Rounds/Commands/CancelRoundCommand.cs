@@ -13,7 +13,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 /// extend by 7 days so the schedule remains sequential with no gaps.
 /// </summary>
 public sealed record CancelRoundCommand(int RoundId, string UserId)
-    : IRequest<Result<RoundDto>>, IAmAuditableCommand;
+    : IRequest<Result<RoundDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class CancelRoundCommandHandler : IRequestHandler<CancelRoundCommand, Result<RoundDto>>
 {

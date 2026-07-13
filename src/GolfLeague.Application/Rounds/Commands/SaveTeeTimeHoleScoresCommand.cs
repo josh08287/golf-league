@@ -17,7 +17,11 @@ public sealed record SaveTeeTimeHoleScoresCommand(
     int HoleNumber,
     List<PlayerHoleScoresInput> PlayerScores,
     string UserId,
-    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SaveHoleScoresOutcome>>, IAmAuditableCommand;
+    List<ConfirmedOverwrite>? ConfirmedOverwrites = null) : IRequest<Result<SaveHoleScoresOutcome>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "TeeTime";
+    public string AuditEntityId => TeeTimeId.ToString();
+}
 
 /// <summary>
 /// Result of a hole-score save attempt. When conflicts are present, Saved is

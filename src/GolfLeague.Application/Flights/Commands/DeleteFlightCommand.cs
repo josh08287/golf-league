@@ -6,7 +6,11 @@ namespace GolfLeague.Application.Flights.Commands;
 
 public sealed record DeleteFlightCommand(
     int Id,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Flight";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class DeleteFlightCommandHandler : IRequestHandler<DeleteFlightCommand, Result<bool>>
 {

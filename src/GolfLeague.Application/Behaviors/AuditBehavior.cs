@@ -33,11 +33,15 @@ public sealed class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
             {
                 try
                 {
+                    var entityId = auditable.AuditEntityId;
+                    if (entityId == "0")
+                        entityId = TryResolveCreatedId(response) ?? entityId;
+
                     var auditLog = new AuditLog
                     {
                         Action = typeof(TRequest).Name,
-                        EntityType = ResolveEntityType(typeof(TRequest).Name),
-                        EntityId = ResolveEntityId(request),
+                        EntityType = auditable.AuditEntityType,
+                        EntityId = entityId,
                         UserId = auditable.UserId,
                         Timestamp = DateTime.UtcNow
                     };
@@ -64,25 +68,32 @@ public sealed class AuditBehavior<TRequest, TResponse> : IPipelineBehavior<TRequ
         return prop?.GetValue(response) is true;
     }
 
-    private static string ResolveEntityType(string requestName)
+    /// <summary>
+    /// Creation commands don't know their new row's id until after Handle
+    /// runs, so AuditEntityId is "0" (a sentinel, not a real id) for those.
+    /// Falls back to reflecting Result&lt;T&gt;.Value.Id off the response so
+    /// created-entity audit rows still resolve to a real id instead of "0".
+    /// </summary>
+    private static string? TryResolveCreatedId(TResponse response)
     {
-        if (requestName.Contains("Player") || requestName.Contains("Handicap"))
-            return "Player";
-        if (requestName.Contains("Round") || requestName.Contains("HoleScore") || requestName.Contains("Scorecard"))
-            return "Round";
-        if (requestName.Contains("Flight"))
-            return "Flight";
-        if (requestName.Contains("Course"))
-            return "Course";
-        return "Unknown";
-    }
+        var valueProp = typeof(TResponse).GetProperty(nameof(Result<object>.Value));
+        var value = valueProp?.GetValue(response);
+        if (value is null) return null;
 
-    private static string ResolveEntityId(TRequest request)
-    {
-        var idProp = typeof(TRequest).GetProperty("Id")
-            ?? typeof(TRequest).GetProperty("PlayerId")
-            ?? typeof(TRequest).GetProperty("RoundId");
+        var idProp = value.GetType().GetProperty("Id");
+        if (idProp is not null)
+            return idProp.GetValue(value)?.ToString();
 
-        return idProp?.GetValue(request)?.ToString() ?? "0";
+        // Nested-DTO shapes (e.g. TournamentRoundDto.Round.Id) — look one level down
+        // for a property whose own type exposes "Id".
+        foreach (var prop in value.GetType().GetProperties())
+        {
+            var nested = prop.GetValue(value);
+            var nestedId = nested?.GetType().GetProperty("Id")?.GetValue(nested);
+            if (nestedId is not null)
+                return nestedId.ToString();
+        }
+
+        return null;
     }
 }

@@ -60,7 +60,7 @@ public class AuthServiceTests
             HandicapRepo.Object,
             LeagueRepo.Object,
             EmailService.Object,
-            AuditRepo.Object,
+            new AuditWriter(AuditRepo.Object, new Mock<ILogger<AuditWriter>>().Object),
             new Mock<ILogger<AuthService>>().Object);
     }
 

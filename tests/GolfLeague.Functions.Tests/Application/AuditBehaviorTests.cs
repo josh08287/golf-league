@@ -11,7 +11,11 @@ using Xunit;
 namespace GolfLeague.Tests.Application;
 
 // A test command that implements IAmAuditableCommand
-public sealed record TestAuditableCommand(int Id, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
+public sealed record TestAuditableCommand(int Id, string UserId) : IRequest<Result<string>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Widget";
+    public string AuditEntityId => Id.ToString();
+}
 
 // A non-auditable command
 public sealed record TestNonAuditableCommand(int Id) : IRequest<Result<string>>;
@@ -83,7 +87,7 @@ public class AuditBehaviorTests
     }
 
     [Fact]
-    public async Task Handle_EntityType_ResolvesUnknown_ForGenericCommand()
+    public async Task Handle_UsesCommandSuppliedEntityTypeAndId()
     {
         var auditRepo = new Mock<IAuditRepository>();
         AuditLog? captured = null;
@@ -96,8 +100,26 @@ public class AuditBehaviorTests
         await behavior.Handle(new TestAuditableCommand(5, "user-1"),
             Next(Result<string>.Ok("ok")), default);
 
-        // TestAuditableCommand doesn't contain "Player", so it falls to Unknown
-        captured!.EntityType.Should().Be("Unknown");
+        captured!.EntityType.Should().Be("Widget");
+        captured.EntityId.Should().Be("5");
+    }
+
+    [Fact]
+    public async Task Handle_WhenAuditEntityIdIsZeroSentinel_ResolvesFromResponseValueId()
+    {
+        var auditRepo = new Mock<IAuditRepository>();
+        AuditLog? captured = null;
+        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
+            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
+            .Returns(Task.CompletedTask);
+
+        var behavior = MakeBehavior<CreateWidgetTestCommand, Result<CreatedWidgetDto>>(auditRepo.Object);
+        await behavior.Handle(
+            new CreateWidgetTestCommand("user-1"),
+            Next(Result<CreatedWidgetDto>.Ok(new CreatedWidgetDto(99))),
+            default);
+
+        captured!.EntityId.Should().Be("99");
     }
 
     [Fact]
@@ -132,135 +154,11 @@ public class AuditBehaviorTests
     }
 }
 
-// Named commands for entity type resolution tests
-public sealed record CreatePlayerTestCommand(int PlayerId, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record CreateRoundTestCommand(int RoundId, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record CreateFlightTestCommand(string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record CreateCourseTestCommand(string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record SetHandicapTestCommand(int Id, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record SubmitHoleScoreTestCommand(int Id, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-public sealed record GetScorecardTestCommand(int Id, string UserId) : IRequest<Result<string>>, IAmAuditableCommand;
-
-public class AuditBehaviorEntityTypeTests
+// Command/response shapes for the response-fallback id resolution test.
+public sealed record CreateWidgetTestCommand(string UserId) : IRequest<Result<CreatedWidgetDto>>, IAmAuditableCommand
 {
-    private static AuditBehavior<TRequest, TResponse> MakeBehavior<TRequest, TResponse>(IAuditRepository repo)
-        where TRequest : notnull
-    {
-        var logger = new Mock<ILogger<AuditBehavior<TRequest, TResponse>>>();
-        return new AuditBehavior<TRequest, TResponse>(repo, logger.Object);
-    }
-
-    private static RequestHandlerDelegate<T> Next<T>(T value)
-        => ct => Task.FromResult(value);
-
-    [Fact]
-    public async Task Handle_PlayerCommand_ResolvesPlayerEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<CreatePlayerTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new CreatePlayerTestCommand(1, "u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Player");
-        captured.EntityId.Should().Be("1"); // PlayerId property
-    }
-
-    [Fact]
-    public async Task Handle_RoundCommand_ResolvesRoundEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<CreateRoundTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new CreateRoundTestCommand(7, "u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Round");
-        captured.EntityId.Should().Be("7"); // RoundId property
-    }
-
-    [Fact]
-    public async Task Handle_FlightCommand_ResolvesFlightEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<CreateFlightTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new CreateFlightTestCommand("u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Flight");
-        captured.EntityId.Should().Be("0"); // No Id/PlayerId/RoundId property
-    }
-
-    [Fact]
-    public async Task Handle_CourseCommand_ResolvesCourseEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<CreateCourseTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new CreateCourseTestCommand("u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Course");
-    }
-
-    [Fact]
-    public async Task Handle_HandicapCommand_ResolvesPlayerEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<SetHandicapTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new SetHandicapTestCommand(1, "u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Player");
-        captured.EntityId.Should().Be("1");
-    }
-
-    [Fact]
-    public async Task Handle_HoleScoreCommand_ResolvesRoundEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<SubmitHoleScoreTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new SubmitHoleScoreTestCommand(3, "u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Round");
-        captured.EntityId.Should().Be("3");
-    }
-
-    [Fact]
-    public async Task Handle_ScorecardCommand_ResolvesRoundEntityType()
-    {
-        var auditRepo = new Mock<IAuditRepository>();
-        AuditLog? captured = null;
-        auditRepo.Setup(r => r.AddAsync(It.IsAny<AuditLog>(), default))
-            .Callback<AuditLog, CancellationToken>((a, _) => captured = a)
-            .Returns(Task.CompletedTask);
-
-        var behavior = MakeBehavior<GetScorecardTestCommand, Result<string>>(auditRepo.Object);
-        await behavior.Handle(new GetScorecardTestCommand(5, "u"), Next(Result<string>.Ok("ok")), default);
-
-        captured!.EntityType.Should().Be("Round");
-        captured.EntityId.Should().Be("5");
-    }
+    public string AuditEntityType => "Widget";
+    public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
 }
+
+public sealed record CreatedWidgetDto(int Id);

@@ -1,4 +1,5 @@
 using System.IO;
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Functions.Helpers;
 using Microsoft.AspNetCore.Http;
@@ -10,10 +11,12 @@ namespace GolfLeague.Functions.Functions;
 public sealed class PasskeyFunctions
 {
     private readonly IPasskeyService _passkeyService;
+    private readonly AuditWriter _auditWriter;
 
-    public PasskeyFunctions(IPasskeyService passkeyService)
+    public PasskeyFunctions(IPasskeyService passkeyService, AuditWriter auditWriter)
     {
         _passkeyService = passkeyService;
+        _auditWriter = auditWriter;
     }
 
     /// <summary>
@@ -61,6 +64,9 @@ public sealed class PasskeyFunctions
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
 
+        await _auditWriter.WriteAsync(
+            "PasskeyEnrolled", "Session", userId.ToString(), userId.ToString(), cancellationToken: cancellationToken);
+
         return new OkObjectResult(new { data = new { registered = true } });
     }
 
@@ -106,6 +112,10 @@ public sealed class PasskeyFunctions
         var result = await _passkeyService.CompleteMfaAssertionAsync(body.MfaToken, body.Assertion, cancellationToken);
         if (!result.IsSuccess)
             return new UnauthorizedObjectResult(new { error = result.Error });
+
+        await _auditWriter.WriteAsync(
+            "Login", "Session", result.Value!.UserId.ToString(), result.Value.UserId.ToString(),
+            cancellationToken: cancellationToken);
 
         return new OkObjectResult(new { data = result.Value });
     }

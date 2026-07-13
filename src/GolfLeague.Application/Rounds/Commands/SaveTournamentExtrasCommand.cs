@@ -21,7 +21,11 @@ public sealed record TournamentHoleExtraDto(
 public sealed record SaveTournamentExtrasCommand(
     int RoundId,
     List<HoleExtraInput> HoleExtras,
-    string UserId) : IRequest<Result<List<TournamentHoleExtraDto>>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<List<TournamentHoleExtraDto>>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SaveTournamentExtrasCommandHandler : IRequestHandler<SaveTournamentExtrasCommand, Result<List<TournamentHoleExtraDto>>>
 {

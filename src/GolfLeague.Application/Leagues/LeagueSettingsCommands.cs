@@ -48,7 +48,11 @@ public sealed class GetLeagueSettingsQueryHandler
 // ── Update a single setting ───────────────────────────────────────────────────
 
 public sealed record UpdateLeagueSettingCommand(string Key, string Value, string UserId)
-    : IRequest<Result<LeagueSettingDto>>, IAmAuditableCommand;
+    : IRequest<Result<LeagueSettingDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "LeagueSetting";
+    public string AuditEntityId => Key;
+}
 
 public sealed class UpdateLeagueSettingCommandHandler
     : IRequestHandler<UpdateLeagueSettingCommand, Result<LeagueSettingDto>>

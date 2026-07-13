@@ -75,7 +75,11 @@ public sealed class GetFeatureFlagStatesQueryHandler
 // ── Update a single flag (super-admin) ────────────────────────────────────────
 
 public sealed record UpdateFeatureFlagCommand(string Key, bool Enabled, string UserId)
-    : IRequest<Result<FeatureFlagDto>>, IAmAuditableCommand;
+    : IRequest<Result<FeatureFlagDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "FeatureFlag";
+    public string AuditEntityId => Key;
+}
 
 public sealed class UpdateFeatureFlagCommandHandler
     : IRequestHandler<UpdateFeatureFlagCommand, Result<FeatureFlagDto>>

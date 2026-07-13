@@ -31,6 +31,9 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
     private readonly IRoundRepository _roundRepository;
     private readonly IFlightRepository _flightRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly ISeasonRepository _seasonRepository;
+    private readonly IInviteRepository _inviteRepository;
+    private readonly ITeeTimeRepository _teeTimeRepository;
 
     /// <summary>
     /// Default sort: newest entry first (matches the repo's existing default).
@@ -49,7 +52,10 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
         IPlayerRepository playerRepository,
         IRoundRepository roundRepository,
         IFlightRepository flightRepository,
-        ICourseRepository courseRepository)
+        ICourseRepository courseRepository,
+        ISeasonRepository seasonRepository,
+        IInviteRepository inviteRepository,
+        ITeeTimeRepository teeTimeRepository)
     {
         _auditRepository = auditRepository;
         _appUserRepository = appUserRepository;
@@ -57,6 +63,9 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
         _roundRepository = roundRepository;
         _flightRepository = flightRepository;
         _courseRepository = courseRepository;
+        _seasonRepository = seasonRepository;
+        _inviteRepository = inviteRepository;
+        _teeTimeRepository = teeTimeRepository;
     }
 
     public async Task<Result<AuditLogPageDto>> Handle(GetAuditLogQuery request, CancellationToken cancellationToken)
@@ -77,7 +86,7 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
             a.EntityType,
             entityNamesByTypeAndId.TryGetValue((a.EntityType, a.EntityId), out var entityName)
                 ? entityName
-                : $"{a.EntityType} #{a.EntityId}",
+                : DefaultEntityLabel(a.EntityType, a.EntityId),
             userNamesById.TryGetValue(a.UserId, out var userName) ? userName : "Unknown user",
             a.AfterJson
         )).ToList();
@@ -128,7 +137,10 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
     /// Resolves each distinct (EntityType, EntityId) pair to a display label.
     /// Falls back to "{EntityType} #{EntityId}" in the caller when nothing
     /// matches (entity since deleted, or an EntityType this method doesn't
-    /// yet know how to label).
+    /// yet know how to label). EntityTypes whose EntityId is already
+    /// human-readable at write time (FeatureFlag/LeagueSetting keys, a
+    /// Broadcast subject, an Invite's email list) need no lookup here — the
+    /// raw id passes straight through as the display label.
     /// </summary>
     private async Task<Dictionary<(string EntityType, string EntityId), string>> ResolveEntityNamesAsync(
         IReadOnlyList<AuditLog> items, CancellationToken cancellationToken)
@@ -167,6 +179,76 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
                 result[("Course", c.Id.ToString())] = c.Name;
         }
 
+        var seasonIds = IdsFor(items, "Season");
+        if (seasonIds.Count > 0)
+        {
+            var seasons = await _seasonRepository.GetAllAsync(cancellationToken);
+            foreach (var s in seasons.Where(s => seasonIds.Contains(s.Id)))
+                result[("Season", s.Id.ToString())] = $"{s.Name} ({s.Year})";
+        }
+
+        var halfIds = IdsFor(items, "SeasonHalf");
+        if (halfIds.Count > 0)
+        {
+            foreach (var id in halfIds)
+            {
+                var half = await _flightRepository.GetHalfByIdAsync(id, cancellationToken);
+                if (half is not null)
+                    result[("SeasonHalf", id.ToString())] = half.Name;
+            }
+        }
+
+        var inviteIds = IdsFor(items, "Invite");
+        if (inviteIds.Count > 0)
+        {
+            var invites = await _inviteRepository.GetAllAsync(cancellationToken);
+            foreach (var i in invites.Where(i => inviteIds.Contains(i.Id)))
+                result[("Invite", i.Id.ToString())] = i.Email;
+        }
+
+        var teeTimeIds = IdsFor(items, "TeeTime");
+        if (teeTimeIds.Count > 0)
+        {
+            foreach (var id in teeTimeIds)
+            {
+                var slot = await _teeTimeRepository.GetByIdAsync(id, cancellationToken);
+                if (slot is not null)
+                {
+                    var round = await _roundRepository.GetByIdAsync(slot.RoundId, cancellationToken);
+                    result[("TeeTime", id.ToString())] = round is not null
+                        ? $"Week {round.WeekNumber} — {round.RoundDate:MMM d, yyyy}, {slot.ScheduledTime:h:mm tt}"
+                        : $"Tee time at {slot.ScheduledTime:h:mm tt}";
+                }
+            }
+        }
+
+        // AdminUser/Session EntityIds are the AppUser's Guid — same lookup as
+        // the User column, just keyed under a different EntityType.
+        var accountEntityIds = items
+            .Where(a => a.EntityType is "AdminUser" or "Session" && Guid.TryParse(a.EntityId, out _))
+            .Select(a => (a.EntityType, a.EntityId))
+            .Distinct()
+            .ToList();
+        if (accountEntityIds.Count > 0)
+        {
+            var userIds = accountEntityIds.Select(x => Guid.Parse(x.EntityId)).Distinct().ToList();
+            var users = await _appUserRepository.GetByIdsAsync(userIds, cancellationToken);
+            var players = await _playerRepository.GetAllAsync(cancellationToken);
+            var playerNameByAppUserId = players
+                .Where(p => p.AppUserId.HasValue)
+                .GroupBy(p => p.AppUserId!.Value)
+                .ToDictionary(g => g.Key, g => $"{g.First().FirstName} {g.First().LastName}".Trim());
+
+            foreach (var user in users)
+            {
+                var name = playerNameByAppUserId.TryGetValue(user.Id, out var playerName) && playerName.Length > 0
+                    ? playerName
+                    : user.Email ?? "Unknown user";
+                foreach (var (entityType, entityId) in accountEntityIds.Where(x => x.EntityId == user.Id.ToString()))
+                    result[(entityType, entityId)] = name;
+            }
+        }
+
         return result;
     }
 
@@ -175,4 +257,16 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
             .Where(a => a.EntityType == entityType && int.TryParse(a.EntityId, out _))
             .Select(a => int.Parse(a.EntityId))
             .ToHashSet();
+
+    /// <summary>
+    /// Entity types whose EntityId is already a human-readable value at
+    /// write time (a setting/flag key, a broadcast subject, an invite's
+    /// email list) render as-is instead of the generic "{Type} #{Id}" form.
+    /// </summary>
+    private static string DefaultEntityLabel(string entityType, string entityId) => entityType switch
+    {
+        "FeatureFlag" or "LeagueSetting" or "Broadcast" => entityId,
+        "Invite" when !int.TryParse(entityId, out _) => entityId, // bulk-create: comma-joined emails
+        _ => $"{entityType} #{entityId}",
+    };
 }

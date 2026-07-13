@@ -9,7 +9,11 @@ namespace GolfLeague.Application.Rounds.Commands;
 public sealed record SetTournamentMatchupsCommand(
     int RoundId,
     List<MatchupInput> Matchups,
-    string UserId) : IRequest<Result<List<TournamentMatchupDto>>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<List<TournamentMatchupDto>>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Round";
+    public string AuditEntityId => RoundId.ToString();
+}
 
 public sealed class SetTournamentMatchupsCommandHandler : IRequestHandler<SetTournamentMatchupsCommand, Result<List<TournamentMatchupDto>>>
 {

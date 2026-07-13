@@ -6,7 +6,11 @@ namespace GolfLeague.Application.Players.Commands;
 
 public sealed record DeactivatePlayerCommand(
     int Id,
-    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<bool>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => Id.ToString();
+}
 
 public sealed class DeactivatePlayerCommandHandler : IRequestHandler<DeactivatePlayerCommand, Result<bool>>
 {

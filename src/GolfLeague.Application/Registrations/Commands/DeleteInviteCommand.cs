@@ -10,6 +10,8 @@ public sealed record DeleteInviteCommand(
     string AdminUserId) : IRequest<Result<bool>>, IAmAuditableCommand
 {
     public string UserId => AdminUserId;
+    public string AuditEntityType => "Invite";
+    public string AuditEntityId => InviteId.ToString();
 }
 
 public sealed class DeleteInviteCommandHandler : IRequestHandler<DeleteInviteCommand, Result<bool>>

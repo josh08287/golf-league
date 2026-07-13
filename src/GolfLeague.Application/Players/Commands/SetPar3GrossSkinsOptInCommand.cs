@@ -15,7 +15,11 @@ public sealed record SetPar3GrossSkinsOptInCommand(
     int PlayerId,
     int HalfId,
     bool OptIn,
-    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand;
+    string UserId) : IRequest<Result<PlayerDto>>, IAmAuditableCommand
+{
+    public string AuditEntityType => "Player";
+    public string AuditEntityId => PlayerId.ToString();
+}
 
 public sealed class SetPar3GrossSkinsOptInCommandHandler : IRequestHandler<SetPar3GrossSkinsOptInCommand, Result<PlayerDto>>
 {

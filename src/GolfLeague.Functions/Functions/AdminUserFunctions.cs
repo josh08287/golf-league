@@ -1,3 +1,4 @@
+using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Functions.Helpers;
 using Microsoft.AspNetCore.Http;
@@ -14,10 +15,12 @@ namespace GolfLeague.Functions.Functions;
 public sealed class AdminUserFunctions
 {
     private readonly IAdminUserService _service;
+    private readonly AuditWriter _auditWriter;
 
-    public AdminUserFunctions(IAdminUserService service)
+    public AdminUserFunctions(IAdminUserService service, AuditWriter auditWriter)
     {
         _service = service;
+        _auditWriter = auditWriter;
     }
 
     [Function("ListAdminUsers")]
@@ -52,6 +55,10 @@ public sealed class AdminUserFunctions
         if (!result.IsSuccess)
             return new ConflictObjectResult(new { error = result.Error });
 
+        await _auditWriter.WriteAsync(
+            "AdminUserRolesChanged", "AdminUser", userId.ToString(), req.GetUserId() ?? string.Empty,
+            leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
+
         return new OkObjectResult(new { data = result.Value });
     }
 
@@ -70,6 +77,10 @@ public sealed class AdminUserFunctions
         var result = await _service.ResetMfaAsync(userId, cancellationToken);
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
+
+        await _auditWriter.WriteAsync(
+            "AdminUserMfaReset", "AdminUser", userId.ToString(), req.GetUserId() ?? string.Empty,
+            leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
 
         return new OkObjectResult(new { data = new { reset = true } });
     }
@@ -101,6 +112,10 @@ public sealed class AdminUserFunctions
         if (!result.IsSuccess)
             return new ConflictObjectResult(new { error = result.Error });
 
+        await _auditWriter.WriteAsync(
+            "AdminUserPlayerAttached", "AdminUser", userId.ToString(), req.GetUserId() ?? string.Empty,
+            leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
+
         return new OkObjectResult(new { data = result.Value });
     }
 
@@ -119,6 +134,10 @@ public sealed class AdminUserFunctions
         var result = await _service.DeleteAsync(userId, cancellationToken);
         if (!result.IsSuccess)
             return new ConflictObjectResult(new { error = result.Error });
+
+        await _auditWriter.WriteAsync(
+            "AdminUserDeleted", "AdminUser", userId.ToString(), req.GetUserId() ?? string.Empty,
+            leagueId: req.GetLeagueId(), cancellationToken: cancellationToken);
 
         return new NoContentResult();
     }
