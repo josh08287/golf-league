@@ -10,6 +10,48 @@ namespace GolfLeague.Tests.Application;
 
 public class GetAuditLogQueryHandlerTests
 {
+    private static GetAuditLogQueryHandler BuildHandler(
+        Mock<IAuditRepository> repo,
+        Mock<IAppUserRepository>? appUserRepo = null,
+        Mock<IPlayerRepository>? playerRepo = null,
+        Mock<IRoundRepository>? roundRepo = null,
+        Mock<IFlightRepository>? flightRepo = null,
+        Mock<ICourseRepository>? courseRepo = null)
+    {
+        // Only apply an empty-result default when the caller didn't supply
+        // their own mock — otherwise this would clobber the caller's Setup
+        // (Moq: the last-registered matching setup wins).
+        if (appUserRepo is null)
+        {
+            appUserRepo = new Mock<IAppUserRepository>();
+            appUserRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+                .ReturnsAsync(new List<AppUser>());
+        }
+        if (playerRepo is null)
+        {
+            playerRepo = new Mock<IPlayerRepository>();
+            playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Player>());
+        }
+        if (roundRepo is null)
+        {
+            roundRepo = new Mock<IRoundRepository>();
+            roundRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Round>());
+        }
+        if (flightRepo is null)
+        {
+            flightRepo = new Mock<IFlightRepository>();
+            flightRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Flight>());
+        }
+        if (courseRepo is null)
+        {
+            courseRepo = new Mock<ICourseRepository>();
+            courseRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Course>());
+        }
+
+        return new GetAuditLogQueryHandler(
+            repo.Object, appUserRepo.Object, playerRepo.Object, roundRepo.Object, flightRepo.Object, courseRepo.Object);
+    }
+
     [Fact]
     public async Task Handle_ReturnsMappedPagedResult()
     {
@@ -32,7 +74,7 @@ public class GetAuditLogQueryHandlerTests
         // after sorting, so it always asks the repo for page 1, MaxValue.
         repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((items, 1));
 
-        var handler = new GetAuditLogQueryHandler(repo.Object);
+        var handler = BuildHandler(repo);
         var result = await handler.Handle(new GetAuditLogQuery(1, 25), default);
 
         result.IsSuccess.Should().BeTrue();
@@ -45,10 +87,52 @@ public class GetAuditLogQueryHandlerTests
         entry.Id.Should().Be(1);
         entry.Action.Should().Be("Create");
         entry.EntityType.Should().Be("Player");
-        entry.EntityId.Should().Be("42");
-        entry.UserId.Should().Be("admin");
+        // "admin" doesn't parse as a Guid, so the user falls back to "Unknown user";
+        // the entity has no matching Player row, so it falls back to "Player #42".
+        entry.Entity.Should().Be("Player #42");
+        entry.User.Should().Be("Unknown user");
         entry.Timestamp.Should().Contain("2026-01-15");
         entry.Details.Should().Be("{}");
+    }
+
+    [Fact]
+    public async Task Handle_ResolvesUserAndEntityDisplayNames()
+    {
+        var appUserId = Guid.NewGuid();
+        var items = new List<AuditLog>
+        {
+            new()
+            {
+                Id = 1,
+                Action = "TeeTimeSelected",
+                EntityType = "Round",
+                EntityId = "5",
+                UserId = appUserId.ToString(),
+                Timestamp = new DateTime(2026, 1, 15, 10, 0, 0, DateTimeKind.Utc),
+            }
+        };
+
+        var repo = new Mock<IAuditRepository>();
+        repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((items, 1));
+
+        var appUserRepo = new Mock<IAppUserRepository>();
+        appUserRepo.Setup(r => r.GetByIdsAsync(It.IsAny<IReadOnlyCollection<Guid>>(), default))
+            .ReturnsAsync(new List<AppUser> { new() { Id = appUserId, Email = "jane@example.com" } });
+
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetAllAsync(default))
+            .ReturnsAsync(new List<Player> { new() { Id = 9, FirstName = "Jane", LastName = "Doe", AppUserId = appUserId } });
+
+        var roundRepo = new Mock<IRoundRepository>();
+        roundRepo.Setup(r => r.GetAllAsync(default))
+            .ReturnsAsync(new List<Round> { new() { Id = 5, WeekNumber = 3, RoundDate = new DateOnly(2026, 1, 12) } });
+
+        var handler = BuildHandler(repo, appUserRepo, playerRepo, roundRepo);
+        var result = await handler.Handle(new GetAuditLogQuery(1, 25), default);
+
+        var entry = result.Value!.Items[0];
+        entry.User.Should().Be("Jane Doe");
+        entry.Entity.Should().Be("Week 3 — Jan 12, 2026");
     }
 
     [Fact]
@@ -57,7 +141,7 @@ public class GetAuditLogQueryHandlerTests
         var repo = new Mock<IAuditRepository>();
         repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((new List<AuditLog>(), 0));
 
-        var handler = new GetAuditLogQueryHandler(repo.Object);
+        var handler = BuildHandler(repo);
         var result = await handler.Handle(new GetAuditLogQuery(1, 25), default);
 
         result.IsSuccess.Should().BeTrue();
@@ -78,7 +162,7 @@ public class GetAuditLogQueryHandlerTests
         var repo = new Mock<IAuditRepository>();
         repo.Setup(r => r.GetPagedAsync(1, int.MaxValue, default)).ReturnsAsync((items, 1));
 
-        var handler = new GetAuditLogQueryHandler(repo.Object);
+        var handler = BuildHandler(repo);
         var result = await handler.Handle(new GetAuditLogQuery(2, 10), default);
 
         result.IsSuccess.Should().BeTrue();

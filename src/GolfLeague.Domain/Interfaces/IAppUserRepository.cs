@@ -12,6 +12,11 @@ public interface IAppUserRepository
     Task<AppUser?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
     Task<AppUser?> GetByEmailAsync(string email, CancellationToken cancellationToken = default);
 
+    /// <summary>Bulk-fetch users by id in one round-trip. Missing ids are simply absent from the result.</summary>
+    Task<IReadOnlyList<AppUser>> GetByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Bulk-fetch roles for a set of users in one round-trip. Returns a map
     /// of UserId → lowercase role names (e.g. ["admin", "player"]). Users not

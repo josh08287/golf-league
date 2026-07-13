@@ -23,6 +23,16 @@ public sealed class AppUserRepository : IAppUserRepository
         return _context.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalized, cancellationToken);
     }
 
+    public async Task<IReadOnlyList<AppUser>> GetByIdsAsync(
+        IReadOnlyCollection<Guid> ids,
+        CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+            return [];
+
+        return await _context.Users.Where(u => ids.Contains(u.Id)).ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyDictionary<Guid, IReadOnlyList<string>>> GetRolesAsync(
         IReadOnlyCollection<Guid> userIds,
         CancellationToken cancellationToken = default)

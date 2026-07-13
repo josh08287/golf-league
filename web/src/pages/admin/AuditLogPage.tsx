@@ -17,8 +17,8 @@ interface AuditLogEntry {
   timestamp: string;
   action: string;
   entityType: string;
-  entityId: string;
-  userId: string;
+  entity: string;
+  user: string;
   details?: string;
 }
 
@@ -88,23 +88,19 @@ export function AuditLogPage() {
       ),
     },
     {
-      key: 'entityId',
-      header: 'Entity ID',
+      key: 'entity',
+      header: 'Entity',
       sortable: true,
       render: (e: AuditLogEntry) => (
-        <span className="font-mono text-xs text-gray-500">
-          {e.entityId.slice(0, 8)}…
-        </span>
+        <span className="text-gray-700">{e.entity}</span>
       ),
     },
     {
-      key: 'userId',
-      header: 'User ID',
+      key: 'user',
+      header: 'User',
       sortable: true,
       render: (e: AuditLogEntry) => (
-        <span className="font-mono text-xs text-gray-500">
-          {e.userId.slice(0, 8)}…
-        </span>
+        <span className="text-gray-700">{e.user}</span>
       ),
     },
     {

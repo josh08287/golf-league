@@ -26,6 +26,7 @@ public sealed class AuthService : IAuthService
     private readonly IHandicapRepository _handicapRepository;
     private readonly ILeagueRepository _leagueRepository;
     private readonly IEmailService _emailService;
+    private readonly IAuditRepository _auditRepository;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
@@ -37,6 +38,7 @@ public sealed class AuthService : IAuthService
         IHandicapRepository handicapRepository,
         ILeagueRepository leagueRepository,
         IEmailService emailService,
+        IAuditRepository auditRepository,
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
@@ -47,6 +49,7 @@ public sealed class AuthService : IAuthService
         _handicapRepository = handicapRepository;
         _leagueRepository = leagueRepository;
         _emailService = emailService;
+        _auditRepository = auditRepository;
         _logger = logger;
     }
 
@@ -129,7 +132,36 @@ public sealed class AuthService : IAuthService
 
         var (resolvedLeagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId, cancellationToken);
         var response = await IssueTokensAsync(user, cancellationToken, resolvedLeagueId, leagueRole);
+
+        await TryWriteAuditAsync(new AuditLog
+        {
+            LeagueId = resolvedLeagueId,
+            Action = "Login",
+            EntityType = "Session",
+            EntityId = user.Id.ToString(),
+            UserId = user.Id.ToString(),
+            Timestamp = DateTime.UtcNow,
+        }, cancellationToken);
+
         return Result<AuthResponseDto>.Ok(response);
+    }
+
+    /// <summary>
+    /// Best-effort audit write for flows that bypass MediatR's AuditBehavior
+    /// (login, tee-time self-service). Mirrors AuditBehavior's own
+    /// swallow-and-log failure handling — an audit write must never fail the
+    /// operation it's recording.
+    /// </summary>
+    private async Task TryWriteAuditAsync(AuditLog auditLog, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _auditRepository.AddAsync(auditLog, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for {Action}; the operation itself succeeded.", auditLog.Action);
+        }
     }
 
     public async Task<Result<AuthResponseDto>> RefreshAsync(

@@ -49,6 +49,7 @@ public class AuthServiceTests
         public Mock<ILeagueRepository> LeagueRepo { get; } = new();
         public Mock<IEmailService> EmailService { get; } = new();
         public Mock<ITokenService> TokenService { get; } = new();
+        public Mock<IAuditRepository> AuditRepo { get; } = new();
 
         public AuthService BuildSut() => new(
             MakeUserManager(),
@@ -59,6 +60,7 @@ public class AuthServiceTests
             HandicapRepo.Object,
             LeagueRepo.Object,
             EmailService.Object,
+            AuditRepo.Object,
             new Mock<ILogger<AuthService>>().Object);
     }
 
