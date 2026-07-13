@@ -1,12 +1,13 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle, Repeat } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
   useSaveTeeTimeHoleScores,
   useSetTeeTimeParticipantSkipped,
 } from '@/hooks/useTeeTimeScoreEntry';
+import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useRoundClosestToPin, useSetRoundClosestToPin } from '@/hooks/useClosestToPin';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { useAuthStore } from '@/store/authStore';
@@ -26,6 +27,7 @@ import type {
   TeeTimeGroupScorecard,
   HoleScoreConflict,
   ConfirmedOverwrite,
+  TeeTimeParticipant,
 } from '@/types/api';
 
 // Helper to calculate stableford points
@@ -93,7 +95,92 @@ interface HoleData {
   fairwayHit: boolean | null;
 }
 
+interface SwitchPlayerPickerProps {
+  roundId: number;
+  currentTeeTimeId: number;
+  onClose: () => void;
+  onSwitched: (otherPlayerName: string) => void;
+}
+
+/**
+ * Lists every other participant in the round who is in a different
+ * foursome, so the caller can swap tee-time groups with them. A straight
+ * swap is always capacity-safe (each side takes the other's seat), so there
+ * can never be two of the same player in one foursome as a result.
+ */
+function SwitchPlayerPicker({ roundId, currentTeeTimeId, onClose, onSwitched }: SwitchPlayerPickerProps) {
+  const { data: schedule, isLoading } = useRoundTeeTimes(roundId);
+  const switchParticipant = useSwitchTeeTimeParticipant();
+
+  const otherGroupPlayers: { participant: TeeTimeParticipant; teeTimeNumber: number; scheduledTime: string }[] = [];
+  (schedule?.slots ?? [])
+    .filter((slot) => slot.id !== currentTeeTimeId)
+    .forEach((slot) => {
+      slot.players.forEach((p) => {
+        otherGroupPlayers.push({ participant: p, teeTimeNumber: slot.teeTimeNumber, scheduledTime: slot.scheduledTime });
+      });
+    });
+
+  const handlePick = async (other: TeeTimeParticipant) => {
+    try {
+      await switchParticipant.mutateAsync({ roundId, otherParticipantId: other.participantId });
+      onSwitched(other.playerName);
+    } catch {
+      // Error surfaced via switchParticipant.isError below
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle>Switch Groups With…</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {switchParticipant.isError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {(() => {
+                const err = switchParticipant.error as { response?: { data?: { error?: string } } } | null;
+                return err?.response?.data?.error ?? 'Failed to switch groups. Please try again.';
+              })()}
+            </div>
+          )}
+          {isLoading ? (
+            <div className="flex justify-center py-6">
+              <Spinner />
+            </div>
+          ) : otherGroupPlayers.length === 0 ? (
+            <p className="text-sm text-gray-500">No other players available to switch with.</p>
+          ) : (
+            <div className="space-y-2">
+              {otherGroupPlayers.map(({ participant, teeTimeNumber, scheduledTime }) => (
+                <button
+                  key={participant.participantId}
+                  type="button"
+                  disabled={switchParticipant.isPending}
+                  onClick={() => handlePick(participant)}
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#1B5E20] hover:bg-primary-50 disabled:opacity-50"
+                >
+                  <span className="font-medium text-gray-900">{participant.playerName}</span>
+                  <span className="text-xs text-gray-500">
+                    Group {teeTimeNumber} · {scheduledTime}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" className="w-full" onClick={onClose} disabled={switchParticipant.isPending}>
+            Cancel
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface GroupSetupStepProps {
+  roundId: number;
+  teeTimeId: number;
   players: TeeTimePlayerScore[];
   skippedMap: Record<number, boolean>;
   advancedStatsMap: Record<number, boolean>;
@@ -104,6 +191,8 @@ interface GroupSetupStepProps {
 }
 
 function GroupSetupStep({
+  roundId,
+  teeTimeId,
   players,
   skippedMap,
   advancedStatsMap,
@@ -113,6 +202,8 @@ function GroupSetupStep({
   onContinue,
 }: GroupSetupStepProps) {
   const activePlayers = players.filter((p) => !p.isWithdrawn);
+  const [switchingPlayerId, setSwitchingPlayerId] = useState<number | null>(null);
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -121,6 +212,12 @@ function GroupSetupStep({
           Before entering scores, confirm who is playing and choose which players to track advanced statistics for.
         </p>
       </div>
+
+      {switchNotice && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {switchNotice}
+        </div>
+      )}
 
       <div className="space-y-3">
         {activePlayers.map((player) => {
@@ -171,6 +268,14 @@ function GroupSetupStep({
                         {trackAdvanced ? 'Advanced stats on' : 'Advanced stats off'}
                       </button>
                     )}
+                    <button
+                      type="button"
+                      onClick={() => setSwitchingPlayerId(player.playerId)}
+                      className="flex items-center gap-1.5 rounded-full bg-gray-100 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200"
+                    >
+                      <Repeat className="h-3 w-3" />
+                      Switch player
+                    </button>
                   </div>
                 </div>
               </CardContent>
@@ -183,6 +288,18 @@ function GroupSetupStep({
         Start Entering Scores
         <ChevronRight className="h-4 w-4 ml-1" />
       </Button>
+
+      {switchingPlayerId != null && (
+        <SwitchPlayerPicker
+          roundId={roundId}
+          currentTeeTimeId={teeTimeId}
+          onClose={() => setSwitchingPlayerId(null)}
+          onSwitched={(otherPlayerName) => {
+            setSwitchingPlayerId(null);
+            setSwitchNotice(`Switched with ${otherPlayerName}.`);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1087,6 +1204,8 @@ export function TeeTimeScoreEntryPage() {
       {/* Setup interstitial — only shown for editable rounds */}
       {!setupComplete && canEdit && (
         <GroupSetupStep
+          roundId={scorecard.roundId}
+          teeTimeId={scorecard.teeTimeId}
           players={players}
           skippedMap={skippedOverrides}
           advancedStatsMap={advancedStatsMap}

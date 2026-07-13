@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw, SkipForward } from 'lucide-react';
+import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw, SkipForward, Repeat } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import {
   useNextRoundTeeTimes,
@@ -9,6 +9,7 @@ import {
   useLeaveTeeTime,
   useSkipMyWeek,
   useSetTeeTimePreference,
+  useSwitchTeeTimeParticipant,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
@@ -19,7 +20,7 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatShortDate } from '@/lib/utils';
-import type { RoundTeeTimeSchedule, TeeTimeSlot, TeeTimeSlotName } from '@/types/api';
+import type { RoundTeeTimeSchedule, TeeTimeSlot, TeeTimeSlotName, TeeTimeParticipant } from '@/types/api';
 import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG, FEATURE_FLAG_KEYS } from '@/types/api';
 
 // ── Countdown helper ──────────────────────────────────────────────────────────
@@ -57,6 +58,83 @@ function useCutoffCountdown(cutoffUtc: string | undefined): string {
 
 const CAPACITY = 4;
 
+interface SwitchPlayerPickerProps {
+  roundId: number;
+  currentTeeTimeId: number;
+  schedule: RoundTeeTimeSchedule;
+  onClose: () => void;
+  onSwitched: (otherPlayerName: string) => void;
+}
+
+/**
+ * Lists every participant in a different foursome so the caller can swap
+ * groups with them. A straight swap is always capacity-safe (each side
+ * takes the other's seat), so there can never be two of the same player in
+ * one foursome as a result.
+ */
+function SwitchPlayerPicker({ roundId, currentTeeTimeId, schedule, onClose, onSwitched }: SwitchPlayerPickerProps) {
+  const switchParticipant = useSwitchTeeTimeParticipant();
+
+  const otherGroupPlayers: { participant: TeeTimeParticipant; teeTimeNumber: number; scheduledTime: string }[] = [];
+  schedule.slots
+    .filter((slot) => slot.id !== currentTeeTimeId)
+    .forEach((slot) => {
+      slot.players.forEach((p) => {
+        otherGroupPlayers.push({ participant: p, teeTimeNumber: slot.teeTimeNumber, scheduledTime: slot.scheduledTime });
+      });
+    });
+
+  const handlePick = async (other: TeeTimeParticipant) => {
+    try {
+      await switchParticipant.mutateAsync({ roundId, otherParticipantId: other.participantId });
+      onSwitched(other.playerName);
+    } catch {
+      // Error surfaced via switchParticipant.isError below
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
+        <CardContent className="p-4 space-y-3">
+          <h3 className="text-base font-semibold text-gray-900">Switch Groups With…</h3>
+          {switchParticipant.isError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {(() => {
+                const err = switchParticipant.error as { response?: { data?: { error?: string } } } | null;
+                return err?.response?.data?.error ?? 'Failed to switch groups. Please try again.';
+              })()}
+            </div>
+          )}
+          {otherGroupPlayers.length === 0 ? (
+            <p className="text-sm text-gray-500">No other players available to switch with.</p>
+          ) : (
+            <div className="space-y-2">
+              {otherGroupPlayers.map(({ participant, teeTimeNumber, scheduledTime }) => (
+                <button
+                  key={participant.participantId}
+                  type="button"
+                  disabled={switchParticipant.isPending}
+                  onClick={() => handlePick(participant)}
+                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#1B5E20] hover:bg-primary-50 disabled:opacity-50"
+                >
+                  <span className="font-medium text-gray-900">{participant.playerName}</span>
+                  <span className="text-xs text-gray-500">
+                    Group {teeTimeNumber} · {scheduledTime}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" className="w-full" onClick={onClose} disabled={switchParticipant.isPending}>
+            Cancel
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface SlotCardProps {
   slot: TeeTimeSlot;
   schedule: RoundTeeTimeSchedule;
@@ -66,6 +144,7 @@ interface SlotCardProps {
   onSwitch: (teeTimeId: number) => void;
   onLeave: () => void;
   mutating: boolean;
+  onSwitchedNotice: (msg: string) => void;
 }
 
 function SlotCard({
@@ -77,6 +156,7 @@ function SlotCard({
   onSwitch,
   onLeave,
   mutating,
+  onSwitchedNotice,
 }: SlotCardProps) {
   const isMine = schedule.currentUserTeeTimeId === slot.id;
   const isFull = slot.players.length >= CAPACITY;
@@ -91,6 +171,7 @@ function SlotCard({
     !isMine &&
     !isFull;
   const isEmpty = slot.players.length === 0;
+  const [switchingWithParticipantId, setSwitchingWithParticipantId] = useState<number | null>(null);
 
   return (
     <Card className={isMine ? 'border-[#1B5E20] ring-1 ring-[#1B5E20]' : ''}>
@@ -115,24 +196,46 @@ function SlotCard({
         </div>
 
         <ul className="space-y-1 min-h-[5rem]">
-          {slot.players.map((p) => (
-            <li key={p.participantId} className="flex items-center gap-2 text-sm">
-              <span
-                className={
-                  p.playerId === (schedule.currentUserParticipantId ?? -1)
-                    ? 'font-semibold text-[#1B5E20]'
-                    : 'text-gray-800'
-                }
-              >
-                {p.playerName}
-              </span>
-              <span className="text-gray-400 text-xs">{p.flightName}</span>
-            </li>
-          ))}
+          {slot.players.map((p) => {
+            const isCaller = p.participantId === (schedule.currentUserParticipantId ?? -1);
+            return (
+              <li key={p.participantId} className="flex items-center justify-between gap-2 text-sm">
+                <span className="flex items-center gap-2">
+                  <span className={isCaller ? 'font-semibold text-[#1B5E20]' : 'text-gray-800'}>
+                    {p.playerName}
+                  </span>
+                  <span className="text-gray-400 text-xs">{p.flightName}</span>
+                </span>
+                {isMine && !isCaller && (
+                  <button
+                    type="button"
+                    onClick={() => setSwitchingWithParticipantId(p.participantId)}
+                    className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200"
+                  >
+                    <Repeat className="h-3 w-3" />
+                    Switch
+                  </button>
+                )}
+              </li>
+            );
+          })}
           {isEmpty && (
             <li className="text-sm text-gray-400 italic">No players yet</li>
           )}
         </ul>
+
+        {switchingWithParticipantId != null && (
+          <SwitchPlayerPicker
+            roundId={schedule.roundId}
+            currentTeeTimeId={slot.id}
+            schedule={schedule}
+            onClose={() => setSwitchingWithParticipantId(null)}
+            onSwitched={(otherPlayerName) => {
+              setSwitchingWithParticipantId(null);
+              onSwitchedNotice(`Switched with ${otherPlayerName}.`);
+            }}
+          />
+        )}
 
         {(canJoin || canLeave || canSwitch) && (
           <div className="mt-3 pt-3 border-t border-gray-100">
@@ -278,6 +381,7 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
   const isSkipped = schedule.currentUserSkippedWeek;
 
   const [actionError, setActionError] = useState<string | null>(null);
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
 
   function handleJoin(teeTimeId: number) {
     setActionError(null);
@@ -372,6 +476,12 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
         <ErrorMessage message={actionError} />
       )}
 
+      {switchNotice && (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          {switchNotice}
+        </div>
+      )}
+
       {isParticipant && isSkipped && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex items-center justify-between gap-4">
@@ -427,6 +537,7 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
             onSwitch={handleSwitch}
             onLeave={handleLeave}
             mutating={mutating}
+            onSwitchedNotice={setSwitchNotice}
           />
         ))}
         {schedule.slots.length === 0 && (

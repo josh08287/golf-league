@@ -80,6 +80,27 @@ export function useSkipMyWeek() {
   });
 }
 
+/**
+ * Swap tee-time slots with another participant in the round, moving the
+ * caller into that participant's group (and vice versa). Not gated by the
+ * sign-up cutoff — a straight swap never changes slot occupancy.
+ */
+export function useSwitchTeeTimeParticipant() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { roundId: number; otherParticipantId: number }) => {
+      const res = await apiClient.post(
+        `/rounds/${payload.roundId}/tee-times/participants/${payload.otherParticipantId}/switch`,
+      );
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeKeys.all });
+      qc.invalidateQueries({ queryKey: ['teeTimeScoreEntry'] });
+    },
+  });
+}
+
 export function useSetTeeTimePreference() {
   const qc = useQueryClient();
   return useMutation({

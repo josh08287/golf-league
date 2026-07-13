@@ -118,6 +118,33 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// POST /v1/rounds/{roundId}/tee-times/participants/{otherParticipantId}/switch
+    /// Self-service: the calling player swaps tee-time slots with another
+    /// participant in the round, moving into that participant's group (and
+    /// vice versa). Not gated by the sign-up window — a straight swap never
+    /// changes slot occupancy, so it's safe any time before the round.
+    /// </summary>
+    [Function("SwitchTeeTimeParticipant")]
+    public async Task<IActionResult> SwitchParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{roundId:int}/tee-times/participants/{otherParticipantId:int}/switch")] HttpRequest req,
+        int roundId,
+        int otherParticipantId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var result = await _service.SwapAsync(roundId, playerId.Value, otherParticipantId, cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new ConflictObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
     /// POST /v1/admin/rounds/{id}/tee-times/run-autofill — admin manual
     /// trigger. The timer fires this automatically on Sunday at noon ET; this
     /// endpoint exists so an admin can run autofill ahead of schedule

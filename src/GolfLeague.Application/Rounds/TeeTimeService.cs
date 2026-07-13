@@ -14,15 +14,18 @@ public sealed class TeeTimeService : ITeeTimeService
 {
     private readonly IRoundRepository _rounds;
     private readonly ITeeTimeRepository _teeTimes;
+    private readonly IAuditRepository _auditRepository;
     private readonly ILogger<TeeTimeService> _logger;
 
     public TeeTimeService(
         IRoundRepository rounds,
         ITeeTimeRepository teeTimes,
+        IAuditRepository auditRepository,
         ILogger<TeeTimeService> logger)
     {
         _rounds = rounds;
         _teeTimes = teeTimes;
+        _auditRepository = auditRepository;
         _logger = logger;
     }
 
@@ -164,6 +167,7 @@ public sealed class TeeTimeService : ITeeTimeService
         if (participant.TeeTimeId != teeTimeId)
         {
             await _teeTimes.SetParticipantTeeTimeAsync(participant.Id, teeTimeId, cancellationToken);
+            await TryWriteAuditAsync(round, participant, "TeeTimeSelected", cancellationToken);
         }
 
         return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
@@ -185,9 +189,67 @@ public sealed class TeeTimeService : ITeeTimeService
         if (participant.TeeTimeId is not null)
         {
             await _teeTimes.SetParticipantTeeTimeAsync(participant.Id, null, cancellationToken);
+            await TryWriteAuditAsync(round, participant, "TeeTimeLeft", cancellationToken);
         }
 
         return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
+    }
+
+    public async Task<Result<RoundTeeTimeScheduleDto>> SwapAsync(int roundId, int callingPlayerId, int otherParticipantId, CancellationToken cancellationToken = default)
+    {
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null) return Result<RoundTeeTimeScheduleDto>.Fail($"Round {roundId} not found.");
+
+        var participant = round.Participants
+            .FirstOrDefault(p => p.PlayerId == callingPlayerId && !p.IsWithdrawn && !p.SkippedWeek);
+        if (participant is null)
+            return Result<RoundTeeTimeScheduleDto>.Fail("You're not a participant in this round.");
+
+        var otherParticipant = round.Participants
+            .FirstOrDefault(p => p.Id == otherParticipantId && !p.IsWithdrawn && !p.SkippedWeek);
+        if (otherParticipant is null)
+            return Result<RoundTeeTimeScheduleDto>.Fail("That player isn't a participant in this round.");
+
+        if (participant.Id == otherParticipant.Id)
+            return Result<RoundTeeTimeScheduleDto>.Fail("You can't switch with yourself.");
+
+        if (participant.TeeTimeId is null || participant.TeeTimeId == otherParticipant.TeeTimeId)
+            return Result<RoundTeeTimeScheduleDto>.Fail("That player is already in your group.");
+
+        await _teeTimes.SwapParticipantTeeTimesAsync(participant.Id, otherParticipant.Id, cancellationToken);
+        await TryWriteAuditAsync(round, participant, "TeeTimeSwapped", cancellationToken);
+
+        return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Best-effort audit write for tee-time self-service, which bypasses
+    /// MediatR's AuditBehavior (this is a direct service call, not a command).
+    /// Mirrors AuditBehavior's own swallow-and-log failure handling — an
+    /// audit write must never fail the operation it's recording.
+    /// </summary>
+    private async Task TryWriteAuditAsync(
+        Round round, RoundParticipant participant, string action, CancellationToken cancellationToken)
+    {
+        if (participant.Player?.AppUserId is not Guid appUserId)
+            return;
+
+        try
+        {
+            await _auditRepository.AddAsync(new AuditLog
+            {
+                LeagueId = round.LeagueId,
+                Action = action,
+                EntityType = "Round",
+                EntityId = round.Id.ToString(),
+                UserId = appUserId.ToString(),
+                Timestamp = DateTime.UtcNow,
+            }, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to write audit log for {Action}; the operation itself succeeded.", action);
+        }
     }
 
     private static RoundTeeTimeScheduleDto BuildDto(

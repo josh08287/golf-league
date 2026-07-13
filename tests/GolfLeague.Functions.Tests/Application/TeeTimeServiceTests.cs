@@ -66,6 +66,7 @@ public class TeeTimeServiceTests
     {
         var rounds = new Mock<IRoundRepository>();
         var teeTimes = new Mock<ITeeTimeRepository>();
+        var auditRepository = new Mock<IAuditRepository>();
 
         rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
         teeTimes.Setup(t => t.EnsureSlotsAsync(round.Id, It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -77,8 +78,171 @@ public class TeeTimeServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditRepository.Object, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes);
+    }
+
+    private static (TeeTimeService Sut, Mock<ITeeTimeRepository> TeeTimes, Mock<IAuditRepository> AuditRepo) BuildSutWithAudit(
+        Round round, IReadOnlyList<RoundTeeTime> slots)
+    {
+        var rounds = new Mock<IRoundRepository>();
+        var teeTimes = new Mock<ITeeTimeRepository>();
+        var auditRepository = new Mock<IAuditRepository>();
+
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        teeTimes.Setup(t => t.EnsureSlotsAsync(round.Id, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(slots);
+        teeTimes.Setup(t => t.GetByRoundAsync(round.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(slots);
+        teeTimes.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int id, CancellationToken _) => slots.FirstOrDefault(s => s.Id == id));
+        teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditRepository.Object, new Mock<ILogger<TeeTimeService>>().Object);
+        return (sut, teeTimes, auditRepository);
+    }
+
+    [Fact]
+    public async Task SwapAsync_TwoAssignedParticipantsInDifferentSlots_Swaps()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(caller);
+        round.Participants.Add(other);
+        var slotA = MakeSlot(10, 1, caller);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, teeTimes) = BuildSut(round, [slotA, slotB]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        result.IsSuccess.Should().BeTrue();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(caller.Id, other.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SwapAsync_NotGatedBySignupCutoff()
+    {
+        // Cutoff long passed and not round day — unlike JoinAsync, swap must still succeed.
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(-30) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(caller);
+        round.Participants.Add(other);
+        var slotA = MakeSlot(10, 1, caller);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, teeTimes) = BuildSut(round, [slotA, slotB]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        result.IsSuccess.Should().BeTrue();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(caller.Id, other.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SwapAsync_CallerNotInRound_Fails()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(other);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, teeTimes) = BuildSut(round, [slotB]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SwapAsync_OtherParticipantNotInRound_Fails()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        round.Participants.Add(caller);
+        var slotA = MakeSlot(10, 1, caller);
+        var (sut, teeTimes) = BuildSut(round, [slotA]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: 999);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SwapAsync_SameParticipant_Fails()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        round.Participants.Add(caller);
+        var slotA = MakeSlot(10, 1, caller);
+        var (sut, teeTimes) = BuildSut(round, [slotA]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: caller.Id);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SwapAsync_OtherParticipantAlreadyInSameGroup_Fails()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        var groupmate = MakeParticipant(2, teeTimeId: 10);
+        round.Participants.Add(caller);
+        round.Participants.Add(groupmate);
+        var slotA = MakeSlot(10, 1, caller, groupmate);
+        var (sut, teeTimes) = BuildSut(round, [slotA]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: groupmate.Id);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SwapAsync_CallerUnassigned_Fails()
+    {
+        var round = new Round { Id = 1, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: null);
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(caller);
+        round.Participants.Add(other);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, teeTimes) = BuildSut(round, [slotB]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SwapAsync_WritesAuditLogForLinkedPlayer()
+    {
+        var round = new Round { Id = 1, LeagueId = 7, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var appUserId = Guid.NewGuid();
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        caller.Player!.AppUserId = appUserId;
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(caller);
+        round.Participants.Add(other);
+        var slotA = MakeSlot(10, 1, caller);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, _, auditRepo) = BuildSutWithAudit(round, [slotA, slotB]);
+
+        await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        auditRepo.Verify(a => a.AddAsync(
+            It.Is<AuditLog>(l =>
+                l.Action == "TeeTimeSwapped" &&
+                l.EntityType == "Round" &&
+                l.EntityId == "1" &&
+                l.UserId == appUserId.ToString() &&
+                l.LeagueId == 7),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -96,6 +260,45 @@ public class TeeTimeServiceTests
 
         result.IsSuccess.Should().BeTrue();
         teeTimes.Verify(t => t.SetParticipantTeeTimeAsync(participant.Id, 10, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinAsync_WritesAuditLogForLinkedPlayer()
+    {
+        var roundDate = EasternToday(DateTime.UtcNow).AddDays(10);
+        var round = new Round { Id = 1, LeagueId = 7, RoundDate = roundDate };
+        var appUserId = Guid.NewGuid();
+        var participant = MakeParticipant(1);
+        participant.Player!.AppUserId = appUserId;
+        round.Participants.Add(participant);
+        var slotA = MakeSlot(10, 1);
+        var (sut, _, auditRepo) = BuildSutWithAudit(round, [slotA]);
+
+        await sut.JoinAsync(1, 10, callingPlayerId: 1);
+
+        auditRepo.Verify(a => a.AddAsync(
+            It.Is<AuditLog>(l =>
+                l.Action == "TeeTimeSelected" &&
+                l.EntityType == "Round" &&
+                l.EntityId == "1" &&
+                l.UserId == appUserId.ToString() &&
+                l.LeagueId == 7),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinAsync_NoLinkedAppUser_SkipsAuditLog()
+    {
+        var roundDate = EasternToday(DateTime.UtcNow).AddDays(10);
+        var round = new Round { Id = 1, RoundDate = roundDate };
+        var participant = MakeParticipant(1); // Player.AppUserId left null
+        round.Participants.Add(participant);
+        var slotA = MakeSlot(10, 1);
+        var (sut, _, auditRepo) = BuildSutWithAudit(round, [slotA]);
+
+        await sut.JoinAsync(1, 10, callingPlayerId: 1);
+
+        auditRepo.Verify(a => a.AddAsync(It.IsAny<AuditLog>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
