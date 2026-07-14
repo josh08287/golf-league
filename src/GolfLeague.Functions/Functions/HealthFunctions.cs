@@ -35,7 +35,7 @@ public sealed class AdminMigrateFunction
 
     [Function("MigrateDatabase")]
     public async Task<IActionResult> MigrateDatabase(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "ops/migrate")] HttpRequest req)
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "admin/migrate")] HttpRequest req)
     {
         try
         {
