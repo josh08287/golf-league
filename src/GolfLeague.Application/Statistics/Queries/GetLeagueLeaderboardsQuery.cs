@@ -117,7 +117,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
             var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
             var active = participants
-                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
+                .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
                 .ToList();
 
             // Load hole scores per participant

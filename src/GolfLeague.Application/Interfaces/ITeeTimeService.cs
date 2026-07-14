@@ -41,20 +41,4 @@ public interface ITeeTimeService
     /// today or in the future. Returns null if nothing scheduled.
     /// </summary>
     Task<int?> ResolveNextRoundIdAsync(DateOnly today, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Caller adds a substitute to their own tee-time slot for this round.
-    /// Only allowed while the normal sign-up window is open, and only up to
-    /// as many substitutes as players have skipped the round (round-wide
-    /// cap). The substitute is seated in the caller's current slot. Returns
-    /// the refreshed schedule.
-    /// </summary>
-    Task<Result<RoundTeeTimeScheduleDto>> AddSubstituteAsync(int roundId, int callingPlayerId, int substitutePlayerId, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Removes a substitute participant the caller (or an admin) added to
-    /// this round, deleting the RoundParticipant row outright. Returns the
-    /// refreshed schedule.
-    /// </summary>
-    Task<Result<RoundTeeTimeScheduleDto>> RemoveSubstituteAsync(int roundId, int callingPlayerId, int substituteParticipantId, CancellationToken cancellationToken = default);
 }

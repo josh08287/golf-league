@@ -60,7 +60,7 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
 
         // Recalculate each finalized participant's handicap index using WHS
         // 5.2 (best-N-of-last-20) + 5.8 (soft / hard cap).
-        foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.TotalGrossStrokes.HasValue))
+        foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.TotalGrossStrokes.HasValue))
         {
             await RecalculateAndPersistAsync(participant.PlayerId, round.RoundDate, cancellationToken);
         }

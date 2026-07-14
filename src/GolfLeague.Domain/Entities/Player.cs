@@ -37,17 +37,6 @@ public class Player
     /// </summary>
     public bool TeeTimeEmailOptOut { get; set; } = false;
 
-    /// <summary>
-    /// When true, this player is part of the league's substitute pool rather
-    /// than a regular roster player. Substitutes may be added to a round's
-    /// tee time (in place of a player who skipped) but never accrue season
-    /// standings/points/handicap. Kept mutually exclusive with regular
-    /// roster status at the command layer (a player with an active
-    /// FlightMembership cannot be flagged as a substitute). Can be true even
-    /// when IsActive is false, since deactivated players remain sub-eligible.
-    /// </summary>
-    public bool IsSubstitute { get; set; } = false;
-
     public string FullName => $"{FirstName} {LastName}";
     public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();
 

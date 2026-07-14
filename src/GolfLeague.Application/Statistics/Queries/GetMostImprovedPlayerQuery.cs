@@ -137,7 +137,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
             var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
             foreach (var p in participants)
             {
-                if (p.IsWithdrawn || p.SkippedWeek || p.IsSubstitute || !p.TotalGrossStrokes.HasValue)
+                if (p.IsWithdrawn || p.SkippedWeek || !p.TotalGrossStrokes.HasValue)
                     continue;
 
                 roundsPerPlayer[p.PlayerId] = roundsPerPlayer.GetValueOrDefault(p.PlayerId) + 1;

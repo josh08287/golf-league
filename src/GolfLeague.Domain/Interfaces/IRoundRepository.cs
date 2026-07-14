@@ -21,13 +21,6 @@ public interface IRoundRepository
     Task DeleteAsync(int roundId, CancellationToken cancellationToken = default);
     Task AddParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
     Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Deletes a RoundParticipant row outright (not a withdraw/skip toggle).
-    /// Used to remove a substitute who was added by mistake before the round
-    /// is played — a sub who never played shouldn't linger as a phantom row.
-    /// </summary>
-    Task DeleteParticipantAsync(int participantId, CancellationToken cancellationToken = default);
     Task AddHoleScoresAsync(IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);
     Task ClearHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
     Task ReplaceHoleScoresAsync(int participantId, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default);

@@ -47,11 +47,9 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         if (round is null) return Result<AutofillResult>.Fail($"Round {roundId} not found.");
 
         // Active participants: not withdrawn, not skipping. These are the
-        // people who need a tee time. Substitutes are excluded — they're
-        // only ever seated manually via AddSubstituteAsync, in the same slot
-        // as the player who brought them in, never by autofill.
+        // people who need a tee time.
         var participants = round.Participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
             .ToList();
 
         var unassigned = participants.Where(p => p.TeeTimeId is null).ToList();

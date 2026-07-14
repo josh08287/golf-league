@@ -234,13 +234,6 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </div>
-              <Toggle
-                label="Substitutes"
-                description="Lets a player add a substitute to their tee time when players have skipped the round, up to the number of skips. Manage the substitute pool on the Players page."
-                checked={getSetting(SETTING_KEYS.substitutesEnabled)}
-                onChange={(v) => handleToggle(SETTING_KEYS.substitutesEnabled, v)}
-                disabled={update.isPending}
-              />
             </CardContent>
           </Card>
 

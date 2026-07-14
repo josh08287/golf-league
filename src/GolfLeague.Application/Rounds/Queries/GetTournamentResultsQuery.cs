@@ -107,7 +107,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var ldWinners = await _roundRepository.GetLongestDriveWinnersAsync(request.RoundId, cancellationToken);
 
         var active = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any())
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
             .ToList();
 
         var grossSkins = CalculateSkins(active, useNet: false);

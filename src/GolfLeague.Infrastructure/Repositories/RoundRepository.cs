@@ -175,13 +175,6 @@ public sealed class RoundRepository : IRoundRepository
             cancellationToken);
     }
 
-    public async Task DeleteParticipantAsync(int participantId, CancellationToken cancellationToken = default)
-    {
-        await _context.RoundParticipants
-            .Where(rp => rp.Id == participantId)
-            .ExecuteDeleteAsync(cancellationToken);
-    }
-
     public async Task AddHoleScoresAsync(IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default)
     {
         await _context.HoleScores.AddRangeAsync(holeScores, cancellationToken);

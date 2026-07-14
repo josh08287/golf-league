@@ -66,26 +66,6 @@ public sealed class TeeTimeFunctions
             : new BadRequestObjectResult(new { error = result.Error });
     }
 
-    /// <summary>
-    /// GET /v1/rounds/{roundId}/tee-times/substitutes/available — Lists
-    /// substitute-pool players not yet seated in this round, for the
-    /// "add a substitute" picker.
-    /// </summary>
-    [Function("GetAvailableSubstitutesForRound")]
-    public async Task<IActionResult> GetAvailableSubstitutes(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{roundId:int}/tee-times/substitutes/available")] HttpRequest req,
-        int roundId,
-        CancellationToken cancellationToken)
-    {
-        var authError = req.RequireAuthenticated();
-        if (authError is not null) return authError;
-
-        var result = await _mediator.Send(new GetAvailableSubstitutesQuery(roundId), cancellationToken);
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = result.Value })
-            : new BadRequestObjectResult(new { error = result.Error });
-    }
-
     [Function("GetRoundTeeTimes")]
     public async Task<IActionResult> GetForRound(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/rounds/{id:int}/tee-times")] HttpRequest req,
@@ -162,55 +142,6 @@ public sealed class TeeTimeFunctions
             return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
 
         var result = await _service.SwapAsync(roundId, playerId.Value, otherParticipantId, cancellationToken);
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = result.Value })
-            : new ConflictObjectResult(new { error = result.Error });
-    }
-
-    /// <summary>
-    /// POST /v1/rounds/{roundId}/tee-times/substitutes/{substitutePlayerId}
-    /// Caller adds a substitute to their own tee-time slot, only allowed up
-    /// to as many substitutes as players who've skipped the round.
-    /// </summary>
-    [Function("AddSubstituteToTeeTime")]
-    public async Task<IActionResult> AddSubstitute(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{roundId:int}/tee-times/substitutes/{substitutePlayerId:int}")] HttpRequest req,
-        int roundId,
-        int substitutePlayerId,
-        CancellationToken cancellationToken)
-    {
-        var authError = req.RequireAuthenticated();
-        if (authError is not null) return authError;
-
-        var playerId = req.GetPlayerId();
-        if (playerId is null)
-            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
-
-        var result = await _service.AddSubstituteAsync(roundId, playerId.Value, substitutePlayerId, cancellationToken);
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = result.Value })
-            : new ConflictObjectResult(new { error = result.Error });
-    }
-
-    /// <summary>
-    /// DELETE /v1/rounds/{roundId}/tee-times/substitutes/{substituteParticipantId}
-    /// Caller removes a substitute they added to their own tee-time slot.
-    /// </summary>
-    [Function("RemoveSubstituteFromTeeTime")]
-    public async Task<IActionResult> RemoveSubstitute(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/rounds/{roundId:int}/tee-times/substitutes/{substituteParticipantId:int}")] HttpRequest req,
-        int roundId,
-        int substituteParticipantId,
-        CancellationToken cancellationToken)
-    {
-        var authError = req.RequireAuthenticated();
-        if (authError is not null) return authError;
-
-        var playerId = req.GetPlayerId();
-        if (playerId is null)
-            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
-
-        var result = await _service.RemoveSubstituteAsync(roundId, playerId.Value, substituteParticipantId, cancellationToken);
         return result.IsSuccess
             ? new OkObjectResult(new { data = result.Value })
             : new ConflictObjectResult(new { error = result.Error });

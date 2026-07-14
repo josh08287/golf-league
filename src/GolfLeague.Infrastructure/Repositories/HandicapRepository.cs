@@ -42,7 +42,6 @@ public sealed class HandicapRepository : IHandicapRepository
                 rp.PlayerId == playerId &&
                 !rp.IsWithdrawn &&
                 !rp.SkippedWeek &&
-                !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized);
 
@@ -95,7 +94,6 @@ public sealed class HandicapRepository : IHandicapRepository
             .Where(rp =>
                 !rp.IsWithdrawn &&
                 !rp.SkippedWeek &&
-                !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized)
             .Select(rp => rp.PlayerId)
@@ -108,7 +106,6 @@ public sealed class HandicapRepository : IHandicapRepository
                 rp.PlayerId == playerId &&
                 !rp.IsWithdrawn &&
                 !rp.SkippedWeek &&
-                !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized)
             .Select(rp => rp.Round.RoundDate)

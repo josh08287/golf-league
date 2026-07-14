@@ -5,7 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { ArrowLeft } from 'lucide-react';
 import { formatHandicapPair, HANDICAP_PAIR_TOOLTIP } from '../../lib/utils';
-import { usePlayer, useHandicapHistory, useSetPlayerSubstitute } from '../../hooks/usePlayers';
+import { usePlayer, useHandicapHistory } from '../../hooks/usePlayers';
 import { useSortableTable } from '../../hooks/useSortableTable';
 import {
   useUpdatePlayer,
@@ -96,62 +96,6 @@ function TeeTimePreferenceCard({ playerId, currentMask }: { playerId: string; cu
       )}
     </Card>
   );
-}
-
-function SubstituteStatusCard({
-  playerId,
-  isSubstitute,
-  hasActiveFlightMembership,
-}: {
-  playerId: string;
-  isSubstitute: boolean;
-  hasActiveFlightMembership: boolean;
-}) {
-  const setSubstitute = useSetPlayerSubstitute();
-
-  return (
-    <Card className="p-6">
-      <h2 className="mb-1 text-base font-semibold text-gray-900">Substitute Pool</h2>
-      <p className="mb-3 text-sm text-gray-500">
-        Substitutes can be added to a round&apos;s tee time in place of a player who skipped. They
-        never count toward standings, points, handicap, skins, or closest-to-pin.
-      </p>
-      {isSubstitute ? (
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={setSubstitute.isPending}
-          onClick={() => setSubstitute.mutate({ playerId: parseInt(playerId, 10), isSubstitute: false })}
-        >
-          {setSubstitute.isPending ? 'Removing…' : 'Remove from substitute pool'}
-        </Button>
-      ) : hasActiveFlightMembership ? (
-        <p className="text-sm text-amber-600">
-          Remove this player from their flight for the active season before adding them to the
-          substitute pool.
-        </p>
-      ) : (
-        <Button
-          variant="secondary"
-          size="sm"
-          disabled={setSubstitute.isPending}
-          onClick={() => setSubstitute.mutate({ playerId: parseInt(playerId, 10), isSubstitute: true })}
-        >
-          {setSubstitute.isPending ? 'Adding…' : 'Add to substitute pool'}
-        </Button>
-      )}
-      {setSubstitute.isError && (
-        <p className="mt-2 text-xs text-red-600">
-          {extractSubstituteError(setSubstitute.error) ?? 'Failed to update substitute status.'}
-        </p>
-      )}
-    </Card>
-  );
-}
-
-function extractSubstituteError(err: unknown): string | null {
-  const e = err as { response?: { data?: { error?: string } } } | undefined;
-  return e?.response?.data?.error ?? null;
 }
 
 const editSchema = z.object({
@@ -617,12 +561,6 @@ export function PlayerDetailPage() {
       </Card>
 
       <TeeTimePreferenceCard playerId={id} currentMask={player.preferredTeeTimeSlots ?? 0} />
-
-      <SubstituteStatusCard
-        playerId={id}
-        isSubstitute={player.isSubstitute}
-        hasActiveFlightMembership={(player.flightMemberships ?? []).length > 0}
-      />
 
       {player.isActive && (
         <Card className="border-red-200 p-6">

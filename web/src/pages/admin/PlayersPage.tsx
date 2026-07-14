@@ -20,7 +20,6 @@ import { playerKeys } from '../../hooks/usePlayers';
 import { useQueryClient } from '@tanstack/react-query';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { AdministratorsTable } from '../../components/admin/AdministratorsTable';
-import { SubstitutesTable } from '../../components/admin/SubstitutesTable';
 import type { Player } from '../../types/api';
 
 // Default to a large page so a typical league roster (< 100 players) fits in
@@ -343,17 +342,6 @@ export function PlayersPage() {
           </div>
         </div>
       )}
-
-      <div className="space-y-3 pt-8">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">Substitutes</h2>
-          <p className="text-sm text-gray-500">
-            Players available to fill in for a round when a regular player skips. Includes
-            deactivated players who remain sub-eligible.
-          </p>
-        </div>
-        <SubstitutesTable />
-      </div>
 
       <div className="space-y-3 pt-8">
         <div>

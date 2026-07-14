@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw, SkipForward, Repeat, UserPlus, X } from 'lucide-react';
+import { Clock, ArrowLeft, LogIn, LogOut, RefreshCw, SkipForward, Repeat } from 'lucide-react';
 import { useAuthStore } from '@/store/authStore';
 import {
   useNextRoundTeeTimes,
@@ -10,9 +10,6 @@ import {
   useSkipMyWeek,
   useSetTeeTimePreference,
   useSwitchTeeTimeParticipant,
-  useAvailableSubstitutes,
-  useAddSubstitute,
-  useRemoveSubstitute,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
@@ -138,67 +135,6 @@ function SwitchPlayerPicker({ roundId, currentTeeTimeId, schedule, onClose, onSw
   );
 }
 
-interface AddSubstitutePickerProps {
-  roundId: number;
-  onClose: () => void;
-  onAdded: (subName: string) => void;
-}
-
-function AddSubstitutePicker({ roundId, onClose, onAdded }: AddSubstitutePickerProps) {
-  const { data: available = [], isLoading } = useAvailableSubstitutes(roundId);
-  const addSubstitute = useAddSubstitute();
-
-  const handlePick = async (sub: { playerId: number; fullName: string }) => {
-    try {
-      await addSubstitute.mutateAsync({ roundId, substitutePlayerId: sub.playerId });
-      onAdded(sub.fullName);
-    } catch {
-      // Error surfaced via addSubstitute.isError below
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <Card className="w-full max-w-md max-h-[80vh] overflow-y-auto">
-        <CardContent className="p-4 space-y-3">
-          <h3 className="text-base font-semibold text-gray-900">Add a Substitute</h3>
-          {addSubstitute.isError && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {(() => {
-                const err = addSubstitute.error as { response?: { data?: { error?: string } } } | null;
-                return err?.response?.data?.error ?? 'Could not add that substitute.';
-              })()}
-            </div>
-          )}
-          {isLoading ? (
-            <p className="text-sm text-gray-500">Loading…</p>
-          ) : available.length === 0 ? (
-            <p className="text-sm text-gray-500">No substitutes available.</p>
-          ) : (
-            <div className="space-y-2">
-              {available.map((sub) => (
-                <button
-                  key={sub.playerId}
-                  type="button"
-                  disabled={addSubstitute.isPending}
-                  onClick={() => handlePick(sub)}
-                  className="flex w-full items-center justify-between rounded-lg border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#1B5E20] hover:bg-primary-50 disabled:opacity-50"
-                >
-                  <span className="font-medium text-gray-900">{sub.fullName}</span>
-                  {!sub.isActive && <span className="text-xs text-gray-400">Inactive</span>}
-                </button>
-              ))}
-            </div>
-          )}
-          <Button variant="outline" className="w-full" onClick={onClose} disabled={addSubstitute.isPending}>
-            Cancel
-          </Button>
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
 interface SlotCardProps {
   slot: TeeTimeSlot;
   schedule: RoundTeeTimeSchedule;
@@ -209,7 +145,6 @@ interface SlotCardProps {
   onLeave: () => void;
   mutating: boolean;
   onSwitchedNotice: (msg: string) => void;
-  onSubstituteNotice: (msg: string) => void;
 }
 
 function SlotCard({
@@ -222,7 +157,6 @@ function SlotCard({
   onLeave,
   mutating,
   onSwitchedNotice,
-  onSubstituteNotice,
 }: SlotCardProps) {
   const isMine = schedule.currentUserTeeTimeId === slot.id;
   const isFull = slot.players.length >= CAPACITY;
@@ -236,15 +170,8 @@ function SlotCard({
     schedule.currentUserTeeTimeId != null &&
     !isMine &&
     !isFull;
-  const canAddSubstitute =
-    schedule.substitutesEnabled &&
-    isMine &&
-    !isFull &&
-    schedule.substituteCount < schedule.skippedCount;
   const isEmpty = slot.players.length === 0;
   const [switchingWithParticipantId, setSwitchingWithParticipantId] = useState<number | null>(null);
-  const [addingSubstitute, setAddingSubstitute] = useState(false);
-  const removeSubstitute = useRemoveSubstitute();
 
   return (
     <Card className={isMine ? 'border-[#1B5E20] ring-1 ring-[#1B5E20]' : ''}>
@@ -277,37 +204,18 @@ function SlotCard({
                   <span className={isCaller ? 'font-semibold text-[#1B5E20]' : 'text-gray-800'}>
                     {p.playerName}
                   </span>
-                  {p.isSubstitute && <Badge variant="blue" className="text-[10px]">Sub</Badge>}
                   <span className="text-gray-400 text-xs">{p.flightName}</span>
                 </span>
-                <span className="flex items-center gap-1.5">
-                  {isMine && !isCaller && !p.isSubstitute && (
-                    <button
-                      type="button"
-                      onClick={() => setSwitchingWithParticipantId(p.participantId)}
-                      className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200"
-                    >
-                      <Repeat className="h-3 w-3" />
-                      Switch
-                    </button>
-                  )}
-                  {isMine && p.isSubstitute && (
-                    <button
-                      type="button"
-                      disabled={removeSubstitute.isPending}
-                      onClick={() =>
-                        removeSubstitute.mutate(
-                          { roundId: schedule.roundId, substituteParticipantId: p.participantId },
-                          { onSuccess: () => onSubstituteNotice(`Removed ${p.playerName}.`) },
-                        )
-                      }
-                      className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200 disabled:opacity-50"
-                    >
-                      <X className="h-3 w-3" />
-                      Remove
-                    </button>
-                  )}
-                </span>
+                {isMine && !isCaller && (
+                  <button
+                    type="button"
+                    onClick={() => setSwitchingWithParticipantId(p.participantId)}
+                    className="flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-200"
+                  >
+                    <Repeat className="h-3 w-3" />
+                    Switch
+                  </button>
+                )}
               </li>
             );
           })}
@@ -329,19 +237,8 @@ function SlotCard({
           />
         )}
 
-        {addingSubstitute && (
-          <AddSubstitutePicker
-            roundId={schedule.roundId}
-            onClose={() => setAddingSubstitute(false)}
-            onAdded={(subName) => {
-              setAddingSubstitute(false);
-              onSubstituteNotice(`Added ${subName} as a substitute.`);
-            }}
-          />
-        )}
-
-        {(canJoin || canLeave || canSwitch || canAddSubstitute) && (
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+        {(canJoin || canLeave || canSwitch) && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
             {canJoin && (
               <Button
                 size="sm"
@@ -351,18 +248,6 @@ function SlotCard({
               >
                 <LogIn className="h-4 w-4 mr-1" />
                 {isFull ? 'Full' : 'Join this slot'}
-              </Button>
-            )}
-            {canAddSubstitute && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="w-full"
-                disabled={mutating}
-                onClick={() => setAddingSubstitute(true)}
-              >
-                <UserPlus className="h-4 w-4 mr-1" />
-                Add a substitute
               </Button>
             )}
             {canLeave && (
@@ -653,7 +538,6 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
             onLeave={handleLeave}
             mutating={mutating}
             onSwitchedNotice={setSwitchNotice}
-            onSubstituteNotice={setSwitchNotice}
           />
         ))}
         {schedule.slots.length === 0 && (

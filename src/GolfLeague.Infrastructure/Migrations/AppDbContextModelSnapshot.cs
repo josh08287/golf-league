@@ -536,9 +536,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsSubstitute")
-                        .HasColumnType("bit");
-
                     b.Property<string>("LastName")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -809,9 +806,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<double>("HandicapIndex")
                         .HasColumnType("float");
 
-                    b.Property<bool>("IsSubstitute")
-                        .HasColumnType("bit");
-
                     b.Property<bool>("IsWithdrawn")
                         .HasColumnType("bit");
 
@@ -823,9 +817,6 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.Property<bool>("SkippedWeek")
                         .HasColumnType("bit");
-
-                    b.Property<int?>("SubstituteForParticipantId")
-                        .HasColumnType("int");
 
                     b.Property<int?>("TeeTimeId")
                         .HasColumnType("int");
@@ -847,8 +838,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("FlightId");
 
                     b.HasIndex("PlayerId");
-
-                    b.HasIndex("SubstituteForParticipantId");
 
                     b.HasIndex("TeeTimeId");
 
@@ -1549,11 +1538,6 @@ namespace GolfLeague.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("GolfLeague.Domain.Entities.RoundParticipant", "SubstituteForParticipant")
-                        .WithMany()
-                        .HasForeignKey("SubstituteForParticipantId")
-                        .OnDelete(DeleteBehavior.SetNull);
-
                     b.HasOne("GolfLeague.Domain.Entities.RoundTeeTime", "TeeTime")
                         .WithMany("Participants")
                         .HasForeignKey("TeeTimeId")
@@ -1564,8 +1548,6 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Player");
 
                     b.Navigation("Round");
-
-                    b.Navigation("SubstituteForParticipant");
 
                     b.Navigation("TeeTime");
                 });

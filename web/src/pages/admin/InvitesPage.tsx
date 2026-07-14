@@ -1,8 +1,7 @@
-﻿import { useState, useRef, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom';
+﻿import { useState, useRef } from 'react';
 import { Link2, Send, Copy, Check, UserX, Trash2 } from 'lucide-react';
 import { useInvites, useCreateInvites, useRevokeInvite, useDeleteInvite } from '@/hooks/admin/useInvites';
-import { useUnlinkedPlayers, useUnlinkedSubstitutes } from '@/hooks/usePlayers';
+import { useUnlinkedPlayers } from '@/hooks/usePlayers';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -13,38 +12,28 @@ import type { Invite } from '@/types/api';
 
 // ── Invite form ────────────────────────────────────────────────────────────
 
-function InviteForm({ onDone, initialPreLinkPlayerId }: { onDone: () => void; initialPreLinkPlayerId?: string }) {
+function InviteForm({ onDone }: { onDone: () => void }) {
   const [mode, setMode] = useState<'single' | 'bulk'>('single');
   const [singleEmail, setSingleEmail] = useState('');
   const [bulkText, setBulkText] = useState('');
   const [expiryDays, setExpiryDays] = useState(7);
   const [role, setRole] = useState<'player' | 'scorer' | 'admin'>('player');
-  const [preLinkedPlayerId, setPreLinkedPlayerId] = useState<string>(initialPreLinkPlayerId ?? '');
+  const [preLinkedPlayerId, setPreLinkedPlayerId] = useState<string>('');
   const [result, setResult] = useState<{ created: number; skipped: string[]; autoLinked: string[] } | null>(null);
   const create = useCreateInvites();
 
   // Pre-attach only makes sense in single-email mode (one Player can only
-  // map to one AppUser). Hooks are enabled only when we'll actually show the
-  // dropdown so the requests don't fire for nothing in bulk mode.
+  // map to one AppUser). Hook is enabled only when we'll actually show the
+  // dropdown so the request doesn't fire for nothing in bulk mode.
   const { data: unlinkedPlayers = [] } = useUnlinkedPlayers(mode === 'single');
-  const { data: unlinkedSubstitutes = [] } = useUnlinkedSubstitutes(mode === 'single');
-  const pickablePlayers = [...unlinkedPlayers, ...unlinkedSubstitutes];
 
-  // Deep-linked from the Substitutes table's "Invite" action.
-  useEffect(() => {
-    if (!initialPreLinkPlayerId) return;
-    const player = pickablePlayers.find((p) => String(p.id) === initialPreLinkPlayerId);
-    if (player?.email) setSingleEmail(player.email);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialPreLinkPlayerId, pickablePlayers.length]);
-
-  const selectedPlayer = pickablePlayers.find((p) => String(p.id) === preLinkedPlayerId) ?? null;
+  const selectedPlayer = unlinkedPlayers.find((p) => String(p.id) === preLinkedPlayerId) ?? null;
   // When a player is selected, the invite email must match their profile email.
   const effectiveEmail = selectedPlayer?.email ?? singleEmail;
 
   function handlePlayerSelect(id: string) {
     setPreLinkedPlayerId(id);
-    const player = pickablePlayers.find((p) => String(p.id) === id);
+    const player = unlinkedPlayers.find((p) => String(p.id) === id);
     if (player?.email) setSingleEmail(player.email);
     else if (id) setSingleEmail(''); // player has no email — admin must supply one
   }
@@ -133,22 +122,17 @@ function InviteForm({ onDone, initialPreLinkPlayerId }: { onDone: () => void; in
             <select
               value={preLinkedPlayerId}
               onChange={(e) => handlePlayerSelect(e.target.value)}
-              disabled={pickablePlayers.length === 0}
+              disabled={unlinkedPlayers.length === 0}
               className="block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:bg-gray-50 disabled:text-gray-400"
             >
               <option value="">
-                {pickablePlayers.length === 0
+                {unlinkedPlayers.length === 0
                   ? '-- No unlinked players available --'
                   : '-- No player link --'}
               </option>
               {unlinkedPlayers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.fullName}{p.email ? ` - ${p.email}` : ''}
-                </option>
-              ))}
-              {unlinkedSubstitutes.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.fullName} (Sub{p.isActive ? '' : ', inactive'}){p.email ? ` - ${p.email}` : ''}
                 </option>
               ))}
             </select>
@@ -265,9 +249,7 @@ export function InvitesPage() {
   const deleteInvite = useDeleteInvite();
   const [revokeTarget, setRevokeTarget] = useState<Invite | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Invite | null>(null);
-  const [searchParams] = useSearchParams();
-  const preLinkPlayerId = searchParams.get('preLinkPlayerId') ?? undefined;
-  const [showForm, setShowForm] = useState(Boolean(preLinkPlayerId));
+  const [showForm, setShowForm] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
   const pending = invites.filter((i) => i.status === 'Pending' && new Date(i.expiresAt) >= new Date());
@@ -300,7 +282,7 @@ export function InvitesPage() {
 
       {showForm && (
         <div ref={formRef}>
-          <InviteForm onDone={() => setShowForm(false)} initialPreLinkPlayerId={preLinkPlayerId} />
+          <InviteForm onDone={() => setShowForm(false)} />
         </div>
       )}
 

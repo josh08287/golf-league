@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
-import { usePlayers, useSubstitutes } from '../../hooks/usePlayers';
+import { usePlayers } from '../../hooks/usePlayers';
 import { useCreateTournamentRound } from '../../hooks/admin/useRoundMutations';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { api } from '../../lib/api';
@@ -28,14 +28,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
 
   const { data: playersPage, isLoading: playersLoading } = usePlayers(1, undefined, 200);
-  const { data: substitutes } = useSubstitutes();
-  // Tournament rounds aren't half-scoped, so every active regular player is
-  // eligible, plus every substitute (active or not — deactivated subs remain
-  // sub-eligible).
-  const allPlayers: Player[] = [
-    ...(playersPage?.data?.filter((p) => p.isActive) ?? []),
-    ...(substitutes ?? []),
-  ];
+  const allPlayers: Player[] = playersPage?.data?.filter((p) => p.isActive) ?? [];
 
   const { data: coursesPage } = useQuery<{ data: Course[] }>({
     queryKey: ['courses'],
@@ -63,13 +56,10 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     setMatchups(pairs);
   }, []);
 
-  // Pre-populate regular active players once the list loads. Substitutes are
-  // never auto-selected — the admin adds them explicitly via the "Add
-  // player" dropdown below, same as any removed/inactive player.
-  const regularActivePlayers = playersPage?.data?.filter((p) => p.isActive) ?? [];
+  // Pre-populate all active players once the list loads
   useEffect(() => {
-    if (playersInitialized || regularActivePlayers.length === 0) return;
-    const initial = regularActivePlayers.map((p) => ({
+    if (playersInitialized || allPlayers.length === 0) return;
+    const initial = allPlayers.map((p) => ({
       id: p.id,
       fullName: p.fullName,
       currentHandicap: p.currentHandicap,
@@ -77,7 +67,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
     setSelectedPlayers(initial);
     regenerateMatchups(initial);
     setPlayersInitialized(true);
-  }, [regularActivePlayers, playersInitialized, regenerateMatchups]);
+  }, [allPlayers, playersInitialized, regenerateMatchups]);
 
   function addPlayer(playerId: number) {
     const player = allPlayers.find((p) => p.id === playerId);
@@ -224,11 +214,10 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
                 e.target.value = '';
               }}
             >
-              <option value="">+ Add player or substitute…</option>
+              <option value="">+ Add removed player…</option>
               {availablePlayers.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.fullName}
-                  {p.isSubstitute ? ' (Sub)' : ''} (HCP {p.currentHandicap?.toFixed(1) ?? '—'})
+                  {p.fullName} (HCP {p.currentHandicap?.toFixed(1) ?? '—'})
                 </option>
               ))}
             </select>

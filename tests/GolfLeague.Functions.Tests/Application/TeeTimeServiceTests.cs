@@ -73,11 +73,8 @@ public class TeeTimeServiceTests
         leagueSettings.Setup(s => s.GetAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((LeagueSetting?)null);
 
-        var players = new Mock<IPlayerRepository>();
-        var handicaps = new Mock<IHandicapRepository>();
-
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes);
     }
 
@@ -102,11 +99,8 @@ public class TeeTimeServiceTests
         leagueSettings.Setup(s => s.GetAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((LeagueSetting?)null);
 
-        var players = new Mock<IPlayerRepository>();
-        var handicaps = new Mock<IHandicapRepository>();
-
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes, auditRepository);
     }
 

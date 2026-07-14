@@ -28,23 +28,6 @@ public class RoundParticipant
     public int? TeeTimeId { get; set; }
     public RoundTeeTime? TeeTime { get; set; }
 
-    /// <summary>
-    /// True when this participant is a substitute filling in for a skipped
-    /// player (weekly/half rounds) or an admin-added extra for a tournament
-    /// round. Scored and kept in history, but excluded from season
-    /// standings, points, handicap differentials, skins, and closest-to-pin.
-    /// </summary>
-    public bool IsSubstitute { get; set; } = false;
-
-    /// <summary>
-    /// For weekly/half rounds only: the skipped participant this substitute
-    /// is filling a spot for. Bookkeeping only (the round-wide skip cap is
-    /// what's enforced, not a strict 1:1 slot linkage). Null for tournament
-    /// substitutes, which have no skipped participant to link back to.
-    /// </summary>
-    public int? SubstituteForParticipantId { get; set; }
-    public RoundParticipant? SubstituteForParticipant { get; set; }
-
     public Round Round { get; set; } = null!;
     public Player Player { get; set; } = null!;
     public Flight? Flight { get; set; }

@@ -187,7 +187,7 @@ public sealed class GetPlayerStatisticsQueryHandler
                 {
                     if (otherP.PlayerId == request.PlayerId) continue;
                     if (!flightIds.Contains(otherP.FlightId)) continue;
-                    if (otherP.IsWithdrawn || otherP.SkippedWeek || otherP.IsSubstitute) continue;
+                    if (otherP.IsWithdrawn || otherP.SkippedWeek) continue;
                     var otherScores = await _roundRepository.GetHoleScoresAsync(otherP.Id, cancellationToken);
                     flightHoleScores.AddRange(otherScores);
                 }

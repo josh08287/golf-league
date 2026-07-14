@@ -49,11 +49,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
 
     public async Task<Result<PagedResult<PlayerDto>>> Handle(GetPlayersQuery request, CancellationToken cancellationToken)
     {
-        // Substitutes are managed in their own admin section (GetSubstitutesQuery),
-        // not the regular roster — keep the two lists strictly partitioned.
-        var players = (await _playerRepository.GetAllAsync(cancellationToken))
-            .Where(p => !p.IsSubstitute)
-            .ToList();
+        var players = await _playerRepository.GetAllAsync(cancellationToken);
 
         var appUserIds = players
             .Where(p => p.AppUserId.HasValue)
@@ -130,7 +126,6 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             player.AppUserId,
             player.PreferredTeeTimeSlots,
             perHalf,
-            player.TeeTimeEmailOptOut,
-            player.IsSubstitute);
+            player.TeeTimeEmailOptOut);
     }
 }

@@ -120,7 +120,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
         // Group participants by flight
         var participantsByFlight = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any() && p.FlightId.HasValue)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any() && p.FlightId.HasValue)
             .GroupBy(p => p.FlightId!.Value)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -140,7 +140,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
 
         // Calculate gross par-3 skins across all flights
         var allParticipants = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any())
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
             .ToList();
 
         var par3OptIns = await GetPar3OptInLookupAsync(round.HalfId, cancellationToken);
@@ -171,7 +171,7 @@ public sealed class GetRoundSkinsQueryHandler : IRequestHandler<GetRoundSkinsQue
         foreach (var prev in previousRounds)
         {
             var prevParticipants = prev.Participants
-                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any())
+                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any())
                 .ToList();
 
             if (prevParticipants.Count == 0)

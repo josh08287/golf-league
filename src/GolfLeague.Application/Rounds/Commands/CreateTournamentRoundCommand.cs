@@ -118,10 +118,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         foreach (var playerId in request.PlayerIds.Distinct())
         {
             var player = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
-            // Deactivated players are normally excluded, but a deactivated
-            // substitute remains eligible — subs stay sub-eligible even when
-            // inactive (per the substitute-players feature).
-            if (player is null || (!player.IsActive && !player.IsSubstitute)) continue;
+            if (player is null || !player.IsActive) continue;
 
             var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
             var index = current?.HandicapIndex ?? 0.0;
@@ -135,7 +132,6 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
                 HandicapIndex = index,
                 CourseHandicap = courseHcp,
                 IsWithdrawn = false,
-                IsSubstitute = player.IsSubstitute,
             }, cancellationToken);
 
             participantHandicaps.Add((playerId, index, courseHcp, player.FullName));
