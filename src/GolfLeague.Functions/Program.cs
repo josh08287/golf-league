@@ -102,11 +102,7 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-    var pending = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-    logger.LogInformation(
-        "Startup: applying EF Core migrations. {PendingCount} pending: {Pending}",
-        pending.Count,
-        string.Join(", ", pending));
+    logger.LogInformation("Startup: applying EF Core migrations.");
 
     // EnableRetryOnFailure handles transient faults per-command, but MigrateAsync
     // opens its own connection before the strategy fires. Wrap the whole call so
@@ -116,15 +112,6 @@ static async Task EnsureDatabaseInitializedAsync(IHost host)
     {
         await dbContext.Database.MigrateAsync();
     });
-
-    var stillPending = (await dbContext.Database.GetPendingMigrationsAsync()).ToList();
-    if (stillPending.Count > 0)
-    {
-        logger.LogCritical(
-            "Startup: {Count} migrations still pending after MigrateAsync returned: {Pending}",
-            stillPending.Count,
-            string.Join(", ", stillPending));
-    }
 
     logger.LogInformation("Startup: migrations applied. Seeding roles + default league + active season if missing.");
     await SeedRolesAsync(scope.ServiceProvider, logger);
