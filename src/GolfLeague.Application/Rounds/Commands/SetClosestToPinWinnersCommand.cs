@@ -70,7 +70,7 @@ public sealed class SetClosestToPinWinnersCommandHandler
             // Every selected winner must be an active participant of the round.
             var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
             var eligiblePlayerIds = participants
-                .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
+                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
                 .Select(p => p.PlayerId)
                 .ToHashSet();
 

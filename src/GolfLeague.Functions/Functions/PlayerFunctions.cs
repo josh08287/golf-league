@@ -209,6 +209,43 @@ public sealed class PlayerFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetSubstitutes")]
+    public async Task<IActionResult> GetSubstitutes(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/substitutes")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var result = await _mediator.Send(new GetSubstitutesQuery(), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("SetPlayerSubstitute")]
+    public async Task<IActionResult> SetPlayerSubstitute(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/substitute")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var body = await req.TryDeserializeAsync<SetPlayerSubstituteRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SetPlayerSubstituteCommand(playerId, body.IsSubstitute, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private sealed record SetPlayerSubstituteRequest(bool IsSubstitute);
+
     [Function("DeletePlayer")]
     public async Task<IActionResult> DeletePlayer(
         [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/players/{id}")] HttpRequest req,
@@ -338,6 +375,32 @@ public sealed class PlayerFunctions
             id = p.Id,
             fullName = p.FullName,
             email = p.Email,
+        }).ToList();
+
+        return new OkObjectResult(new { data });
+    }
+
+    /// <summary>
+    /// GET /v1/admin/players/unlinked-substitutes — admin-only. Lists
+    /// substitute-flagged players (active or not) not yet attached to an
+    /// AppUser. Powers the invite pre-attach dropdown for the substitute
+    /// pool, separate from the regular-roster picker.
+    /// </summary>
+    [Function("GetUnlinkedSubstitutes")]
+    public async Task<IActionResult> GetUnlinkedSubstitutes(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/admin/players/unlinked-substitutes")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var players = await _playerRepository.GetUnlinkedSubstitutesAsync(cancellationToken);
+        var data = players.Select(p => new
+        {
+            id = p.Id,
+            fullName = p.FullName,
+            email = p.Email,
+            isActive = p.IsActive,
         }).ToList();
 
         return new OkObjectResult(new { data });

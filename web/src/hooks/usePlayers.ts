@@ -7,6 +7,7 @@ import type {
   PagedResponse,
   PlayerRoundSummary,
   UnlinkedPlayer,
+  UnlinkedSubstitute,
 } from '@/types/api';
 
 function unwrap<T>(data: unknown): T {
@@ -88,6 +89,48 @@ export function useUnlinkedPlayers(enabled: boolean = true) {
     queryFn: async () => {
       const res = await apiClient.get('/admin/players/unlinked');
       return unwrap<UnlinkedPlayer[]>(res.data);
+    },
+    enabled,
+  });
+}
+
+/**
+ * Every player flagged as a substitute (active or not), active first. Backs
+ * the admin Substitutes section — kept separate from the main roster list.
+ */
+export function useSubstitutes() {
+  return useQuery({
+    queryKey: [...playerKeys.all, 'substitutes'] as const,
+    queryFn: async () => {
+      const res = await apiClient.get('/players/substitutes');
+      return unwrap<Player[]>(res.data);
+    },
+  });
+}
+
+export function useSetPlayerSubstitute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ playerId, isSubstitute }: { playerId: number; isSubstitute: boolean }) => {
+      const res = await apiClient.put(`/players/${playerId}/substitute`, { isSubstitute });
+      return unwrap<Player>(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+    },
+  });
+}
+
+/**
+ * Substitute-flagged players (active or not) with no linked AppUser. Used by
+ * the invite pre-attach dropdown for the substitute pool.
+ */
+export function useUnlinkedSubstitutes(enabled: boolean = true) {
+  return useQuery({
+    queryKey: [...playerKeys.all, 'unlinkedSubstitutes'] as const,
+    queryFn: async () => {
+      const res = await apiClient.get('/admin/players/unlinked-substitutes');
+      return unwrap<UnlinkedSubstitute[]>(res.data);
     },
     enabled,
   });

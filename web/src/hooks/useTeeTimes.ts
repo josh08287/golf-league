@@ -101,6 +101,50 @@ export function useSwitchTeeTimeParticipant() {
   });
 }
 
+/** Substitute-pool players not yet seated in this round. */
+export function useAvailableSubstitutes(roundId: number | null) {
+  const isAuthed = useAuthStore((s) => !!s.user);
+  return useQuery({
+    queryKey: roundId != null ? [...teeTimeKeys.forRound(roundId), 'substitutes'] : teeTimeKeys.all,
+    queryFn: async () => {
+      if (roundId == null) throw new Error('roundId required');
+      const res = await apiClient.get(`/rounds/${roundId}/tee-times/substitutes/available`);
+      return unwrap<{ playerId: number; fullName: string; isActive: boolean }[]>(res.data);
+    },
+    enabled: isAuthed && roundId != null,
+  });
+}
+
+/**
+ * Add a substitute to the caller's own tee-time slot. Only allowed up to as
+ * many substitutes as players who've skipped the round.
+ */
+export function useAddSubstitute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { roundId: number; substitutePlayerId: number }) => {
+      const res = await apiClient.post(
+        `/rounds/${payload.roundId}/tee-times/substitutes/${payload.substitutePlayerId}`,
+      );
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
+  });
+}
+
+export function useRemoveSubstitute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { roundId: number; substituteParticipantId: number }) => {
+      const res = await apiClient.delete(
+        `/rounds/${payload.roundId}/tee-times/substitutes/${payload.substituteParticipantId}`,
+      );
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
+  });
+}
+
 export function useSetTeeTimePreference() {
   const qc = useQueryClient();
   return useMutation({

@@ -71,7 +71,7 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
         var flightNameLookup = flights.ToDictionary(f => f.Id, f => Format(f));
 
         var flightGroups = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
             .GroupBy(p => p.FlightId)
             .Select(group =>
             {

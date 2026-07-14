@@ -50,6 +50,7 @@ export interface Player {
   preferredTeeTimeSlots: TeeTimeSlotPreference;
   flightMemberships: HalfFlightMembership[];
   teeTimeEmailOptOut: boolean;
+  isSubstitute: boolean;
 }
 
 /** Lightweight row used by the unlinked-players pickers. */
@@ -57,6 +58,10 @@ export interface UnlinkedPlayer {
   id: number;
   fullName: string;
   email: string | null;
+}
+
+export interface UnlinkedSubstitute extends UnlinkedPlayer {
+  isActive: boolean;
 }
 
 export interface HandicapHistoryEntry {
@@ -419,6 +424,7 @@ export interface TeeTimeParticipant {
   playerName: string;
   flightId: number;
   flightName: string;
+  isSubstitute: boolean;
 }
 
 export interface TeeTimeSlot {
@@ -443,6 +449,9 @@ export interface RoundTeeTimeSchedule {
   roundDate: string; // "yyyy-MM-dd"
   courseName: string;
   isRoundDay: boolean;
+  skippedCount: number;
+  substituteCount: number;
+  substitutesEnabled: boolean;
 }
 
 // ── Tee Time Score Entry ───────────────────────────────────────────────────────
@@ -847,6 +856,7 @@ export const SETTING_KEYS = {
   standingsDropCount: 'standings_drop_count',
   teeTimeCutoffTime: 'tee_time_cutoff_time',
   signUpReminderEmailEnabled: 'sign_up_reminder_email_enabled',
+  substitutesEnabled: 'substitutes_enabled',
 } as const;
 
 // ── Feature Flags ──────────────────────────────────────────────────────────────

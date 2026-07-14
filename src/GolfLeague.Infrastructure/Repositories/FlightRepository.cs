@@ -132,7 +132,8 @@ public sealed class FlightRepository : IFlightRepository
                 rp.FlightId == flightId &&
                 rp.Round.HalfId == halfId &&
                 rp.Round.Status == RoundStatus.Finalized &&
-                !rp.IsWithdrawn)
+                !rp.IsWithdrawn &&
+                !rp.IsSubstitute)
             .OrderBy(rp => rp.PlayerId)
             .ToListAsync(cancellationToken);
 }

@@ -416,6 +416,14 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany(t => t.Participants)
                   .HasForeignKey(e => e.TeeTimeId)
                   .OnDelete(DeleteBehavior.SetNull);
+            // Self-referencing: which skipped participant this substitute is
+            // filling in for. SetNull so deleting the skipped participant's
+            // row (shouldn't normally happen) doesn't cascade-delete the sub.
+            entity.HasOne(e => e.SubstituteForParticipant)
+                  .WithMany()
+                  .HasForeignKey(e => e.SubstituteForParticipantId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.SetNull);
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
             entity.HasIndex(e => new { e.RoundId, e.FlightId });
             entity.HasIndex(e => e.TeeTimeId);

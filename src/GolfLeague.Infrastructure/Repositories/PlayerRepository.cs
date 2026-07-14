@@ -69,6 +69,14 @@ public sealed class PlayerRepository : IPlayerRepository
             .ThenBy(p => p.FirstName)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Player>> GetUnlinkedSubstitutesAsync(CancellationToken cancellationToken = default)
+        => await _context.Players
+            .Where(p => p.IsSubstitute && p.AppUserId == null)
+            .OrderByDescending(p => p.IsActive)
+            .ThenBy(p => p.LastName)
+            .ThenBy(p => p.FirstName)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Player player, CancellationToken cancellationToken = default)
     {
         await _context.Players.AddAsync(player, cancellationToken);

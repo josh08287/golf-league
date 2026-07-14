@@ -17,4 +17,5 @@ public sealed record PlayerDto(
     Guid? AppUserId = null,
     TeeTimeSlotPreference PreferredTeeTimeSlots = TeeTimeSlotPreference.None,
     IReadOnlyList<HalfFlightMembership>? FlightMemberships = null,
-    bool TeeTimeEmailOptOut = false);
+    bool TeeTimeEmailOptOut = false,
+    bool IsSubstitute = false);
