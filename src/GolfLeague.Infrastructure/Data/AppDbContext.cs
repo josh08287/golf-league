@@ -417,13 +417,17 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.TeeTimeId)
                   .OnDelete(DeleteBehavior.SetNull);
             // Self-referencing: which skipped participant this substitute is
-            // filling in for. SetNull so deleting the skipped participant's
-            // row (shouldn't normally happen) doesn't cascade-delete the sub.
+            // filling in for. SQL Server forbids cascading actions (SET NULL/
+            // CASCADE) on self-referencing FKs, so the constraint must be
+            // NO ACTION in the database. ClientSetNull (EF's default for
+            // optional relationships) gives NO ACTION in SQL while still
+            // nulling the sub's link in memory for tracked entities when a
+            // skipped participant is deleted in the same context.
             entity.HasOne(e => e.SubstituteForParticipant)
                   .WithMany()
                   .HasForeignKey(e => e.SubstituteForParticipantId)
                   .IsRequired(false)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.ClientSetNull);
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
             entity.HasIndex(e => new { e.RoundId, e.FlightId });
             entity.HasIndex(e => e.TeeTimeId);

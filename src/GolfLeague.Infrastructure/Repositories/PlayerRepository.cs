@@ -110,6 +110,22 @@ public sealed class PlayerRepository : IPlayerRepository
         foreach (var invite in pendingPreLinks)
             invite.PreLinkedPlayerId = null;
 
+        // SubstituteForParticipantId is NoAction (SQL Server disallows SetNull
+        // on self-referencing FKs). Null out any substitute rows pointing at
+        // this player's participant rows before deleting them.
+        var participantIds = player.RoundParticipants.Select(rp => rp.Id).ToList();
+        if (participantIds.Count > 0)
+        {
+            var inboundSubLinks = await _context.RoundParticipants
+                .IgnoreQueryFilters()
+                .AsTracking()
+                .Where(rp => rp.SubstituteForParticipantId != null
+                    && participantIds.Contains(rp.SubstituteForParticipantId.Value))
+                .ToListAsync(cancellationToken);
+            foreach (var sub in inboundSubLinks)
+                sub.SubstituteForParticipantId = null;
+        }
+
         // FK cascades from Player are Restrict — wipe child rows explicitly.
         _context.RoundParticipants.RemoveRange(player.RoundParticipants);
         _context.FlightMemberships.RemoveRange(player.FlightMemberships);

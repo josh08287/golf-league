@@ -1554,8 +1554,7 @@ namespace GolfLeague.Infrastructure.Migrations
 
                     b.HasOne("GolfLeague.Domain.Entities.RoundParticipant", "SubstituteForParticipant")
                         .WithMany()
-                        .HasForeignKey("SubstituteForParticipantId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .HasForeignKey("SubstituteForParticipantId");
 
                     b.HasOne("GolfLeague.Domain.Entities.RoundTeeTime", "TeeTime")
                         .WithMany("Participants")

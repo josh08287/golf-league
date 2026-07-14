@@ -35,13 +35,15 @@ namespace GolfLeague.Infrastructure.Migrations
                 table: "RoundParticipants",
                 column: "SubstituteForParticipantId");
 
+            // NO ACTION (not SET NULL): SQL Server rejects cascading referential
+            // actions on self-referencing foreign keys with "may cause cycles or
+            // multiple cascade paths".
             migrationBuilder.AddForeignKey(
                 name: "FK_RoundParticipants_RoundParticipants_SubstituteForParticipantId",
                 table: "RoundParticipants",
                 column: "SubstituteForParticipantId",
                 principalTable: "RoundParticipants",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
         }
 
         /// <inheritdoc />
