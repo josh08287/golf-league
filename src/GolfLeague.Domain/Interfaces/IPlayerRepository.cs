@@ -39,6 +39,13 @@ public interface IPlayerRepository
     /// </summary>
     Task<IReadOnlyList<Player>> GetUnlinkedActiveAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Substitute-flagged players (active or not — deactivated subs remain
+    /// sub-eligible) with no linked AppUser. Used by the invite pre-attach
+    /// picker for the substitute pool.
+    /// </summary>
+    Task<IReadOnlyList<Player>> GetUnlinkedSubstitutesAsync(CancellationToken cancellationToken = default);
+
     Task AddAsync(Player player, CancellationToken cancellationToken = default);
     Task UpdateAsync(Player player, CancellationToken cancellationToken = default);
     Task DeleteAsync(int playerId, CancellationToken cancellationToken = default);

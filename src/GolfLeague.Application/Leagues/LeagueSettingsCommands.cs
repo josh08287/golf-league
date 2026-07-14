@@ -101,12 +101,20 @@ public static class KnownSettings
     /// </summary>
     public const string SignUpReminderEmailEnabled = "sign_up_reminder_email_enabled";
 
+    /// <summary>
+    /// Whether the substitute-players feature is enabled: an admin-managed
+    /// pool of substitute players, and letting a participant add a
+    /// substitute to their tee time when players have skipped the round.
+    /// </summary>
+    public const string SubstitutesEnabled = "substitutes_enabled";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
         [StandingsDropCount] = "1",
         [TeeTimeCutoffTime] = "18:00",
         [SignUpReminderEmailEnabled] = "false",
+        [SubstitutesEnabled] = "false",
     };
 
     /// <summary>

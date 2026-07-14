@@ -14,7 +14,8 @@ public sealed record TeeTimeParticipantDto(
     int PlayerId,
     string PlayerName,
     int? FlightId,
-    string FlightName);
+    string FlightName,
+    bool IsSubstitute = false);
 
 public sealed record RoundTeeTimeScheduleDto(
     int RoundId,
@@ -29,4 +30,7 @@ public sealed record RoundTeeTimeScheduleDto(
     string CourseName,
     TeeTimeSlotPreference CurrentUserPreferredSlots = TeeTimeSlotPreference.None,
     bool CurrentUserSkippedWeek = false,
-    bool IsRoundDay = false);
+    bool IsRoundDay = false,
+    int SkippedCount = 0,
+    int SubstituteCount = 0,
+    bool SubstitutesEnabled = false);

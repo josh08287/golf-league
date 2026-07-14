@@ -80,7 +80,7 @@ public sealed class GetRoundClosestToPinQueryHandler
 
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var participantDtos = participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
             .OrderBy(p => p.Player?.LastName)
             .ThenBy(p => p.Player?.FirstName)
             .Select(p => new ClosestToPinParticipantDto(p.PlayerId, p.Player?.FullName ?? string.Empty))
