@@ -52,4 +52,18 @@ public sealed class NoOpEmailService : IEmailService
             toEmail, subject);
         return Task.CompletedTask;
     }
+
+    public Task SendSignUpReminderAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        string cutoffDisplay,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning(
+            "Email not configured. Skipping sign-up reminder email to {Email} ({Player}) for {Date}.",
+            toEmail, playerName, roundDate);
+        return Task.CompletedTask;
+    }
 }

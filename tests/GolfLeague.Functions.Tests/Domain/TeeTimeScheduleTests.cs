@@ -103,4 +103,66 @@ public class TeeTimeScheduleTests
         // Sanity: at the same instant, the default (6pm) cutoff hasn't passed yet.
         TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc).Should().BeFalse();
     }
+
+    [Fact]
+    public void ComputeReminderTimeUtc_IsFourHoursBeforeCutoff()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+
+        var reminderUtc = TeeTimeSchedule.ComputeReminderTimeUtc(roundDate);
+
+        reminderUtc.Should().Be(cutoffUtc.AddHours(-4));
+    }
+
+    [Fact]
+    public void ComputeReminderTimeUtc_WithCustomCutoffTime_UsesConfiguredCutoff()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var customTime = new TimeOnly(9, 0);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate, customTime);
+
+        var reminderUtc = TeeTimeSchedule.ComputeReminderTimeUtc(roundDate, customTime);
+
+        reminderUtc.Should().Be(cutoffUtc.AddHours(-4));
+    }
+
+    [Fact]
+    public void IsWithinReminderWindow_BeforeWindow_ReturnsFalse()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var reminderUtc = TeeTimeSchedule.ComputeReminderTimeUtc(roundDate);
+
+        TeeTimeSchedule.IsWithinReminderWindow(roundDate, reminderUtc.AddMinutes(-1)).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsWithinReminderWindow_AtReminderTime_ReturnsTrue()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var reminderUtc = TeeTimeSchedule.ComputeReminderTimeUtc(roundDate);
+
+        TeeTimeSchedule.IsWithinReminderWindow(roundDate, reminderUtc).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsWithinReminderWindow_BetweenReminderAndCutoff_ReturnsTrue()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var reminderUtc = TeeTimeSchedule.ComputeReminderTimeUtc(roundDate);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+        var midpoint = reminderUtc.AddTicks((cutoffUtc - reminderUtc).Ticks / 2);
+
+        TeeTimeSchedule.IsWithinReminderWindow(roundDate, midpoint).Should().BeTrue();
+    }
+
+    [Fact]
+    public void IsWithinReminderWindow_AtOrAfterCutoff_ReturnsFalse()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+
+        TeeTimeSchedule.IsWithinReminderWindow(roundDate, cutoffUtc).Should().BeFalse();
+        TeeTimeSchedule.IsWithinReminderWindow(roundDate, cutoffUtc.AddMinutes(1)).Should().BeFalse();
+    }
 }

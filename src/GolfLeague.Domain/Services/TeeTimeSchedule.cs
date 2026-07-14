@@ -58,6 +58,27 @@ public static class TeeTimeSchedule
     public static bool IsAfterCutoff(DateOnly roundDate, DateTime utcNow, TimeOnly? cutoffTime = null)
         => utcNow >= ComputeCutoffUtc(roundDate, cutoffTime);
 
+    /// <summary>Hours before the sign-up cutoff that the reminder email goes out.</summary>
+    public const int ReminderLeadHours = 4;
+
+    /// <summary>
+    /// UTC instant of the sign-up reminder: <see cref="ReminderLeadHours"/>
+    /// hours before the sign-up cutoff (see <see cref="ComputeCutoffUtc"/>).
+    /// </summary>
+    public static DateTime ComputeReminderTimeUtc(DateOnly roundDate, TimeOnly? cutoffTime = null)
+        => ComputeCutoffUtc(roundDate, cutoffTime).AddHours(-ReminderLeadHours);
+
+    /// <summary>
+    /// True when <paramref name="utcNow"/> is at or past the reminder time
+    /// but strictly before the sign-up cutoff itself for the given round
+    /// date. Used to gate the one-time sign-up reminder email — once the
+    /// cutoff passes, auto-fill takes over and a reminder no longer makes
+    /// sense.
+    /// </summary>
+    public static bool IsWithinReminderWindow(DateOnly roundDate, DateTime utcNow, TimeOnly? cutoffTime = null)
+        => utcNow >= ComputeReminderTimeUtc(roundDate, cutoffTime)
+        && utcNow < ComputeCutoffUtc(roundDate, cutoffTime);
+
     /// <summary>
     /// True when <paramref name="utcNow"/> falls on the same US/Eastern
     /// calendar date as <paramref name="roundDate"/>. Used to gate the

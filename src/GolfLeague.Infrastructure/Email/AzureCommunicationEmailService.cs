@@ -140,6 +140,31 @@ public sealed class AzureCommunicationEmailService : IEmailService
         await SendAsync(toEmail, subject, html, "broadcast", cancellationToken);
     }
 
+    public async Task SendSignUpReminderAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        string cutoffDisplay,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"{leagueName} — Pick your tee time for {roundDate}";
+
+        var html = $"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #1a5c38;">⛳ Sign up for {roundDate}</h2>
+              <p>Hi {playerName},</p>
+              <p>You don't have a tee time yet for <strong>{roundDate}</strong>. Sign-ups close at <strong>{cutoffDisplay}</strong> — if you'd like to choose your own tee time or play with someone specific, log in and pick a slot before then.</p>
+              <p>If you don't sign up, you'll be automatically assigned a tee time based on your time preference once sign-ups close.</p>
+              <p style="color:#666; font-size:14px; margin-top:24px;">See you on the course!</p>
+            </body>
+            </html>
+            """;
+
+        await SendAsync(toEmail, subject, html, "sign-up-reminder", cancellationToken);
+    }
+
     private async Task SendAsync(string toEmail, string subject, string html, string kind, CancellationToken cancellationToken)
     {
         var message = new EmailMessage(

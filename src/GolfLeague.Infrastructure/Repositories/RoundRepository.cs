@@ -231,6 +231,26 @@ public sealed class RoundRepository : IRoundRepository
             .OrderByDescending(r => r.WeekNumber)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task MarkSignUpReminderSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        var round = await _context.Rounds
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roundId, cancellationToken);
+        if (round is null) return;
+        round.SignUpReminderSentAt = utcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task MarkTeeTimeScheduleEmailSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        var round = await _context.Rounds
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roundId, cancellationToken);
+        if (round is null) return;
+        round.TeeTimeScheduleEmailSentAt = utcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int seasonId, DateOnly currentRoundDate, CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)

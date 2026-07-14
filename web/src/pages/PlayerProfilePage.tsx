@@ -123,11 +123,11 @@ function TeeTimeEmailOptOutToggle({ playerId, optOut }: { playerId: number; optO
     <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-3">
       <div className="flex items-start justify-between gap-6">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-700">Weekly tee time emails</p>
+          <p className="text-sm font-medium text-gray-700">Tee time emails</p>
           <p className="mt-0.5 text-sm text-gray-500">
             {optOut
-              ? 'You are not receiving weekly tee time emails.'
-              : 'You will receive an email each week with the upcoming tee sheet.'}
+              ? 'You are not receiving tee time emails.'
+              : 'You will receive a sign-up reminder and the weekly tee sheet by email.'}
           </p>
         </div>
         <button
@@ -164,7 +164,7 @@ function TeeTimeEmailOptOutToggle({ playerId, optOut }: { playerId: number; optO
             Are you sure you want to opt out?
           </p>
           <p className="text-sm text-amber-700">
-            You will not receive weekly tee time emails until you re-enable this setting.
+            You will not receive tee time emails (sign-up reminders or the weekly tee sheet) until you re-enable this setting.
           </p>
           <div className="flex gap-2 pt-1">
             <button

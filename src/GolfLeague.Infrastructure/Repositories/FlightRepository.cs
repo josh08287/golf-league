@@ -104,6 +104,7 @@ public sealed class FlightRepository : IFlightRepository
         CancellationToken cancellationToken = default)
         => await _context.FlightMemberships
             .Where(fm => fm.HalfId == halfId)
+            .Include(fm => fm.Player)
             .ToListAsync(cancellationToken);
 
     public async Task AddMembershipAsync(FlightMembership membership, CancellationToken cancellationToken = default)

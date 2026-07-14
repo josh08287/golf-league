@@ -846,6 +846,7 @@ export const SETTING_KEYS = {
   teeTimeEmailEnabled: 'tee_time_email_enabled',
   standingsDropCount: 'standings_drop_count',
   teeTimeCutoffTime: 'tee_time_cutoff_time',
+  signUpReminderEmailEnabled: 'sign_up_reminder_email_enabled',
 } as const;
 
 // ── Feature Flags ──────────────────────────────────────────────────────────────

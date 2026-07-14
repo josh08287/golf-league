@@ -31,7 +31,8 @@ public class Player
     public TeeTimeSlotPreference PreferredTeeTimeSlots { get; set; } = TeeTimeSlotPreference.None;
 
     /// <summary>
-    /// When true the player has opted out of weekly tee time schedule emails.
+    /// When true the player has opted out of tee-time-related emails (the
+    /// weekly schedule email and the sign-up reminder email).
     /// Default false = opted in (emails are sent if the league setting is enabled).
     /// </summary>
     public bool TeeTimeEmailOptOut { get; set; } = false;

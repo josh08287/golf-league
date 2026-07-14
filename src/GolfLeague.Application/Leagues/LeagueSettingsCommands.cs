@@ -93,11 +93,20 @@ public static class KnownSettings
     /// </summary>
     public const string TeeTimeCutoffTime = "tee_time_cutoff_time";
 
+    /// <summary>
+    /// Whether to send the sign-up reminder email — sent once per round, a
+    /// few hours before the sign-up cutoff, to every active player in the
+    /// half who doesn't yet have a tee time for that round. See
+    /// <see cref="GolfLeague.Domain.Services.TeeTimeSchedule.ComputeReminderTimeUtc"/>.
+    /// </summary>
+    public const string SignUpReminderEmailEnabled = "sign_up_reminder_email_enabled";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
         [StandingsDropCount] = "1",
         [TeeTimeCutoffTime] = "18:00",
+        [SignUpReminderEmailEnabled] = "false",
     };
 
     /// <summary>

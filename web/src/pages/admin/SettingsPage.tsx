@@ -249,6 +249,13 @@ export function SettingsPage() {
                 onChange={(v) => handleToggle(SETTING_KEYS.teeTimeEmailEnabled, v)}
                 disabled={update.isPending}
               />
+              <Toggle
+                label="Sign-up reminder emails"
+                description="A few hours before sign-ups close, remind every active player in the half who doesn't yet have a tee time that they can pick one, or they'll be auto-assigned by their time preference."
+                checked={getSetting(SETTING_KEYS.signUpReminderEmailEnabled)}
+                onChange={(v) => handleToggle(SETTING_KEYS.signUpReminderEmailEnabled, v)}
+                disabled={update.isPending}
+              />
             </CardContent>
           </Card>
 

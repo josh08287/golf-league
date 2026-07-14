@@ -32,6 +32,20 @@ public interface IEmailService
         string subject,
         string body,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Sends the sign-up reminder to a player who doesn't yet have a tee
+    /// time for the upcoming round, a few hours before sign-ups close.
+    /// <paramref name="roundDate"/> is a display string, e.g. "Thursday, June 12".
+    /// <paramref name="cutoffDisplay"/> is a display string for the cutoff, e.g. "6:00 PM".
+    /// </summary>
+    Task SendSignUpReminderAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        string cutoffDisplay,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record TeeTimeEmailSlot(string SlotTime, IReadOnlyList<string> PlayerNames);

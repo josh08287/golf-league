@@ -28,6 +28,17 @@ public interface IRoundRepository
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default);
     Task<Round?> GetPreviousRoundAsync(int halfId, int currentWeekNumber, CancellationToken cancellationToken = default);
 
+    /// <summary>Stamps <see cref="Round.SignUpReminderSentAt"/> so the reminder isn't re-sent on a later timer run.</summary>
+    Task MarkSignUpReminderSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Stamps <see cref="Round.TeeTimeScheduleEmailSentAt"/> so the autofill
+    /// timer doesn't automatically re-send the schedule email on a later run.
+    /// Not called by the admin "resend" action, which should always be able
+    /// to send on demand.
+    /// </summary>
+    Task MarkTeeTimeScheduleEmailSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// All rounds in <paramref name="seasonId"/> strictly before <paramref name="currentRoundDate"/>,
     /// ordered chronologically. Scoped to the season (not the half) so that state carried
