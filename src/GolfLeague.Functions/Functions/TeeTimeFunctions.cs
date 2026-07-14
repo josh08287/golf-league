@@ -149,9 +149,10 @@ public sealed class TeeTimeFunctions
 
     /// <summary>
     /// POST /v1/admin/rounds/{id}/tee-times/run-autofill — admin manual
-    /// trigger. The timer fires this automatically on Sunday at noon ET; this
-    /// endpoint exists so an admin can run autofill ahead of schedule
-    /// (e.g., for testing or to recover from a missed timer run).
+    /// trigger. The timer fires this automatically at the league's configured
+    /// sign-up cutoff time (default 6pm ET) the day before each round; this
+    /// endpoint exists so an admin can run autofill ahead of schedule (e.g.,
+    /// for testing or to recover from a missed timer run).
     /// </summary>
     [Function("RunTeeTimeAutofill")]
     public async Task<IActionResult> RunAutofill(

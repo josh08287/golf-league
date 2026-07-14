@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Leagues;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -14,17 +15,20 @@ public sealed class TeeTimeService : ITeeTimeService
 {
     private readonly IRoundRepository _rounds;
     private readonly ITeeTimeRepository _teeTimes;
+    private readonly ILeagueSettingRepository _leagueSettings;
     private readonly AuditWriter _auditWriter;
     private readonly ILogger<TeeTimeService> _logger;
 
     public TeeTimeService(
         IRoundRepository rounds,
         ITeeTimeRepository teeTimes,
+        ILeagueSettingRepository leagueSettings,
         AuditWriter auditWriter,
         ILogger<TeeTimeService> logger)
     {
         _rounds = rounds;
         _teeTimes = teeTimes;
+        _leagueSettings = leagueSettings;
         _auditWriter = auditWriter;
         _logger = logger;
     }
@@ -102,9 +106,12 @@ public sealed class TeeTimeService : ITeeTimeService
     private async Task<(bool IsOpen, string? Reason, DateTime ClosesUtc)> GetSignupWindowDetailAsync(
         Round round, DateTime utcNow, CancellationToken cancellationToken)
     {
-        // Sign-ups close at the Sunday-noon-ET cutoff before the round, when
-        // auto-fill takes over assigning the remaining players.
-        var closesUtc = TeeTimeSchedule.ComputeSundayNoonCutoffUtc(round.RoundDate);
+        // Sign-ups close at the league's configured cutoff time (ET, default
+        // 6pm) the day before the round, when auto-fill takes over assigning
+        // the remaining players.
+        var cutoffSetting = await _leagueSettings.GetAsync(round.LeagueId, KnownSettings.TeeTimeCutoffTime, cancellationToken);
+        var cutoffTime = KnownSettings.ParseCutoffTime(cutoffSetting?.Value);
+        var closesUtc = TeeTimeSchedule.ComputeCutoffUtc(round.RoundDate, cutoffTime);
 
         if (utcNow >= closesUtc)
             return (false, "Tee-time sign-ups are closed for this round.", closesUtc);

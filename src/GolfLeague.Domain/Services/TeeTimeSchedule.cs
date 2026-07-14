@@ -34,29 +34,29 @@ public static class TeeTimeSchedule
         return (playerCount + CapacityPerTeeTime - 1) / CapacityPerTeeTime;
     }
 
-    /// <summary>
-    /// Sign-up cutoff: 12:00 noon US/Eastern (handles DST) on the Sunday
-    /// immediately preceding the round date. Returns a UTC instant.
-    /// </summary>
-    public static DateTime ComputeSundayNoonCutoffUtc(DateOnly roundDate)
-    {
-        // Sunday before the round: if round is a Sunday, the cutoff is the
-        // Sunday *of* the round at noon (effectively no early-bird window —
-        // shouldn't matter for a league that plays mid-week).
-        var daysBack = ((int)roundDate.DayOfWeek + 7) % 7;
-        if (daysBack == 0) daysBack = 0; // Sunday → same day's noon
-        var sunday = roundDate.AddDays(-daysBack);
+    /// <summary>Default sign-up cutoff time of day (US/Eastern) — 6:00pm.</summary>
+    public static readonly TimeOnly DefaultCutoffTime = new(18, 0);
 
-        var noonLocal = new DateTime(sunday.Year, sunday.Month, sunday.Day, 12, 0, 0, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(noonLocal, EasternTimeZone);
+    /// <summary>
+    /// Sign-up cutoff: <paramref name="cutoffTime"/> US/Eastern (handles DST,
+    /// defaults to 6:00pm) on the calendar day immediately preceding the
+    /// round date. Returns a UTC instant.
+    /// </summary>
+    public static DateTime ComputeCutoffUtc(DateOnly roundDate, TimeOnly? cutoffTime = null)
+    {
+        var time = cutoffTime ?? DefaultCutoffTime;
+        var dayBefore = roundDate.AddDays(-1);
+
+        var cutoffLocal = new DateTime(dayBefore.Year, dayBefore.Month, dayBefore.Day, time.Hour, time.Minute, 0, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(cutoffLocal, EasternTimeZone);
     }
 
     /// <summary>
-    /// True when the current UTC time is past the Sunday-noon cutoff for
-    /// the given round date.
+    /// True when the current UTC time is past the day-before-round sign-up
+    /// cutoff (see <see cref="ComputeCutoffUtc"/>) for the given round date.
     /// </summary>
-    public static bool IsAfterCutoff(DateOnly roundDate, DateTime utcNow)
-        => utcNow >= ComputeSundayNoonCutoffUtc(roundDate);
+    public static bool IsAfterCutoff(DateOnly roundDate, DateTime utcNow, TimeOnly? cutoffTime = null)
+        => utcNow >= ComputeCutoffUtc(roundDate, cutoffTime);
 
     /// <summary>
     /// True when <paramref name="utcNow"/> falls on the same US/Eastern

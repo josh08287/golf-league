@@ -41,4 +41,66 @@ public class TeeTimeScheduleTests
         TeeTimeSchedule.IsRoundDay(roundDate, utcNow).Should().BeTrue();
         TeeTimeSchedule.IsRoundDay(roundDate.AddDays(1), utcNow).Should().BeFalse();
     }
+
+    [Fact]
+    public void ComputeCutoffUtc_IsSixPmEasternDayBeforeRound_DuringEdt()
+    {
+        // June 10, 2026 is a Wednesday during EDT (UTC-4). Cutoff should be
+        // 6pm ET June 9 = 22:00 UTC June 9.
+        var roundDate = new DateOnly(2026, 6, 10);
+
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+
+        cutoffUtc.Should().Be(new DateTime(2026, 6, 9, 22, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void ComputeCutoffUtc_IsSixPmEasternDayBeforeRound_DuringEst()
+    {
+        // January 14, 2026 is during EST (UTC-5). Cutoff should be 6pm ET
+        // January 13 = 23:00 UTC January 13.
+        var roundDate = new DateOnly(2026, 1, 14);
+
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+
+        cutoffUtc.Should().Be(new DateTime(2026, 1, 13, 23, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void IsAfterCutoff_JustBeforeAndAfterSixPmDayBefore_TogglesCorrectly()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate);
+
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc.AddMinutes(-1)).Should().BeFalse();
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc).Should().BeTrue();
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc.AddMinutes(1)).Should().BeTrue();
+    }
+
+    [Fact]
+    public void ComputeCutoffUtc_WithCustomCutoffTime_UsesConfiguredTimeInsteadOfDefault()
+    {
+        // Same round/day as the default-cutoff test, but an admin-configured
+        // 9am cutoff instead of the 6pm default.
+        var roundDate = new DateOnly(2026, 6, 10);
+        var customTime = new TimeOnly(9, 0);
+
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate, customTime);
+
+        cutoffUtc.Should().Be(new DateTime(2026, 6, 9, 13, 0, 0, DateTimeKind.Utc));
+    }
+
+    [Fact]
+    public void IsAfterCutoff_WithCustomCutoffTime_RespectsConfiguredTime()
+    {
+        var roundDate = new DateOnly(2026, 6, 10);
+        var customTime = new TimeOnly(9, 0);
+        var cutoffUtc = TeeTimeSchedule.ComputeCutoffUtc(roundDate, customTime);
+
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc.AddMinutes(-1), customTime).Should().BeFalse();
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc, customTime).Should().BeTrue();
+
+        // Sanity: at the same instant, the default (6pm) cutoff hasn't passed yet.
+        TeeTimeSchedule.IsAfterCutoff(roundDate, cutoffUtc).Should().BeFalse();
+    }
 }

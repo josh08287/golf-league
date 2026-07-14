@@ -13,7 +13,7 @@ namespace GolfLeague.Tests.Application;
 /// <summary>
 /// Coverage for the round-day self-service tee-time switch: an
 /// already-assigned participant may move to a different open slot on the day
-/// of their round even after the general Sunday-noon-ET sign-up cutoff has
+/// of their round even after the general 6pm-ET-day-before sign-up cutoff has
 /// passed. Everything else about the cutoff (fresh joins, LeaveAsync, and
 /// non-round-day joins) is unchanged.
 /// </summary>
@@ -24,23 +24,13 @@ public class TeeTimeServiceTests
 
     /// <summary>
     /// Today's Eastern date, for use as a "round day" fixture in the
-    /// after-cutoff tests. The cutoff for a round dated today is the most
-    /// recent Sunday noon ET, which is always in the past UNLESS today is
-    /// itself a Sunday and it's not yet noon ET — an edge case explicitly
-    /// asserted against below so the suite fails loudly (rather than
-    /// flaking) if it's ever run in that window.
+    /// after-cutoff tests. The cutoff for a round dated today is 6pm ET the
+    /// day before, which is always in the past by the time "today" exists.
     /// </summary>
     private static DateOnly RoundDayWithPassedCutoff()
     {
         var nowUtc = DateTime.UtcNow;
-        var today = EasternToday(nowUtc);
-        if (TeeTimeSchedule.ComputeSundayNoonCutoffUtc(today) > nowUtc)
-        {
-            throw new InvalidOperationException(
-                "Test run during the Sunday-before-noon-ET window, where 'round day' has no " +
-                "passed cutoff to exercise. Re-run after noon ET.");
-        }
-        return today;
+        return EasternToday(nowUtc);
     }
 
     private static RoundParticipant MakeParticipant(int id, int? teeTimeId = null) => new()
@@ -79,8 +69,12 @@ public class TeeTimeServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var leagueSettings = new Mock<ILeagueSettingRepository>();
+        leagueSettings.Setup(s => s.GetAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LeagueSetting?)null);
+
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes);
     }
 
@@ -101,8 +95,12 @@ public class TeeTimeServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        var leagueSettings = new Mock<ILeagueSettingRepository>();
+        leagueSettings.Setup(s => s.GetAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LeagueSetting?)null);
+
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes, auditRepository);
     }
 

@@ -86,9 +86,26 @@ public static class KnownSettings
     public const string TeeTimeEmailEnabled = "tee_time_email_enabled";
     public const string StandingsDropCount = "standings_drop_count";
 
+    /// <summary>
+    /// Tee-time sign-up cutoff time of day, US/Eastern, as "HH:mm" (24-hour).
+    /// The cutoff falls on the calendar day before each round. See
+    /// <see cref="GolfLeague.Domain.Services.TeeTimeSchedule.ComputeCutoffUtc"/>.
+    /// </summary>
+    public const string TeeTimeCutoffTime = "tee_time_cutoff_time";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
         [StandingsDropCount] = "1",
+        [TeeTimeCutoffTime] = "18:00",
     };
+
+    /// <summary>
+    /// Parses a stored <see cref="TeeTimeCutoffTime"/> value ("HH:mm"), falling
+    /// back to the default cutoff time if missing or malformed.
+    /// </summary>
+    public static TimeOnly ParseCutoffTime(string? storedValue)
+        => TimeOnly.TryParse(storedValue, out var parsed)
+            ? parsed
+            : TimeOnly.Parse(Defaults[TeeTimeCutoffTime]);
 }

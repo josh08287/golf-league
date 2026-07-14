@@ -143,7 +143,7 @@ public static class KnownFeatureFlags
     /// <summary>
     /// Lets an already-assigned player move themselves to a different (open)
     /// tee-time slot on the day of their round, bypassing the normal
-    /// Sunday-noon sign-up cutoff for that one action. Initial join, leave,
+    /// day-before sign-up cutoff for that one action. Initial join, leave,
     /// and skip-week remain cutoff-gated regardless of this flag.
     /// </summary>
     public const string RoundDayTeeTimeSwitchEnabled = "round_day_tee_time_switch_enabled";

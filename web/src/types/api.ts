@@ -845,6 +845,7 @@ export interface LeagueSetting {
 export const SETTING_KEYS = {
   teeTimeEmailEnabled: 'tee_time_email_enabled',
   standingsDropCount: 'standings_drop_count',
+  teeTimeCutoffTime: 'tee_time_cutoff_time',
 } as const;
 
 // ── Feature Flags ──────────────────────────────────────────────────────────────

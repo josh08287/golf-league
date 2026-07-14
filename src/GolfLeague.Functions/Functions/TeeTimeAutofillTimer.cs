@@ -1,4 +1,5 @@
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Leagues;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -10,38 +11,40 @@ using Microsoft.Extensions.Logging;
 namespace GolfLeague.Functions.Functions;
 
 /// <summary>
-/// Timer-triggered autofill. NCRONTAB fires every Sunday at 12:00 noon
-/// Eastern (handled at the schedule level via the timezone host setting
-/// in <c>host.json</c> or via the <c>WEBSITE_TIME_ZONE</c> app setting on
-/// Windows; on Linux the host's TZ var is used). The expression is in
-/// UTC by default, so we use a redundant per-round guard that also checks
-/// <see cref="TeeTimeSchedule.IsAfterCutoff"/> to handle missed runs.
+/// Timer-triggered autofill. The cutoff is per-round and per-league — each
+/// league configures its own cutoff time of day via
+/// <see cref="KnownSettings.TeeTimeCutoffTime"/> (default 6:00pm US/Eastern),
+/// applied to the calendar day before each round (see
+/// <see cref="TeeTimeSchedule.ComputeCutoffUtc"/>). This runs hourly and
+/// relies on the per-round guard (<see cref="TeeTimeSchedule.IsAfterCutoff"/>)
+/// to only act on rounds whose own league's cutoff has actually passed.
 ///
-/// CRON: "0 0 16 * * 0" — 16:00 UTC every Sunday, which is 12:00 noon EDT
-/// (Mar-Nov). Outside DST this fires at 11am ET — fine; close enough and
-/// the per-round guard checks the actual cutoff before assigning.
+/// CRON: "0 0 * * * *" — top of every hour, UTC.
 /// </summary>
 public sealed class TeeTimeAutofillTimer
 {
     private readonly IRoundRepository _rounds;
+    private readonly ILeagueSettingRepository _leagueSettings;
     private readonly ITeeTimeAutofillService _autofill;
     private readonly IMediator _mediator;
     private readonly ILogger<TeeTimeAutofillTimer> _logger;
 
     public TeeTimeAutofillTimer(
         IRoundRepository rounds,
+        ILeagueSettingRepository leagueSettings,
         ITeeTimeAutofillService autofill,
         IMediator mediator,
         ILogger<TeeTimeAutofillTimer> logger)
     {
         _rounds = rounds;
+        _leagueSettings = leagueSettings;
         _autofill = autofill;
         _mediator = mediator;
         _logger = logger;
     }
 
     [Function("TeeTimeAutofillTimer")]
-    public async Task Run([TimerTrigger("0 0 16 * * 0")] TimerInfo timer, CancellationToken cancellationToken)
+    public async Task Run([TimerTrigger("0 0 * * * *")] TimerInfo timer, CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(now);
@@ -52,13 +55,30 @@ public sealed class TeeTimeAutofillTimer
             now, today, horizon);
 
         var rounds = await _rounds.GetAllAsync(cancellationToken);
-        var candidates = rounds
+        var inWindow = rounds
             .Where(r => r.Status == RoundStatus.Scheduled
                      && r.RoundDate >= today
-                     && r.RoundDate <= horizon
-                     && TeeTimeSchedule.IsAfterCutoff(r.RoundDate, now))
-            .OrderBy(r => r.RoundDate)
+                     && r.RoundDate <= horizon)
             .ToList();
+
+        var cutoffTimeByLeague = new Dictionary<int, TimeOnly>();
+        async Task<TimeOnly> GetCutoffTimeAsync(int leagueId)
+        {
+            if (cutoffTimeByLeague.TryGetValue(leagueId, out var cached)) return cached;
+            var setting = await _leagueSettings.GetAsync(leagueId, KnownSettings.TeeTimeCutoffTime, cancellationToken);
+            var time = KnownSettings.ParseCutoffTime(setting?.Value);
+            cutoffTimeByLeague[leagueId] = time;
+            return time;
+        }
+
+        var candidates = new List<Domain.Entities.Round>();
+        foreach (var round in inWindow)
+        {
+            var cutoffTime = await GetCutoffTimeAsync(round.LeagueId);
+            if (TeeTimeSchedule.IsAfterCutoff(round.RoundDate, now, cutoffTime))
+                candidates.Add(round);
+        }
+        candidates = candidates.OrderBy(r => r.RoundDate).ToList();
 
         foreach (var round in candidates)
         {

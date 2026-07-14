@@ -8,6 +8,7 @@ import { useLeagueSettings, useUpdateLeagueSetting } from '../../hooks/admin/use
 import { useFeatureFlags, useUpdateFeatureFlag } from '../../hooks/admin/useFeatureFlags';
 import { useAuthStore } from '../../store/authStore';
 import { SETTING_KEYS, FEATURE_FLAG_KEYS } from '../../types/api';
+import { localTimeToEastern, easternTimeToLocal, localTimeZoneAbbreviation } from '../../lib/utils';
 
 /** Global feature flags surfaced to super-admins, in display order. */
 const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] = [
@@ -129,6 +130,33 @@ export function SettingsPage() {
     }
   }
 
+  const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+  function getTimeSetting(key: string, fallback: string): string {
+    const s = settings?.find((s) => s.key === key);
+    return s?.value && TIME_PATTERN.test(s.value) ? s.value : fallback;
+  }
+
+  // Stored/interpreted by the backend as US/Eastern; displayed and edited
+  // here in the admin's own browser time zone for clarity.
+  const cutoffTimeEastern = getTimeSetting(SETTING_KEYS.teeTimeCutoffTime, '18:00');
+  const cutoffTimeLocalValue = easternTimeToLocal(cutoffTimeEastern);
+  const [cutoffTimeInput, setCutoffTimeInput] = useState<string>('');
+  const [cutoffTimeInitialized, setCutoffTimeInitialized] = useState(false);
+
+  if (settings && !cutoffTimeInitialized) {
+    setCutoffTimeInput(cutoffTimeLocalValue);
+    setCutoffTimeInitialized(true);
+  }
+
+  const cutoffTimeValid = TIME_PATTERN.test(cutoffTimeInput);
+  const cutoffTimeDirty = cutoffTimeValid && cutoffTimeInput !== cutoffTimeLocalValue;
+
+  function handleSaveCutoffTime() {
+    if (cutoffTimeValid) {
+      update.mutate({ key: SETTING_KEYS.teeTimeCutoffTime, value: localTimeToEastern(cutoffTimeInput) });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="League configuration" />
@@ -179,12 +207,44 @@ export function SettingsPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Tee Times</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-gray-100">
+              <div className="flex items-start justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">Sign-up cutoff time</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Time, in your local time zone ({localTimeZoneAbbreviation()}), on the day before each round when tee-time sign-ups close and auto-fill assigns the remaining players.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <input
+                    type="time"
+                    value={cutoffTimeInput}
+                    onChange={(e) => setCutoffTimeInput(e.target.value)}
+                    disabled={update.isPending}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveCutoffTime}
+                    disabled={!cutoffTimeDirty || update.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Email Notifications</CardTitle>
             </CardHeader>
             <CardContent className="divide-y divide-gray-100">
               <Toggle
                 label="Weekly tee time emails"
-                description="After auto-fill runs each Sunday, send every player in the current half an email with the full tee sheet for the upcoming round."
+                description="After auto-fill runs (at the sign-up cutoff time, the day before each round), send every player in the current half an email with the full tee sheet for the upcoming round."
                 checked={getSetting(SETTING_KEYS.teeTimeEmailEnabled)}
                 onChange={(v) => handleToggle(SETTING_KEYS.teeTimeEmailEnabled, v)}
                 disabled={update.isPending}
