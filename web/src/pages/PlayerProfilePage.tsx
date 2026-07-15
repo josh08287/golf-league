@@ -238,7 +238,7 @@ function UpcomingRoundsSection({ rounds }: { rounds: PlayerRoundSummary[] }) {
   );
 }
 
-function ScoringDistributionBar({ stats }: { stats: PlayerStatistics }) {
+export function ScoringDistributionBar({ stats }: { stats: PlayerStatistics }) {
   const { scoringDistribution: dist } = stats;
   const total = dist.totalHolesPlayed;
   if (total === 0) return null;
