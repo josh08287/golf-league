@@ -116,6 +116,24 @@ export function useAvailableSubstitutes(roundId: number | null) {
 }
 
 /**
+ * Self-service: the caller (a substitute-pool player not in this round)
+ * claims a seat in a tee-time slot. Only allowed up to as many substitutes
+ * as players who've skipped the round.
+ */
+export function useJoinAsSubstitute() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (payload: { roundId: number; teeTimeId: number }) => {
+      const res = await apiClient.post(
+        `/rounds/${payload.roundId}/tee-times/${payload.teeTimeId}/join-as-substitute`,
+      );
+      return unwrap<RoundTeeTimeSchedule>(res.data);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: teeTimeKeys.all }),
+  });
+}
+
+/**
  * Add a substitute to the caller's own tee-time slot. Only allowed up to as
  * many substitutes as players who've skipped the round.
  */

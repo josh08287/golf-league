@@ -52,6 +52,14 @@ public interface ITeeTimeService
     Task<Result<RoundTeeTimeScheduleDto>> AddSubstituteAsync(int roundId, int callingPlayerId, int substitutePlayerId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// A substitute-pool player joins a tee-time slot themselves. Only
+    /// allowed while the normal sign-up window is open, and only up to as
+    /// many substitutes as players have skipped the round (round-wide cap).
+    /// Returns the refreshed schedule.
+    /// </summary>
+    Task<Result<RoundTeeTimeScheduleDto>> JoinAsSubstituteAsync(int roundId, int teeTimeId, int callingPlayerId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes a substitute participant the caller (or an admin) added to
     /// this round, deleting the RoundParticipant row outright. Returns the
     /// refreshed schedule.

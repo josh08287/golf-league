@@ -168,6 +168,31 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// POST /v1/rounds/{roundId}/tee-times/{teeTimeId}/join-as-substitute
+    /// A substitute-pool player claims a seat in a tee-time slot themselves,
+    /// only allowed up to as many substitutes as players who've skipped.
+    /// </summary>
+    [Function("JoinTeeTimeAsSubstitute")]
+    public async Task<IActionResult> JoinAsSubstitute(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/rounds/{roundId:int}/tee-times/{teeTimeId:int}/join-as-substitute")] HttpRequest req,
+        int roundId,
+        int teeTimeId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var result = await _service.JoinAsSubstituteAsync(roundId, teeTimeId, playerId.Value, cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new ConflictObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
     /// POST /v1/rounds/{roundId}/tee-times/substitutes/{substitutePlayerId}
     /// Caller adds a substitute to their own tee-time slot, only allowed up
     /// to as many substitutes as players who've skipped the round.

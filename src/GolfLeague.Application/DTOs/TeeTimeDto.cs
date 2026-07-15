@@ -33,4 +33,10 @@ public sealed record RoundTeeTimeScheduleDto(
     bool IsRoundDay = false,
     int SkippedCount = 0,
     int SubstituteCount = 0,
-    bool SubstitutesEnabled = false);
+    bool SubstitutesEnabled = false,
+    // Caller is flagged IsSubstitute in the pool but isn't in this round —
+    // drives the self-service "Join as substitute" buttons.
+    bool CurrentUserIsSubstitutePoolMember = false,
+    // Caller's participant row in this round is a substitute row — their
+    // "leave" removes them from the round entirely.
+    bool CurrentUserIsSubstitute = false);

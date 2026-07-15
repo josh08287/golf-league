@@ -395,3 +395,210 @@ public class TeeTimeServiceTests
         teeTimes.Verify(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
+
+/// <summary>
+/// Coverage for substitute self-service: a pool sub joining a tee-time slot
+/// themselves (JoinAsSubstituteAsync), leaving (LeaveAsync removes their row
+/// outright), and the schedule flag that drives the join buttons.
+/// </summary>
+public class JoinAsSubstituteTests
+{
+    private static Round MakeRound(params RoundParticipant[] participants)
+    {
+        var round = new Round
+        {
+            Id = 1,
+            LeagueId = 1,
+            // Well in the future so the sign-up window is open.
+            RoundDate = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(10),
+            Course = new Course { Id = 1, Name = "Test", SlopeRating = 113, CourseRating = 35.0 },
+        };
+        foreach (var p in participants) round.Participants.Add(p);
+        return round;
+    }
+
+    private static RoundParticipant MakeParticipant(
+        int id, bool skipped = false, bool isSub = false, int? teeTimeId = null, int? flightId = null)
+        => new()
+        {
+            Id = id,
+            PlayerId = id,
+            RoundId = 1,
+            SkippedWeek = skipped,
+            IsSubstitute = isSub,
+            TeeTimeId = teeTimeId,
+            FlightId = flightId,
+            Player = new Player { Id = id, FirstName = "P", LastName = id.ToString() },
+        };
+
+    private static RoundTeeTime MakeSlot(int id, params RoundParticipant[] participants)
+    {
+        var slot = new RoundTeeTime { Id = id, RoundId = 1, TeeTimeNumber = id };
+        foreach (var p in participants) slot.Participants.Add(p);
+        return slot;
+    }
+
+    private static (TeeTimeService Sut, Mock<IRoundRepository> Rounds) BuildSut(
+        Round round,
+        IReadOnlyList<RoundTeeTime> slots,
+        Player? callerPlayer,
+        bool substitutesEnabled = true)
+    {
+        var rounds = new Mock<IRoundRepository>();
+        var teeTimes = new Mock<ITeeTimeRepository>();
+
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        teeTimes.Setup(t => t.EnsureSlotsAsync(round.Id, It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(slots);
+        teeTimes.Setup(t => t.GetByRoundAsync(round.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(slots);
+        teeTimes.Setup(t => t.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int id, CancellationToken _) => slots.FirstOrDefault(s => s.Id == id));
+
+        var leagueSettings = new Mock<ILeagueSettingRepository>();
+        leagueSettings.Setup(s => s.GetAsync(It.IsAny<int>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((LeagueSetting?)null);
+        leagueSettings.Setup(s => s.GetAsync(
+                It.IsAny<int>(),
+                GolfLeague.Application.Leagues.KnownSettings.SubstitutesEnabled,
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LeagueSetting
+            {
+                Key = GolfLeague.Application.Leagues.KnownSettings.SubstitutesEnabled,
+                Value = substitutesEnabled ? "true" : "false",
+            });
+
+        var players = new Mock<IPlayerRepository>();
+        if (callerPlayer is not null)
+        {
+            players.Setup(p => p.GetByIdAsync(callerPlayer.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(callerPlayer);
+        }
+
+        var handicaps = new Mock<IHandicapRepository>();
+        var auditWriter = new AuditWriter(new Mock<IAuditRepository>().Object, new Mock<ILogger<AuditWriter>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        return (sut, rounds);
+    }
+
+    private static Player MakePoolSub(int id = 99) =>
+        new() { Id = id, FirstName = "Sub", LastName = "Player", IsSubstitute = true };
+
+    [Fact]
+    public async Task JoinAsSubstitute_PoolSubWithOpenSkipSpot_JoinsChosenSlot()
+    {
+        var skipped = MakeParticipant(1, skipped: true, flightId: 5);
+        var seated = MakeParticipant(2, teeTimeId: 10);
+        var round = MakeRound(skipped, seated);
+        var slot = MakeSlot(10, seated);
+        var (sut, rounds) = BuildSut(round, [slot], MakePoolSub());
+
+        var result = await sut.JoinAsSubstituteAsync(1, teeTimeId: 10, callingPlayerId: 99);
+
+        result.IsSuccess.Should().BeTrue();
+        rounds.Verify(r => r.AddParticipantAsync(
+            It.Is<RoundParticipant>(p =>
+                p.PlayerId == 99
+                && p.IsSubstitute
+                && p.TeeTimeId == 10
+                && p.SubstituteForParticipantId == skipped.Id
+                && p.FlightId == 5),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task JoinAsSubstitute_SubstitutesDisabled_Fails()
+    {
+        var round = MakeRound(MakeParticipant(1, skipped: true));
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10)], MakePoolSub(), substitutesEnabled: false);
+
+        var result = await sut.JoinAsSubstituteAsync(1, 10, 99);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("enabled");
+        rounds.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task JoinAsSubstitute_CallerNotInPool_Fails()
+    {
+        var round = MakeRound(MakeParticipant(1, skipped: true));
+        var notASub = new Player { Id = 99, FirstName = "N", LastName = "S", IsSubstitute = false };
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10)], notASub);
+
+        var result = await sut.JoinAsSubstituteAsync(1, 10, 99);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("substitute pool");
+        rounds.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task JoinAsSubstitute_AlreadyInRound_Fails()
+    {
+        var existing = MakeParticipant(99, isSub: true, teeTimeId: 10);
+        var round = MakeRound(MakeParticipant(1, skipped: true), existing);
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10, existing)], MakePoolSub());
+
+        var result = await sut.JoinAsSubstituteAsync(1, 10, 99);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("already in this round");
+        rounds.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task JoinAsSubstitute_NoSkipCapacity_Fails()
+    {
+        // One skip, already claimed by another substitute.
+        var otherSub = MakeParticipant(50, isSub: true, teeTimeId: 10);
+        var round = MakeRound(MakeParticipant(1, skipped: true), otherSub);
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10, otherSub)], MakePoolSub());
+
+        var result = await sut.JoinAsSubstituteAsync(1, 10, 99);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("No substitute spots");
+        rounds.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task JoinAsSubstitute_SlotFull_Fails()
+    {
+        var seated = Enumerable.Range(2, 4).Select(i => MakeParticipant(i, teeTimeId: 10)).ToArray();
+        var round = MakeRound([MakeParticipant(1, skipped: true), .. seated]);
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10, seated)], MakePoolSub());
+
+        var result = await sut.JoinAsSubstituteAsync(1, 10, 99);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("full");
+        rounds.Verify(r => r.AddParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Leave_SubstituteParticipant_RemovesRowFromRound()
+    {
+        var sub = MakeParticipant(99, isSub: true, teeTimeId: 10);
+        var round = MakeRound(MakeParticipant(1, skipped: true), sub);
+        var (sut, rounds) = BuildSut(round, [MakeSlot(10, sub)], MakePoolSub());
+
+        var result = await sut.LeaveAsync(1, callingPlayerId: 99);
+
+        result.IsSuccess.Should().BeTrue();
+        rounds.Verify(r => r.DeleteParticipantAsync(sub.Id, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task GetSchedule_PoolSubNotInRound_SetsPoolMemberFlag()
+    {
+        var round = MakeRound(MakeParticipant(1, skipped: true));
+        var (sut, _) = BuildSut(round, [MakeSlot(10)], MakePoolSub());
+
+        var result = await sut.GetScheduleAsync(1, callingPlayerId: 99);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.CurrentUserIsSubstitutePoolMember.Should().BeTrue();
+        result.Value!.CurrentUserIsSubstitute.Should().BeFalse();
+    }
+}

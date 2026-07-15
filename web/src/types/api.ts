@@ -456,6 +456,10 @@ export interface RoundTeeTimeSchedule {
   skippedCount: number;
   substituteCount: number;
   substitutesEnabled: boolean;
+  /** Caller is in the sub pool but not in this round — can self-join a slot. */
+  currentUserIsSubstitutePoolMember: boolean;
+  /** Caller's row in this round is a substitute row — "leave" exits the round. */
+  currentUserIsSubstitute: boolean;
 }
 
 // ── Tee Time Score Entry ───────────────────────────────────────────────────────

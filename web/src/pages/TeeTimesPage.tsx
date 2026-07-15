@@ -12,6 +12,7 @@ import {
   useSwitchTeeTimeParticipant,
   useAvailableSubstitutes,
   useAddSubstitute,
+  useJoinAsSubstitute,
   useRemoveSubstitute,
 } from '@/hooks/useTeeTimes';
 import { useRound } from '@/hooks/useRounds';
@@ -205,6 +206,7 @@ interface SlotCardProps {
   isParticipant: boolean;
   roundDaySwitchEnabled: boolean;
   onJoin: (teeTimeId: number) => void;
+  onJoinAsSub: (teeTimeId: number) => void;
   onSwitch: (teeTimeId: number) => void;
   onLeave: () => void;
   mutating: boolean;
@@ -218,6 +220,7 @@ function SlotCard({
   isParticipant,
   roundDaySwitchEnabled,
   onJoin,
+  onJoinAsSub,
   onSwitch,
   onLeave,
   mutating,
@@ -239,6 +242,12 @@ function SlotCard({
   const canAddSubstitute =
     schedule.substitutesEnabled &&
     isMine &&
+    !isFull &&
+    schedule.substituteCount < schedule.skippedCount;
+  const canJoinAsSub =
+    schedule.substitutesEnabled &&
+    schedule.currentUserIsSubstitutePoolMember &&
+    !schedule.isLocked &&
     !isFull &&
     schedule.substituteCount < schedule.skippedCount;
   const isEmpty = slot.players.length === 0;
@@ -340,7 +349,7 @@ function SlotCard({
           />
         )}
 
-        {(canJoin || canLeave || canSwitch || canAddSubstitute) && (
+        {(canJoin || canJoinAsSub || canLeave || canSwitch || canAddSubstitute) && (
           <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
             {canJoin && (
               <Button
@@ -351,6 +360,17 @@ function SlotCard({
               >
                 <LogIn className="h-4 w-4 mr-1" />
                 {isFull ? 'Full' : 'Join this slot'}
+              </Button>
+            )}
+            {canJoinAsSub && (
+              <Button
+                size="sm"
+                className="w-full"
+                disabled={mutating}
+                onClick={() => onJoinAsSub(slot.id)}
+              >
+                <UserPlus className="h-4 w-4 mr-1" />
+                Join as substitute
               </Button>
             )}
             {canAddSubstitute && (
@@ -484,9 +504,10 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
   const user = useAuthStore((s) => s.user);
   const countdown = useCutoffCountdown(schedule.cutoffUtc);
   const join = useJoinTeeTime();
+  const joinAsSub = useJoinAsSubstitute();
   const leave = useLeaveTeeTime();
   const skipMyWeek = useSkipMyWeek();
-  const mutating = join.isPending || leave.isPending || skipMyWeek.isPending;
+  const mutating = join.isPending || joinAsSub.isPending || leave.isPending || skipMyWeek.isPending;
   const featureFlags = useFeatureFlagStates();
   const roundDaySwitchEnabled =
     featureFlags.data?.[FEATURE_FLAG_KEYS.roundDayTeeTimeSwitchEnabled] ?? false;
@@ -507,6 +528,21 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
           const msg =
             (err as { response?: { data?: { error?: string } } })?.response?.data?.error
             ?? 'Could not join that slot.';
+          setActionError(msg);
+        },
+      },
+    );
+  }
+
+  function handleJoinAsSub(teeTimeId: number) {
+    setActionError(null);
+    joinAsSub.mutate(
+      { roundId: schedule.roundId, teeTimeId },
+      {
+        onError: (err: unknown) => {
+          const msg =
+            (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+            ?? 'Could not join that slot as a substitute.';
           setActionError(msg);
         },
       },
@@ -581,7 +617,15 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
         </div>
       )}
 
-      {user && hasPlayerId && !isParticipant && (
+      {user && hasPlayerId && !isParticipant && schedule.currentUserIsSubstitutePoolMember && (
+        <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+          {!schedule.isLocked && schedule.substituteCount < schedule.skippedCount
+            ? `${schedule.skippedCount - schedule.substituteCount} substitute spot${schedule.skippedCount - schedule.substituteCount === 1 ? '' : 's'} open — pick a tee time below to join as a substitute.`
+            : 'No substitute spots are open for this round — a spot opens when a player skips.'}
+        </div>
+      )}
+
+      {user && hasPlayerId && !isParticipant && !schedule.currentUserIsSubstitutePoolMember && (
         <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
           You&apos;re not registered as a participant in this round — viewing only.
         </div>
@@ -649,6 +693,7 @@ function TeeTimeView({ schedule, roundCourseName, roundDate }: TeeTimeViewProps)
             isParticipant={isParticipant}
             roundDaySwitchEnabled={roundDaySwitchEnabled}
             onJoin={handleJoin}
+            onJoinAsSub={handleJoinAsSub}
             onSwitch={handleSwitch}
             onLeave={handleLeave}
             mutating={mutating}

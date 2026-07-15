@@ -97,7 +97,19 @@ public sealed class TeeTimeService : ITeeTimeService
             && bool.TryParse(substitutesEnabledSetting.Value, out var parsedEnabled)
             && parsedEnabled;
 
-        var dto = BuildDto(round, slots, callingPlayerId, isLocked: !isOpen, closesUtc: closesUtc, isRoundDay: isRoundDay, substitutesEnabled: substitutesEnabled);
+        // A pool sub who isn't in this round yet can self-join a slot — only
+        // worth the extra lookup when substitutes are on and the caller has
+        // no participant row.
+        var callerIsPoolSub = false;
+        if (substitutesEnabled
+            && callingPlayerId is int pid
+            && !round.Participants.Any(p => p.PlayerId == pid))
+        {
+            var callerPlayer = await _players.GetByIdAsync(pid, cancellationToken);
+            callerIsPoolSub = callerPlayer?.IsSubstitute == true;
+        }
+
+        var dto = BuildDto(round, slots, callingPlayerId, isLocked: !isOpen, closesUtc: closesUtc, isRoundDay: isRoundDay, substitutesEnabled: substitutesEnabled, callerIsPoolSub: callerIsPoolSub);
         return Result<RoundTeeTimeScheduleDto>.Ok(dto);
     }
 
@@ -205,6 +217,16 @@ public sealed class TeeTimeService : ITeeTimeService
         if (participant is null)
             return Result<RoundTeeTimeScheduleDto>.Fail("You're not a participant in this round.");
 
+        // A substitute leaving their slot leaves the round entirely — a sub
+        // row without a tee time has no meaning (they're only in the round
+        // to fill a seat).
+        if (participant.IsSubstitute)
+        {
+            await _rounds.DeleteParticipantAsync(participant.Id, cancellationToken);
+            await TryWriteAuditAsync(round, participant, "SubstituteRemoved", cancellationToken);
+            return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
+        }
+
         if (participant.TeeTimeId is not null)
         {
             await _teeTimes.SetParticipantTeeTimeAsync(participant.Id, null, cancellationToken);
@@ -282,6 +304,71 @@ public sealed class TeeTimeService : ITeeTimeService
         if (slot.Participants.Count >= TeeTimeSchedule.CapacityPerTeeTime)
             return Result<RoundTeeTimeScheduleDto>.Fail("Your tee time is full.");
 
+        await CreateSubstituteParticipantAsync(
+            round, substitutePlayerId, participant.TeeTimeId.Value, participant.FlightId, cancellationToken);
+        await TryWriteAuditAsync(round, participant, "SubstituteAdded", cancellationToken);
+
+        return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
+    }
+
+    public async Task<Result<RoundTeeTimeScheduleDto>> JoinAsSubstituteAsync(int roundId, int teeTimeId, int callingPlayerId, CancellationToken cancellationToken = default)
+    {
+        var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
+        if (round is null) return Result<RoundTeeTimeScheduleDto>.Fail($"Round {roundId} not found.");
+
+        var substitutesEnabledSetting = await _leagueSettings.GetAsync(round.LeagueId, KnownSettings.SubstitutesEnabled, cancellationToken);
+        if (substitutesEnabledSetting is null || !bool.TryParse(substitutesEnabledSetting.Value, out var substitutesEnabled) || !substitutesEnabled)
+            return Result<RoundTeeTimeScheduleDto>.Fail("Substitutes aren't enabled for this league.");
+
+        var (isOpen, lockReason) = await GetSignupWindowAsync(round, DateTime.UtcNow, cancellationToken);
+        if (!isOpen)
+            return Result<RoundTeeTimeScheduleDto>.Fail(lockReason!);
+
+        var caller = await _players.GetByIdAsync(callingPlayerId, cancellationToken);
+        if (caller is null || !caller.IsSubstitute)
+            return Result<RoundTeeTimeScheduleDto>.Fail("You're not in the substitute pool.");
+
+        if (round.Participants.Any(p => p.PlayerId == callingPlayerId))
+            return Result<RoundTeeTimeScheduleDto>.Fail("You're already in this round.");
+
+        // Round-wide cap: no more substitutes than players who've skipped.
+        var skippedCount = round.Participants.Count(p => p.SkippedWeek);
+        var substituteCount = round.Participants.Count(p => p.IsSubstitute);
+        if (substituteCount >= skippedCount)
+            return Result<RoundTeeTimeScheduleDto>.Fail(
+                "No substitute spots available for this round — a spot opens when a player skips.");
+
+        var slot = await _teeTimes.GetByIdAsync(teeTimeId, cancellationToken);
+        if (slot is null || slot.RoundId != roundId)
+            return Result<RoundTeeTimeScheduleDto>.Fail("That tee time doesn't belong to this round.");
+        if (slot.Participants.Count >= TeeTimeSchedule.CapacityPerTeeTime)
+            return Result<RoundTeeTimeScheduleDto>.Fail("That tee time is full.");
+
+        await CreateSubstituteParticipantAsync(
+            round, callingPlayerId, teeTimeId, flightId: null, cancellationToken);
+
+        // TryWriteAuditAsync needs the participant's Player nav, which the
+        // freshly created row doesn't carry — use the caller we already loaded.
+        if (caller.AppUserId is Guid appUserId)
+        {
+            await _auditWriter.WriteAsync(
+                "SubstituteJoined", "Round", round.Id.ToString(), appUserId.ToString(),
+                leagueId: round.LeagueId, cancellationToken: cancellationToken);
+        }
+
+        return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
+    }
+
+    /// <summary>
+    /// Creates and persists the IsSubstitute participant row shared by both
+    /// entry paths (a participant inviting a sub into their slot, and a
+    /// pool sub joining a slot themselves). When <paramref name="flightId"/>
+    /// is null, the sub inherits the flight of the skipped participant whose
+    /// spot they're bookkeeping-linked to.
+    /// </summary>
+    private async Task CreateSubstituteParticipantAsync(
+        Round round, int substitutePlayerId, int teeTimeId, int? flightId, CancellationToken cancellationToken)
+    {
         var current = await _handicaps.GetCurrentAsync(substitutePlayerId, cancellationToken);
         var index = current?.HandicapIndex ?? 0.0;
         var courseHandicap = StablefordScoringService.CourseHandicap(index, round.Course.SlopeRating, round.RoundType);
@@ -298,10 +385,10 @@ public sealed class TeeTimeService : ITeeTimeService
 
         var newParticipant = new RoundParticipant
         {
-            RoundId = roundId,
+            RoundId = round.Id,
             PlayerId = substitutePlayerId,
-            FlightId = participant.FlightId,
-            TeeTimeId = participant.TeeTimeId,
+            FlightId = flightId ?? unclaimedSkip?.FlightId,
+            TeeTimeId = teeTimeId,
             HandicapIndex = index,
             CourseHandicap = courseHandicap,
             IsWithdrawn = false,
@@ -309,9 +396,6 @@ public sealed class TeeTimeService : ITeeTimeService
             SubstituteForParticipantId = unclaimedSkip?.Id,
         };
         await _rounds.AddParticipantAsync(newParticipant, cancellationToken);
-        await TryWriteAuditAsync(round, participant, "SubstituteAdded", cancellationToken);
-
-        return await GetScheduleAsync(roundId, callingPlayerId, cancellationToken);
     }
 
     public async Task<Result<RoundTeeTimeScheduleDto>> RemoveSubstituteAsync(int roundId, int callingPlayerId, int substituteParticipantId, CancellationToken cancellationToken = default)
@@ -358,7 +442,8 @@ public sealed class TeeTimeService : ITeeTimeService
         bool isLocked,
         DateTime closesUtc,
         bool isRoundDay,
-        bool substitutesEnabled = false)
+        bool substitutesEnabled = false,
+        bool callerIsPoolSub = false)
     {
         var participantCount = round.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek);
         // The DTO's "cutoff" is now the moment sign-ups close for this round
@@ -403,6 +488,8 @@ public sealed class TeeTimeService : ITeeTimeService
             isRoundDay,
             round.Participants.Count(p => p.SkippedWeek),
             round.Participants.Count(p => p.IsSubstitute),
-            substitutesEnabled);
+            substitutesEnabled,
+            callerIsPoolSub,
+            callerParticipant?.IsSubstitute ?? false);
     }
 }
