@@ -44,14 +44,13 @@ public sealed class PlayerFunctions
 
     [Function("GetPlayer")]
     public async Task<IActionResult> GetPlayer(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}")] HttpRequest req,
-        string id,
+        // {id:int} so literal sibling routes (v1/players/substitutes) can't
+        // be captured by this parameter route and 400 on the int parse.
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id:int}")] HttpRequest req,
+        int id,
         CancellationToken cancellationToken)
     {
-        if (!int.TryParse(id, out var playerId))
-            return new BadRequestObjectResult(new { error = "Invalid player ID." });
-
-        var result = await _mediator.Send(new GetPlayerQuery(playerId), cancellationToken);
+        var result = await _mediator.Send(new GetPlayerQuery(id), cancellationToken);
         return result.ToOkResult();
     }
 

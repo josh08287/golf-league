@@ -461,7 +461,7 @@ public class SetPlayerSubstituteCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_MembershipInUpcomingHalf_Blocks()
+    public async Task Handle_MembershipInUpcomingHalf_AllowsFlaggingAsSubstitute()
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var player = MakePlayerWithMembership(seasonActive: true, halfEnd: today.AddDays(90));
@@ -471,8 +471,8 @@ public class SetPlayerSubstituteCommandHandlerTests
 
         var result = await handler.Handle(new SetPlayerSubstituteCommand(1, true, "admin"), default);
 
-        result.IsSuccess.Should().BeFalse();
-        player.IsSubstitute.Should().BeFalse();
+        result.IsSuccess.Should().BeTrue();
+        player.IsSubstitute.Should().BeTrue();
     }
 
     [Fact]

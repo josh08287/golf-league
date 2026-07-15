@@ -10,10 +10,11 @@ namespace GolfLeague.Application.Players.Commands;
 /// Flags (or unflags) a player as part of the league's substitute pool.
 /// Substitute status is kept mutually exclusive with regular roster status:
 /// a player can't be flagged as a substitute while they still hold a flight
-/// membership in the active season's current or upcoming half — a membership
-/// in an already-completed half doesn't block, so someone who played the
-/// first half can sub in the second. Works regardless of IsActive, since
-/// deactivated players remain sub-eligible.
+/// membership in the half currently in progress — memberships in completed
+/// or not-yet-started halves don't block, so someone who played the first
+/// half can sub in the second, and someone assigned to an upcoming half can
+/// sub until it starts. Works regardless of IsActive, since deactivated
+/// players remain sub-eligible.
 /// </summary>
 public sealed record SetPlayerSubstituteCommand(
     int PlayerId,
@@ -45,15 +46,16 @@ public sealed class SetPlayerSubstituteCommandHandler : IRequestHandler<SetPlaye
 
         if (request.IsSubstitute)
         {
-            // Only a flight membership in the current (or an upcoming) half
-            // blocks — a membership in an already-completed half of the active
-            // season doesn't make someone a roster player anymore. Upcoming
-            // halves still block so the sub/roster exclusivity doesn't break
-            // the day the next half starts. UTC date is close enough here:
-            // half boundaries are week-scale.
+            // Only a flight membership in the half that's in progress right
+            // now blocks. Completed halves don't make someone a roster player
+            // anymore, and an upcoming half's assignment doesn't either —
+            // they can sub until that half actually starts. UTC date is close
+            // enough here: half boundaries are week-scale.
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var hasCurrentFlightMembership = player.FlightMemberships
-                .Any(fm => fm.Season.IsActive && fm.Half.EndDate >= today);
+                .Any(fm => fm.Season.IsActive
+                    && fm.Half.StartDate <= today
+                    && fm.Half.EndDate >= today);
             if (hasCurrentFlightMembership)
                 return Result<PlayerDto>.Fail(
                     "This player is still assigned to a flight for the current half. Remove them from their flight before marking them as a substitute.");

@@ -61,17 +61,9 @@ public class PlayerFunctionsTests
         result.Should().BeOfType<OkObjectResult>();
     }
 
-    [Fact]
-    public async Task GetPlayer_WhenInvalidId_ReturnsBadRequest()
-    {
-        var mediator = new Mock<IMediator>();
-        var playerRepo = new Mock<IPlayerRepository>();
-        var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
-
-        var result = await sut.GetPlayer(MakeRequest(), "abc", CancellationToken.None);
-
-        result.Should().BeOfType<BadRequestObjectResult>();
-    }
+    // Non-numeric IDs no longer reach GetPlayer: the {id:int} route constraint
+    // rejects them at the host so the literal v1/players/substitutes route
+    // can't be shadowed by this parameter route.
 
     [Fact]
     public async Task GetPlayer_WhenNotFound_ReturnsNotFound()
@@ -83,7 +75,7 @@ public class PlayerFunctionsTests
         var playerRepo = new Mock<IPlayerRepository>();
         var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
-        var result = await sut.GetPlayer(MakeRequest(), "99", CancellationToken.None);
+        var result = await sut.GetPlayer(MakeRequest(), 99, CancellationToken.None);
 
         result.Should().BeOfType<NotFoundObjectResult>();
     }
@@ -98,7 +90,7 @@ public class PlayerFunctionsTests
         var playerRepo = new Mock<IPlayerRepository>();
         var sut = new PlayerFunctions(mediator.Object, playerRepo.Object, new Mock<IAdminUserService>().Object);
 
-        var result = await sut.GetPlayer(MakeRequest(), "1", CancellationToken.None);
+        var result = await sut.GetPlayer(MakeRequest(), 1, CancellationToken.None);
 
         result.Should().BeOfType<OkObjectResult>();
     }

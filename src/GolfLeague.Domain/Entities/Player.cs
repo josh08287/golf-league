@@ -43,8 +43,8 @@ public class Player
     /// tee time (in place of a player who skipped) but never accrue season
     /// standings/points/handicap. Kept mutually exclusive with regular
     /// roster status at the command layer (a player with a FlightMembership
-    /// in the current or an upcoming half cannot be flagged as a substitute;
-    /// completed halves don't count). Can be true even
+    /// in the half currently in progress cannot be flagged as a substitute;
+    /// completed and not-yet-started halves don't count). Can be true even
     /// when IsActive is false, since deactivated players remain sub-eligible.
     /// </summary>
     public bool IsSubstitute { get; set; } = false;
