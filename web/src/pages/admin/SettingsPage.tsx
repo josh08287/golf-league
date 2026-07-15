@@ -157,6 +157,25 @@ export function SettingsPage() {
     }
   }
 
+  const roundCostValue = getNumericSetting(SETTING_KEYS.roundCost, 20);
+  const [roundCostInput, setRoundCostInput] = useState<string>('');
+  const [roundCostInitialized, setRoundCostInitialized] = useState(false);
+
+  if (settings && !roundCostInitialized) {
+    setRoundCostInput(String(roundCostValue));
+    setRoundCostInitialized(true);
+  }
+
+  const roundCostParsed = parseInt(roundCostInput, 10);
+  const roundCostValid = !isNaN(roundCostParsed) && roundCostParsed >= 0;
+  const roundCostDirty = roundCostValid && roundCostParsed !== roundCostValue;
+
+  function handleSaveRoundCost() {
+    if (roundCostValid) {
+      update.mutate({ key: SETTING_KEYS.roundCost, value: String(roundCostParsed) });
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="League configuration" />
@@ -241,6 +260,33 @@ export function SettingsPage() {
                 onChange={(v) => handleToggle(SETTING_KEYS.substitutesEnabled, v)}
                 disabled={update.isPending}
               />
+              <div className="flex items-start justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">Round cost</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Dollar amount charged per round, shown to substitutes in the "spots available" email as the amount payable to any league officer.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm text-gray-500">$</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={roundCostInput}
+                    onChange={(e) => setRoundCostInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveRoundCost(); }}
+                    disabled={update.isPending}
+                    className="w-20 rounded-md border border-gray-300 px-3 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveRoundCost}
+                    disabled={!roundCostDirty || update.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

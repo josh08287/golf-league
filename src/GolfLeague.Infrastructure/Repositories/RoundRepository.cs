@@ -258,6 +258,16 @@ public sealed class RoundRepository : IRoundRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task MarkSubSpotEmailSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default)
+    {
+        var round = await _context.Rounds
+            .AsTracking()
+            .FirstOrDefaultAsync(r => r.Id == roundId, cancellationToken);
+        if (round is null) return;
+        round.SubSpotEmailSentAt = utcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Round>> GetPreviousRoundsAsync(int seasonId, DateOnly currentRoundDate, CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)

@@ -46,6 +46,9 @@ public interface IRoundRepository
     /// </summary>
     Task MarkTeeTimeScheduleEmailSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default);
 
+    /// <summary>Stamps <see cref="Round.SubSpotEmailSentAt"/> so the substitute-pool email isn't re-sent on a later timer run.</summary>
+    Task MarkSubSpotEmailSentAsync(int roundId, DateTime utcNow, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// All rounds in <paramref name="seasonId"/> strictly before <paramref name="currentRoundDate"/>,
     /// ordered chronologically. Scoped to the season (not the half) so that state carried

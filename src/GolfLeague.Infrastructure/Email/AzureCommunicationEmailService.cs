@@ -165,6 +165,38 @@ public sealed class AzureCommunicationEmailService : IEmailService
         await SendAsync(toEmail, subject, html, "sign-up-reminder", cancellationToken);
     }
 
+    public async Task SendSubSpotAvailableAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        int openSpots,
+        string roundCostDisplay,
+        string loginLink,
+        CancellationToken cancellationToken = default)
+    {
+        var subject = $"{leagueName} — Sub spots open for {roundDate}";
+        var spotsWord = openSpots == 1 ? "spot" : "spots";
+
+        var html = $"""
+            <html>
+            <body style="font-family: Arial, sans-serif; color: #333; max-width: 600px; margin: 0 auto; padding: 24px;">
+              <h2 style="color: #1a5c38;">⛳ Substitute {spotsWord} available — {roundDate}</h2>
+              <p>Hi {playerName},</p>
+              <p>There {(openSpots == 1 ? "is" : "are")} <strong>{openSpots} substitute {spotsWord}</strong> open for this round on <strong>{roundDate}</strong>. If you're able to play, here's how to grab one:</p>
+              <ul>
+                <li><a href="{loginLink}">Log in and pick a spot yourself</a> — open tee times will show you where a sub is needed.</li>
+                <li>Or contact a player directly — email any player already signed up and ask them to add you as their substitute for their tee time.</li>
+              </ul>
+              <p><strong>Cost:</strong> {roundCostDisplay} for the round, payable to any league officer.</p>
+              <p style="color:#666; font-size:14px; margin-top:24px;">See you on the course!</p>
+            </body>
+            </html>
+            """;
+
+        await SendAsync(toEmail, subject, html, "sub-spot-available", cancellationToken);
+    }
+
     private async Task SendAsync(string toEmail, string subject, string html, string kind, CancellationToken cancellationToken)
     {
         var message = new EmailMessage(

@@ -34,6 +34,15 @@ public class Round
     /// </summary>
     public DateTime? TeeTimeScheduleEmailSentAt { get; set; }
 
+    /// <summary>
+    /// UTC instant the substitute-pool "spots available" email was sent for
+    /// this round, or null if not yet sent. Sent alongside the sign-up
+    /// reminder (same window, before autofill) but only when at least one
+    /// participant has skipped, opening a spot. Guards against re-sending on
+    /// every hourly timer run within the window.
+    /// </summary>
+    public DateTime? SubSpotEmailSentAt { get; set; }
+
     public Season Season { get; set; } = null!;
     public SeasonHalf? Half { get; set; }
     public Course Course { get; set; } = null!;

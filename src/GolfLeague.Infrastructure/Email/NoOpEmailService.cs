@@ -66,4 +66,20 @@ public sealed class NoOpEmailService : IEmailService
             toEmail, playerName, roundDate);
         return Task.CompletedTask;
     }
+
+    public Task SendSubSpotAvailableAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        int openSpots,
+        string roundCostDisplay,
+        string loginLink,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogWarning(
+            "Email not configured. Skipping sub-spot-available email to {Email} ({Player}) for {Date}.",
+            toEmail, playerName, roundDate);
+        return Task.CompletedTask;
+    }
 }

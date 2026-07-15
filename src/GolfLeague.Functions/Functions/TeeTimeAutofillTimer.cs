@@ -6,6 +6,7 @@ using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using MediatR;
 using Microsoft.Azure.Functions.Worker;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Functions.Functions;
@@ -22,6 +23,10 @@ namespace GolfLeague.Functions.Functions;
 /// out exactly once per round:
 ///  - Sign-up reminder: <see cref="TeeTimeSchedule.IsWithinReminderWindow"/>
 ///    + <see cref="Domain.Entities.Round.SignUpReminderSentAt"/>.
+///  - Substitute spots available: sent in the same window as the sign-up
+///    reminder, to the league's substitute pool, only when at least one
+///    roster player has skipped the round. Guarded by
+///    <see cref="Domain.Entities.Round.SubSpotEmailSentAt"/>.
 ///  - Tee-time schedule: <see cref="TeeTimeSchedule.IsAfterCutoff"/>
 ///    + <see cref="Domain.Entities.Round.TeeTimeScheduleEmailSentAt"/>. The
 ///    admin "resend" endpoint bypasses this flag on purpose.
@@ -34,6 +39,7 @@ public sealed class TeeTimeAutofillTimer
     private readonly ILeagueSettingRepository _leagueSettings;
     private readonly ITeeTimeAutofillService _autofill;
     private readonly IMediator _mediator;
+    private readonly string _webBaseUrl;
     private readonly ILogger<TeeTimeAutofillTimer> _logger;
 
     public TeeTimeAutofillTimer(
@@ -41,12 +47,14 @@ public sealed class TeeTimeAutofillTimer
         ILeagueSettingRepository leagueSettings,
         ITeeTimeAutofillService autofill,
         IMediator mediator,
+        IConfiguration configuration,
         ILogger<TeeTimeAutofillTimer> logger)
     {
         _rounds = rounds;
         _leagueSettings = leagueSettings;
         _autofill = autofill;
         _mediator = mediator;
+        _webBaseUrl = configuration["WEB_BASE_URL"] ?? "http://localhost:5173";
         _logger = logger;
     }
 
@@ -107,6 +115,25 @@ public sealed class TeeTimeAutofillTimer
                 _logger.LogWarning(
                     "Sign-up reminder email send failed for round {RoundId}: {Error}",
                     round.Id, reminderResult.Error);
+            }
+
+            if (round.SubSpotEmailSentAt is null)
+            {
+                var subSpotResult = await _mediator.Send(new SendSubSpotAvailableEmailsCommand(round.Id, _webBaseUrl), cancellationToken);
+                if (subSpotResult.IsSuccess)
+                {
+                    if (subSpotResult.Value > 0)
+                        _logger.LogInformation(
+                            "Sub-spot-available emails sent for round {RoundId} ({Date}): {Count} recipient(s).",
+                            round.Id, round.RoundDate, subSpotResult.Value);
+                    await _rounds.MarkSubSpotEmailSentAsync(round.Id, now, cancellationToken);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Sub-spot-available email send failed for round {RoundId}: {Error}",
+                        round.Id, subSpotResult.Error);
+                }
             }
         }
 

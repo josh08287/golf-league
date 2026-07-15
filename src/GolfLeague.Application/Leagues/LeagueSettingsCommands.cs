@@ -108,6 +108,13 @@ public static class KnownSettings
     /// </summary>
     public const string SubstitutesEnabled = "substitutes_enabled";
 
+    /// <summary>
+    /// Dollar cost of a round, charged to substitutes and shown in the
+    /// substitute-pool "spots available" email as "$&lt;RoundCost&gt; payable to
+    /// any league officer." Stored as a plain integer/decimal string.
+    /// </summary>
+    public const string RoundCost = "round_cost";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
@@ -115,6 +122,7 @@ public static class KnownSettings
         [TeeTimeCutoffTime] = "18:00",
         [SignUpReminderEmailEnabled] = "false",
         [SubstitutesEnabled] = "false",
+        [RoundCost] = "20",
     };
 
     /// <summary>

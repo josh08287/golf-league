@@ -46,6 +46,22 @@ public interface IEmailService
         string roundDate,
         string cutoffDisplay,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Notifies a substitute-pool player that open spots exist for an
+    /// upcoming round. <paramref name="loginLink"/> points to the
+    /// accept-invite flow if the player hasn't yet activated their account,
+    /// or to the normal login page otherwise.
+    /// </summary>
+    Task SendSubSpotAvailableAsync(
+        string toEmail,
+        string playerName,
+        string leagueName,
+        string roundDate,
+        int openSpots,
+        string roundCostDisplay,
+        string loginLink,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record TeeTimeEmailSlot(string SlotTime, IReadOnlyList<string> PlayerNames);

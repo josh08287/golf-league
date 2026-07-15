@@ -865,6 +865,7 @@ export const SETTING_KEYS = {
   teeTimeCutoffTime: 'tee_time_cutoff_time',
   signUpReminderEmailEnabled: 'sign_up_reminder_email_enabled',
   substitutesEnabled: 'substitutes_enabled',
+  roundCost: 'round_cost',
 } as const;
 
 // ── Feature Flags ──────────────────────────────────────────────────────────────
