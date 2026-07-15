@@ -22,7 +22,11 @@ public sealed record HoleStatisticsDto(
     int ParCount,
     int BogeyCount,
     int DoubleBogeyOrWorseCount,
-    int DifficultyRank);
+    int DifficultyRank,
+    string? BestGrossAveragePlayerName,
+    double? BestGrossAverage,
+    string? BestNetAveragePlayerName,
+    double? BestNetAverage);
 
 public sealed record CourseStatisticsDto(
     int CourseId,
@@ -78,6 +82,8 @@ public sealed class GetCourseStatisticsQueryHandler
         // Gather all participants + hole scores from finalized rounds on this course
         var allHoleScores = new List<Domain.Entities.HoleScore>();
         var participantWithRound = new List<(Domain.Entities.RoundParticipant Participant, Domain.Entities.Round Round)>();
+        var playerNamesById = new Dictionary<int, string>();
+        var holeScorePlayerIds = new Dictionary<int, int>();
 
         foreach (var round in courseRounds)
         {
@@ -86,10 +92,18 @@ public sealed class GetCourseStatisticsQueryHandler
             {
                 if (p.IsWithdrawn || p.SkippedWeek) continue;
                 participantWithRound.Add((p, round));
+                playerNamesById[p.PlayerId] = p.Player.FullName;
                 var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
+                foreach (var score in scores)
+                    holeScorePlayerIds[score.Id] = p.PlayerId;
                 allHoleScores.AddRange(scores);
             }
         }
+
+        // Minimum rounds a player must have on a hole before their average
+        // counts for "best on this hole" — otherwise a single lucky round
+        // would dominate the leaderboard.
+        const int minRoundsForBestAverage = 2;
 
         // Build per-hole statistics
         var holeStats = holes
@@ -103,7 +117,8 @@ public sealed class GetCourseStatisticsQueryHandler
                 {
                     return new HoleStatisticsDto(
                         h.HoleNumber, h.Par, h.StrokeIndex,
-                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+                        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                        null, null, null, null);
                 }
 
                 var avgGross = scoresForHole.Average(s => s.GrossStrokes);
@@ -118,6 +133,20 @@ public sealed class GetCourseStatisticsQueryHandler
                 var bogeys = scoresForHole.Count(s => s.GrossStrokes == s.Par + 1);
                 var doublePlus = scoresForHole.Count(s => s.GrossStrokes >= s.Par + 2);
 
+                var byPlayer = scoresForHole
+                    .GroupBy(s => holeScorePlayerIds[s.Id])
+                    .Where(g => g.Count() >= minRoundsForBestAverage)
+                    .Select(g => new
+                    {
+                        PlayerId = g.Key,
+                        AvgGross = g.Average(s => s.GrossStrokes),
+                        AvgNet = g.Average(s => s.NetStrokes),
+                    })
+                    .ToList();
+
+                var bestGross = byPlayer.OrderBy(p => p.AvgGross).FirstOrDefault();
+                var bestNet = byPlayer.OrderBy(p => p.AvgNet).FirstOrDefault();
+
                 return new HoleStatisticsDto(
                     h.HoleNumber, h.Par, h.StrokeIndex,
                     Math.Round(avgGross, 2),
@@ -131,7 +160,11 @@ public sealed class GetCourseStatisticsQueryHandler
                     pars,
                     bogeys,
                     doublePlus,
-                    0); // rank filled in below
+                    0, // rank filled in below
+                    bestGross is null ? null : playerNamesById[bestGross.PlayerId],
+                    bestGross is null ? null : Math.Round(bestGross.AvgGross, 2),
+                    bestNet is null ? null : playerNamesById[bestNet.PlayerId],
+                    bestNet is null ? null : Math.Round(bestNet.AvgNet, 2));
             })
             .ToList();
 

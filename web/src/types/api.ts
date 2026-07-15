@@ -604,6 +604,10 @@ export interface HoleStatistics {
   bogeyCount: number;
   doubleBogeyOrWorseCount: number;
   difficultyRank: number;
+  bestGrossAveragePlayerName: string | null;
+  bestGrossAverage: number | null;
+  bestNetAveragePlayerName: string | null;
+  bestNetAverage: number | null;
 }
 
 export interface CourseStatistics {

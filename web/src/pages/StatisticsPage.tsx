@@ -785,6 +785,7 @@ export function StatisticsPage() {
                       <TableHead className="w-20 text-center">Difficulty</TableHead>
                       <TableHead className="min-w-[180px]">Scoring</TableHead>
                       <TableHead className="text-right w-16">Played</TableHead>
+                      <TableHead className="min-w-[140px]">Best on Hole</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -828,6 +829,25 @@ export function StatisticsPage() {
                         <TableCell>{scoringBar(hole)}</TableCell>
                         <TableCell className="text-right text-gray-500 tabular-nums">
                           {hole.totalScoresRecorded}
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {hole.bestGrossAveragePlayerName && (
+                            <p className="truncate">
+                              <span className="text-gray-500">Gross:</span>{' '}
+                              <span className="font-medium text-gray-900">{hole.bestGrossAveragePlayerName}</span>{' '}
+                              <span className="text-gray-500">({hole.bestGrossAverage!.toFixed(1)})</span>
+                            </p>
+                          )}
+                          {hole.bestNetAveragePlayerName && (
+                            <p className="truncate">
+                              <span className="text-gray-500">Net:</span>{' '}
+                              <span className="font-medium text-gray-900">{hole.bestNetAveragePlayerName}</span>{' '}
+                              <span className="text-gray-500">({hole.bestNetAverage!.toFixed(1)})</span>
+                            </p>
+                          )}
+                          {!hole.bestGrossAveragePlayerName && !hole.bestNetAveragePlayerName && (
+                            <span className="text-gray-400">—</span>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
