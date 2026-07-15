@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
-import { ArrowLeft, Trophy, TrendingDown, TrendingUp, Target } from 'lucide-react';
+import { ArrowLeft, Trophy, TrendingDown, TrendingUp, Target, GitCompare } from 'lucide-react';
 import { useState } from 'react';
 import { usePlayer, useHandicapHistory, usePlayerRounds, usePlayerSkipRound } from '@/hooks/usePlayers';
 import { usePlayerStatistics } from '@/hooks/useStatistics';
@@ -31,6 +31,7 @@ import { Button } from '@/components/ui/Button';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
+import { PlayerCompareModal } from '@/components/PlayerCompareModal';
 import { HandicapChart } from '@/components/HandicapChart';
 import { formatShortDate } from '@/lib/utils';
 import { normalizeRoundStatus } from '@/lib/enumUtils';
@@ -595,6 +596,8 @@ export function PlayerProfilePage() {
   const playerRounds = usePlayerRounds(playerId ?? '', roundsSort.sort);
   const featureFlags = useFeatureFlagStates();
 
+  const [compareOpen, setCompareOpen] = useState(false);
+
   const playerData = player.data;
   const isOwnProfile = user?.playerId != null && user.playerId === playerId;
   const history = handicapHistory.data ?? [];
@@ -625,10 +628,25 @@ export function PlayerProfilePage() {
             title={playerData.fullName}
             description={playerData.flightName ?? undefined}
           >
+            {!isOwnProfile && user?.playerId != null && (
+              <Button variant="secondary" size="sm" onClick={() => setCompareOpen(true)}>
+                <GitCompare className="h-4 w-4 mr-1" />
+                Compare
+              </Button>
+            )}
             <Badge variant={playerData.isActive ? 'green' : 'secondary'}>
               {playerData.isActive ? 'Active' : 'Inactive'}
             </Badge>
           </PageHeader>
+
+          {!isOwnProfile && user?.playerId != null && playerId != null && (
+            <PlayerCompareModal
+              open={compareOpen}
+              onClose={() => setCompareOpen(false)}
+              currentPlayerId={user.playerId}
+              otherPlayerId={playerId}
+            />
+          )}
 
           {isOwnProfile && (
             <div className="space-y-3">
