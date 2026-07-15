@@ -521,11 +521,22 @@ public sealed class TeeTimeFunctions
         }
 
         var command = new ParseScorecardImageCommand(id, playerId.Value, imageBytes);
-        var result = await _mediator.Send(command, cancellationToken);
+        try
+        {
+            var result = await _mediator.Send(command, cancellationToken);
 
-        return result.IsSuccess
-            ? new OkObjectResult(new { data = result.Value })
-            : new BadRequestObjectResult(new { error = result.Error });
+            return result.IsSuccess
+                ? new OkObjectResult(new { data = result.Value })
+                : new BadRequestObjectResult(new { error = result.Error });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Scorecard OCR failed for tee time {TeeTimeId}, player {PlayerId}.", id, playerId.Value);
+            return new ObjectResult(new { error = "Scorecard scanning failed. Please try again or enter scores manually." })
+            {
+                StatusCode = 500,
+            };
+        }
     }
 
     private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes, int? Putts = null, double? FirstPuttDistanceFeet = null, bool? FairwayHit = null);
