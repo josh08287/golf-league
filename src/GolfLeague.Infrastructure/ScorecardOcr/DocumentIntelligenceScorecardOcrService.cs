@@ -17,6 +17,17 @@ namespace GolfLeague.Infrastructure.ScorecardOcr;
 /// </summary>
 public sealed class DocumentIntelligenceScorecardOcrService : IScorecardOcrService
 {
+    /// <summary>
+    /// Non-player row labels printed on most scorecards (hole number, tee
+    /// markers, handicap/par reference rows). A row whose first-column text
+    /// starts with one of these is a scorecard fixture, not a player's
+    /// score line, and must never be offered up for player mapping.
+    /// </summary>
+    private static readonly string[] NonPlayerRowLabels =
+    [
+        "Hole", "Black", "Blue", "White", "Gold", "Handicap", "Par", "Red"
+    ];
+
     private readonly DocumentIntelligenceClient _client;
     private readonly ILogger<DocumentIntelligenceScorecardOcrService> _logger;
 
@@ -64,6 +75,9 @@ public sealed class DocumentIntelligenceScorecardOcrService : IScorecardOcrServi
             var nameCell = cells.FirstOrDefault(c => c.ColumnIndex == 0);
             var rawName = nameCell?.Content?.Trim();
             if (string.IsNullOrWhiteSpace(rawName))
+                continue;
+
+            if (NonPlayerRowLabels.Any(label => rawName.StartsWith(label, StringComparison.OrdinalIgnoreCase)))
                 continue;
 
             var matchIndex = NameMatcher.FindBestMatch(rawName, candidateLookup);

@@ -824,24 +824,57 @@ function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit 
               {summary.player.skippedWeek ? (
                 <p className="text-sm text-gray-500 italic">Skipped this round</p>
               ) : (
-                <div className="grid grid-cols-4 gap-4 text-center">
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{summary.totalGross ?? '—'}</p>
-                    <p className="text-xs text-gray-500">Gross</p>
+                <>
+                  <div className="mb-3 overflow-x-auto">
+                    <table className="w-full text-center text-xs">
+                      <thead>
+                        <tr className="text-gray-500">
+                          <th className="pr-2 text-left font-medium">Hole</th>
+                          {holes.map((hole) => (
+                            <th key={hole.holeNumber} className="px-1 font-medium">{hole.holeNumber}</th>
+                          ))}
+                        </tr>
+                        <tr className="text-gray-400">
+                          <th className="pr-2 text-left font-normal">Par</th>
+                          {holes.map((hole) => (
+                            <th key={hole.holeNumber} className="px-1 font-normal">{hole.par}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="pr-2 text-left font-medium text-gray-700">Score</td>
+                          {holes.map((hole) => {
+                            const gross = scores[summary.player.playerId]?.[hole.holeNumber];
+                            return (
+                              <td key={hole.holeNumber} className="px-1 font-semibold text-gray-900">
+                                {gross === '' || gross === undefined || gross === null ? '—' : gross}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">{summary.totalNet ?? '—'}</p>
-                    <p className="text-xs text-gray-500">Net</p>
+                  <div className="grid grid-cols-4 gap-4 text-center">
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{summary.totalGross ?? '—'}</p>
+                      <p className="text-xs text-gray-500">Gross</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-gray-900">{summary.totalNet ?? '—'}</p>
+                      <p className="text-xs text-gray-500">Net</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-blue-600">{summary.totalGrossPoints}</p>
+                      <p className="text-xs text-gray-500">Gross Pts</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-green-600">{summary.totalNetPoints}</p>
+                      <p className="text-xs text-gray-500">Net Pts</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-2xl font-bold text-blue-600">{summary.totalGrossPoints}</p>
-                    <p className="text-xs text-gray-500">Gross Pts</p>
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-green-600">{summary.totalNetPoints}</p>
-                    <p className="text-xs text-gray-500">Net Pts</p>
-                  </div>
-                </div>
+                </>
               )}
             </CardContent>
           </Card>
