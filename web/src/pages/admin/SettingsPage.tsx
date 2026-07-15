@@ -182,6 +182,21 @@ export function SettingsPage() {
     }
   }
 
+  const whatsAppLinkValue = settings?.find((s) => s.key === SETTING_KEYS.whatsAppGroupLink)?.value ?? '';
+  const [whatsAppLinkInput, setWhatsAppLinkInput] = useState<string>('');
+  const [whatsAppLinkInitialized, setWhatsAppLinkInitialized] = useState(false);
+
+  if (settings && !whatsAppLinkInitialized) {
+    setWhatsAppLinkInput(whatsAppLinkValue);
+    setWhatsAppLinkInitialized(true);
+  }
+
+  const whatsAppLinkDirty = whatsAppLinkInput.trim() !== whatsAppLinkValue;
+
+  function handleSaveWhatsAppLink() {
+    update.mutate({ key: SETTING_KEYS.whatsAppGroupLink, value: whatsAppLinkInput.trim() });
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="League configuration" />
@@ -315,6 +330,40 @@ export function SettingsPage() {
                 onChange={(v) => handleToggle(SETTING_KEYS.signUpReminderEmailEnabled, v)}
                 disabled={update.isPending}
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Community</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-gray-100">
+              <div className="flex items-start justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">WhatsApp group link</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Invite link to the league's WhatsApp group. When set, a "Join our WhatsApp group" link is shown in the site footer. Leave blank to hide it.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <input
+                    type="url"
+                    placeholder="https://chat.whatsapp.com/..."
+                    value={whatsAppLinkInput}
+                    onChange={(e) => setWhatsAppLinkInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWhatsAppLink(); }}
+                    disabled={update.isPending}
+                    className="w-64 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <Button
+                    size="sm"
+                    onClick={handleSaveWhatsAppLink}
+                    disabled={!whatsAppLinkDirty || update.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

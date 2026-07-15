@@ -79,6 +79,34 @@ public sealed class UpdateLeagueSettingCommandHandler
     }
 }
 
+// ── Get public settings (anonymous) ───────────────────────────────────────────
+
+public sealed record PublicLeagueSettingsDto(string WhatsAppGroupLink);
+
+public sealed record GetPublicLeagueSettingsQuery : IRequest<Result<PublicLeagueSettingsDto>>;
+
+public sealed class GetPublicLeagueSettingsQueryHandler
+    : IRequestHandler<GetPublicLeagueSettingsQuery, Result<PublicLeagueSettingsDto>>
+{
+    private readonly ILeagueSettingRepository _settings;
+    private readonly ILeagueContext _leagueContext;
+
+    public GetPublicLeagueSettingsQueryHandler(ILeagueSettingRepository settings, ILeagueContext leagueContext)
+    {
+        _settings = settings;
+        _leagueContext = leagueContext;
+    }
+
+    public async Task<Result<PublicLeagueSettingsDto>> Handle(GetPublicLeagueSettingsQuery request, CancellationToken cancellationToken)
+    {
+        if (_leagueContext.LeagueId is null)
+            return Result<PublicLeagueSettingsDto>.Fail("No league context.");
+
+        var whatsAppLink = await _settings.GetAsync(_leagueContext.LeagueId.Value, KnownSettings.WhatsAppGroupLink, cancellationToken);
+        return Result<PublicLeagueSettingsDto>.Ok(new PublicLeagueSettingsDto(whatsAppLink?.Value ?? ""));
+    }
+}
+
 // ── Known keys & defaults ─────────────────────────────────────────────────────
 
 public static class KnownSettings
@@ -115,6 +143,13 @@ public static class KnownSettings
     /// </summary>
     public const string RoundCost = "round_cost";
 
+    /// <summary>
+    /// Invite link to the league's WhatsApp group, shown as a "Join our
+    /// WhatsApp group" link in the site footer. Empty by default; the
+    /// footer link only renders once this is populated.
+    /// </summary>
+    public const string WhatsAppGroupLink = "whatsapp_group_link";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
@@ -123,6 +158,7 @@ public static class KnownSettings
         [SignUpReminderEmailEnabled] = "false",
         [SubstitutesEnabled] = "false",
         [RoundCost] = "20",
+        [WhatsAppGroupLink] = "",
     };
 
     /// <summary>

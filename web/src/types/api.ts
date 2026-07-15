@@ -885,7 +885,13 @@ export const SETTING_KEYS = {
   signUpReminderEmailEnabled: 'sign_up_reminder_email_enabled',
   substitutesEnabled: 'substitutes_enabled',
   roundCost: 'round_cost',
+  whatsAppGroupLink: 'whatsapp_group_link',
 } as const;
+
+/** Settings safe to expose to anonymous site visitors. See GET /v1/settings/public. */
+export interface PublicLeagueSettings {
+  whatsAppGroupLink: string;
+}
 
 // ── Feature Flags ──────────────────────────────────────────────────────────────
 // Global, application-wide toggles (not per-league) used to roll out or

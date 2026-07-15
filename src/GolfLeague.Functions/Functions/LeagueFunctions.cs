@@ -64,6 +64,22 @@ public sealed class LeagueFunctions
     private sealed record UpdateSettingRequest(string Value);
 
     /// <summary>
+    /// GET /v1/settings/public — Public. Returns only the league settings safe
+    /// to expose to anonymous site visitors (currently just the WhatsApp
+    /// group invite link), for rendering the site footer.
+    /// </summary>
+    [Function("GetPublicLeagueSettings")]
+    public async Task<IActionResult> GetPublicSettings(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/settings/public")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var result = await _mediator.Send(new GetPublicLeagueSettingsQuery(), cancellationToken);
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
+    /// <summary>
     /// GET /v1/leagues — Public. Returns active leagues for anonymous callers;
     /// SuperAdmin gets all leagues including inactive ones.
     /// </summary>
