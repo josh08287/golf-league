@@ -400,3 +400,105 @@ public class GetHandicapHistoryQueryHandlerTests
         result.Value![1].EffectiveDate.Should().Be(new DateOnly(2026, 1, 1));
     }
 }
+
+public class SetPlayerSubstituteCommandHandlerTests
+{
+    private static Player MakePlayerWithMembership(bool seasonActive, DateOnly halfEnd)
+    {
+        var season = new Season { Id = 1, Year = 2026, IsActive = seasonActive };
+        var half = new SeasonHalf
+        {
+            Id = 1,
+            SeasonId = 1,
+            HalfNumber = 1,
+            Season = season,
+            StartDate = halfEnd.AddDays(-60),
+            EndDate = halfEnd,
+        };
+        var flight = new Flight { Id = 1, Name = "A" };
+        var player = new Player { Id = 1, FirstName = "J", LastName = "D", IsActive = true };
+        player.FlightMemberships.Add(new FlightMembership
+        {
+            Id = 1, PlayerId = 1, FlightId = 1, SeasonId = 1, HalfId = 1,
+            Player = player, Flight = flight, Season = season, Half = half,
+        });
+        return player;
+    }
+
+    private static SetPlayerSubstituteCommandHandler BuildSut(Player player)
+    {
+        var playerRepo = new Mock<IPlayerRepository>();
+        playerRepo.Setup(r => r.GetByIdAsync(player.Id, default)).ReturnsAsync(player);
+        var handicapRepo = new Mock<IHandicapRepository>();
+        return new SetPlayerSubstituteCommandHandler(playerRepo.Object, handicapRepo.Object);
+    }
+
+    [Fact]
+    public async Task Handle_MembershipInCompletedHalf_AllowsFlaggingAsSubstitute()
+    {
+        var yesterday = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(-1);
+        var player = MakePlayerWithMembership(seasonActive: true, halfEnd: yesterday);
+        var handler = BuildSut(player);
+
+        var result = await handler.Handle(new SetPlayerSubstituteCommand(1, true, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        player.IsSubstitute.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_MembershipInCurrentHalf_Blocks()
+    {
+        var nextWeek = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
+        var player = MakePlayerWithMembership(seasonActive: true, halfEnd: nextWeek);
+        var handler = BuildSut(player);
+
+        var result = await handler.Handle(new SetPlayerSubstituteCommand(1, true, "admin"), default);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("current half");
+        player.IsSubstitute.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_MembershipInUpcomingHalf_Blocks()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var player = MakePlayerWithMembership(seasonActive: true, halfEnd: today.AddDays(90));
+        // Push the half's start into the future so it hasn't begun yet.
+        player.FlightMemberships.First().Half.StartDate = today.AddDays(30);
+        var handler = BuildSut(player);
+
+        var result = await handler.Handle(new SetPlayerSubstituteCommand(1, true, "admin"), default);
+
+        result.IsSuccess.Should().BeFalse();
+        player.IsSubstitute.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_MembershipInInactiveSeason_AllowsFlaggingAsSubstitute()
+    {
+        var nextWeek = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
+        var player = MakePlayerWithMembership(seasonActive: false, halfEnd: nextWeek);
+        var handler = BuildSut(player);
+
+        var result = await handler.Handle(new SetPlayerSubstituteCommand(1, true, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        player.IsSubstitute.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_Unflagging_SkipsMembershipCheck()
+    {
+        var nextWeek = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(7);
+        var player = MakePlayerWithMembership(seasonActive: true, halfEnd: nextWeek);
+        player.IsSubstitute = true;
+        var handler = BuildSut(player);
+
+        var result = await handler.Handle(new SetPlayerSubstituteCommand(1, false, "admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        player.IsSubstitute.Should().BeFalse();
+    }
+}
