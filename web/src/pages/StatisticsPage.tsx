@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, ChevronUp, Users } from 'lucide-react';
 import {
   useCourses,
   useCourseStatistics,
@@ -473,7 +473,7 @@ function LeagueLeaderboardsSection({ period }: { period: StatisticsPeriod }) {
   );
 }
 
-function PeriodSelector({
+export function PeriodSelector({
   seasonId,
   halfId,
   onChange,
@@ -545,6 +545,9 @@ function PeriodSelector({
 }
 
 export function StatisticsPage() {
+  const prefix = useLeaguePrefix();
+  const featureFlags = useFeatureFlagStates();
+  const joesVsOthersEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.joesVsOthersEnabled] ?? false;
   const courses = useCourses();
   const [selectedCourseId, setSelectedCourseId] = useState<number | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -610,6 +613,29 @@ export function StatisticsPage() {
 
       {/* League-wide leaderboards */}
       <LeagueLeaderboardsSection period={period} />
+
+      {/* Joes vs Non-Joes */}
+      {joesVsOthersEnabled && (
+        <Link
+          to={{
+            pathname: `${prefix}/statistics/joes-vs-others`,
+            search: searchParams.toString(),
+          }}
+          className="block"
+        >
+          <Card className="transition-colors hover:border-primary-400">
+            <CardContent className="flex items-center justify-between py-4">
+              <div>
+                <p className="font-semibold text-gray-900">Joes vs Non-Joes</p>
+                <p className="text-sm text-gray-500">
+                  See how everyone named Joe or Joseph stacks up against everyone else
+                </p>
+              </div>
+              <Users className="h-5 w-5 text-primary-700" />
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       {/* Course picker */}
       {courses.isPending && <FullPageSpinner />}

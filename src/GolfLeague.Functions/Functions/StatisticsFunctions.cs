@@ -63,6 +63,16 @@ public sealed class StatisticsFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetJoesVsOthersStatistics")]
+    public async Task<IActionResult> GetJoesVsOthersStatistics(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/statistics/joes-vs-others")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var (seasonId, halfId, _) = ParsePeriod(req);
+        var result = await _mediator.Send(new GetJoesVsOthersStatisticsQuery(seasonId, halfId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private static (int? SeasonId, int? HalfId, bool AllTime) ParsePeriod(HttpRequest req)
     {
         int? seasonId = int.TryParse(req.Query["seasonId"], out var s) ? s : null;

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult, LeagueLeaderboards } from '@/types/api';
+import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult, LeagueLeaderboards, JoesVsOthersStatistics } from '@/types/api';
 
 export interface StatisticsPeriod {
   seasonId?: number | null;
@@ -27,6 +27,8 @@ export const statisticsKeys = {
     [...statisticsKeys.all, 'most-improved', period ?? null] as const,
   leaderboards: (period?: StatisticsPeriod) =>
     [...statisticsKeys.all, 'leaderboards', period ?? null] as const,
+  joesVsOthers: (period?: StatisticsPeriod) =>
+    [...statisticsKeys.all, 'joes-vs-others', period ?? null] as const,
 };
 
 export function useCourses() {
@@ -87,6 +89,19 @@ export function useLeagueLeaderboards(period?: StatisticsPeriod) {
     queryFn: async () => {
       const response = await apiClient.get<LeagueLeaderboards>(
         '/statistics/leaderboards',
+        { params: periodParams(period) },
+      );
+      return response.data;
+    },
+  });
+}
+
+export function useJoesVsOthersStatistics(period?: StatisticsPeriod) {
+  return useQuery({
+    queryKey: statisticsKeys.joesVsOthers(period),
+    queryFn: async () => {
+      const response = await apiClient.get<JoesVsOthersStatistics>(
+        '/statistics/joes-vs-others',
         { params: periodParams(period) },
       );
       return response.data;

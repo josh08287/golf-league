@@ -159,6 +159,13 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string ScorecardOcrEnabled = "scorecard_ocr_enabled";
 
+    /// <summary>
+    /// Adds a "Joes vs Non-Joes" statistics page comparing aggregate stats
+    /// for every player whose first name is Joe/Joseph against everyone
+    /// else.
+    /// </summary>
+    public const string JoesVsOthersEnabled = "joes_vs_others_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -168,5 +175,6 @@ public static class KnownFeatureFlags
         [Par3GrossSkinsOptInEnabled] = false,
         [RoundDayTeeTimeSwitchEnabled] = false,
         [ScorecardOcrEnabled] = false,
+        [JoesVsOthersEnabled] = false,
     };
 }

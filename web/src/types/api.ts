@@ -686,6 +686,30 @@ export interface PlayerStatistics {
   strokesGainedPutting: StrokesGainedPutting | null;
 }
 
+// ── Joes vs Others ───────────────────────────────────────────────────────────
+
+export interface GroupStatistics {
+  groupName: string;
+  playerCount: number;
+  totalRoundsPlayed: number;
+  averageGrossStrokes: number | null;
+  averageNetStrokes: number | null;
+  averageGrossStablefordPoints: number | null;
+  averageNetStablefordPoints: number | null;
+  averageScoreToPar: number | null;
+  eagleOrBetterCount: number;
+  birdieCount: number;
+  parCount: number;
+  bogeyCount: number;
+  doubleBogeyOrWorseCount: number;
+  parOrBetterPercentage: number | null;
+}
+
+export interface JoesVsOthersStatistics {
+  joes: GroupStatistics;
+  others: GroupStatistics;
+}
+
 // ── Most Improved ───────────────────────────────────────────────────────────
 
 export interface MostImprovedPlayer {
@@ -913,4 +937,5 @@ export const FEATURE_FLAG_KEYS = {
   activeRoundLeaderboardEnabled: 'active_round_leaderboard_enabled',
   roundDayTeeTimeSwitchEnabled: 'round_day_tee_time_switch_enabled',
   scorecardOcrEnabled: 'scorecard_ocr_enabled',
+  joesVsOthersEnabled: 'joes_vs_others_enabled',
 } as const;

@@ -48,6 +48,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Lets a player photograph a completed paper scorecard on the group score entry screen to pre-fill hole scores via OCR, which they then confirm or edit before submitting. Requires Azure Document Intelligence to be configured — the option quietly does nothing if it is not. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.joesVsOthersEnabled,
+    label: 'Joes vs Non-Joes statistics',
+    description:
+      'Adds a "Joes vs Non-Joes" page reachable from the Statistics page, comparing aggregate stats for every player named Joe or Joseph against everyone else. Applies to every league.',
+  },
 ];
 
 function Toggle({
