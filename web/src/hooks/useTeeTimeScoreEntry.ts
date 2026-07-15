@@ -137,7 +137,12 @@ export function useParseScorecardImage(teeTimeId: number | null) {
       if (teeTimeId == null) throw new Error('teeTimeId required');
       const formData = new FormData();
       formData.append('image', image);
-      const res = await apiClient.post(`/tee-times/${teeTimeId}/scorecard-ocr`, formData);
+      // apiClient defaults every request to Content-Type: application/json;
+      // clear it here so axios can set its own multipart boundary instead
+      // of sending the FormData body under the wrong content type.
+      const res = await apiClient.post(`/tee-times/${teeTimeId}/scorecard-ocr`, formData, {
+        headers: { 'Content-Type': undefined },
+      });
       return unwrap<ScorecardOcrResult>(res.data);
     },
   });
