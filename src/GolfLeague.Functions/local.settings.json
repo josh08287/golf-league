@@ -7,6 +7,8 @@
     "BLOB_STORAGE_ACCOUNT": "",
     "WEB_BASE_URL": "http://localhost:5173",
     "ACS_CONNECTION_STRING": "",
-    "ACS_SENDER_ADDRESS": ""
+    "ACS_SENDER_ADDRESS": "",
+    "DOCUMENT_INTELLIGENCE_ENDPOINT": "https://golfleague-card-reader.cognitiveservices.azure.com/",
+    "DOCUMENT_INTELLIGENCE_KEY": ""
   }
 }

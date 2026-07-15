@@ -11,6 +11,8 @@
          - AdminBootstrapEmail      (the email of the first admin)
          - GoogleClientId / GoogleClientSecret    (optional, omit to disable)
          - FacebookAppId / FacebookAppSecret      (optional, omit to disable)
+         - DocumentIntelligenceKey  (optional, omit to leave scorecard OCR
+                                     disabled — falls back to a no-op service)
        The Function App's Managed Identity has Key Vault Secrets User access,
        so it will pick them up on next restart.
 
@@ -53,6 +55,9 @@ param fido2RpId string = 'localhost'
 
 @description('Array of allowed CORS origins for the Function App (e.g., ["https://app1.com", "https://app2.com"]).')
 param allowedOrigins array = []
+
+@description('Endpoint URL of the Azure AI Document Intelligence resource used for scorecard OCR (e.g. https://golfleague-docint.cognitiveservices.azure.com/). Leave empty to leave the feature disabled.')
+param documentIntelligenceEndpoint string = ''
 
 // ---------------------------------------------------------------------------
 // Variables
@@ -157,6 +162,13 @@ resource functionAppSettings 'Microsoft.Web/sites/config@2023-01-01' = {
     GOOGLE_CLIENT_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/GoogleClientSecret)'
     FACEBOOK_APP_ID: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppId)'
     FACEBOOK_APP_SECRET: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/FacebookAppSecret)'
+
+    // Scorecard OCR (Azure AI Document Intelligence). The endpoint isn't
+    // sensitive, but the key is — same Key Vault reference pattern as the
+    // other secrets above. Omit the DocumentIntelligenceKey secret entirely
+    // to leave the feature disabled (falls back to a no-op OCR service).
+    DOCUMENT_INTELLIGENCE_ENDPOINT: documentIntelligenceEndpoint
+    DOCUMENT_INTELLIGENCE_KEY: '@Microsoft.KeyVault(SecretUri=${kvBaseUri}/DocumentIntelligenceKey)'
 
     // Passkey relying-party config — RP ID is the registrable domain
     // (no scheme, no path). Origins must be the full origin(s) clients

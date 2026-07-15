@@ -1,3 +1,5 @@
+using Azure;
+using Azure.AI.DocumentIntelligence;
 using Azure.Communication.Email;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
@@ -8,6 +10,7 @@ using GolfLeague.Infrastructure.Auth;
 using GolfLeague.Infrastructure.Data;
 using GolfLeague.Infrastructure.Email;
 using GolfLeague.Infrastructure.Repositories;
+using GolfLeague.Infrastructure.ScorecardOcr;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -125,6 +128,43 @@ public static class DependencyInjection
         else
         {
             services.AddSingleton<IEmailService, NoOpEmailService>();
+        }
+
+        var documentIntelligenceEndpoint = configuration["DOCUMENT_INTELLIGENCE_ENDPOINT"];
+        var documentIntelligenceKey = configuration["DOCUMENT_INTELLIGENCE_KEY"];
+
+        // An unresolved Key Vault reference comes through as the literal
+        // "@Microsoft.KeyVault(...)" string, not a blank value — a plain
+        // null/whitespace check would treat that as a real key and try to
+        // authenticate Document Intelligence with it. Same failure mode
+        // Program.cs already guards against for ADMIN_BOOTSTRAP_EMAIL.
+        var documentIntelligenceKeyUnresolved = documentIntelligenceKey?
+            .StartsWith("@Microsoft.KeyVault(", StringComparison.OrdinalIgnoreCase) ?? false;
+
+        if (!string.IsNullOrWhiteSpace(documentIntelligenceEndpoint)
+            && !string.IsNullOrWhiteSpace(documentIntelligenceKey)
+            && !documentIntelligenceKeyUnresolved)
+        {
+            var diClient = new DocumentIntelligenceClient(
+                new Uri(documentIntelligenceEndpoint),
+                new AzureKeyCredential(documentIntelligenceKey));
+            services.AddSingleton(sp => new DocumentIntelligenceScorecardOcrService(
+                diClient,
+                sp.GetRequiredService<ILogger<DocumentIntelligenceScorecardOcrService>>()));
+            services.AddSingleton<IScorecardOcrService>(sp => sp.GetRequiredService<DocumentIntelligenceScorecardOcrService>());
+        }
+        else
+        {
+            if (documentIntelligenceKeyUnresolved)
+            {
+                Console.Error.WriteLine(
+                    "Startup: DOCUMENT_INTELLIGENCE_KEY resolved to a raw Key Vault reference string — " +
+                    "the secret is missing or the managed identity lacks access. Scorecard OCR will stay " +
+                    "disabled until the 'DocumentIntelligenceKey' secret is created in Key Vault and the " +
+                    "Function App is restarted.");
+            }
+
+            services.AddSingleton<IScorecardOcrService, NoOpScorecardOcrService>();
         }
 
         return services;

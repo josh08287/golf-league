@@ -42,6 +42,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Lets an already-assigned player move themselves to a different, open tee-time group on the day of their round, bypassing the normal sign-up cutoff for that one action. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.scorecardOcrEnabled,
+    label: 'Scan scorecard (OCR)',
+    description:
+      'Lets a player photograph a completed paper scorecard on the group score entry screen to pre-fill hole scores via OCR, which they then confirm or edit before submitting. Requires Azure Document Intelligence to be configured — the option quietly does nothing if it is not. Applies to every league.',
+  },
 ];
 
 function Toggle({

@@ -148,6 +148,17 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string RoundDayTeeTimeSwitchEnabled = "round_day_tee_time_switch_enabled";
 
+    /// <summary>
+    /// Adds a "Scan Scorecard" option to the tee-time group score entry
+    /// screen: a photo of the paper scorecard is sent to Azure AI Document
+    /// Intelligence for OCR to pre-fill hole scores, which the user then
+    /// confirms/edits before submitting through the normal score-save path.
+    /// The photo itself is never persisted by this app. Requires
+    /// DOCUMENT_INTELLIGENCE_ENDPOINT/DOCUMENT_INTELLIGENCE_KEY to be
+    /// configured — otherwise scanning silently returns no matches.
+    /// </summary>
+    public const string ScorecardOcrEnabled = "scorecard_ocr_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -156,5 +167,6 @@ public static class KnownFeatureFlags
         [ActiveRoundLeaderboardEnabled] = false,
         [Par3GrossSkinsOptInEnabled] = false,
         [RoundDayTeeTimeSwitchEnabled] = false,
+        [ScorecardOcrEnabled] = false,
     };
 }

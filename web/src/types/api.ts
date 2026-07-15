@@ -567,6 +567,25 @@ export interface ConfirmedOverwrite {
   holeNumber: number;
 }
 
+// ── Scorecard OCR ────────────────────────────────────────────────────────────
+
+export interface ScorecardOcrHole {
+  holeNumber: number;
+  grossStrokes: number | null;
+  confidence: number; // 0–1; low values should be flagged for the user to double-check
+}
+
+export interface ScorecardOcrPlayer {
+  rawOcrName: string;
+  playerId: number | null; // null when no roster match was found with confidence
+  playerName: string | null;
+  holes: ScorecardOcrHole[];
+}
+
+export interface ScorecardOcrResult {
+  players: ScorecardOcrPlayer[];
+}
+
 // ── Statistics ───────────────────────────────────────────────────────────────
 
 export interface HoleStatistics {
@@ -883,4 +902,5 @@ export const FEATURE_FLAG_KEYS = {
   resendTeeTimeEmailEnabled: 'resend_tee_time_email_enabled',
   activeRoundLeaderboardEnabled: 'active_round_leaderboard_enabled',
   roundDayTeeTimeSwitchEnabled: 'round_day_tee_time_switch_enabled',
+  scorecardOcrEnabled: 'scorecard_ocr_enabled',
 } as const;

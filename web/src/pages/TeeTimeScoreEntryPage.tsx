@@ -1,11 +1,12 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle, Repeat } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle, Repeat, Camera } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
   useSaveTeeTimeHoleScores,
   useSetTeeTimeParticipantSkipped,
+  useParseScorecardImage,
 } from '@/hooks/useTeeTimeScoreEntry';
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useRoundClosestToPin, useSetRoundClosestToPin } from '@/hooks/useClosestToPin';
@@ -28,6 +29,7 @@ import type {
   HoleScoreConflict,
   ConfirmedOverwrite,
   TeeTimeParticipant,
+  ScorecardOcrResult,
 } from '@/types/api';
 
 // Helper to calculate stableford points
@@ -178,6 +180,245 @@ function SwitchPlayerPicker({ roundId, currentTeeTimeId, onClose, onSwitched }: 
   );
 }
 
+interface ScorecardScanModalProps {
+  teeTimeId: number;
+  players: TeeTimePlayerScore[];
+  holes: TeeTimeHoleInfo[];
+  onClose: () => void;
+  onConfirm: (scores: Record<number, Record<number, number | ''>>) => void;
+}
+
+const LOW_CONFIDENCE_THRESHOLD = 0.6;
+
+/**
+ * Upload a scorecard photo, OCR it, then let the user confirm/edit every
+ * cell before applying it to the round. The photo lives only in this
+ * component's local state for preview and is never uploaded anywhere except
+ * the one-shot OCR request — discarded (state cleared) on close either way.
+ */
+function ScorecardScanModal({ teeTimeId, players, holes, onClose, onConfirm }: ScorecardScanModalProps) {
+  const parseImage = useParseScorecardImage(teeTimeId);
+  const [ocrResult, setOcrResult] = useState<ScorecardOcrResult | null>(null);
+  // Editable grid keyed by our own row index (not playerId — a row may be
+  // unmatched until the user assigns it), plus a parallel player-assignment map.
+  const [rowScores, setRowScores] = useState<Record<number, Record<number, number | ''>>>({});
+  const [rowPlayerId, setRowPlayerId] = useState<Record<number, number | null>>({});
+
+  const handleFileSelected = async (file: File) => {
+    const result = await parseImage.mutateAsync(file);
+    setOcrResult(result);
+
+    const nextScores: Record<number, Record<number, number | ''>> = {};
+    const nextPlayerId: Record<number, number | null> = {};
+    result.players.forEach((row, idx) => {
+      nextPlayerId[idx] = row.playerId;
+      nextScores[idx] = {};
+      row.holes.forEach((h) => {
+        if (h.grossStrokes != null) nextScores[idx][h.holeNumber] = h.grossStrokes;
+      });
+    });
+    setRowScores(nextScores);
+    setRowPlayerId(nextPlayerId);
+  };
+
+  const handleCellChange = (rowIdx: number, holeNumber: number, value: number | '') => {
+    setRowScores((prev) => ({
+      ...prev,
+      [rowIdx]: { ...prev[rowIdx], [holeNumber]: value },
+    }));
+  };
+
+  // OCR can miss a player's row entirely (not just misread their name) —
+  // this adds a blank row so every active player always has somewhere to
+  // land, even when the photo only captured part of the group.
+  const handleAddMissingPlayer = (playerId: number) => {
+    const nextRowIdx = Math.max(-1, ...Object.keys(rowPlayerId).map(Number)) + 1;
+    setRowPlayerId((prev) => ({ ...prev, [nextRowIdx]: playerId }));
+    setRowScores((prev) => ({ ...prev, [nextRowIdx]: {} }));
+  };
+
+  const handleConfirm = () => {
+    const merged: Record<number, Record<number, number | ''>> = {};
+    Object.entries(rowPlayerId).forEach(([rowIdxStr, playerId]) => {
+      if (playerId == null) return;
+      merged[playerId] = { ...merged[playerId], ...rowScores[Number(rowIdxStr)] };
+    });
+    onConfirm(merged);
+  };
+
+  const assignedPlayerIds = new Set(Object.values(rowPlayerId).filter((id): id is number => id != null));
+  // Every active player in the group must be assigned before confirming —
+  // this replaces the full group setup step, so a partial match can't be
+  // allowed to silently skip setup (skip/advanced-stats) for the rest.
+  const unassignedPlayers = players.filter((p) => !assignedPlayerIds.has(p.playerId));
+  const canConfirm = ocrResult !== null && unassignedPlayers.length === 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <Card className="w-full max-w-3xl max-h-[85vh] overflow-y-auto">
+        <CardHeader>
+          <CardTitle>Scan Scorecard</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {parseImage.isError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {(() => {
+                const err = parseImage.error as { response?: { data?: { error?: string } } } | null;
+                return err?.response?.data?.error ?? 'Failed to scan scorecard. Please try again.';
+              })()}
+            </div>
+          )}
+
+          {!ocrResult && (
+            <div className="space-y-3">
+              <p className="text-sm text-gray-600">
+                Take or upload a photo of the completed paper scorecard. It's used once to read the
+                scores and is not saved.
+              </p>
+              <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-gray-300 px-4 py-10 text-gray-500 hover:border-[#1B5E20] hover:text-[#1B5E20]">
+                {parseImage.isPending ? (
+                  <>
+                    <Spinner />
+                    <span className="text-sm">Reading scorecard…</span>
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-8 w-8" />
+                    <span className="text-sm font-medium">Choose photo</span>
+                  </>
+                )}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  disabled={parseImage.isPending}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleFileSelected(file);
+                  }}
+                />
+              </label>
+            </div>
+          )}
+
+          {ocrResult && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Review each score below — cells outlined in amber had low OCR confidence. Unmatched
+                rows need a player assigned before they can be saved.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr>
+                      <th className="border-b border-gray-200 px-2 py-2 text-left">Player</th>
+                      {holes.map((h) => (
+                        <th key={h.holeNumber} className="border-b border-gray-200 px-2 py-2 text-center">
+                          {h.holeNumber}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.keys(rowPlayerId)
+                      .map(Number)
+                      .sort((a, b) => a - b)
+                      .map((rowIdx) => {
+                        const ocrRow = ocrResult.players[rowIdx] as (typeof ocrResult.players)[number] | undefined;
+                        const rawOcrName = ocrRow?.rawOcrName ?? 'Added manually';
+                        return (
+                          <tr key={rowIdx}>
+                            <td className="border-b border-gray-100 px-2 py-2">
+                              {rowPlayerId[rowIdx] != null ? (
+                                <span className="font-medium text-gray-900">
+                                  {players.find((p) => p.playerId === rowPlayerId[rowIdx])?.playerName ?? rawOcrName}
+                                </span>
+                              ) : (
+                                <select
+                                  className="rounded border border-amber-400 bg-amber-50 px-1 py-1 text-xs"
+                                  value=""
+                                  onChange={(e) => {
+                                    const v = e.target.value;
+                                    setRowPlayerId((prev) => ({ ...prev, [rowIdx]: v === '' ? null : Number(v) }));
+                                  }}
+                                >
+                                  <option value="">Unmatched: "{rawOcrName}" — assign…</option>
+                                  {players
+                                    .filter((p) => !Object.values(rowPlayerId).includes(p.playerId))
+                                    .map((p) => (
+                                      <option key={p.playerId} value={p.playerId}>
+                                        {p.playerName}
+                                      </option>
+                                    ))}
+                                </select>
+                              )}
+                            </td>
+                            {holes.map((h) => {
+                              const cell = ocrRow?.holes.find((c) => c.holeNumber === h.holeNumber);
+                              const lowConfidence = (cell?.confidence ?? 0) < LOW_CONFIDENCE_THRESHOLD;
+                              const value = rowScores[rowIdx]?.[h.holeNumber] ?? '';
+                              return (
+                                <td key={h.holeNumber} className="border-b border-gray-100 px-1 py-1 text-center">
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={value}
+                                    onChange={(e) => {
+                                      const v = e.target.value;
+                                      handleCellChange(rowIdx, h.holeNumber, v === '' ? '' : parseInt(v, 10));
+                                    }}
+                                    className={`h-9 w-12 rounded border text-center text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] ${
+                                      lowConfidence ? 'border-amber-400 bg-amber-50' : 'border-gray-300'
+                                    }`}
+                                  />
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+
+              {unassignedPlayers.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm">
+                  <span className="text-amber-800">Not on the scanned card:</span>
+                  {unassignedPlayers.map((p) => (
+                    <Button key={p.playerId} variant="outline" size="sm" onClick={() => handleAddMissingPlayer(p.playerId)}>
+                      + {p.playerName}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {ocrResult && unassignedPlayers.length > 0 && (
+            <p className="text-sm text-amber-700">
+              Assign a player to every row before applying — {unassignedPlayers.length} player
+              {unassignedPlayers.length === 1 ? '' : 's'} still need{unassignedPlayers.length === 1 ? 's' : ''} a
+              scorecard row (or scan a photo that shows the whole group).
+            </p>
+          )}
+
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            {ocrResult && (
+              <Button variant="primary" onClick={handleConfirm} disabled={!canConfirm}>
+                Apply Scores
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 interface GroupSetupStepProps {
   roundId: number;
   teeTimeId: number;
@@ -188,6 +429,9 @@ interface GroupSetupStepProps {
   onToggleAdvancedStats: (playerId: number, enabled: boolean) => void;
   pendingSkipIds: Set<number>;
   onContinue: () => void;
+  scorecardOcrEnabled: boolean;
+  holes: TeeTimeHoleInfo[];
+  onScanApplied: (scores: Record<number, Record<number, number | ''>>) => void;
 }
 
 function GroupSetupStep({
@@ -200,10 +444,14 @@ function GroupSetupStep({
   onToggleAdvancedStats,
   pendingSkipIds,
   onContinue,
+  scorecardOcrEnabled,
+  holes,
+  onScanApplied,
 }: GroupSetupStepProps) {
   const activePlayers = players.filter((p) => !p.isWithdrawn);
   const [switchingPlayerId, setSwitchingPlayerId] = useState<number | null>(null);
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
+  const [showScanModal, setShowScanModal] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -217,6 +465,13 @@ function GroupSetupStep({
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
           {switchNotice}
         </div>
+      )}
+
+      {scorecardOcrEnabled && (
+        <Button variant="outline" className="w-full" onClick={() => setShowScanModal(true)}>
+          <Camera className="h-4 w-4 mr-1.5" />
+          Scan Scorecard
+        </Button>
       )}
 
       <div className="space-y-3">
@@ -297,6 +552,19 @@ function GroupSetupStep({
           onSwitched={(otherPlayerName) => {
             setSwitchingPlayerId(null);
             setSwitchNotice(`Switched with ${otherPlayerName}.`);
+          }}
+        />
+      )}
+
+      {showScanModal && (
+        <ScorecardScanModal
+          teeTimeId={teeTimeId}
+          players={activePlayers}
+          holes={holes}
+          onClose={() => setShowScanModal(false)}
+          onConfirm={(scores) => {
+            setShowScanModal(false);
+            onScanApplied(scores);
           }}
         />
       )}
@@ -802,6 +1070,7 @@ export function TeeTimeScoreEntryPage() {
   const user = useAuthStore((s) => s.user);
   const featureFlags = useFeatureFlagStates();
   const ctpEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.closestToPinEnabled] ?? false;
+  const scorecardOcrEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.scorecardOcrEnabled] ?? false;
   const isScorerOrAdmin =
     (user?.isSuperAdmin ?? false) ||
     (user?.roles?.some((r) => r === 'scorer' || r === 'admin') ?? false);
@@ -926,6 +1195,22 @@ export function TeeTimeScoreEntryPage() {
         [holeNumber]: value,
       },
     }));
+  }, []);
+
+  // Applies a confirmed scorecard scan: merges the per-player hole scores
+  // into local state (same shape/path as manual hole-by-hole entry), then
+  // jumps straight to the summary screen so the user can do a final review
+  // before submitting — scanned scores aren't saved until they hit Submit.
+  const handleScanApplied = useCallback((scannedScores: Record<number, Record<number, number | ''>>) => {
+    setScores((prev) => {
+      const next = { ...prev };
+      Object.entries(scannedScores).forEach(([playerIdStr, holeScores]) => {
+        const playerId = Number(playerIdStr);
+        next[playerId] = { ...next[playerId], ...holeScores };
+      });
+      return next;
+    });
+    setShowSummary(true);
   }, []);
 
   const handleHoleDataChange = useCallback((playerId: number, holeNumber: number, field: keyof HoleData, value: number | '' | boolean | null) => {
@@ -1213,6 +1498,12 @@ export function TeeTimeScoreEntryPage() {
           onToggleAdvancedStats={handleToggleAdvancedStats}
           pendingSkipIds={pendingSkipIds}
           onContinue={() => setSetupComplete(true)}
+          scorecardOcrEnabled={scorecardOcrEnabled}
+          holes={holes}
+          onScanApplied={(scores) => {
+            setSetupComplete(true);
+            handleScanApplied(scores);
+          }}
         />
       )}
 

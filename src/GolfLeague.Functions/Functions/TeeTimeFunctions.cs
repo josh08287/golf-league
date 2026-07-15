@@ -479,6 +479,55 @@ public sealed class TeeTimeFunctions
         return new OkObjectResult(new { data = new { saved = true } });
     }
 
+    /// <summary>
+    /// POST /v1/tee-times/{id}/scorecard-ocr — Parses an uploaded scorecard
+    /// photo (multipart/form-data, field name "image") into per-player hole
+    /// scores for the caller to confirm/edit. Read entirely into memory and
+    /// discarded once this returns — never written to disk or blob storage.
+    /// Gated by the scorecard_ocr_enabled feature flag.
+    /// </summary>
+    [Function("ScanTeeTimeScorecard")]
+    public async Task<IActionResult> ScanScorecard(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tee-times/{id:int}/scorecard-ocr")] HttpRequest req,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        if (!req.HasFormContentType)
+            return new BadRequestObjectResult(new { error = "An image file is required (multipart field \"image\")." });
+
+        var form = await req.ReadFormAsync(cancellationToken);
+        if (form.Files.Count == 0)
+            return new BadRequestObjectResult(new { error = "An image file is required (multipart field \"image\")." });
+
+        var file = form.Files["image"];
+        if (file is null)
+            return new BadRequestObjectResult(new { error = "An image file is required (multipart field \"image\")." });
+        const long maxImageBytes = 15 * 1024 * 1024;
+        if (file.Length == 0 || file.Length > maxImageBytes)
+            return new BadRequestObjectResult(new { error = "Image must be non-empty and under 15 MB." });
+
+        byte[] imageBytes;
+        using (var stream = new MemoryStream())
+        {
+            await file.CopyToAsync(stream, cancellationToken);
+            imageBytes = stream.ToArray();
+        }
+
+        var command = new ParseScorecardImageCommand(id, playerId.Value, imageBytes);
+        var result = await _mediator.Send(command, cancellationToken);
+
+        return result.IsSuccess
+            ? new OkObjectResult(new { data = result.Value })
+            : new BadRequestObjectResult(new { error = result.Error });
+    }
+
     private sealed record HoleScoreInputDto(int HoleNumber, int GrossStrokes, int? Putts = null, double? FirstPuttDistanceFeet = null, bool? FairwayHit = null);
     private sealed record PlayerScoreInputDto(int PlayerId, List<HoleScoreInputDto>? HoleScores);
     private sealed record ConfirmedOverwriteDto(int PlayerId, int HoleNumber);

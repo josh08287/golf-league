@@ -6,6 +6,7 @@ import type {
   TeeTimeGroupScoresResult,
   PlayerScoreInput,
   ConfirmedOverwrite,
+  ScorecardOcrResult,
 } from '@/types/api';
 
 function unwrap<T>(data: unknown): T {
@@ -121,6 +122,23 @@ export function useSaveTeeTimeHoleScores(teeTimeId: number | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+    },
+  });
+}
+
+/**
+ * Uploads a scorecard photo and returns OCR'd per-player hole scores for the
+ * user to confirm/edit. The image is processed in memory server-side and
+ * never persisted — nothing to clean up here once the request completes.
+ */
+export function useParseScorecardImage(teeTimeId: number | null) {
+  return useMutation({
+    mutationFn: async (image: File) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      const formData = new FormData();
+      formData.append('image', image);
+      const res = await apiClient.post(`/tee-times/${teeTimeId}/scorecard-ocr`, formData);
+      return unwrap<ScorecardOcrResult>(res.data);
     },
   });
 }
