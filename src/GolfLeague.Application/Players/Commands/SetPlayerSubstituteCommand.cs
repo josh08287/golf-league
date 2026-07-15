@@ -52,11 +52,7 @@ public sealed class SetPlayerSubstituteCommandHandler : IRequestHandler<SetPlaye
             // they can sub until that half actually starts. UTC date is close
             // enough here: half boundaries are week-scale.
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
-            var hasCurrentFlightMembership = player.FlightMemberships
-                .Any(fm => fm.Season.IsActive
-                    && fm.Half.StartDate <= today
-                    && fm.Half.EndDate >= today);
-            if (hasCurrentFlightMembership)
+            if (player.HasFlightMembershipInProgress(today))
                 return Result<PlayerDto>.Fail(
                     "This player is still assigned to a flight for the current half. Remove them from their flight before marking them as a substitute.");
         }

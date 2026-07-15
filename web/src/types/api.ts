@@ -51,6 +51,10 @@ export interface Player {
   flightMemberships: HalfFlightMembership[];
   teeTimeEmailOptOut: boolean;
   isSubstitute: boolean;
+  // True when the player is in a flight for the half in progress today —
+  // blocks adding them to the substitute pool. Completed and not-yet-started
+  // halves don't count.
+  hasCurrentHalfFlightMembership: boolean;
 }
 
 /** Lightweight row used by the unlinked-players pickers. */

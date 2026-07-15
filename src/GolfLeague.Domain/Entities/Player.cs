@@ -52,6 +52,20 @@ public class Player
     public string FullName => $"{FirstName} {LastName}";
     public string Initials => $"{GetFirstChar(FirstName)}{GetFirstChar(LastName)}".ToUpperInvariant();
 
+    /// <summary>
+    /// True when the player holds a flight membership in a half that is in
+    /// progress on <paramref name="today"/> (active season, half started,
+    /// half not yet ended). This is what makes someone a roster player for
+    /// substitute-exclusivity purposes — completed and not-yet-started
+    /// halves don't count. Requires FlightMemberships with Season and Half
+    /// navigations loaded.
+    /// </summary>
+    public bool HasFlightMembershipInProgress(DateOnly today) =>
+        FlightMemberships.Any(fm =>
+            fm.Season.IsActive
+            && fm.Half.StartDate <= today
+            && fm.Half.EndDate >= today);
+
     private static string GetFirstChar(string name) =>
         string.IsNullOrEmpty(name) ? "" : name[..1];
 

@@ -131,6 +131,7 @@ public sealed class GetPlayersQueryHandler : IRequestHandler<GetPlayersQuery, Re
             player.PreferredTeeTimeSlots,
             perHalf,
             player.TeeTimeEmailOptOut,
-            player.IsSubstitute);
+            player.IsSubstitute,
+            player.HasFlightMembershipInProgress(DateOnly.FromDateTime(DateTime.UtcNow)));
     }
 }

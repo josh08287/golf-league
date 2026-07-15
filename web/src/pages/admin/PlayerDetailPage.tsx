@@ -101,11 +101,11 @@ function TeeTimePreferenceCard({ playerId, currentMask }: { playerId: string; cu
 function SubstituteStatusCard({
   playerId,
   isSubstitute,
-  hasActiveFlightMembership,
+  hasCurrentHalfFlightMembership,
 }: {
   playerId: string;
   isSubstitute: boolean;
-  hasActiveFlightMembership: boolean;
+  hasCurrentHalfFlightMembership: boolean;
 }) {
   const setSubstitute = useSetPlayerSubstitute();
 
@@ -125,9 +125,9 @@ function SubstituteStatusCard({
         >
           {setSubstitute.isPending ? 'Removing…' : 'Remove from substitute pool'}
         </Button>
-      ) : hasActiveFlightMembership ? (
+      ) : hasCurrentHalfFlightMembership ? (
         <p className="text-sm text-amber-600">
-          Remove this player from their flight for the active season before adding them to the
+          Remove this player from their flight for the current half before adding them to the
           substitute pool.
         </p>
       ) : (
@@ -621,7 +621,7 @@ export function PlayerDetailPage() {
       <SubstituteStatusCard
         playerId={id}
         isSubstitute={player.isSubstitute}
-        hasActiveFlightMembership={(player.flightMemberships ?? []).length > 0}
+        hasCurrentHalfFlightMembership={player.hasCurrentHalfFlightMembership ?? false}
       />
 
       {player.isActive && (

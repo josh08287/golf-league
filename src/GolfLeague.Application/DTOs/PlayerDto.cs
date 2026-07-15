@@ -18,4 +18,8 @@ public sealed record PlayerDto(
     TeeTimeSlotPreference PreferredTeeTimeSlots = TeeTimeSlotPreference.None,
     IReadOnlyList<HalfFlightMembership>? FlightMemberships = null,
     bool TeeTimeEmailOptOut = false,
-    bool IsSubstitute = false);
+    bool IsSubstitute = false,
+    // True when the player is in a flight for the half in progress today —
+    // the condition that blocks adding them to the substitute pool.
+    // Completed and not-yet-started halves don't count.
+    bool HasCurrentHalfFlightMembership = false);
