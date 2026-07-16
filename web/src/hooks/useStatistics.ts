@@ -29,6 +29,8 @@ export const statisticsKeys = {
     [...statisticsKeys.all, 'leaderboards', period ?? null] as const,
   joesVsOthers: (period?: StatisticsPeriod) =>
     [...statisticsKeys.all, 'joes-vs-others', period ?? null] as const,
+  coursesWithData: (period?: StatisticsPeriod) =>
+    [...statisticsKeys.all, 'courses-with-data', period ?? null] as const,
 };
 
 export function useCourses() {
@@ -89,6 +91,19 @@ export function useLeagueLeaderboards(period?: StatisticsPeriod) {
     queryFn: async () => {
       const response = await apiClient.get<LeagueLeaderboards>(
         '/statistics/leaderboards',
+        { params: periodParams(period) },
+      );
+      return response.data;
+    },
+  });
+}
+
+export function useCoursesWithData(period?: StatisticsPeriod) {
+  return useQuery({
+    queryKey: statisticsKeys.coursesWithData(period),
+    queryFn: async () => {
+      const response = await apiClient.get<number[]>(
+        '/statistics/courses-with-data',
         { params: periodParams(period) },
       );
       return response.data;

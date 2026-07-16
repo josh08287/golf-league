@@ -3,6 +3,7 @@ import { BarChart3, TrendingUp, TrendingDown, Target, Award, ChevronDown, Chevro
 import {
   useCourses,
   useCourseStatistics,
+  useCoursesWithData,
   useMostImproved,
   useLeagueLeaderboards,
   type StatisticsPeriod,
@@ -567,8 +568,21 @@ export function StatisticsPage() {
     setSearchParams(params, { replace: true });
   };
 
-  const firstCourseId = courses.data?.[0]?.id ?? null;
-  const activeCourseId = selectedCourseId ?? firstCourseId;
+  const coursesWithData = useCoursesWithData(period);
+  const coursesWithDataIds = coursesWithData.data;
+
+  const availableCourses = useMemo(() => {
+    if (!courses.data) return [];
+    if (!coursesWithDataIds) return courses.data;
+    const withDataSet = new Set(coursesWithDataIds);
+    return courses.data.filter((c) => withDataSet.has(c.id));
+  }, [courses.data, coursesWithDataIds]);
+
+  const firstCourseId = availableCourses[0]?.id ?? null;
+  const activeCourseId =
+    selectedCourseId != null && availableCourses.some((c) => c.id === selectedCourseId)
+      ? selectedCourseId
+      : firstCourseId;
 
   const stats = useCourseStatistics(activeCourseId ?? '', period);
 
@@ -638,13 +652,13 @@ export function StatisticsPage() {
       )}
 
       {/* Course picker */}
-      {courses.isPending && <FullPageSpinner />}
+      {(courses.isPending || coursesWithData.isPending) && <FullPageSpinner />}
       {courses.isError && (
         <ErrorMessage message="Could not load courses." />
       )}
-      {courses.data && courses.data.length > 0 && (
+      {courses.data && availableCourses.length > 0 && (
         <div className="flex flex-wrap gap-2">
-          {courses.data.map((c) => (
+          {availableCourses.map((c) => (
             <button
               key={c.id}
               onClick={() => setSelectedCourseId(c.id)}
@@ -660,8 +674,8 @@ export function StatisticsPage() {
           ))}
         </div>
       )}
-      {courses.data && courses.data.length === 0 && (
-        <p className="text-sm text-gray-500">No courses configured yet.</p>
+      {courses.data && availableCourses.length === 0 && !coursesWithData.isPending && (
+        <p className="text-sm text-gray-500">No course data recorded for this period yet.</p>
       )}
 
       {/* Stats content */}
