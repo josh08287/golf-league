@@ -437,8 +437,11 @@ public class TeeTimeFunctionsTests
     {
         // RoundDate is in the past relative to "now" — should be rejected
         // before the command even runs, regardless of round Status.
+        // Uses -2 days (not -1) because the endpoint compares against
+        // Eastern-time "today", which can trail the UTC date by up to a
+        // full day; -1 day flaked depending on time-of-day in CI.
         var m = new Mocks();
-        var round = new Round { Id = 1, RoundDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)) };
+        var round = new Round { Id = 1, RoundDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-2)) };
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
         var sut = m.BuildSut();
         var body = JsonSerializer.Serialize(new { Skipped = true });

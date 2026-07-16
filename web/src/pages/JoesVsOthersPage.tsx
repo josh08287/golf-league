@@ -118,7 +118,7 @@ export function JoesVsOthersPage() {
       </Button>
 
       <PageHeader
-        title="Joes vs Non-Joes"
+        title="Joes vs Schmoes"
         description="Every player named Joe or Joseph, compared against everyone else"
       >
         <Users className="h-6 w-6 text-primary-700" />
@@ -127,7 +127,7 @@ export function JoesVsOthersPage() {
       <PeriodSelector seasonId={periodSeasonId} halfId={periodHalfId} onChange={handlePeriodChange} />
 
       {stats.isPending && <FullPageSpinner />}
-      {stats.isError && <ErrorMessage message="Could not load Joes vs Non-Joes statistics. Please try again." />}
+      {stats.isError && <ErrorMessage message="Could not load Joes vs Schmoes statistics. Please try again." />}
 
       {stats.data && (
         <>
