@@ -8,13 +8,21 @@ import { Button } from '@/components/ui/Button';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
-import type { GroupStatistics } from '@/types/api';
+import type { GroupStatistics, HoleComparison, BestRound } from '@/types/api';
 
 function scoreToParLabel(val: number | null) {
   if (val == null) return '—';
   if (val > 0) return `+${val.toFixed(1)}`;
   if (val === 0) return 'E';
   return val.toFixed(1);
+}
+
+function formatRoundDate(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 interface MetricRow {
@@ -211,8 +219,125 @@ export function JoesVsOthersPage() {
               One of the groups has no finalized rounds recorded yet for this period.
             </p>
           )}
+
+          {/* Head-to-head record (rounds where both groups played) */}
+          {stats.data.headToHead.sharedRoundsCount > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-gray-500">
+                  Head-to-Head ({stats.data.headToHead.sharedRoundsCount} shared round
+                  {stats.data.headToHead.sharedRoundsCount === 1 ? '' : 's'})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-gray-600">
+                  Comparing average net score in rounds where at least one Joe and one non-Joe both played.
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-primary-900">{stats.data.headToHead.joesWins}</p>
+                    <p className="text-xs text-gray-400 mt-1">Joes won</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-500">{stats.data.headToHead.halves}</p>
+                    <p className="text-xs text-gray-400 mt-1">Tied</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{stats.data.headToHead.othersWins}</p>
+                    <p className="text-xs text-gray-400 mt-1">Non-Joes won</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Best individual round per group */}
+          {(stats.data.joesBestRound || stats.data.othersBestRound) && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <BestRoundCard title="Best Joe Round" round={stats.data.joesBestRound} />
+              <BestRoundCard title="Best Non-Joe Round" round={stats.data.othersBestRound} />
+            </div>
+          )}
+
+          {/* Hole-by-hole comparison */}
+          {stats.data.holeComparisons.length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-700">Avg Score to Par by Hole</h3>
+              <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="py-2 px-4 text-left font-medium text-gray-500">Hole</th>
+                      <th className="py-2 px-4 text-right font-semibold text-primary-900">Joes</th>
+                      <th className="py-2 px-4 text-right font-semibold text-gray-900">Non-Joes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {stats.data.holeComparisons.map((hole: HoleComparison) => {
+                      const joesVal = hole.joesAverageScoreToPar;
+                      const othersVal = hole.othersAverageScoreToPar;
+                      const joesBetter =
+                        joesVal != null && othersVal != null && joesVal < othersVal;
+                      const othersBetter =
+                        joesVal != null && othersVal != null && othersVal < joesVal;
+
+                      return (
+                        <tr key={hole.holeNumber} className="border-b border-gray-100 last:border-0">
+                          <td className="py-2 px-4 text-gray-500">#{hole.holeNumber}</td>
+                          <td
+                            className={`py-2 px-4 text-right tabular-nums ${
+                              joesBetter ? 'font-semibold text-green-600' : 'text-gray-900'
+                            }`}
+                          >
+                            {scoreToParLabel(joesVal)}
+                            {hole.joesScoresRecorded === 0 && <span className="text-gray-300"> —</span>}
+                          </td>
+                          <td
+                            className={`py-2 px-4 text-right tabular-nums ${
+                              othersBetter ? 'font-semibold text-green-600' : 'text-gray-900'
+                            }`}
+                          >
+                            {scoreToParLabel(othersVal)}
+                            {hole.othersScoresRecorded === 0 && <span className="text-gray-300"> —</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
+  );
+}
+
+function BestRoundCard({ title, round }: { title: string; round: BestRound | null }) {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm font-medium text-gray-500">{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        {round ? (
+          <>
+            <p className="text-2xl font-bold text-primary-900">
+              {round.totalGrossStrokes}
+              {round.totalNetStrokes != null && (
+                <span className="text-base font-medium text-gray-400"> ({round.totalNetStrokes} net)</span>
+              )}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">{round.playerName}</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {round.courseName} — {formatRoundDate(round.roundDate)}
+            </p>
+          </>
+        ) : (
+          <p className="text-gray-400">—</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

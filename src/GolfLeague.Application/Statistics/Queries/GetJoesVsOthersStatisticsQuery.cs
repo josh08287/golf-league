@@ -23,9 +23,34 @@ public sealed record GroupStatisticsDto(
     int DoubleBogeyOrWorseCount,
     double? ParOrBetterPercentage);
 
+public sealed record HoleComparisonDto(
+    int HoleNumber,
+    double? JoesAverageScoreToPar,
+    double? OthersAverageScoreToPar,
+    int JoesScoresRecorded,
+    int OthersScoresRecorded);
+
+public sealed record BestRoundDto(
+    int PlayerId,
+    string PlayerName,
+    DateOnly RoundDate,
+    string CourseName,
+    int TotalGrossStrokes,
+    int? TotalNetStrokes);
+
+public sealed record HeadToHeadDto(
+    int SharedRoundsCount,
+    int JoesWins,
+    int OthersWins,
+    int Halves);
+
 public sealed record JoesVsOthersStatisticsDto(
     GroupStatisticsDto Joes,
-    GroupStatisticsDto Others);
+    GroupStatisticsDto Others,
+    List<HoleComparisonDto> HoleComparisons,
+    BestRoundDto? JoesBestRound,
+    BestRoundDto? OthersBestRound,
+    HeadToHeadDto HeadToHead);
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
 
@@ -38,10 +63,14 @@ public sealed class GetJoesVsOthersStatisticsQueryHandler
     private static readonly string[] JoeFirstNames = ["joe", "joseph"];
 
     private readonly IRoundRepository _roundRepository;
+    private readonly ICourseRepository _courseRepository;
 
-    public GetJoesVsOthersStatisticsQueryHandler(IRoundRepository roundRepository)
+    public GetJoesVsOthersStatisticsQueryHandler(
+        IRoundRepository roundRepository,
+        ICourseRepository courseRepository)
     {
         _roundRepository = roundRepository;
+        _courseRepository = courseRepository;
     }
 
     public async Task<Result<JoesVsOthersStatisticsDto>> Handle(
@@ -60,6 +89,11 @@ public sealed class GetJoesVsOthersStatisticsQueryHandler
         var otherParticipants = new List<Domain.Entities.RoundParticipant>();
         var joeHoleScores = new List<Domain.Entities.HoleScore>();
         var otherHoleScores = new List<Domain.Entities.HoleScore>();
+        var participantRounds = new Dictionary<int, Domain.Entities.Round>();
+
+        // For head-to-head: per round, the average net strokes of each group's
+        // participants (only rounds where both groups actually played).
+        var roundGroupNetAverages = new Dictionary<int, (List<int> Joes, List<int> Others)>();
 
         foreach (var round in finalizedRounds)
         {
@@ -70,6 +104,7 @@ public sealed class GetJoesVsOthersStatisticsQueryHandler
 
                 var isJoe = JoeFirstNames.Contains(p.Player.FirstName.Trim(), StringComparer.OrdinalIgnoreCase);
                 var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
+                participantRounds[p.Id] = round;
 
                 if (isJoe)
                 {
@@ -81,13 +116,83 @@ public sealed class GetJoesVsOthersStatisticsQueryHandler
                     otherParticipants.Add(p);
                     otherHoleScores.AddRange(scores);
                 }
+
+                if (p.TotalNetStrokes is int netStrokes)
+                {
+                    if (!roundGroupNetAverages.TryGetValue(round.Id, out var lists))
+                    {
+                        lists = ([], []);
+                        roundGroupNetAverages[round.Id] = lists;
+                    }
+                    (isJoe ? lists.Joes : lists.Others).Add(netStrokes);
+                }
             }
         }
 
         var joes = BuildGroupStatistics("Joes", joeParticipants, joeHoleScores);
         var others = BuildGroupStatistics("Non-Joes", otherParticipants, otherHoleScores);
 
-        return Result<JoesVsOthersStatisticsDto>.Ok(new JoesVsOthersStatisticsDto(joes, others));
+        var holeComparisons = BuildHoleComparisons(joeHoleScores, otherHoleScores);
+
+        var courses = (await _courseRepository.GetAllAsync(cancellationToken))
+            .ToDictionary(c => c.Id, c => c.Name);
+
+        var joesBestRound = BuildBestRound(joeParticipants, participantRounds, courses);
+        var othersBestRound = BuildBestRound(otherParticipants, participantRounds, courses);
+
+        var sharedRounds = roundGroupNetAverages.Values
+            .Where(v => v.Joes.Count > 0 && v.Others.Count > 0)
+            .ToList();
+        var joesWins = sharedRounds.Count(v => v.Joes.Average() < v.Others.Average());
+        var othersWins = sharedRounds.Count(v => v.Others.Average() < v.Joes.Average());
+        var headToHead = new HeadToHeadDto(sharedRounds.Count, joesWins, othersWins, sharedRounds.Count - joesWins - othersWins);
+
+        return Result<JoesVsOthersStatisticsDto>.Ok(new JoesVsOthersStatisticsDto(
+            joes, others, holeComparisons, joesBestRound, othersBestRound, headToHead));
+    }
+
+    private static List<HoleComparisonDto> BuildHoleComparisons(
+        List<Domain.Entities.HoleScore> joeHoleScores,
+        List<Domain.Entities.HoleScore> otherHoleScores)
+    {
+        var comparisons = new List<HoleComparisonDto>();
+        for (var holeNumber = 1; holeNumber <= 18; holeNumber++)
+        {
+            var joeScores = joeHoleScores.Where(s => s.HoleNumber == holeNumber).ToList();
+            var otherScores = otherHoleScores.Where(s => s.HoleNumber == holeNumber).ToList();
+
+            if (joeScores.Count == 0 && otherScores.Count == 0) continue;
+
+            comparisons.Add(new HoleComparisonDto(
+                holeNumber,
+                joeScores.Count > 0 ? Math.Round(joeScores.Average(s => s.GrossStrokes - s.Par), 2) : null,
+                otherScores.Count > 0 ? Math.Round(otherScores.Average(s => s.GrossStrokes - s.Par), 2) : null,
+                joeScores.Count,
+                otherScores.Count));
+        }
+        return comparisons;
+    }
+
+    private static BestRoundDto? BuildBestRound(
+        List<Domain.Entities.RoundParticipant> participants,
+        Dictionary<int, Domain.Entities.Round> participantRounds,
+        Dictionary<int, string> courses)
+    {
+        var best = participants
+            .Where(p => p.TotalGrossStrokes.HasValue)
+            .OrderBy(p => p.TotalGrossStrokes!.Value)
+            .FirstOrDefault();
+
+        if (best is null) return null;
+
+        var round = participantRounds[best.Id];
+        return new BestRoundDto(
+            best.PlayerId,
+            best.Player.FullName,
+            round.RoundDate,
+            courses.GetValueOrDefault(round.CourseId, "Unknown Course"),
+            best.TotalGrossStrokes!.Value,
+            best.TotalNetStrokes);
     }
 
     private static GroupStatisticsDto BuildGroupStatistics(

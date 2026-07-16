@@ -705,9 +705,37 @@ export interface GroupStatistics {
   parOrBetterPercentage: number | null;
 }
 
+export interface HoleComparison {
+  holeNumber: number;
+  joesAverageScoreToPar: number | null;
+  othersAverageScoreToPar: number | null;
+  joesScoresRecorded: number;
+  othersScoresRecorded: number;
+}
+
+export interface BestRound {
+  playerId: number;
+  playerName: string;
+  roundDate: string;
+  courseName: string;
+  totalGrossStrokes: number;
+  totalNetStrokes: number | null;
+}
+
+export interface HeadToHead {
+  sharedRoundsCount: number;
+  joesWins: number;
+  othersWins: number;
+  halves: number;
+}
+
 export interface JoesVsOthersStatistics {
   joes: GroupStatistics;
   others: GroupStatistics;
+  holeComparisons: HoleComparison[];
+  joesBestRound: BestRound | null;
+  othersBestRound: BestRound | null;
+  headToHead: HeadToHead;
 }
 
 // ── Most Improved ───────────────────────────────────────────────────────────
