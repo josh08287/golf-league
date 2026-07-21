@@ -487,6 +487,63 @@ public class RecalculateAllRoundsCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_WhenRoundIsScheduledAndPlayerHandicapChanged_RefreshesCourseHandicapBeforeFinalization()
+    {
+        var round = new Round
+        {
+            Id = 1,
+            Status = RoundStatus.Scheduled,
+            RoundDate = new DateOnly(2026, 3, 1),
+            CourseId = 1,
+            SeasonId = 1,
+            HalfId = 1,
+            WeekNumber = 1,
+            NineHoleSide = NineHoleSide.Front
+        };
+
+        var course = new Course { Id = 1, Name = "Test Course", SlopeRating = 123, CourseRating = 70.1 };
+        var courseHoles = Enumerable.Range(1, 18)
+            .Select(i => new CourseHole { Id = i, CourseId = 1, HoleNumber = i, Par = 4, StrokeIndex = i })
+            .ToList();
+
+        // Snapshot taken when the round was scheduled: player's 18-hole index was 18.0 at the time.
+        var participant = new RoundParticipant
+        {
+            Id = 1,
+            RoundId = 1,
+            PlayerId = 1,
+            FlightId = 1,
+            HandicapIndex = 18.0,
+            CourseHandicap = 10,
+            IsWithdrawn = false,
+            SkippedWeek = false,
+            HoleScores = new List<HoleScore>()
+        };
+
+        _roundRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Round> { round });
+        _courseRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(course);
+        _courseRepo.Setup(r => r.GetHolesAsync(1, default)).ReturnsAsync(courseHoles);
+        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default)).ReturnsAsync(new List<RoundParticipant> { participant });
+
+        // Player's handicap has since improved to 8.8 (18-hole), effective before the round date.
+        _handicapRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Handicap>
+        {
+            new() { Id = 1, PlayerId = 1, HandicapIndex = 8.8, EffectiveDate = new DateOnly(2026, 2, 15) },
+            new() { Id = 2, PlayerId = 1, HandicapIndex = 18.0, EffectiveDate = new DateOnly(2026, 1, 1) },
+        });
+
+        var result = await _handler.Handle(new RecalculateAllRoundsCommand("admin"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        // Scheduled rounds are never score-recalculated (no hole scores exist yet).
+        result.Value!.RoundsProcessed.Should().Be(0);
+        participant.HandicapIndex.Should().Be(8.8);
+        // Round(8.8 * 123/113 + (70.1 - 72)) = Round(7.685) = 8; halved for 9-hole -> 4
+        participant.CourseHandicap.Should().Be(4);
+        _roundRepo.Verify(r => r.UpdateParticipantAsync(participant, default), Times.Once);
+    }
+
+    [Fact]
     public async Task Handle_WhenRoundIsInProgress_StillResyncsFlightIdSoLiveLeaderboardIsAccurate()
     {
         var round = new Round

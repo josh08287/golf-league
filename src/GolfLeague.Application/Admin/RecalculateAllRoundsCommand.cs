@@ -87,6 +87,19 @@ public sealed class RecalculateAllRoundsCommandHandler
                 if (!round.HalfId.HasValue)
                     continue;
 
+                // Finalized rounds get their HandicapIndex/CourseHandicap refreshed
+                // below alongside score recalculation. For everything still ahead
+                // of that (Scheduled/InProgress/PendingFinalization), do it here so
+                // a stale snapshot doesn't sit on the rounds page until finalization.
+                Course? course = null;
+                int? coursePar = null;
+                if (round.Status != RoundStatus.Finalized)
+                {
+                    course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
+                    if (course is not null)
+                        coursePar = (await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken)).Sum(h => h.Par);
+                }
+
                 var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
                 var activeParticipants = participants
                     .Where(p => !p.IsWithdrawn && !p.SkippedWeek)
@@ -101,18 +114,51 @@ public sealed class RecalculateAllRoundsCommandHandler
 
                 foreach (var participant in activeParticipants)
                 {
-                    if (!halfMemberships.TryGetValue(participant.PlayerId, out var currentFlightId))
-                        continue;
+                    var needsUpdate = false;
 
-                    if (participant.FlightId != currentFlightId)
+                    if (halfMemberships.TryGetValue(participant.PlayerId, out var currentFlightId)
+                        && participant.FlightId != currentFlightId)
                     {
                         _logger.LogInformation(
                             "Updating FlightId for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
                             participant.Id, round.Id, participant.FlightId, currentFlightId);
                         participant.FlightId = currentFlightId;
                         flightAssignmentsUpdated++;
-                        await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+                        needsUpdate = true;
                     }
+
+                    if (round.Status != RoundStatus.Finalized && course is not null && coursePar.HasValue
+                        && handicapsByPlayer.TryGetValue(participant.PlayerId, out var history))
+                    {
+                        var asOfHandicap = history.FirstOrDefault(h => h.EffectiveDate <= round.RoundDate);
+                        if (asOfHandicap is not null && asOfHandicap.HandicapIndex != participant.HandicapIndex)
+                        {
+                            _logger.LogInformation(
+                                "Updating HandicapIndex for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
+                                participant.Id, round.Id, participant.HandicapIndex, asOfHandicap.HandicapIndex);
+                            participant.HandicapIndex = asOfHandicap.HandicapIndex;
+                            needsUpdate = true;
+                        }
+
+                        var recalculatedCourseHandicap = StablefordScoringService.CourseHandicap(
+                            participant.HandicapIndex,
+                            course.SlopeRating,
+                            course.CourseRating,
+                            coursePar.Value,
+                            RoundType.NineHole);
+
+                        if (participant.CourseHandicap != recalculatedCourseHandicap)
+                        {
+                            _logger.LogInformation(
+                                "Updating CourseHandicap for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
+                                participant.Id, round.Id, participant.CourseHandicap, recalculatedCourseHandicap);
+                            participant.CourseHandicap = recalculatedCourseHandicap;
+                            needsUpdate = true;
+                        }
+                    }
+
+                    if (needsUpdate)
+                        await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
                 }
             }
 
