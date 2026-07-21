@@ -30,6 +30,13 @@ public sealed class HandicapRepository : IHandicapRepository
             .ThenByDescending(h => h.Id)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Handicap>> GetAllAsync(CancellationToken cancellationToken = default)
+        => await _context.Handicaps
+            .OrderBy(h => h.PlayerId)
+            .ThenByDescending(h => h.EffectiveDate)
+            .ThenByDescending(h => h.Id)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<double>> GetLastNNineHoleDifferentialsAsync(
         int playerId,
         int count,

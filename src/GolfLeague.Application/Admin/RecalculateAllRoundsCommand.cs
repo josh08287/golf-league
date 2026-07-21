@@ -52,6 +52,17 @@ public sealed class RecalculateAllRoundsCommandHandler
         {
             var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
 
+            // Handicap history grouped by player, newest first, so we can resolve
+            // each participant's handicap as of their round date instead of
+            // trusting the (possibly stale) HandicapIndex snapshotted on the
+            // RoundParticipant row when it was created.
+            var allHandicaps = await _handicapRepository.GetAllAsync(cancellationToken) ?? [];
+            var handicapsByPlayer = allHandicaps
+                .GroupBy(h => h.PlayerId)
+                .ToDictionary(
+                    g => g.Key,
+                    g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).ToList());
+
             var roundsProcessed = 0;
             var participantsProcessed = 0;
             var holeScoresUpdated = 0;
@@ -136,7 +147,23 @@ public sealed class RecalculateAllRoundsCommandHandler
                     {
                         try
                         {
-                            // Recalculate course handicap based on stored HandicapIndex and course slope
+                            // Resolve the handicap index that was actually current as of
+                            // this round's date, rather than trusting the snapshot taken
+                            // when the participant was added — that snapshot goes stale
+                            // if the player's handicap changes after the round is created.
+                            if (handicapsByPlayer.TryGetValue(participant.PlayerId, out var history))
+                            {
+                                var asOfHandicap = history.FirstOrDefault(h => h.EffectiveDate <= round.RoundDate);
+                                if (asOfHandicap is not null && asOfHandicap.HandicapIndex != participant.HandicapIndex)
+                                {
+                                    _logger.LogInformation(
+                                        "Updating HandicapIndex for participant {ParticipantId} in round {RoundId}: {OldValue} -> {NewValue}",
+                                        participant.Id, round.Id, participant.HandicapIndex, asOfHandicap.HandicapIndex);
+                                    participant.HandicapIndex = asOfHandicap.HandicapIndex;
+                                }
+                            }
+
+                            // Recalculate course handicap based on the (possibly refreshed) HandicapIndex and course slope
                             var recalculatedCourseHandicap = StablefordScoringService.CourseHandicap(
                                 participant.HandicapIndex,
                                 course.SlopeRating,

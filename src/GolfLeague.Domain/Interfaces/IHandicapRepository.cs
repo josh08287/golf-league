@@ -8,6 +8,13 @@ public interface IHandicapRepository
     Task<IReadOnlyList<Handicap>> GetHistoryAsync(int playerId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Every Handicap row across all players, used by bulk recalculation to
+    /// look up each player's handicap as of a given round date without
+    /// issuing one query per player.
+    /// </summary>
+    Task<IReadOnlyList<Handicap>> GetAllAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// The player's most-recent N 9-hole score differentials (newest first),
     /// restricted to finalized rounds on or before <paramref name="asOfDate"/>.
     /// Pass <c>null</c> for <paramref name="asOfDate"/> to include all rounds.
