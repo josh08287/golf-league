@@ -7,13 +7,13 @@ namespace GolfLeague.Tests.Domain;
 public class StablefordScoringServiceTests
 {
     [Theory]
-    [InlineData(10, 113, 10)]
-    [InlineData(18, 113, 18)]
-    [InlineData(0, 113, 0)]
-    [InlineData(10, 130, 12)]
-    public void CourseHandicap_ReturnsCorrectValue(double index, int slope, int expected)
+    [InlineData(10, 113, 72.0, 72, 10)]
+    [InlineData(18, 113, 72.0, 72, 18)]
+    [InlineData(0, 113, 72.0, 72, 0)]
+    [InlineData(10, 130, 72.0, 72, 12)]
+    public void CourseHandicap_ReturnsCorrectValue(double index, int slope, double courseRating, int par, int expected)
     {
-        var result = StablefordScoringService.CourseHandicap(index, slope);
+        var result = StablefordScoringService.CourseHandicap(index, slope, courseRating, par);
         result.Should().Be(expected);
     }
 

@@ -140,6 +140,8 @@ public sealed class RecalculateAllRoundsCommandHandler
                             var recalculatedCourseHandicap = StablefordScoringService.CourseHandicap(
                                 participant.HandicapIndex,
                                 course.SlopeRating,
+                                course.CourseRating,
+                                courseHoles.Sum(h => h.Par),
                                 RoundType.NineHole);
 
                             // Update the course handicap if it changed

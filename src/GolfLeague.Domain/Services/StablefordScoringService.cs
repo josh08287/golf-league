@@ -4,9 +4,11 @@ namespace GolfLeague.Domain.Services;
 
 public static class StablefordScoringService
 {
-    public static int CourseHandicap(double handicapIndex, int slopeRating, RoundType roundType = RoundType.EighteenHole)
+    public static int CourseHandicap(double handicapIndex, int slopeRating, double courseRating, int par, RoundType roundType = RoundType.EighteenHole)
     {
-        var fullCourseHandicap = (int)Math.Round(handicapIndex * slopeRating / 113.0, MidpointRounding.AwayFromZero);
+        var fullCourseHandicap = (int)Math.Round(
+            handicapIndex * slopeRating / 113.0 + (courseRating - par),
+            MidpointRounding.AwayFromZero);
         return roundType == RoundType.NineHole ? (int)Math.Round(fullCourseHandicap / 2.0, MidpointRounding.AwayFromZero) : fullCourseHandicap;
     }
 

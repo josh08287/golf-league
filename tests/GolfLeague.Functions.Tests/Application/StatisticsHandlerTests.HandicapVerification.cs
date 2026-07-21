@@ -154,14 +154,14 @@ public class GetLeagueLeaderboardsHandicapVerificationTests
     }
 
     [Theory]
-    [InlineData(18.0, 113, 9)]   // 18-hole index, slope 113 = 9-hole course handicap of 9
-    [InlineData(16.0, 113, 8)]   // 16-hole index, slope 113 = 9-hole course handicap of 8
-    [InlineData(14.0, 113, 7)]   // 14-hole index, slope 113 = 9-hole course handicap of 7
-    [InlineData(10.0, 130, 6)]   // 10-hole index, slope 130 = full CH 11.5 -> round to 12 -> 9-hole = 6
-    public void CourseHandicap_NineHoleCalculation(double handicapIndex, int slopeRating, int expectedNineHoleCourseHandicap)
+    [InlineData(18.0, 113, 72.0, 72, 9)]   // 18-hole index, slope 113 = 9-hole course handicap of 9
+    [InlineData(16.0, 113, 72.0, 72, 8)]   // 16-hole index, slope 113 = 9-hole course handicap of 8
+    [InlineData(14.0, 113, 72.0, 72, 7)]   // 14-hole index, slope 113 = 9-hole course handicap of 7
+    [InlineData(10.0, 130, 72.0, 72, 6)]   // 10-hole index, slope 130 = full CH 11.5 -> round to 12 -> 9-hole = 6
+    public void CourseHandicap_NineHoleCalculation(double handicapIndex, int slopeRating, double courseRating, int par, int expectedNineHoleCourseHandicap)
     {
         // Verify that the CourseHandicap function correctly calculates 9-hole handicaps
-        var result = CourseHandicap(handicapIndex, slopeRating, RoundType.NineHole);
+        var result = CourseHandicap(handicapIndex, slopeRating, courseRating, par, RoundType.NineHole);
         result.Should().Be(expectedNineHoleCourseHandicap);
     }
 }

@@ -125,7 +125,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
             var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
             var index = current?.HandicapIndex ?? 0.0;
-            var courseHcp = CourseHandicap(index, course.SlopeRating, RoundType.Tournament);
+            var courseHcp = CourseHandicap(index, course.SlopeRating, course.CourseRating, courseHoles.Sum(h => h.Par), RoundType.Tournament);
 
             await _roundRepository.AddParticipantAsync(new RoundParticipant
             {

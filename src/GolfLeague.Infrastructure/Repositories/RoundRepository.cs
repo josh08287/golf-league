@@ -17,7 +17,7 @@ public sealed class RoundRepository : IRoundRepository
 
     public Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default)
         => _context.Rounds
-            .Include(r => r.Course)
+            .Include(r => r.Course).ThenInclude(c => c.Holes)
             .Include(r => r.Half)
             .Include(r => r.Season)
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)

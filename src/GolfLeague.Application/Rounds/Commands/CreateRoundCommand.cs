@@ -106,7 +106,7 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
                     PlayerId = membership.PlayerId,
                     FlightId = flight.Id,
                     HandicapIndex = index,
-                    CourseHandicap = CourseHandicap(index, course.SlopeRating, RoundType.NineHole),
+                    CourseHandicap = CourseHandicap(index, course.SlopeRating, course.CourseRating, course.Holes.Sum(h => h.Par), RoundType.NineHole),
                     IsWithdrawn = false,
                 }, cancellationToken);
                 totalParticipants++;

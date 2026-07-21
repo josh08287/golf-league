@@ -50,13 +50,15 @@ public class HandicapCalculationServiceTests
 public class StablefordScoringServiceTests
 {
     [Theory]
-    [InlineData(10.0, 113, 10)]  // exact: 10*113/113=10
-    [InlineData(18.0, 113, 18)]
-    [InlineData(0.0, 113, 0)]
-    [InlineData(10.0, 130, 12)] // 10*130/113=11.50... rounds away from zero -> 12
-    public void CourseHandicap_ReturnsCorrectValue(double index, int slope, int expected)
+    [InlineData(10.0, 113, 72.0, 72, 10)]  // exact: 10*113/113 + (72-72) = 10
+    [InlineData(18.0, 113, 72.0, 72, 18)]
+    [InlineData(0.0, 113, 72.0, 72, 0)]
+    [InlineData(10.0, 130, 72.0, 72, 12)] // 10*130/113=11.50... + 0 rounds away from zero -> 12
+    [InlineData(10.0, 113, 74.0, 72, 12)] // 10 + (74-72)=2 -> 12
+    [InlineData(10.0, 113, 70.0, 72, 8)]  // 10 + (70-72)=-2 -> 8
+    public void CourseHandicap_ReturnsCorrectValue(double index, int slope, double courseRating, int par, int expected)
     {
-        StablefordScoringService.CourseHandicap(index, slope).Should().Be(expected);
+        StablefordScoringService.CourseHandicap(index, slope, courseRating, par).Should().Be(expected);
     }
 
     [Theory]

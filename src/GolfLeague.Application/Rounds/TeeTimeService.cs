@@ -371,7 +371,8 @@ public sealed class TeeTimeService : ITeeTimeService
     {
         var current = await _handicaps.GetCurrentAsync(substitutePlayerId, cancellationToken);
         var index = current?.HandicapIndex ?? 0.0;
-        var courseHandicap = StablefordScoringService.CourseHandicap(index, round.Course.SlopeRating, round.RoundType);
+        var courseHandicap = StablefordScoringService.CourseHandicap(
+            index, round.Course.SlopeRating, round.Course.CourseRating, round.Course.Holes.Sum(h => h.Par), round.RoundType);
 
         // Bookkeeping link to a skipped participant not yet claimed by another sub this round.
         var claimedSkipIds = round.Participants
