@@ -25,6 +25,13 @@ public interface IHandicapRepository
     Task DeleteCalculatedAsync(int playerId, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Removes only the calculated Handicap row(s) for <paramref name="playerId"/>
+    /// with the given <paramref name="effectiveDate"/> — used when reopening a
+    /// single round so the rest of the player's handicap history is preserved.
+    /// </summary>
+    Task DeleteCalculatedForDateAsync(int playerId, DateOnly effectiveDate, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes every Handicap row with Source = Calculated across all players.
     /// Used by the admin bulk-recalculation command.
     /// </summary>

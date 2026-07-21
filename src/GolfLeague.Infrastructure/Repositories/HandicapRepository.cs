@@ -77,6 +77,19 @@ public sealed class HandicapRepository : IHandicapRepository
         }
     }
 
+    public async Task DeleteCalculatedForDateAsync(int playerId, DateOnly effectiveDate, CancellationToken cancellationToken = default)
+    {
+        var rows = await _context.Handicaps
+            .Where(h => h.PlayerId == playerId && h.Source == HandicapSource.Calculated && h.EffectiveDate == effectiveDate)
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count > 0)
+        {
+            _context.Handicaps.RemoveRange(rows);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
     public async Task DeleteAllCalculatedAsync(CancellationToken cancellationToken = default)
     {
         var rows = await _context.Handicaps

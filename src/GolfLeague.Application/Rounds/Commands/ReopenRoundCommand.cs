@@ -43,15 +43,16 @@ public sealed class ReopenRoundCommandHandler : IRequestHandler<ReopenRoundComma
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {round.CourseId} not found.");
 
-        // Remove the calculated handicap records that were created when this round
-        // was finalized so that re-finalizing produces a clean, correct recalculation.
+        // Remove only the calculated handicap record(s) dated to this round so that
+        // re-finalizing produces a clean recalculation, without touching the rest of
+        // the player's handicap history from other rounds/halves.
         var participantPlayerIds = round.Participants
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.TotalGrossStrokes.HasValue)
             .Select(p => p.PlayerId)
             .Distinct();
 
         foreach (var playerId in participantPlayerIds)
-            await _handicapRepository.DeleteCalculatedAsync(playerId, cancellationToken);
+            await _handicapRepository.DeleteCalculatedForDateAsync(playerId, round.RoundDate, cancellationToken);
 
         await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);
         round.Status = RoundStatus.InProgress;
