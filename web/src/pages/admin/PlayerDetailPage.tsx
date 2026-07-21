@@ -13,7 +13,9 @@ import {
   useSetHandicap,
   useSetHalfMembership,
   useSetPar3GrossSkinsOptIn,
+  useUnlinkPlayerUser,
 } from '../../hooks/admin/usePlayerMutations';
+import { useResetAdminUserMfa, useDeleteAdminUser } from '../../hooks/admin/useAdminUsers';
 import { useFlights } from '../../hooks/useFlights';
 import { useSeasons } from '../../hooks/useSeasons';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -27,7 +29,7 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
 import { LinkUserForm } from '../../components/admin/LinkUserForm';
 import { useSetTeeTimePreference } from '../../hooks/useTeeTimes';
-import type { Flight, HandicapHistoryEntry, SeasonHalf, TeeTimeSlotName } from '../../types/api';
+import type { Flight, HandicapHistoryEntry, PlayerAccountInfo, SeasonHalf, TeeTimeSlotName } from '../../types/api';
 import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '../../types/api';
 
 function TeeTimePreferenceCard({ playerId, currentMask }: { playerId: string; currentMask: number }) {
@@ -433,6 +435,163 @@ function HandicapOverrideForm({ playerId, currentIndex }: HandicapFormProps) {
   );
 }
 
+interface LinkedAccountCardProps {
+  playerId: string;
+  playerName: string;
+  appUserId: string;
+  account: PlayerAccountInfo | null;
+}
+
+function LinkedAccountCard({ playerId, playerName, appUserId, account }: LinkedAccountCardProps) {
+  const unlink = useUnlinkPlayerUser(playerId);
+  const resetMfa = useResetAdminUserMfa();
+  const deleteAccount = useDeleteAdminUser();
+
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [confirmResetMfa, setConfirmResetMfa] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [opError, setOpError] = useState<string | null>(null);
+
+  async function handleUnlink() {
+    setOpError(null);
+    try {
+      await unlink.mutateAsync();
+    } catch (err) {
+      setOpError(extractError(err) ?? 'Failed to unlink account.');
+    } finally {
+      setConfirmUnlink(false);
+    }
+  }
+
+  async function handleResetMfa() {
+    setOpError(null);
+    try {
+      await resetMfa.mutateAsync(appUserId);
+    } catch (err) {
+      setOpError(extractError(err) ?? 'Failed to reset MFA.');
+    } finally {
+      setConfirmResetMfa(false);
+    }
+  }
+
+  async function handleDelete() {
+    setOpError(null);
+    try {
+      await deleteAccount.mutateAsync(appUserId);
+    } catch (err) {
+      setOpError(extractError(err) ?? 'Failed to delete account.');
+    } finally {
+      setConfirmDelete(false);
+    }
+  }
+
+  const hasMfa = account?.hasTotp || account?.hasPasskey;
+
+  return (
+    <Card className="p-6 lg:col-span-2">
+      <h2 className="mb-1 text-base font-semibold text-gray-900">Linked account</h2>
+      <p className="mb-4 text-sm text-gray-500">
+        This player signs in with their own account.
+      </p>
+
+      {opError && <p className="mb-3 text-sm text-red-600">{opError}</p>}
+
+      {account && (
+        <div className="mb-4 flex flex-wrap items-center gap-x-8 gap-y-3 text-sm">
+          <div>
+            <div className="text-xs text-gray-500">Login method</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {account.loginProviders.length > 0 ? (
+                account.loginProviders.map((p) => <Badge key={p} variant="info">{p}</Badge>)
+              ) : account.hasPassword ? (
+                <Badge variant="neutral">Local (password)</Badge>
+              ) : (
+                <Badge variant="warning">No password set</Badge>
+              )}
+              {account.isLockedOut && <Badge variant="destructive">Locked out</Badge>}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-gray-500">MFA</div>
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {account.hasTotp && <Badge variant="success">TOTP</Badge>}
+              {account.hasPasskey && <Badge variant="success">Passkey</Badge>}
+              {!hasMfa && <span className="text-xs text-gray-400">none</span>}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs text-gray-500">Created</div>
+            <div className="mt-1 text-gray-700">{new Date(account.createdAt).toLocaleDateString()}</div>
+          </div>
+
+          <div>
+            <div className="text-xs text-gray-500">Last login</div>
+            <div className="mt-1 text-gray-700">
+              {account.lastLoginAt ? new Date(account.lastLoginAt).toLocaleDateString() : (
+                <span className="text-gray-400">never</span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" disabled={!hasMfa} onClick={() => setConfirmResetMfa(true)}>
+          Reset MFA
+        </Button>
+        <Button variant="ghost" size="sm" onClick={() => setConfirmUnlink(true)}>
+          Unlink account
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-700 hover:bg-red-50 hover:text-red-800"
+          onClick={() => setConfirmDelete(true)}
+        >
+          Delete account
+        </Button>
+      </div>
+
+      <ConfirmDialog
+        open={confirmUnlink}
+        title="Unlink account"
+        description={`Unlink ${playerName} from their user account? They'll keep their player profile and history, but won't be able to sign in until re-linked or invited again.`}
+        confirmLabel="Unlink"
+        destructive
+        onConfirm={handleUnlink}
+        onCancel={() => setConfirmUnlink(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmResetMfa}
+        title="Reset MFA"
+        description={`Clear this account's passkeys and TOTP enrollment? They'll have to set up a new second factor on their next sign-in.`}
+        confirmLabel="Reset MFA"
+        destructive
+        onConfirm={handleResetMfa}
+        onCancel={() => setConfirmResetMfa(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete account"
+        description={`Permanently delete the user account linked to ${playerName}? This removes their login, sessions, passkeys, and role assignments. The player profile and history remain but will need to be re-linked. This cannot be undone.`}
+        confirmLabel="Delete account"
+        destructive
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmDelete(false)}
+      />
+    </Card>
+  );
+}
+
+function extractError(err: unknown): string | null {
+  const e = err as { response?: { data?: { error?: string } } } | undefined;
+  return e?.response?.data?.error ?? null;
+}
+
 export function PlayerDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -584,7 +743,7 @@ export function PlayerDetailPage() {
           )}
         </Card>
 
-        {player.appUserId === null && (
+        {player.appUserId === null ? (
           <Card className="p-6 lg:col-span-2">
             <h2 className="mb-1 text-base font-semibold text-gray-900">Link to user account</h2>
             <p className="mb-4 text-sm text-gray-500">
@@ -593,6 +752,13 @@ export function PlayerDetailPage() {
             </p>
             <LinkUserForm playerId={id} playerEmail={player.email} />
           </Card>
+        ) : (
+          <LinkedAccountCard
+            playerId={id}
+            playerName={player.fullName}
+            appUserId={player.appUserId}
+            account={player.account}
+          />
         )}
 
         <Card className="p-6 lg:col-span-2">

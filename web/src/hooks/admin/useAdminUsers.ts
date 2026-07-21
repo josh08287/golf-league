@@ -64,7 +64,12 @@ export function useDeleteAdminUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => apiClient.delete(`/admin/users/${id}`).then((r) => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: adminUserKeys.all }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: adminUserKeys.all });
+      // The deleted account may have been linked to a Player (SetNull FK
+      // clears Player.AppUserId server-side), so refresh player data too.
+      qc.invalidateQueries({ queryKey: ['players'] });
+    },
   });
 }
 

@@ -433,6 +433,29 @@ public sealed class PlayerFunctions
     }
 
     /// <summary>
+    /// POST /v1/players/{id}/unlink-user — admin-only. Clear a Player's
+    /// linked AppUser without deleting the account itself.
+    /// </summary>
+    [Function("UnlinkPlayerFromUser")]
+    public async Task<IActionResult> UnlinkPlayerFromUser(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/players/{id}/unlink-user")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var result = await _adminUserService.UnlinkPlayerFromUserAsync(playerId, cancellationToken);
+        if (!result.IsSuccess)
+            return new ConflictObjectResult(new { error = result.Error });
+
+        return new OkObjectResult(new { data = result.Value });
+    }
+
+    /// <summary>
     /// PUT /v1/players/{id}/tee-time-preference
     /// Authenticated players may update their own preference; admins may
     /// update any player's preference.

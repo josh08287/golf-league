@@ -35,6 +35,17 @@ export interface HalfFlightMembership {
   par3GrossSkinsOptIn: boolean;
 }
 
+/** Linked AppUser details, populated only on the single-player fetch. */
+export interface PlayerAccountInfo {
+  createdAt: string;
+  lastLoginAt: string | null;
+  hasPassword: boolean;
+  hasTotp: boolean;
+  hasPasskey: boolean;
+  isLockedOut: boolean;
+  loginProviders: string[];
+}
+
 export interface Player {
   id: number;
   fullName: string;
@@ -55,6 +66,8 @@ export interface Player {
   // blocks adding them to the substitute pool. Completed and not-yet-started
   // halves don't count.
   hasCurrentHalfFlightMembership: boolean;
+  // Only present when appUserId is set and fetched via the detail endpoint.
+  account: PlayerAccountInfo | null;
 }
 
 /** Lightweight row used by the unlinked-players pickers. */

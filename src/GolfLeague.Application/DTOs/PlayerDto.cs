@@ -22,4 +22,17 @@ public sealed record PlayerDto(
     // True when the player is in a flight for the half in progress today —
     // the condition that blocks adding them to the substitute pool.
     // Completed and not-yet-started halves don't count.
-    bool HasCurrentHalfFlightMembership = false);
+    bool HasCurrentHalfFlightMembership = false,
+    // Linked-account details, populated only on single-player fetch (detail
+    // page) to avoid N+1 Identity lookups on the roster list.
+    AccountInfoDto? Account = null);
+
+/// <summary>Linked AppUser details surfaced on the player detail page.</summary>
+public sealed record AccountInfoDto(
+    DateTime CreatedAt,
+    DateTime? LastLoginAt,
+    bool HasPassword,
+    bool HasTotp,
+    bool HasPasskey,
+    bool IsLockedOut,
+    IReadOnlyList<string> LoginProviders);

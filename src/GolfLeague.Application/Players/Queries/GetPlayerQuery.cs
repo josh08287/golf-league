@@ -13,15 +13,18 @@ public sealed class GetPlayerQueryHandler : IRequestHandler<GetPlayerQuery, Resu
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
     private readonly IUserRoleService _roleService;
+    private readonly IAdminUserService _adminUserService;
 
     public GetPlayerQueryHandler(
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        IUserRoleService roleService)
+        IUserRoleService roleService,
+        IAdminUserService adminUserService)
     {
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
         _roleService = roleService;
+        _adminUserService = adminUserService;
     }
 
     public async Task<Result<PlayerDto>> Handle(GetPlayerQuery request, CancellationToken cancellationToken)
@@ -31,11 +34,15 @@ public sealed class GetPlayerQueryHandler : IRequestHandler<GetPlayerQuery, Resu
             return Result<PlayerDto>.Fail($"Player with ID {request.Id} not found.");
 
         var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-        var roles = player.AppUserId.HasValue
-            ? await _roleService.GetRolesAsync(player.AppUserId.Value, cancellationToken)
-            : Array.Empty<string>();
+        IReadOnlyList<string> roles = Array.Empty<string>();
+        AccountInfoDto? account = null;
+        if (player.AppUserId.HasValue)
+        {
+            roles = await _roleService.GetRolesAsync(player.AppUserId.Value, cancellationToken);
+            account = await _adminUserService.GetAccountInfoAsync(player.AppUserId.Value, cancellationToken);
+        }
 
-        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, roles);
+        var dto = GetPlayersQueryHandler.ToDto(player, currentHandicap?.HandicapIndex, roles) with { Account = account };
         return Result<PlayerDto>.Ok(dto);
     }
 }

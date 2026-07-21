@@ -174,6 +174,18 @@ public sealed class AdminUserService : IAdminUserService
             return Result<bool>.Fail("Cannot delete the last admin.");
         }
 
+        // Deleting the AppUser is global, not league-scoped — if they belong
+        // to other leagues too, a full delete would take away their access
+        // there as a side effect. Unlinking (or removing them from the other
+        // league first) is the safe path in that case.
+        var otherLeagueCount = await _dbContext.LeagueMemberships
+            .CountAsync(m => m.UserId == userId && m.LeagueId != _leagueContext.LeagueId, cancellationToken);
+        if (otherLeagueCount > 0)
+        {
+            return Result<bool>.Fail(
+                "This account belongs to other leagues too; unlink it here instead of deleting, or remove them from those leagues first.");
+        }
+
         // FK cascades from AspNetUsers handle role assignments, external
         // logins, claims, tokens. RefreshTokens and UserPasskeys are configured
         // Cascade in the model, so they go too.
@@ -397,6 +409,62 @@ public sealed class AdminUserService : IAdminUserService
             user.Id);
 
         return Result<PlayerDto>.Ok(dto);
+    }
+
+    public async Task<Result<PlayerDto>> UnlinkPlayerFromUserAsync(
+        int playerId,
+        CancellationToken cancellationToken = default)
+    {
+        var player = await _playerRepository.GetByIdAsync(playerId, cancellationToken);
+        if (player is null) return Result<PlayerDto>.Fail("Player not found.");
+        if (player.AppUserId is null)
+            return Result<PlayerDto>.Fail("Player has no linked user account.");
+
+        var unlinkedUserId = player.AppUserId.Value;
+        player.AppUserId = null;
+        await _playerRepository.UpdateAsync(player, cancellationToken);
+
+        _logger.LogInformation(
+            "Unlinked Player {PlayerId} from AppUser {UserId}", player.Id, unlinkedUserId);
+
+        var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
+        var dto = new PlayerDto(
+            player.Id,
+            player.FullName,
+            player.Email,
+            player.IsActive,
+            currentHandicap?.HandicapIndex,
+            null,
+            null,
+            Array.Empty<string>(),
+            null);
+
+        return Result<PlayerDto>.Ok(dto);
+    }
+
+    public async Task<AccountInfoDto?> GetAccountInfoAsync(Guid userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        if (user is null) return null;
+
+        var hasPasskey = await _dbContext.UserPasskeys
+            .AnyAsync(p => p.UserId == userId, cancellationToken);
+
+        var loginProviders = await _dbContext.Set<Microsoft.AspNetCore.Identity.IdentityUserLogin<Guid>>()
+            .Where(l => l.UserId == userId)
+            .Select(l => l.LoginProvider)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        var now = DateTimeOffset.UtcNow;
+        return new AccountInfoDto(
+            CreatedAt: user.CreatedAt,
+            LastLoginAt: user.LastLoginAt,
+            HasPassword: !string.IsNullOrEmpty(user.PasswordHash),
+            HasTotp: user.TotpEnabled,
+            HasPasskey: hasPasskey,
+            IsLockedOut: user.LockoutEnd.HasValue && user.LockoutEnd.Value > now,
+            LoginProviders: loginProviders);
     }
 
     private async Task<bool> AnotherAdminExistsAsync(Guid excludingUserId, CancellationToken cancellationToken)

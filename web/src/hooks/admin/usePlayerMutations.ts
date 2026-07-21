@@ -42,6 +42,23 @@ export function useLinkPlayerToUser(playerId: string) {
   });
 }
 
+/**
+ * Clear a Player's linked AppUser without deleting the account itself. The
+ * player keeps their profile/handicap history but loses login access until
+ * re-linked.
+ */
+export function useUnlinkPlayerUser(playerId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => apiClient.post(`/players/${playerId}/unlink-user`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: playerKeys.all });
+      qc.invalidateQueries({ queryKey: playerKeys.detail(playerId) });
+      qc.invalidateQueries({ queryKey: ['admin', 'users'] });
+    },
+  });
+}
+
 export function useCreatePlayer() {
   const qc = useQueryClient();
 

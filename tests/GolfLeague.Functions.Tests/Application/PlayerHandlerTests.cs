@@ -221,13 +221,21 @@ public class GetPlayerQueryHandlerTests
         return mock.Object;
     }
 
+    private static IAdminUserService NullAccountInfoService()
+    {
+        var mock = new Mock<IAdminUserService>();
+        mock.Setup(s => s.GetAccountInfoAsync(It.IsAny<Guid>(), default))
+            .ReturnsAsync((AccountInfoDto?)null);
+        return mock.Object;
+    }
+
     [Fact]
     public async Task Handle_WhenPlayerNotFound_ReturnsFail()
     {
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetByIdAsync(99, default)).ReturnsAsync((Player?)null);
         var handicapRepo = new Mock<IHandicapRepository>();
-        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService());
+        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService(), NullAccountInfoService());
 
         var result = await handler.Handle(new GetPlayerQuery(99), default);
 
@@ -243,7 +251,7 @@ public class GetPlayerQueryHandlerTests
         playerRepo.Setup(r => r.GetByIdAsync(1, default)).ReturnsAsync(player);
         var handicapRepo = new Mock<IHandicapRepository>();
         handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync(new Handicap { HandicapIndex = 8.0 });
-        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService());
+        var handler = new GetPlayerQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleService(), NullAccountInfoService());
 
         var result = await handler.Handle(new GetPlayerQuery(1), default);
 

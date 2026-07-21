@@ -57,4 +57,19 @@ public interface IAdminUserService
         int playerId,
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Clear Player.AppUserId. The AppUser record and its league
+    /// memberships/roles are untouched — only the player/account link is
+    /// cut. Refuses if the player has no linked account.
+    /// </summary>
+    Task<Result<PlayerDto>> UnlinkPlayerFromUserAsync(
+        int playerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Account details (MFA, password, lockout, login providers) for a
+    /// single AppUser, for display on the player detail page.
+    /// </summary>
+    Task<AccountInfoDto?> GetAccountInfoAsync(Guid userId, CancellationToken cancellationToken = default);
 }
