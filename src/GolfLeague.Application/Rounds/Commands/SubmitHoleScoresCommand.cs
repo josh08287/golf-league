@@ -74,14 +74,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
                 ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
                 : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
 
-        int expectedHoles = isTournament ? 18 : 9;
         var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
         var submittedHoleNumbers = request.HoleScores.Select(h => h.HoleNumber).ToHashSet();
-
-        if (submittedHoleNumbers.Count != expectedHoles)
-            return Result<ScorecardDto>.Fail(isTournament
-                ? $"Expected 18 holes for tournament round, but received {submittedHoleNumbers.Count}."
-                : $"Expected 9 holes for the {round.NineHoleSide} nine, but received {submittedHoleNumbers.Count}.");
 
         var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
         if (invalidHoles.Count > 0)

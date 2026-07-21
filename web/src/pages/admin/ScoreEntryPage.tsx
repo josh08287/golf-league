@@ -374,18 +374,6 @@ export function ScoreEntryPage() {
   }
 
   async function handleSubmitAll() {
-    // Validate scores for non-skipped players.
-    for (const p of participants) {
-      if (resolveSkipped(p)) continue;
-      for (const h of holes) {
-        const v = scores[String(p.playerId)]?.[h];
-        if (v === '' || v === undefined) {
-          setSubmitError(`Missing score for ${p.playerName} on hole ${h}.`);
-          return;
-        }
-      }
-    }
-
     // If the round already has scores on the server, require an explicit
     // overwrite confirmation before proceeding.
     const hasExistingScores = (scorecardsData?.data ?? []).some((sc) => sc.holes.length > 0);
@@ -399,12 +387,18 @@ export function ScoreEntryPage() {
     setSubmitError(null);
 
     try {
-      // Submit scores for non-skipped players.
+      // Submit whichever holes have been entered for each non-skipped player.
+      // Partial rounds are allowed — players with no entered holes are skipped.
       for (const p of participants) {
         if (resolveSkipped(p)) continue;
+        const enteredHoles = holes.filter((h) => {
+          const v = scores[String(p.playerId)]?.[h];
+          return v !== '' && v !== undefined;
+        });
+        if (enteredHoles.length === 0) continue;
         await submitScores.mutateAsync({
           playerId: p.playerId,
-          scores: holes.map((h) => ({
+          scores: enteredHoles.map((h) => ({
             holeNumber: h,
             grossScore: scores[String(p.playerId)][h] as number,
           })),
@@ -636,7 +630,7 @@ export function ScoreEntryPage() {
       {!isFinalized && !overwritePending && (
         <div className="flex items-center justify-end gap-3">
           <p className="text-sm text-gray-500">
-            Auto-saved to local draft. Submit when all {holes.length} holes are complete.
+            Auto-saved to local draft. You can submit partial scores and finish later.
           </p>
           <Button variant="primary" onClick={handleSubmitAll} disabled={submitting}>
             <Save className="mr-1.5 h-4 w-4" />
