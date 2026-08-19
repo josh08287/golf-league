@@ -21,6 +21,7 @@ using System.Text.Json;
 var host = new HostBuilder()
     .ConfigureFunctionsWebApplication(workerApp =>
     {
+        workerApp.UseMiddleware<ExceptionHandlingMiddleware>();
         workerApp.UseMiddleware<AuthMiddleware>();
         workerApp.UseMiddleware<LeagueContextMiddleware>();
     })
