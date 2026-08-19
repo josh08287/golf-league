@@ -118,6 +118,47 @@ public sealed class TournamentRoundFunctions
         return new OkObjectResult(result.Value?.MatchupResults);
     }
 
+    [Function("AddTournamentParticipants")]
+    public async Task<IActionResult> AddTournamentParticipants(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tournament-rounds/{id}/participants")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var body = await req.TryDeserializeAsync<AddParticipantsRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new AddTournamentParticipantsCommand(roundId, body.PlayerIds, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("RemoveTournamentParticipant")]
+    public async Task<IActionResult> RemoveTournamentParticipant(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/tournament-rounds/{id}/participants/{playerId}")] HttpRequest req,
+        string id,
+        string playerId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+        if (!int.TryParse(playerId, out var parsedPlayerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new RemoveTournamentParticipantCommand(roundId, parsedPlayerId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("SetLongestDriveWinners")]
     public async Task<IActionResult> SetLongestDriveWinners(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/longest-drive")] HttpRequest req,
@@ -157,6 +198,8 @@ public sealed class TournamentRoundFunctions
     }
 
     private sealed record SetMatchupsRequest(List<MatchupInputDto> Matchups);
+
+    private sealed record AddParticipantsRequest(List<int> PlayerIds);
 
     private sealed record HoleExtraInputDto(int HoleNumber, int? ClosestToPinPlayerId, int? LongestDrivePlayerId);
 

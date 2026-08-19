@@ -72,6 +72,19 @@ public class TeeTimeAutofillServiceTests
     }
 
     [Fact]
+    public async Task RunAsync_RejectsTournamentRound()
+    {
+        var round = new Round { Id = 1, RoundType = RoundType.Tournament };
+        round.Participants.Add(MakeParticipant(1, flightId: (int?)null));
+        var (sut, assignments) = BuildSut(round, []);
+
+        var result = await sut.RunAsync(1);
+
+        result.IsSuccess.Should().BeFalse();
+        assignments.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task RunAsync_PreferenceAndNoPreferencePlayers_NeverExceedsSlotCapacity()
     {
         // 4 players prefer Early (all land in slot 1 via the preference pass),

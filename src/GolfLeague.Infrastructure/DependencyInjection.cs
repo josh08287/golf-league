@@ -87,6 +87,7 @@ public static class DependencyInjection
         services.AddScoped<IFeatureFlagRepository, FeatureFlagRepository>();
         services.AddScoped<ITeeTimeService, TeeTimeService>();
         services.AddScoped<ITeeTimeAutofillService, TeeTimeAutofillService>();
+        services.AddScoped<TournamentFoursomeService>();
 
         services.AddScoped<LeagueContext>();
         services.AddScoped<ILeagueContext>(sp => sp.GetRequiredService<LeagueContext>());

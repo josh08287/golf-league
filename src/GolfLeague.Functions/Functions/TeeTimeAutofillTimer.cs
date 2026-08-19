@@ -72,6 +72,7 @@ public sealed class TeeTimeAutofillTimer
         var rounds = await _rounds.GetAllAsync(cancellationToken);
         var inWindow = rounds
             .Where(r => r.Status == RoundStatus.Scheduled
+                     && r.RoundType != RoundType.Tournament
                      && r.RoundDate >= today
                      && r.RoundDate <= horizon)
             .ToList();

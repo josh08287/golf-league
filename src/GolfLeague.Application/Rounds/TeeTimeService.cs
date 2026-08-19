@@ -130,6 +130,13 @@ public sealed class TeeTimeService : ITeeTimeService
     private async Task<(bool IsOpen, string? Reason, DateTime ClosesUtc)> GetSignupWindowDetailAsync(
         Round round, DateTime utcNow, CancellationToken cancellationToken)
     {
+        // Tournament rounds don't use player self-service sign-up — the admin
+        // sets the roster and foursomes are auto-grouped by handicap. Treat
+        // sign-ups as permanently closed so Join/Leave/AddSubstitute all
+        // reject with a clear reason instead of silently allowing edits.
+        if (round.RoundType == RoundType.Tournament)
+            return (false, "Tee-time sign-ups aren't used for tournament rounds.", DateTime.MinValue);
+
         // Sign-ups close at the league's configured cutoff time (ET, default
         // 6pm) the day before the round, when auto-fill takes over assigning
         // the remaining players.
@@ -240,6 +247,9 @@ public sealed class TeeTimeService : ITeeTimeService
     {
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
         if (round is null) return Result<RoundTeeTimeScheduleDto>.Fail($"Round {roundId} not found.");
+
+        if (round.RoundType == RoundType.Tournament)
+            return Result<RoundTeeTimeScheduleDto>.Fail("Tee-time sign-ups aren't used for tournament rounds.");
 
         var participant = round.Participants
             .FirstOrDefault(p => p.PlayerId == callingPlayerId && !p.IsWithdrawn && !p.SkippedWeek);

@@ -2,6 +2,7 @@ using FluentAssertions;
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Rounds;
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using Microsoft.Extensions.Logging;
@@ -108,6 +109,39 @@ public class TeeTimeServiceTests
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
         var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
         return (sut, teeTimes, auditRepository);
+    }
+
+    [Fact]
+    public async Task JoinAsync_RejectsTournamentRound()
+    {
+        var round = new Round { Id = 1, RoundType = RoundType.Tournament, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var participant = MakeParticipant(1);
+        round.Participants.Add(participant);
+        var slot = MakeSlot(10, 1);
+        var (sut, _) = BuildSut(round, [slot]);
+
+        var result = await sut.JoinAsync(1, teeTimeId: 10, callingPlayerId: 1);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("tournament");
+    }
+
+    [Fact]
+    public async Task SwapAsync_RejectsTournamentRound()
+    {
+        var round = new Round { Id = 1, RoundType = RoundType.Tournament, RoundDate = EasternToday(DateTime.UtcNow).AddDays(10) };
+        var caller = MakeParticipant(1, teeTimeId: 10);
+        var other = MakeParticipant(2, teeTimeId: 11);
+        round.Participants.Add(caller);
+        round.Participants.Add(other);
+        var slotA = MakeSlot(10, 1, caller);
+        var slotB = MakeSlot(11, 2, other);
+        var (sut, teeTimes) = BuildSut(round, [slotA, slotB]);
+
+        var result = await sut.SwapAsync(1, callingPlayerId: 1, otherParticipantId: other.Id);
+
+        result.IsSuccess.Should().BeFalse();
+        teeTimes.Verify(t => t.SwapParticipantTeeTimesAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

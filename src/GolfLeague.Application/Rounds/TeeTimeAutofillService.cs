@@ -46,6 +46,12 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
         if (round is null) return Result<AutofillResult>.Fail($"Round {roundId} not found.");
 
+        // Tournament rounds never go through player sign-up/standings-based
+        // autofill — their foursomes are grouped by handicap order instead
+        // (see TournamentFoursomeService).
+        if (round.RoundType == RoundType.Tournament)
+            return Result<AutofillResult>.Fail("Autofill doesn't apply to tournament rounds.");
+
         // Active participants: not withdrawn, not skipping. These are the
         // people who need a tee time. Substitutes are excluded — they're
         // only ever seated manually via AddSubstituteAsync, in the same slot

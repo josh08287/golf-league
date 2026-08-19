@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Rounds;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -53,6 +54,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
     private readonly IHandicapRepository _handicapRepository;
     private readonly ISeasonRepository _seasonRepository;
     private readonly ILeagueContext _leagueContext;
+    private readonly TournamentFoursomeService _foursomeService;
 
     public CreateTournamentRoundCommandHandler(
         IRoundRepository roundRepository,
@@ -60,7 +62,8 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
         ISeasonRepository seasonRepository,
-        ILeagueContext leagueContext)
+        ILeagueContext leagueContext,
+        TournamentFoursomeService foursomeService)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
@@ -68,6 +71,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         _handicapRepository = handicapRepository;
         _seasonRepository = seasonRepository;
         _leagueContext = leagueContext;
+        _foursomeService = foursomeService;
     }
 
     public async Task<Result<TournamentRoundDto>> Handle(CreateTournamentRoundCommand request, CancellationToken cancellationToken)
@@ -191,6 +195,9 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
         if (matchupEntities.Count > 0)
             await _roundRepository.AddTournamentMatchupsAsync(matchupEntities, cancellationToken);
+
+        var newParticipants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
+        await _foursomeService.RegroupAsync(round.Id, newParticipants, cancellationToken);
 
         var roundDto = RoundDtoMapper.Map(round, course.Name, participantHandicaps.Count);
         return Result<TournamentRoundDto>.Ok(new TournamentRoundDto(roundDto, matchupDtos));

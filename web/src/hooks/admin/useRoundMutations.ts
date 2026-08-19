@@ -161,6 +161,32 @@ export function useSaveTournamentExtras(roundId: string) {
   });
 }
 
+export function useAddTournamentParticipants(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (playerIds: number[]) =>
+      apiClient.post(`/tournament-rounds/${roundId}/participants`, { playerIds }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rounds', roundId, 'participants'] });
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
+export function useRemoveTournamentParticipant(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (playerId: number | string) =>
+      apiClient.delete(`/tournament-rounds/${roundId}/participants/${playerId}`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['rounds', roundId, 'participants'] });
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
 export function useSetLongestDriveWinners(roundId: string) {
   const qc = useQueryClient();
   return useMutation({
