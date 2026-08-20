@@ -83,6 +83,23 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("RegenerateTournamentMatchups")]
+    public async Task<IActionResult> RegenerateTournamentMatchups(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tournament-rounds/{id}/matchups/regenerate")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new RegenerateTournamentMatchupsCommand(roundId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("SaveTournamentExtras")]
     public async Task<IActionResult> SaveTournamentExtras(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/extras")] HttpRequest req,

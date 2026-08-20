@@ -7,13 +7,14 @@ import { useTournamentResults } from '../../hooks/useRounds';
 import {
   useAddTournamentParticipants,
   useRemoveTournamentParticipant,
+  useRegenerateTournamentMatchups,
   useSetTournamentLongestDriveHole,
   useSetTournamentMatchups,
   useSetTournamentSkinsPool,
 } from '../../hooks/admin/useRoundMutations';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
-import { isRoundFinalized } from '../../lib/enumUtils';
+import { isRoundFinalized, isRoundScheduled } from '../../lib/enumUtils';
 import { Modal } from './Modal';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
@@ -47,6 +48,7 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
   const removeParticipant = useRemoveTournamentParticipant(roundId);
   const setLongestDriveHole = useSetTournamentLongestDriveHole(roundId);
   const setMatchups = useSetTournamentMatchups(roundId);
+  const regenerateMatchups = useRegenerateTournamentMatchups(roundId);
   const setSkinsPool = useSetTournamentSkinsPool(roundId);
 
   const skinsPoolLocked = isRoundFinalized(round?.status);
@@ -121,6 +123,18 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
       setMatchupsDirty(false);
     } catch {
       setError('Failed to save matchups.');
+    }
+  }
+
+  async function regenerateMatchupsFromHandicaps() {
+    setError(null);
+    try {
+      await regenerateMatchups.mutateAsync();
+      // Server recomputed and persisted the pairing — drop any local edits
+      // so the effect above re-syncs matchupDraft from the refetched results.
+      setMatchupsDirty(false);
+    } catch {
+      setError('Failed to regenerate matchups.');
     }
   }
 
@@ -293,12 +307,28 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
               )}
             </ul>
 
-            {matchupDraft.length > 0 && (
+            {currentParticipants.length >= 2 && (
               <div>
-                <div className="mb-2 flex items-center gap-2">
-                  <Trophy className="h-4 w-4 text-amber-500" />
-                  <span className="text-sm font-medium text-gray-700">Matchups</span>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-amber-500" />
+                    <span className="text-sm font-medium text-gray-700">Matchups</span>
+                  </div>
+                  {isRoundScheduled(round.status) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={regenerateMatchupsFromHandicaps}
+                      disabled={regenerateMatchups.isPending}
+                    >
+                      {regenerateMatchups.isPending ? 'Regenerating…' : 'Regenerate from Handicaps'}
+                    </Button>
+                  )}
                 </div>
+                {matchupDraft.length === 0 && (
+                  <p className="text-xs text-gray-400 italic">No matchups set.</p>
+                )}
                 <div className="max-h-48 space-y-2 overflow-y-auto rounded-md border border-gray-100 p-1">
                   {matchupDraft.map((m, idx) => (
                     <div

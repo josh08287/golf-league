@@ -153,6 +153,17 @@ export function useSetTournamentMatchups(roundId: string) {
   });
 }
 
+export function useRegenerateTournamentMatchups(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      apiClient.post(`/tournament-rounds/${roundId}/matchups/regenerate`).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}
+
 export function useSaveTournamentExtras(roundId: string) {
   const qc = useQueryClient();
   return useMutation({
