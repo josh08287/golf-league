@@ -8,8 +8,8 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatShortDate } from '@/lib/utils';
-import { normalizeRoundStatus } from '@/lib/enumUtils';
-import type { RoundStatus } from '@/types/api';
+import { normalizeRoundStatus, normalizeRoundType } from '@/lib/enumUtils';
+import type { Round, RoundStatus } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
   const normalized = normalizeRoundStatus(status);
@@ -20,6 +20,30 @@ function statusVariant(status: RoundStatus) {
     case 'Scheduled':           return 'blue' as const;
     case 'Cancelled':           return 'neutral' as const;
   }
+}
+
+function RoundRow({ round }: { round: Round }) {
+  const isTournament = normalizeRoundType(round.roundType) === 'Tournament';
+  return (
+    <Link
+      to={isTournament ? `/rounds/${round.id}/tournament-results` : `/rounds/${round.id}`}
+      className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
+    >
+      <div className="min-w-0">
+        <p className="font-semibold text-gray-900 truncate">
+          {round.courseName}
+        </p>
+        <p className="text-sm text-gray-500">
+          {isTournament ? 'Tournament' : `${round.nineHoleSide} 9`} &middot; Week {round.weekNumber} &middot;{' '}
+          {formatShortDate(round.scheduledDate)}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 shrink-0 ml-4">
+        <Badge variant={statusVariant(round.status)}>{round.status}</Badge>
+        <ArrowRight className="h-4 w-4 text-gray-400" />
+      </div>
+    </Link>
+  );
 }
 
 export function RoundsPage() {
@@ -45,27 +69,7 @@ export function RoundsPage() {
             {data.data.length === 0 && (
               <p className="text-gray-500 text-sm">No rounds found.</p>
             )}
-            {data.data.map((round) => (
-              <Link
-                key={round.id}
-                to={`/rounds/${round.id}`}
-                className="flex items-center justify-between rounded-lg border border-gray-200 bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all"
-              >
-                <div className="min-w-0">
-                  <p className="font-semibold text-gray-900 truncate">
-                    {round.courseName}
-                  </p>
-                  <p className="text-sm text-gray-500">
-                    Week {round.weekNumber} &middot; {round.nineHoleSide} 9 &middot;{' '}
-                    {formatShortDate(round.scheduledDate)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0 ml-4">
-                  <Badge variant={statusVariant(round.status)}>{round.status}</Badge>
-                  <ArrowRight className="h-4 w-4 text-gray-400" />
-                </div>
-              </Link>
-            ))}
+            {data.data.map((round) => <RoundRow key={round.id} round={round} />)}
           </div>
 
           {totalPages > 1 && (
