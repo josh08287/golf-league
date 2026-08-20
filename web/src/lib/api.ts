@@ -28,6 +28,24 @@ export const apiClient = axios.create({
 // Alias for legacy imports: import { api } from '@/lib/api'
 export const api = apiClient;
 
+// ── Shared refresh lock ──────────────────────────────────────────────────────
+// Refresh tokens are single-use (rotated server-side on every call), so if
+// two requests each call refresh() around the same moment, the second one
+// gets rejected — since the first already burned the stored refresh token —
+// and that failure wipes the session, even though the first refresh
+// succeeded. Both the proactive (request interceptor) and reactive (401
+// response interceptor) refresh paths must share one in-flight promise so
+// concurrent callers all await the same refresh instead of racing.
+let pendingRefresh: Promise<string | null> | null = null;
+function refreshOnce(): Promise<string | null> {
+  if (!pendingRefresh) {
+    pendingRefresh = refresh().finally(() => {
+      pendingRefresh = null;
+    });
+  }
+  return pendingRefresh;
+}
+
 // ── Request interceptor ────────────────────────────────────────────────────────
 // Attach the access token. If the stored token is within 60s of expiry,
 // proactively refresh it first so we never send an already-expired token.
@@ -36,7 +54,7 @@ apiClient.interceptors.request.use(
     const headers = config.headers ?? new AxiosHeaders();
     let token = getAccessToken();
     if (token && isTokenExpired()) {
-      token = await refresh();
+      token = await refreshOnce();
     }
     if (token) {
       (headers as AxiosHeaders).set('Authorization', `Bearer ${token}`);
@@ -51,7 +69,6 @@ apiClient.interceptors.request.use(
 // On 401: try a one-time refresh, then either retry the original request or
 // boot the user back to /login. We mark the retried request so we don't loop
 // if the retry itself returns 401.
-let pendingRefresh: Promise<string | null> | null = null;
 
 // Track whether we've already kicked off a logout navigation so multiple
 // concurrent 401s from failing requests don't each trigger a separate redirect.
@@ -69,12 +86,7 @@ apiClient.interceptors.response.use(
 
     config._retry = true;
 
-    if (!pendingRefresh) {
-      pendingRefresh = refresh().finally(() => {
-        pendingRefresh = null;
-      });
-    }
-    const newToken = await pendingRefresh;
+    const newToken = await refreshOnce();
 
     if (newToken) {
       const headers = config.headers ?? new AxiosHeaders();
