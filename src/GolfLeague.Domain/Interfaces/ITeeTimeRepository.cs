@@ -37,4 +37,9 @@ public interface ITeeTimeRepository
     /// Mark a tee time as auto-filled at the supplied UTC instant.
     /// </summary>
     Task MarkAutoFilledAsync(int teeTimeId, DateTime utcNow, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Set (or clear, when null) the shotgun-start hole for a tee time group.
+    /// </summary>
+    Task SetStartingHoleAsync(int teeTimeId, int? startingHoleNumber, CancellationToken cancellationToken = default);
 }

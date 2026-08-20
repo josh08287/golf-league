@@ -439,6 +439,51 @@ public sealed class TeeTimeFunctions
     private sealed record SetSkippedRequest(bool Skipped);
 
     /// <summary>
+    /// POST /v1/tee-times/{id}/starting-hole — Shotgun-start tournaments only:
+    /// the group sets which hole (1-18) they're teeing off on, from the
+    /// score-entry setup step. Any authenticated player in the group can call
+    /// this; reference/display only — hole scores are still recorded and
+    /// calculated against real hole numbers regardless of play order.
+    /// </summary>
+    [Function("SetTeeTimeStartingHole")]
+    public async Task<IActionResult> SetTeeTimeStartingHole(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tee-times/{id:int}/starting-hole")] HttpRequest req,
+        int id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var callingPlayerId = req.GetPlayerId();
+        if (callingPlayerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetStartingHoleRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+        if (body.StartingHoleNumber is < 1 or > 18)
+            return new BadRequestObjectResult(new { error = "StartingHoleNumber must be between 1 and 18." });
+
+        var teeTime = await _teeTimes.GetByIdAsync(id, cancellationToken);
+        if (teeTime is null)
+            return new NotFoundObjectResult(new { error = "Tee time not found." });
+
+        var callerInGroup = teeTime.Participants.Any(p => p.PlayerId == callingPlayerId.Value && !p.IsWithdrawn);
+        if (!callerInGroup)
+            return new ForbidResult();
+
+        var round = await _rounds.GetByIdAsync(teeTime.RoundId, cancellationToken);
+        if (round?.RoundType != Domain.Enums.RoundType.Tournament)
+            return new BadRequestObjectResult(new { error = "Starting hole only applies to tournament rounds." });
+
+        await _teeTimes.SetStartingHoleAsync(id, body.StartingHoleNumber, cancellationToken);
+
+        return new OkObjectResult(new { data = new { startingHoleNumber = body.StartingHoleNumber } });
+    }
+
+    private sealed record SetStartingHoleRequest(int StartingHoleNumber);
+
+    /// <summary>
     /// PUT /v1/tee-times/{id}/holes/{holeNumber}/scores — Save scores for a
     /// single hole for all players in the group. Safe to call per-hole as the
     /// player advances; upserts so re-entry overwrites prior data for that hole.

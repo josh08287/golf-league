@@ -19,6 +19,17 @@ public sealed class RoundTeeTime
     public TimeOnly ScheduledTime { get; set; }
 
     /// <summary>
+    /// Shotgun-start tournaments only: the hole (1-18) this foursome tees off
+    /// on. Null for every regular weekly/half round (which always starts at
+    /// hole 1 of its nine) and for tournament groups that haven't picked a
+    /// starting hole yet. Set by the group itself from the score-entry setup
+    /// step, not assigned by an admin at round creation. Reference/display
+    /// only — hole scores are still recorded and calculated against real
+    /// hole numbers regardless of play order.
+    /// </summary>
+    public int? StartingHoleNumber { get; set; }
+
+    /// <summary>
     /// Set when the autofill timer fills this slot. Null on slots that were
     /// pre-claimed by a player. Useful for the UI to label autofilled slots
     /// differently and for diagnosis.

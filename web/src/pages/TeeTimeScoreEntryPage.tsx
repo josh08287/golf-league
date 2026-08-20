@@ -8,6 +8,7 @@ import {
   useSetTeeTimeParticipantSkipped,
   useSetTeeTimeTournamentCtp,
   useSetTeeTimeTournamentLongestDrive,
+  useSetTeeTimeStartingHole,
   useParseScorecardImage,
 } from '@/hooks/useTeeTimeScoreEntry';
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
@@ -32,6 +33,7 @@ import type {
   ConfirmedOverwrite,
   TeeTimeParticipant,
   ScorecardOcrResult,
+  RoundType,
 } from '@/types/api';
 
 // Helper to calculate stableford points
@@ -424,6 +426,8 @@ function ScorecardScanModal({ teeTimeId, players, holes, onClose, onConfirm }: S
 interface GroupSetupStepProps {
   roundId: number;
   teeTimeId: number;
+  roundType: RoundType;
+  startingHoleNumber: number | null;
   players: TeeTimePlayerScore[];
   skippedMap: Record<number, boolean>;
   advancedStatsMap: Record<number, boolean>;
@@ -439,6 +443,8 @@ interface GroupSetupStepProps {
 function GroupSetupStep({
   roundId,
   teeTimeId,
+  roundType,
+  startingHoleNumber,
   players,
   skippedMap,
   advancedStatsMap,
@@ -455,8 +461,47 @@ function GroupSetupStep({
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
 
+  const isShotgunTournament = roundType === 'Tournament';
+  const setStartingHole = useSetTeeTimeStartingHole(teeTimeId);
+  const [selectedStartingHole, setSelectedStartingHole] = useState<number | ''>(startingHoleNumber ?? '');
+  const startingHoleConfirmed = startingHoleNumber != null;
+
   return (
     <div className="space-y-6">
+      {isShotgunTournament && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="mb-2 text-sm font-medium text-amber-900">
+            Shotgun start — which hole is your group starting on?
+          </p>
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedStartingHole}
+              onChange={(e) => setSelectedStartingHole(e.target.value ? Number(e.target.value) : '')}
+              className="rounded-md border border-amber-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-amber-500"
+            >
+              <option value="">— Select hole —</option>
+              {Array.from({ length: 18 }, (_, i) => i + 1).map((h) => (
+                <option key={h} value={h}>
+                  Hole {h}
+                </option>
+              ))}
+            </select>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!selectedStartingHole || setStartingHole.isPending}
+              onClick={() => selectedStartingHole && setStartingHole.mutate(selectedStartingHole)}
+            >
+              {setStartingHole.isPending ? 'Saving…' : startingHoleConfirmed ? 'Update' : 'Confirm'}
+            </Button>
+          </div>
+          {startingHoleConfirmed && !setStartingHole.isPending && (
+            <p className="mt-1.5 text-xs text-amber-700">Starting hole set to {startingHoleNumber}.</p>
+          )}
+        </div>
+      )}
+
       <div className="rounded-lg bg-primary-50 px-4 py-3">
         <p className="text-sm text-primary-700">
           Before entering scores, confirm who is playing and choose which players to track advanced statistics for.
@@ -1625,6 +1670,8 @@ export function TeeTimeScoreEntryPage() {
         <GroupSetupStep
           roundId={scorecard.roundId}
           teeTimeId={scorecard.teeTimeId}
+          roundType={scorecard.roundType}
+          startingHoleNumber={scorecard.startingHoleNumber}
           players={players}
           skippedMap={skippedOverrides}
           advancedStatsMap={advancedStatsMap}

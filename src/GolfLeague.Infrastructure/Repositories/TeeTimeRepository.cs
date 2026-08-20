@@ -94,4 +94,14 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
         slot.AutoFilledAt = utcNow;
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task SetStartingHoleAsync(int teeTimeId, int? startingHoleNumber, CancellationToken cancellationToken = default)
+    {
+        var slot = await _context.RoundTeeTimes
+            .AsTracking()
+            .FirstOrDefaultAsync(t => t.Id == teeTimeId, cancellationToken);
+        if (slot is null) return;
+        slot.StartingHoleNumber = startingHoleNumber;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
 }

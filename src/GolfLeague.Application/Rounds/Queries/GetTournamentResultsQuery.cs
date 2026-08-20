@@ -47,7 +47,21 @@ public sealed record TournamentMatchupResultDto(
     int? Player2NetPoints,
     int? WinnerPlayerId,
     string? WinnerPlayerName,
-    bool IsHalved);
+    bool IsHalved,
+    List<MatchPlayHoleDto> HoleByHole);
+
+/// <summary>
+/// Match-play status after one hole is complete for both players in a matchup.
+/// StatusAfterHole is from Player1's perspective: positive = Player1 up N, negative =
+/// Player2 up N, 0 = all square. Null once the match is already decided (closed out
+/// before hole 18) or the hole hasn't been played by both players yet.
+/// </summary>
+public sealed record MatchPlayHoleDto(
+    int HoleNumber,
+    int? Player1NetStrokes,
+    int? Player2NetStrokes,
+    int? StatusAfterHole,
+    bool IsConceded);
 
 public sealed record TournamentRankingEntryDto(
     int Rank,
@@ -60,15 +74,32 @@ public sealed record TournamentRankingEntryDto(
 
 public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
 
-public sealed record TournamentFlightPlayerDto(int PlayerId, string PlayerName);
+/// <summary>One player's score on one hole, for the flight scorecard grid. HandicapStrokes is the
+/// standard "dots" notation — the number of strokes this player receives on this hole for net purposes.</summary>
+public sealed record TournamentFlightHoleScoreDto(
+    int HoleNumber,
+    int? GrossStrokes,
+    int? NetStrokes,
+    int HandicapStrokes);
+
+public sealed record TournamentFlightPlayerDto(
+    int PlayerId,
+    string PlayerName,
+    int CourseHandicap,
+    List<TournamentFlightHoleScoreDto> HoleScores,
+    int? TotalGrossStrokes,
+    int? TotalNetStrokes);
 
 public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds, List<TournamentFlightPlayerDto> Players);
+
+public sealed record TournamentCourseHoleDto(int HoleNumber, int Par, int StrokeIndex);
 
 public sealed record TournamentResultsDto(
     int RoundId,
     string RoundDate,
     string CourseName,
     int CourseId,
+    List<TournamentCourseHoleDto> Holes,
     TournamentSkinsResultDto GrossSkins,
     TournamentSkinsResultDto NetSkins,
     List<TournamentHoleExtraDto> HoleExtras,
@@ -107,6 +138,11 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             return Result<TournamentResultsDto>.Fail("This round is not a tournament round.");
 
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
+        var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
+        var holeDtos = courseHoles
+            .OrderBy(h => h.HoleNumber)
+            .Select(h => new TournamentCourseHoleDto(h.HoleNumber, h.Par, h.StrokeIndex))
+            .ToList();
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var matchups = await _roundRepository.GetTournamentMatchupsAsync(request.RoundId, cancellationToken);
         var holeExtras = await _roundRepository.GetTournamentHoleExtrasAsync(request.RoundId, cancellationToken);
@@ -144,7 +180,18 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                     f.FlightNumber,
                     f.Name,
                     flightParticipants.Select(p => p.PlayerId).ToList(),
-                    flightParticipants.Select(p => new TournamentFlightPlayerDto(p.PlayerId, p.Player.FullName)).ToList());
+                    flightParticipants
+                        .Select(p => new TournamentFlightPlayerDto(
+                            p.PlayerId,
+                            p.Player.FullName,
+                            p.CourseHandicap,
+                            p.HoleScores
+                                .OrderBy(h => h.HoleNumber)
+                                .Select(h => new TournamentFlightHoleScoreDto(h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes))
+                                .ToList(),
+                            p.TotalGrossStrokes,
+                            p.TotalNetStrokes))
+                        .ToList());
             })
             .ToList();
 
@@ -162,6 +209,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             round.RoundDate.ToString("yyyy-MM-dd"),
             course?.Name ?? "Unknown Course",
             round.CourseId,
+            holeDtos,
             grossSkins,
             netSkins,
             extraDtos,
@@ -285,6 +333,8 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 }
             }
 
+            var holeByHole = BuildMatchPlayHoles(p1, p2);
+
             results.Add(new TournamentMatchupResultDto(
                 matchup.MatchupNumber,
                 matchup.Player1Id,
@@ -301,10 +351,65 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 p2Points,
                 winnerId,
                 winnerName,
-                halved));
+                halved,
+                holeByHole));
         }
 
         return results;
+    }
+
+    /// <summary>
+    /// Hole-by-hole match-play status (1-up style) for a matchup: each hole where both
+    /// players have posted a net score contributes to a running tally from Player1's
+    /// perspective. Once a player is mathematically closed out (up by more holes than
+    /// remain), later holes stop updating status (IsConceded = true) even if both
+    /// players later post scores for them, matching the "3&2"-style stop convention.
+    /// </summary>
+    private static List<MatchPlayHoleDto> BuildMatchPlayHoles(RoundParticipant? p1, RoundParticipant? p2)
+    {
+        if (p1 is null || p2 is null) return [];
+
+        var holeNumbers = p1.HoleScores.Select(h => h.HoleNumber)
+            .Union(p2.HoleScores.Select(h => h.HoleNumber))
+            .OrderBy(h => h)
+            .ToList();
+
+        var result = new List<MatchPlayHoleDto>();
+        int status = 0;
+        bool closedOut = false;
+        int totalHoles = holeNumbers.Count;
+
+        for (int i = 0; i < holeNumbers.Count; i++)
+        {
+            var holeNumber = holeNumbers[i];
+            var h1 = p1.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
+            var h2 = p2.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
+
+            if (closedOut)
+            {
+                result.Add(new MatchPlayHoleDto(holeNumber, h1?.NetStrokes, h2?.NetStrokes, null, true));
+                continue;
+            }
+
+            if (h1 is not null && h2 is not null)
+            {
+                if (h1.NetStrokes < h2.NetStrokes) status += 1;
+                else if (h2.NetStrokes < h1.NetStrokes) status -= 1;
+
+                var holesRemaining = totalHoles - (i + 1);
+                if (Math.Abs(status) > holesRemaining)
+                    closedOut = true;
+            }
+
+            result.Add(new MatchPlayHoleDto(
+                holeNumber,
+                h1?.NetStrokes,
+                h2?.NetStrokes,
+                h1 is not null && h2 is not null ? status : null,
+                false));
+        }
+
+        return result;
     }
 
     private static List<TournamentRankingEntryDto> BuildRanking(

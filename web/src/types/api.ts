@@ -557,6 +557,8 @@ export interface TeeTimeGroupScorecard {
   scheduledTimeFormatted: string; // "HH:mm"
   teeTimeNumber: number;
   longestDriveHoleNumber: number | null;
+  /** Shotgun-start tournaments only: the hole (1-18) this foursome tees off on. Reference/display only. */
+  startingHoleNumber: number | null;
   holes: TeeTimeHoleInfo[];
   players: TeeTimePlayerScore[];
   tournamentCtp: TeeTimeCtpHole[];
@@ -907,6 +909,16 @@ export interface TournamentHoleExtra {
   longestDrivePlayerName: string | null;
 }
 
+export interface MatchPlayHole {
+  holeNumber: number;
+  player1NetStrokes: number | null;
+  player2NetStrokes: number | null;
+  /** Player1's perspective: positive = player1 up N, negative = player2 up N, 0 = all square. Null if not yet decided for this hole. */
+  statusAfterHole: number | null;
+  /** True once the match was already closed out before this hole was played. */
+  isConceded: boolean;
+}
+
 export interface TournamentMatchupResult {
   matchupNumber: number;
   player1Id: number;
@@ -924,6 +936,7 @@ export interface TournamentMatchupResult {
   winnerPlayerId: number | null;
   winnerPlayerName: string | null;
   isHalved: boolean;
+  holeByHole: MatchPlayHole[];
 }
 
 export interface TournamentRankingEntry {
@@ -943,9 +956,21 @@ export interface LongestDriveWinner {
   playerName: string | null;
 }
 
+export interface TournamentFlightHoleScore {
+  holeNumber: number;
+  grossStrokes: number | null;
+  netStrokes: number | null;
+  /** Standard "dots" notation — strokes this player receives on this hole for net purposes. */
+  handicapStrokes: number;
+}
+
 export interface TournamentFlightPlayer {
   playerId: number;
   playerName: string;
+  courseHandicap: number;
+  holeScores: TournamentFlightHoleScore[];
+  totalGrossStrokes: number | null;
+  totalNetStrokes: number | null;
 }
 
 export interface TournamentFlight {
@@ -956,11 +981,18 @@ export interface TournamentFlight {
   players: TournamentFlightPlayer[];
 }
 
+export interface TournamentCourseHole {
+  holeNumber: number;
+  par: number;
+  strokeIndex: number;
+}
+
 export interface TournamentResults {
   roundId: number;
   roundDate: string;
   courseName: string;
   courseId: number;
+  holes: TournamentCourseHole[];
   grossSkins: TournamentSkinsResult;
   netSkins: TournamentSkinsResult;
   holeExtras: TournamentHoleExtra[];

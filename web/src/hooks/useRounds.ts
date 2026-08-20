@@ -141,5 +141,9 @@ export function useTournamentResults(roundId: string) {
       return response.data;
     },
     enabled: Boolean(roundId),
+    // Live leaderboard — scores are being entered by groups on the course in
+    // real time, so poll instead of requiring a manual refresh.
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: true,
   });
 }

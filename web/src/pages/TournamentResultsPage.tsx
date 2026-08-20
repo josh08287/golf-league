@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useTournamentResults } from '@/hooks/useRounds';
 import { formatDate } from '@/lib/utils';
+import { HandicapDots } from '@/components/scoring/HandicapDots';
 import type {
   TournamentSkinsResult,
   TournamentSkinHole,
@@ -19,6 +20,7 @@ import type {
   TournamentHoleExtra,
   LongestDriveWinner,
   TournamentFlight,
+  TournamentCourseHole,
 } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -193,20 +195,87 @@ function HoleExtrasPanel({
 
 // ── Flights ───────────────────────────────────────────────────────────────────
 
-function FlightsPanel({ flights }: { flights: TournamentFlight[] }) {
+function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: TournamentCourseHole[] }) {
+  if (holes.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 p-3">
+        <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {flight.name}</h4>
+        <ul className="space-y-0.5 text-sm text-gray-600">
+          {flight.players.map((p) => (
+            <li key={p.playerId}>{p.playerName}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3">
+      <h4 className="mb-2 text-sm font-semibold text-gray-700">Flight {flight.name}</h4>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-max text-xs">
+          <thead className="text-gray-400">
+            <tr>
+              <th className="sticky left-0 bg-white px-2 py-1 text-left font-medium">Player</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-1 text-center font-medium">
+                  {h.holeNumber}
+                </th>
+              ))}
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">Net</th>
+            </tr>
+            <tr className="text-gray-300">
+              <th className="sticky left-0 bg-white px-2 py-0.5 text-left font-normal">Par</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal">
+                  {h.par}
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {flight.players.map((p) => {
+              const scoresByHole = new Map(p.holeScores.map((h) => [h.holeNumber, h]));
+              return (
+                <tr key={p.playerId}>
+                  <td className="sticky left-0 whitespace-nowrap bg-white px-2 py-1.5 font-medium text-gray-800">
+                    {p.playerName}
+                    <span className="ml-1 font-normal text-gray-400">({p.courseHandicap})</span>
+                  </td>
+                  {holes.map((h) => {
+                    const score = scoresByHole.get(h.holeNumber);
+                    return (
+                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
+                        {score?.grossStrokes ?? <span className="text-gray-300">—</span>}
+                        {score && score.handicapStrokes > 0 && (
+                          <span className="absolute inset-x-0 -bottom-0.5">
+                            <HandicapDots strokes={score.handicapStrokes} />
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
+                    {p.totalNetStrokes ?? <span className="text-gray-300">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function FlightsPanel({ flights, holes }: { flights: TournamentFlight[]; holes: TournamentCourseHole[] }) {
   if (flights.length === 0) return null;
 
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-4 xl:grid-cols-2">
       {flights.map((f) => (
-        <div key={f.id} className="rounded-lg border border-gray-200 p-3">
-          <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {f.name}</h4>
-          <ul className="space-y-0.5 text-sm text-gray-600">
-            {f.players.map((p) => (
-              <li key={p.playerId}>{p.playerName}</li>
-            ))}
-          </ul>
-        </div>
+        <FlightScorecard key={f.id} flight={f} holes={holes} />
       ))}
     </div>
   );
@@ -267,8 +336,81 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
 
       <div className="mt-2 text-center text-sm">
         {halved && <span className="text-blue-600 font-medium">Halved (Tie)</span>}
-        {pending && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
+        {pending && m.holeByHole.length === 0 && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
       </div>
+
+      {m.holeByHole.length > 0 && <MatchPlayScorecard m={m} />}
+    </div>
+  );
+}
+
+/// Classic 1-up-style strip: one column per hole showing who won it and the
+/// running match status from Player1's perspective (e.g. "2 UP", "AS", "3&2").
+function MatchPlayScorecard({ m }: { m: TournamentMatchupResult }) {
+  const formatStatus = (status: number | null) => {
+    if (status === null) return '—';
+    if (status === 0) return 'AS';
+    return status > 0 ? `${status}↑` : `${Math.abs(status)}↓`;
+  };
+
+  const decidedIndex = m.holeByHole.findIndex((h) => h.isConceded);
+  const closingHole = decidedIndex > 0 ? m.holeByHole[decidedIndex - 1] : null;
+  const holesRemaining = closingHole ? m.holeByHole.length - decidedIndex : 0;
+  const closeoutLabel =
+    closingHole && closingHole.statusAfterHole !== null && closingHole.statusAfterHole !== 0
+      ? `${Math.abs(closingHole.statusAfterHole)}&${holesRemaining}`
+      : null;
+
+  return (
+    <div className="mt-3 overflow-x-auto border-t border-gray-100 pt-2">
+      <table className="w-full min-w-max text-[11px]">
+        <thead className="text-gray-400">
+          <tr>
+            <th className="px-1 py-0.5 text-left font-medium">Hole</th>
+            {m.holeByHole.map((h) => (
+              <th key={h.holeNumber} className="px-1 py-0.5 text-center font-medium">
+                {h.holeNumber}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="px-1 py-0.5 text-left text-gray-500">Status</td>
+            {m.holeByHole.map((h) => {
+              const holeWinner =
+                h.player1NetStrokes !== null && h.player2NetStrokes !== null
+                  ? h.player1NetStrokes < h.player2NetStrokes
+                    ? 'p1'
+                    : h.player2NetStrokes < h.player1NetStrokes
+                      ? 'p2'
+                      : 'halve'
+                  : null;
+              return (
+                <td
+                  key={h.holeNumber}
+                  className={`px-1 py-0.5 text-center font-semibold ${
+                    h.isConceded
+                      ? 'text-gray-300'
+                      : holeWinner === 'p1'
+                        ? 'text-green-700'
+                        : holeWinner === 'p2'
+                          ? 'text-blue-700'
+                          : 'text-gray-500'
+                  }`}
+                >
+                  {h.isConceded ? '·' : formatStatus(h.statusAfterHole)}
+                </td>
+              );
+            })}
+          </tr>
+        </tbody>
+      </table>
+      {closeoutLabel && (
+        <p className="mt-1 text-center text-xs font-medium text-green-700">
+          Closed out {closeoutLabel}
+        </p>
+      )}
     </div>
   );
 }
@@ -404,7 +546,7 @@ export function TournamentResultsPage() {
       {results.flights.length > 0 && (
         <section>
           <SectionTitle icon={Users} label="Flights" />
-          <FlightsPanel flights={results.flights} />
+          <FlightsPanel flights={results.flights} holes={results.holes} />
         </section>
       )}
 

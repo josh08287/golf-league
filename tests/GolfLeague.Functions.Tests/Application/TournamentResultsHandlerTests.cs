@@ -69,6 +69,8 @@ public class TournamentResultsHandlerTests
         {
             Courses.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
+            Courses.Setup(c => c.GetHolesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<CourseHole>());
             Rounds.Setup(r => r.GetTournamentMatchupsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<TournamentMatchup>());
             Rounds.Setup(r => r.GetTournamentHoleExtrasAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
@@ -315,5 +317,73 @@ public class TournamentResultsHandlerTests
 
         result.Value!.HoleExtras.Single().ClosestToPinPlayerName.Should().Be("Alice P");
         result.Value!.LongestDriveWinners.Single().PlayerName.Should().Be("Alice P");
+    }
+
+    [Fact]
+    public async Task Handle_MatchupHoleByHole_TracksRunningStatusFromPlayer1Perspective()
+    {
+        // Alice wins hole 1 (lower net), Bob wins hole 2, hole 3 halved (no status change).
+        var alice = MakeParticipant(1, "Alice", holes:
+        [
+            MakeHole(1, gross: 4, net: 3),
+            MakeHole(2, gross: 5, net: 5),
+            MakeHole(3, gross: 4, net: 4),
+        ]);
+        var bob = MakeParticipant(2, "Bob", holes:
+        [
+            MakeHole(1, gross: 5, net: 5),
+            MakeHole(2, gross: 4, net: 3),
+            MakeHole(3, gross: 4, net: 4),
+        ]);
+        var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = 2, Player1 = alice.Player, Player2 = bob.Player };
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var holes = result.Value!.MatchupResults.Single().HoleByHole;
+        holes.Should().HaveCount(3);
+        holes[0].StatusAfterHole.Should().Be(1, "Alice 1up after winning hole 1");
+        holes[1].StatusAfterHole.Should().Be(0, "Bob squares the match on hole 2");
+        holes[2].StatusAfterHole.Should().Be(0, "hole 3 halved — no change");
+        holes.Should().OnlyContain(h => !h.IsConceded);
+    }
+
+    [Fact]
+    public async Task Handle_MatchupHoleByHole_ClosesOutOnceLeadExceedsHolesRemaining()
+    {
+        // Alice wins holes 1-3 of a 3-hole "match" (test uses a short match to keep it
+        // simple) — 3up with 0 remaining closes it out; nothing left to decide.
+        var alice = MakeParticipant(1, "Alice", holes:
+        [
+            MakeHole(1, gross: 3, net: 3),
+            MakeHole(2, gross: 3, net: 3),
+            MakeHole(3, gross: 3, net: 3),
+            MakeHole(4, gross: 5, net: 5),
+        ]);
+        var bob = MakeParticipant(2, "Bob", holes:
+        [
+            MakeHole(1, gross: 5, net: 5),
+            MakeHole(2, gross: 5, net: 5),
+            MakeHole(3, gross: 5, net: 5),
+            MakeHole(4, gross: 3, net: 3),
+        ]);
+        var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = 2, Player1 = alice.Player, Player2 = bob.Player };
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var holes = result.Value!.MatchupResults.Single().HoleByHole;
+        holes[2].StatusAfterHole.Should().Be(3, "Alice is 3up through 3 with 1 to play — already closed out (3&1)");
+        holes[2].IsConceded.Should().BeFalse();
+        holes[3].IsConceded.Should().BeTrue("the match was already decided before the last hole was played");
+        holes[3].StatusAfterHole.Should().BeNull();
     }
 }

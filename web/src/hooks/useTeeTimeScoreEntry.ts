@@ -97,6 +97,23 @@ export function useSetTeeTimeParticipantSkipped(teeTimeId: number | null) {
 }
 
 /**
+ * Shotgun-start tournaments only: set which hole (1-18) the group is teeing
+ * off on. Any authenticated player in the group can call this.
+ */
+export function useSetTeeTimeStartingHole(teeTimeId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (startingHoleNumber: number) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      await apiClient.post(`/tee-times/${teeTimeId}/starting-hole`, { startingHoleNumber });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+    },
+  });
+}
+
+/**
  * Save scores for a single hole for all players in a tee time group.
  * Called when the user presses Next on each hole for incremental persistence.
  * Throws (with a 409 response) if a conflicting score was entered by another
