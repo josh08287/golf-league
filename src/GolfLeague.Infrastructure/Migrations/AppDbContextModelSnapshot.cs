@@ -1604,7 +1604,7 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasOne("GolfLeague.Domain.Entities.TournamentFlight", "TournamentFlight")
                         .WithMany("Participants")
                         .HasForeignKey("TournamentFlightId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.Navigation("Flight");
 

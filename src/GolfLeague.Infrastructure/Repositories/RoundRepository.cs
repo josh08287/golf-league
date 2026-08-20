@@ -314,11 +314,15 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task ReplaceTournamentFlightsAsync(int roundId, IEnumerable<TournamentFlight> flights, CancellationToken cancellationToken = default)
     {
-        // Winners reference flights (NoAction FK — see AppDbContext), so
-        // clear them first or the delete below would violate the constraint.
+        // Winners and participants both reference flights via NoAction FKs
+        // (see AppDbContext), so clear those references first or the delete
+        // below would violate the constraint.
         await _context.TournamentLongestDriveWinners
             .Where(w => w.RoundId == roundId)
             .ExecuteDeleteAsync(cancellationToken);
+        await _context.RoundParticipants
+            .Where(p => p.RoundId == roundId && p.TournamentFlightId != null)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.TournamentFlightId, p => null), cancellationToken);
         await _context.TournamentFlights
             .Where(f => f.RoundId == roundId)
             .ExecuteDeleteAsync(cancellationToken);

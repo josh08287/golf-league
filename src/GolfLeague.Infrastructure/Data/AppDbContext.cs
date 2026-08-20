@@ -411,14 +411,17 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.FlightId)
                   .IsRequired(false)
                   .OnDelete(DeleteBehavior.Restrict);
-            // Tournament flight: nullable, SetNull on delete so deleting the
-            // flight rows during a re-group (see TournamentFoursomeService)
-            // never fails or cascades into the participant itself.
+            // Tournament flight: nullable, NoAction (not SetNull) to avoid SQL
+            // Server's multiple-cascade-path error, since TournamentFlight
+            // already cascades from Round the same as RoundParticipant does.
+            // Flights are explicitly cleared from participants in code before
+            // being replaced by TournamentFoursomeService, so this path never
+            // needs to fire.
             entity.HasOne(e => e.TournamentFlight)
                   .WithMany(f => f.Participants)
                   .HasForeignKey(e => e.TournamentFlightId)
                   .IsRequired(false)
-                  .OnDelete(DeleteBehavior.SetNull);
+                  .OnDelete(DeleteBehavior.NoAction);
             // Tee-time link: nullable, SetNull on delete so deleting a tee
             // time (e.g. admin regenerating the schedule) clears assignments
             // rather than wiping the participant rows.

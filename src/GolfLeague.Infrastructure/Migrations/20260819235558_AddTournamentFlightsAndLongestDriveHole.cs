@@ -86,8 +86,7 @@ namespace GolfLeague.Infrastructure.Migrations
                 table: "RoundParticipants",
                 column: "TournamentFlightId",
                 principalTable: "TournamentFlights",
-                principalColumn: "Id",
-                onDelete: ReferentialAction.SetNull);
+                principalColumn: "Id");
 
             migrationBuilder.AddForeignKey(
                 name: "FK_TournamentLongestDriveWinners_TournamentFlights_TournamentFlightId",
