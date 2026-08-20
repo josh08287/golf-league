@@ -68,15 +68,19 @@ public sealed class InitializeHalfFlightsCommandHandler
         foreach (var f in existingFlights)
             await _flightRepository.DeleteAsync(f.Id, cancellationToken);
 
-        // Load all active players with their current handicap
+        // Load all active players with their current handicap — one query for
+        // every player's handicap history instead of one GetCurrentAsync call
+        // per player during flight seeding.
         var players = await _playerRepository.GetAllActiveAsync(cancellationToken);
-        var playerHandicaps = new List<(Player Player, double HcpIndex)>();
+        var playerIds = players.Select(p => p.Id).ToHashSet();
+        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
+            .Where(h => playerIds.Contains(h.PlayerId))
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
 
-        foreach (var player in players)
-        {
-            var hcp = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
-            playerHandicaps.Add((player, hcp?.HandicapIndex ?? 99.0));
-        }
+        var playerHandicaps = players
+            .Select(player => (Player: player, HcpIndex: currentHandicapByPlayerId.TryGetValue(player.Id, out var hcp) ? hcp.HandicapIndex : 99.0))
+            .ToList();
 
         // Sort low→high handicap (best players in A flight)
         var sorted = playerHandicaps

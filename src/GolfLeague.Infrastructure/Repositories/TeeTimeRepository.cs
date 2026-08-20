@@ -30,7 +30,18 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
             .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Season)
             .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Half)
             .Include(t => t.Participants).ThenInclude(p => p.TournamentFlight)
+            .Include(t => t.Participants).ThenInclude(p => p.HoleScores)
             .FirstOrDefaultAsync(t => t.Id == teeTimeId, cancellationToken);
+
+    public async Task<IReadOnlyList<RoundTeeTime>> GetByIdsAsync(IEnumerable<int> teeTimeIds, CancellationToken cancellationToken = default)
+    {
+        var ids = teeTimeIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.RoundTeeTimes
+            .Where(t => ids.Contains(t.Id))
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<IReadOnlyList<RoundTeeTime>> EnsureSlotsAsync(int roundId, int count, CancellationToken cancellationToken = default)
     {
@@ -93,6 +104,38 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
         if (slot is null) return;
         slot.AutoFilledAt = utcNow;
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ApplyAutofillAsync(
+        IReadOnlyDictionary<int, int> teeTimeIdByParticipantId,
+        IEnumerable<int> touchedSlotIds,
+        DateTime utcNow,
+        CancellationToken cancellationToken = default)
+    {
+        var participantIds = teeTimeIdByParticipantId.Keys.ToList();
+        if (participantIds.Count > 0)
+        {
+            var participants = await _context.RoundParticipants
+                .AsTracking()
+                .Where(p => participantIds.Contains(p.Id))
+                .ToListAsync(cancellationToken);
+            foreach (var participant in participants)
+                participant.TeeTimeId = teeTimeIdByParticipantId[participant.Id];
+        }
+
+        var slotIds = touchedSlotIds.ToList();
+        if (slotIds.Count > 0)
+        {
+            var slots = await _context.RoundTeeTimes
+                .AsTracking()
+                .Where(t => slotIds.Contains(t.Id))
+                .ToListAsync(cancellationToken);
+            foreach (var slot in slots)
+                slot.AutoFilledAt = utcNow;
+        }
+
+        if (participantIds.Count > 0 || slotIds.Count > 0)
+            await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task SetStartingHoleAsync(int teeTimeId, int? startingHoleNumber, CancellationToken cancellationToken = default)

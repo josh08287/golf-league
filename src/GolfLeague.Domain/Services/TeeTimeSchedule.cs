@@ -108,6 +108,19 @@ public static class TeeTimeSchedule
         return TimeZoneInfo.ConvertTimeToUtc(local, EasternTimeZone);
     }
 
+    /// <summary>
+    /// UTC instant of <paramref name="localTime"/> US/Eastern on the calendar
+    /// day <paramref name="daysBeforeRound"/> days before <paramref name="roundDate"/>.
+    /// Used by the daily timers (autofill, reminder, sub-spot email) to convert
+    /// their fixed Eastern-clock trigger times to UTC, handling DST.
+    /// </summary>
+    public static DateTime ComputeDailyTriggerUtc(DateOnly roundDate, int daysBeforeRound, TimeOnly localTime)
+    {
+        var day = roundDate.AddDays(-daysBeforeRound);
+        var local = new DateTime(day.Year, day.Month, day.Day, localTime.Hour, localTime.Minute, 0, DateTimeKind.Unspecified);
+        return TimeZoneInfo.ConvertTimeToUtc(local, EasternTimeZone);
+    }
+
     // IANA "America/New_York" on Linux, "Eastern Standard Time" on Windows.
     // Try the IANA name first (works on Azure Functions Linux), fall back
     // to the Windows name for local-dev on Windows.

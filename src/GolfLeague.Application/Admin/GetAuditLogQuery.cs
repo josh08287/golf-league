@@ -147,6 +147,12 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
     {
         var result = new Dictionary<(string, string), string>();
 
+        // Rounds are needed both for "Round" entities and to label "TeeTime"
+        // entities below — load once, lazily, and share between both.
+        Dictionary<int, Domain.Entities.Round>? roundsById = null;
+        async Task<Dictionary<int, Domain.Entities.Round>> GetRoundsByIdAsync()
+            => roundsById ??= (await _roundRepository.GetAllAsync(cancellationToken)).ToDictionary(r => r.Id);
+
         var playerIds = IdsFor(items, "Player");
         if (playerIds.Count > 0)
         {
@@ -158,8 +164,8 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
         var roundIds = IdsFor(items, "Round");
         if (roundIds.Count > 0)
         {
-            var rounds = await _roundRepository.GetAllAsync(cancellationToken);
-            foreach (var r in rounds.Where(r => roundIds.Contains(r.Id)))
+            var rounds = await GetRoundsByIdAsync();
+            foreach (var r in rounds.Values.Where(r => roundIds.Contains(r.Id)))
                 result[("Round", r.Id.ToString())] = $"Week {r.WeekNumber} — {r.RoundDate:MMM d, yyyy}";
         }
 
@@ -190,12 +196,9 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
         var halfIds = IdsFor(items, "SeasonHalf");
         if (halfIds.Count > 0)
         {
-            foreach (var id in halfIds)
-            {
-                var half = await _flightRepository.GetHalfByIdAsync(id, cancellationToken);
-                if (half is not null)
-                    result[("SeasonHalf", id.ToString())] = half.Name;
-            }
+            var halves = await _flightRepository.GetHalvesByIdsAsync(halfIds, cancellationToken);
+            foreach (var half in halves)
+                result[("SeasonHalf", half.Id.ToString())] = half.Name;
         }
 
         var inviteIds = IdsFor(items, "Invite");
@@ -209,16 +212,14 @@ public sealed class GetAuditLogQueryHandler : IRequestHandler<GetAuditLogQuery, 
         var teeTimeIds = IdsFor(items, "TeeTime");
         if (teeTimeIds.Count > 0)
         {
-            foreach (var id in teeTimeIds)
+            var slots = await _teeTimeRepository.GetByIdsAsync(teeTimeIds, cancellationToken);
+            var rounds = await GetRoundsByIdAsync();
+
+            foreach (var slot in slots)
             {
-                var slot = await _teeTimeRepository.GetByIdAsync(id, cancellationToken);
-                if (slot is not null)
-                {
-                    var round = await _roundRepository.GetByIdAsync(slot.RoundId, cancellationToken);
-                    result[("TeeTime", id.ToString())] = round is not null
-                        ? $"Week {round.WeekNumber} — {round.RoundDate:MMM d, yyyy}, {slot.ScheduledTime:h:mm tt}"
-                        : $"Tee time at {slot.ScheduledTime:h:mm tt}";
-                }
+                result[("TeeTime", slot.Id.ToString())] = rounds.TryGetValue(slot.RoundId, out var round)
+                    ? $"Week {round.WeekNumber} — {round.RoundDate:MMM d, yyyy}, {slot.ScheduledTime:h:mm tt}"
+                    : $"Tee time at {slot.ScheduledTime:h:mm tt}";
             }
         }
 

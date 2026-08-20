@@ -95,37 +95,37 @@ public sealed class GetJoesVsOthersStatisticsQueryHandler
         // participants (only rounds where both groups actually played).
         var roundGroupNetAverages = new Dictionary<int, (List<int> Joes, List<int> Others)>();
 
-        foreach (var round in finalizedRounds)
+        var roundsById = finalizedRounds.ToDictionary(r => r.Id);
+        var finalizedRoundIds = finalizedRounds.Select(r => r.Id).ToList();
+        var allParticipants = await _roundRepository.GetParticipantsForRoundsAsync(finalizedRoundIds, cancellationToken);
+
+        foreach (var p in allParticipants)
         {
-            var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
-            foreach (var p in participants)
+            if (p.IsWithdrawn || p.SkippedWeek) continue;
+
+            var round = roundsById[p.RoundId];
+            var isJoe = JoeFirstNames.Contains(p.Player.FirstName.Trim(), StringComparer.OrdinalIgnoreCase);
+            participantRounds[p.Id] = round;
+
+            if (isJoe)
             {
-                if (p.IsWithdrawn || p.SkippedWeek) continue;
+                joeParticipants.Add(p);
+                joeHoleScores.AddRange(p.HoleScores);
+            }
+            else
+            {
+                otherParticipants.Add(p);
+                otherHoleScores.AddRange(p.HoleScores);
+            }
 
-                var isJoe = JoeFirstNames.Contains(p.Player.FirstName.Trim(), StringComparer.OrdinalIgnoreCase);
-                var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
-                participantRounds[p.Id] = round;
-
-                if (isJoe)
+            if (p.TotalNetStrokes is int netStrokes)
+            {
+                if (!roundGroupNetAverages.TryGetValue(round.Id, out var lists))
                 {
-                    joeParticipants.Add(p);
-                    joeHoleScores.AddRange(scores);
+                    lists = ([], []);
+                    roundGroupNetAverages[round.Id] = lists;
                 }
-                else
-                {
-                    otherParticipants.Add(p);
-                    otherHoleScores.AddRange(scores);
-                }
-
-                if (p.TotalNetStrokes is int netStrokes)
-                {
-                    if (!roundGroupNetAverages.TryGetValue(round.Id, out var lists))
-                    {
-                        lists = ([], []);
-                        roundGroupNetAverages[round.Id] = lists;
-                    }
-                    (isJoe ? lists.Joes : lists.Others).Add(netStrokes);
-                }
+                (isJoe ? lists.Joes : lists.Others).Add(netStrokes);
             }
         }
 

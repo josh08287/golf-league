@@ -73,6 +73,22 @@ public sealed class RoundRepository : IRoundRepository
             .ThenBy(rp => rp.Player.FirstName)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default)
+    {
+        var ids = roundIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.RoundParticipants
+            .Include(rp => rp.Player)
+            .Include(rp => rp.HoleScores)
+            .Where(rp => ids.Contains(rp.RoundId))
+            .OrderBy(rp => rp.RoundId)
+            .ThenBy(rp => rp.FlightId)
+            .ThenBy(rp => rp.Player.LastName)
+            .ThenBy(rp => rp.Player.FirstName)
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default)
         => _context.RoundParticipants
             .Include(rp => rp.Player)
@@ -443,4 +459,17 @@ public sealed class RoundRepository : IRoundRepository
             .Where(w => w.RoundId == roundId)
             .OrderBy(w => w.HoleNumber)
             .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default)
+    {
+        var ids = roundIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.RoundClosestToPins
+            .Include(w => w.Player)
+            .Where(w => ids.Contains(w.RoundId))
+            .OrderBy(w => w.RoundId)
+            .ThenBy(w => w.HoleNumber)
+            .ToListAsync(cancellationToken);
+    }
 }

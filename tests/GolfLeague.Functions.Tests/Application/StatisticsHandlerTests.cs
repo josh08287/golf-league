@@ -20,7 +20,7 @@ public class GetLeagueLeaderboardsQueryHandlerTests
         _roundRepo = new Mock<IRoundRepository>();
         _playerRepo = new Mock<IPlayerRepository>();
         _halfSettingRepo = new Mock<IPlayerHalfSettingRepository>();
-        _roundRepo.Setup(r => r.GetClosestToPinWinnersAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+        _roundRepo.Setup(r => r.GetClosestToPinWinnersForRoundsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<RoundClosestToPin>());
         _halfSettingRepo.Setup(s => s.GetForHalfAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<PlayerHalfSetting>());
@@ -107,14 +107,8 @@ public class GetLeagueLeaderboardsQueryHandlerTests
         _roundRepo.Setup(r => r.GetAllAsync(default))
             .ReturnsAsync(new List<Round> { round1, round2 });
 
-        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default))
-            .ReturnsAsync(new List<RoundParticipant> { participant1Round1, participant2Round1 });
-
-        _roundRepo.Setup(r => r.GetParticipantsAsync(2, default))
-            .ReturnsAsync(new List<RoundParticipant> { participant1Round2 });
-
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(It.IsAny<int>(), default))
-            .ReturnsAsync(new List<HoleScore>());
+        _roundRepo.Setup(r => r.GetParticipantsForRoundsAsync(It.IsAny<IEnumerable<int>>(), default))
+            .ReturnsAsync(new List<RoundParticipant> { participant1Round1, participant2Round1, participant1Round2 });
 
         var result = await _handler.Handle(new GetLeagueLeaderboardsQuery(), default);
 
@@ -198,15 +192,8 @@ public class GetLeagueLeaderboardsQueryHandlerTests
         _roundRepo.Setup(r => r.GetBySeasonAsync(1, default))
             .ReturnsAsync(new List<Round> { h1Round, h2Round });
 
-        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default))
-            .ReturnsAsync(new List<RoundParticipant> { h1Alice, h1Bob });
-        _roundRepo.Setup(r => r.GetParticipantsAsync(2, default))
-            .ReturnsAsync(new List<RoundParticipant> { h2Alice, h2Bob });
-
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(1, default)).ReturnsAsync(h1Alice.HoleScores.ToList());
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(2, default)).ReturnsAsync(h1Bob.HoleScores.ToList());
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(3, default)).ReturnsAsync(h2Alice.HoleScores.ToList());
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(4, default)).ReturnsAsync(h2Bob.HoleScores.ToList());
+        _roundRepo.Setup(r => r.GetParticipantsForRoundsAsync(It.IsAny<IEnumerable<int>>(), default))
+            .ReturnsAsync(new List<RoundParticipant> { h1Alice, h1Bob, h2Alice, h2Bob });
 
         var result = await _handler.Handle(new GetLeagueLeaderboardsQuery(HalfId: 2), default);
 
@@ -288,11 +275,8 @@ public class GetLeagueLeaderboardsQueryHandlerTests
         _roundRepo.Setup(r => r.GetAllAsync(default))
             .ReturnsAsync(new List<Round> { round1 });
 
-        _roundRepo.Setup(r => r.GetParticipantsAsync(1, default))
+        _roundRepo.Setup(r => r.GetParticipantsForRoundsAsync(It.IsAny<IEnumerable<int>>(), default))
             .ReturnsAsync(new List<RoundParticipant> { skippedParticipant, withdrawnParticipant, normalParticipant });
-
-        _roundRepo.Setup(r => r.GetHoleScoresAsync(It.IsAny<int>(), default))
-            .ReturnsAsync(new List<HoleScore>());
 
         var result = await _handler.Handle(new GetLeagueLeaderboardsQuery(), default);
 

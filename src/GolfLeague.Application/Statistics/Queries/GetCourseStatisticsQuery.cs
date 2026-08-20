@@ -80,24 +80,24 @@ public sealed class GetCourseStatisticsQueryHandler
             .ToList();
 
         // Gather all participants + hole scores from finalized rounds on this course
+        // in one batched round trip, instead of a per-round/per-participant loop.
         var allHoleScores = new List<Domain.Entities.HoleScore>();
         var participantWithRound = new List<(Domain.Entities.RoundParticipant Participant, Domain.Entities.Round Round)>();
         var playerNamesById = new Dictionary<int, string>();
         var holeScorePlayerIds = new Dictionary<int, int>();
 
-        foreach (var round in courseRounds)
+        var roundsById = courseRounds.ToDictionary(r => r.Id);
+        var courseRoundIds = courseRounds.Select(r => r.Id).ToList();
+        var allParticipants = await _roundRepository.GetParticipantsForRoundsAsync(courseRoundIds, cancellationToken);
+
+        foreach (var p in allParticipants)
         {
-            var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
-            foreach (var p in participants)
-            {
-                if (p.IsWithdrawn || p.SkippedWeek) continue;
-                participantWithRound.Add((p, round));
-                playerNamesById[p.PlayerId] = p.Player.FullName;
-                var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
-                foreach (var score in scores)
-                    holeScorePlayerIds[score.Id] = p.PlayerId;
-                allHoleScores.AddRange(scores);
-            }
+            if (p.IsWithdrawn || p.SkippedWeek) continue;
+            participantWithRound.Add((p, roundsById[p.RoundId]));
+            playerNamesById[p.PlayerId] = p.Player.FullName;
+            foreach (var score in p.HoleScores)
+                holeScorePlayerIds[score.Id] = p.PlayerId;
+            allHoleScores.AddRange(p.HoleScores);
         }
 
         // Minimum rounds a player must have on a hole before their average

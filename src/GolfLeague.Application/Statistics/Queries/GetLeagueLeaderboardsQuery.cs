@@ -98,6 +98,20 @@ public sealed class GetLeagueLeaderboardsQueryHandler
             .OrderBy(r => r.RoundDate)
             .ToList();
 
+        // Batch-load participants (with hole scores) and CTP winners for every
+        // finalized round in one round trip each, instead of per-round queries
+        // inside the loop below — this is what previously made this page cost
+        // hundreds of SQL round trips for a full season.
+        var finalizedRoundIds = finalizedRounds.Select(r => r.Id).ToList();
+        var allParticipants = await _roundRepository.GetParticipantsForRoundsAsync(finalizedRoundIds, cancellationToken);
+        var participantsByRound = allParticipants
+            .GroupBy(p => p.RoundId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+        var allCtpWinners = await _roundRepository.GetClosestToPinWinnersForRoundsAsync(finalizedRoundIds, cancellationToken);
+        var ctpWinnersByRound = allCtpWinners
+            .GroupBy(w => w.RoundId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         // Accumulate per-player data
         var grossByPlayer = new Dictionary<int, (string Name, long TotalStrokes, int Rounds)>();
         var netByPlayer = new Dictionary<int, (string Name, long TotalStrokes, int Rounds)>();
@@ -115,18 +129,15 @@ public sealed class GetLeagueLeaderboardsQueryHandler
         {
             var includeInResults = halfFilter is null || round.HalfId == halfFilter;
 
-            var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
-            var active = participants
+            participantsByRound.TryGetValue(round.Id, out var participants);
+            var active = (participants ?? [])
                 .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
                 .ToList();
 
-            // Load hole scores per participant
-            var participantScores = new List<(Domain.Entities.RoundParticipant Participant, List<Domain.Entities.HoleScore> HoleScores)>();
-            foreach (var p in active)
-            {
-                var holeScores = (await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken)).ToList();
-                participantScores.Add((p, holeScores));
-            }
+            // Hole scores are already eager-loaded on each participant via the batch fetch above.
+            var participantScores = active
+                .Select(p => (Participant: p, HoleScores: p.HoleScores.ToList()))
+                .ToList();
 
             // Avg gross / avg net / birdies + eagles
             if (includeInResults)
@@ -195,8 +206,8 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
             // Closest-to-pin wins recorded for this round
             if (!includeInResults) continue;
-            var ctpWinners = await _roundRepository.GetClosestToPinWinnersAsync(round.Id, cancellationToken);
-            foreach (var winner in ctpWinners)
+            ctpWinnersByRound.TryGetValue(round.Id, out var ctpWinners);
+            foreach (var winner in ctpWinners ?? [])
             {
                 var name = winner.Player?.FullName ?? string.Empty;
                 if (!ctpByPlayer.TryGetValue(winner.PlayerId, out var cc))

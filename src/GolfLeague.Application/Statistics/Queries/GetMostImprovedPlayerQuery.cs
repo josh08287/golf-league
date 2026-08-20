@@ -132,23 +132,24 @@ public sealed class GetMostImprovedPlayerQueryHandler
         var playerNames = new Dictionary<int, string>();
         var firstRoundDatePerPlayer = new Dictionary<int, DateOnly>();
 
-        foreach (var round in finalizedRounds)
+        var roundsById = finalizedRounds.ToDictionary(r => r.Id);
+        var finalizedRoundIds = finalizedRounds.Select(r => r.Id).ToList();
+        var allParticipants = await _roundRepository.GetParticipantsForRoundsAsync(finalizedRoundIds, cancellationToken);
+
+        foreach (var p in allParticipants)
         {
-            var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
-            foreach (var p in participants)
+            if (p.IsWithdrawn || p.SkippedWeek || p.IsSubstitute || !p.TotalGrossStrokes.HasValue)
+                continue;
+
+            var round = roundsById[p.RoundId];
+            roundsPerPlayer[p.PlayerId] = roundsPerPlayer.GetValueOrDefault(p.PlayerId) + 1;
+            playerNames.TryAdd(p.PlayerId, p.Player?.FullName ?? $"Player #{p.PlayerId}");
+
+            // Track earliest round date for each player in this half
+            if (!firstRoundDatePerPlayer.TryGetValue(p.PlayerId, out var existing) ||
+                round.RoundDate < existing)
             {
-                if (p.IsWithdrawn || p.SkippedWeek || p.IsSubstitute || !p.TotalGrossStrokes.HasValue)
-                    continue;
-
-                roundsPerPlayer[p.PlayerId] = roundsPerPlayer.GetValueOrDefault(p.PlayerId) + 1;
-                playerNames.TryAdd(p.PlayerId, p.Player?.FullName ?? $"Player #{p.PlayerId}");
-
-                // Track earliest round date for each player in this half
-                if (!firstRoundDatePerPlayer.TryGetValue(p.PlayerId, out var existing) ||
-                    round.RoundDate < existing)
-                {
-                    firstRoundDatePerPlayer[p.PlayerId] = round.RoundDate;
-                }
+                firstRoundDatePerPlayer[p.PlayerId] = round.RoundDate;
             }
         }
 
@@ -169,10 +170,17 @@ public sealed class GetMostImprovedPlayerQueryHandler
         //   Current HI  = their most recent handicap (the latest entry overall)
         var leaderboard = new List<MostImprovedPlayerDto>();
 
+        // One query for every player's handicap history instead of one per
+        // qualifying player — GetAllAsync is already ordered PlayerId-first.
+        var qualifyingIdSet = qualifyingPlayerIds.ToHashSet();
+        var historyByPlayer = (await _handicapRepository.GetAllAsync(cancellationToken))
+            .Where(h => qualifyingIdSet.Contains(h.PlayerId))
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
         foreach (var playerId in qualifyingPlayerIds)
         {
-            var history = await _handicapRepository.GetHistoryAsync(playerId, cancellationToken);
-            if (history.Count == 0)
+            if (!historyByPlayer.TryGetValue(playerId, out var history) || history.Count == 0)
                 continue;
 
             var ordered = history.OrderBy(h => h.EffectiveDate).ThenBy(h => h.Id).ToList();

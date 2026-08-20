@@ -106,13 +106,9 @@ public sealed class GetPlayerStatisticsQueryHandler
             .Where(p => p.TotalGrossStrokes.HasValue)
             .ToList();
 
-        // Gather all hole scores
-        var allHoleScores = new List<Domain.Entities.HoleScore>();
-        foreach (var p in finalized)
-        {
-            var scores = await _roundRepository.GetHoleScoresAsync(p.Id, cancellationToken);
-            allHoleScores.AddRange(scores);
-        }
+        // Hole scores are already eager-loaded on each participant (see
+        // GetParticipantsAsyncByPlayer), so no per-participant fetch is needed here.
+        var allHoleScores = finalized.SelectMany(p => p.HoleScores).ToList();
 
         // Scoring distribution (gross-based)
         var eagleOrBetter = allHoleScores.Count(s => s.GrossStrokes <= s.Par - 2);
@@ -179,19 +175,14 @@ public sealed class GetPlayerStatisticsQueryHandler
         {
             // Gather flight hole scores for the same flight(s) this player was in
             var flightIds = finalized.Select(p => p.FlightId).Distinct().ToList();
-            var flightHoleScores = new List<HoleScore>();
-            foreach (var rp in finalized)
-            {
-                var roundParticipants = await _roundRepository.GetParticipantsAsync(rp.RoundId, cancellationToken);
-                foreach (var otherP in roundParticipants)
-                {
-                    if (otherP.PlayerId == request.PlayerId) continue;
-                    if (!flightIds.Contains(otherP.FlightId)) continue;
-                    if (otherP.IsWithdrawn || otherP.SkippedWeek || otherP.IsSubstitute) continue;
-                    var otherScores = await _roundRepository.GetHoleScoresAsync(otherP.Id, cancellationToken);
-                    flightHoleScores.AddRange(otherScores);
-                }
-            }
+            var roundIds = finalized.Select(rp => rp.RoundId).Distinct().ToList();
+            var allRoundParticipants = await _roundRepository.GetParticipantsForRoundsAsync(roundIds, cancellationToken);
+            var flightHoleScores = allRoundParticipants
+                .Where(otherP => otherP.PlayerId != request.PlayerId
+                    && flightIds.Contains(otherP.FlightId)
+                    && !otherP.IsWithdrawn && !otherP.SkippedWeek && !otherP.IsSubstitute)
+                .SelectMany(otherP => otherP.HoleScores)
+                .ToList();
 
             var sgResult = StrokesGainedPuttingService.Calculate(allHoleScores, flightHoleScores);
 

@@ -79,12 +79,22 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
             .GroupBy(rp => rp.PlayerId)
             .ToList();
 
+        // Batch-load players and current handicaps once instead of per-group
+        // lookups — avoids 2 SQL round trips per player in the flight.
+        var playerIds = grouped.Select(g => g.Key).ToHashSet();
+        var playersById = (await _playerRepository.GetAllAsync(cancellationToken))
+            .Where(p => playerIds.Contains(p.Id))
+            .ToDictionary(p => p.Id);
+        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
+            .Where(h => playerIds.Contains(h.PlayerId))
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+
         var dtos = new List<StandingDto>(grouped.Count);
 
         foreach (var group in grouped)
         {
-            var player = await _playerRepository.GetByIdAsync(group.Key, cancellationToken);
-            if (player is null)
+            if (!playersById.TryGetValue(group.Key, out var player))
                 continue;
 
             var roundsPlayed = group.Count();
@@ -127,7 +137,7 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
                         : scoreList.Sum(rp => rp.TotalNetStrokes!.Value)) / scoreList.Count, 1)
                 : null;
 
-            var currentHandicap = await _handicapRepository.GetCurrentAsync(group.Key, cancellationToken);
+            currentHandicapByPlayerId.TryGetValue(group.Key, out var currentHandicap);
 
             var roundScores = group
                 .OrderBy(rp => rp.Round.WeekNumber)

@@ -59,8 +59,15 @@ public class FlightStandingsHandlerTests
                 .ReturnsAsync((LeagueSetting?)null); // defaults to drop 1
             HandicapRepo.Setup(h => h.GetCurrentAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((Handicap?)null);
+            HandicapRepo.Setup(h => h.GetAllAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<Handicap>());
             PlayerRepo.Setup(p => p.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((int id, CancellationToken _) => MakePlayer(id, $"Player{id}"));
+            // The handler now batch-resolves players via GetAllAsync instead of
+            // GetByIdAsync per group — cover the small range of player IDs used
+            // across these tests.
+            PlayerRepo.Setup(p => p.GetAllAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<Player>)Enumerable.Range(1, 10).Select(id => MakePlayer(id, $"Player{id}")).ToList());
         }
 
         public GetFlightStandingsQueryHandler BuildSut() =>

@@ -20,6 +20,15 @@ public interface IRoundRepository
     Task<IReadOnlyList<Round>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default);
     Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsync(int roundId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Participants (with Player and HoleScores eager-loaded) for every round in
+    /// <paramref name="roundIds"/> in one round trip. Use this instead of calling
+    /// <see cref="GetParticipantsAsync"/> in a loop when processing multiple rounds
+    /// (e.g. season/league statistics) — the per-round loop was the dominant source
+    /// of SQL round trips on those pages.
+    /// </summary>
+    Task<IReadOnlyList<RoundParticipant>> GetParticipantsForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(int holeNumber, IEnumerable<int> participantIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(IEnumerable<int> participantIds, CancellationToken cancellationToken = default);
@@ -91,4 +100,7 @@ public interface IRoundRepository
     // Closest to the pin (regular league rounds)
     Task SetClosestToPinWinnersAsync(int roundId, IEnumerable<(int HoleNumber, int PlayerId)> winners, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersAsync(int roundId, CancellationToken cancellationToken = default);
+
+    /// <summary>Closest-to-pin winners for every round in <paramref name="roundIds"/> in one round trip.</summary>
+    Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default);
 }

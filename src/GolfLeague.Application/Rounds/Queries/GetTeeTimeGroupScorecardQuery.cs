@@ -147,8 +147,7 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
         var playerDtos = new List<TeeTimePlayerScoreDto>();
         foreach (var participant in teeTime.Participants.OrderBy(p => p.Player.LastName).ThenBy(p => p.Player.FirstName))
         {
-            var holeScores = await _roundRepository.GetHoleScoresAsync(participant.Id, cancellationToken);
-            var holeScoreDtos = holeScores
+            var holeScoreDtos = participant.HoleScores
                 .OrderBy(h => h.HoleNumber)
                 .Select(h => new TeeTimeHoleScoreDto(
                     h.HoleNumber,

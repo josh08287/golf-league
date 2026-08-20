@@ -77,6 +77,12 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
         var assignedCount = 0;
         var touchedSlotIds = new HashSet<int>();
 
+        // Accumulate every participant -> slot assignment in memory and apply
+        // them (plus the AutoFilledAt stamps) in one batched write at the end,
+        // instead of a SELECT+SaveChanges round trip per placement/slot — this
+        // is what made the hourly autofill timer expensive at scale.
+        var teeTimeIdByParticipantId = new Dictionary<int, int>();
+
         // SetParticipantTeeTimeAsync writes straight to the DB and never
         // updates the in-memory slot.Participants collections fetched above,
         // so track this run's assignments ourselves. Effective occupancy =
@@ -133,7 +139,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
 
                 foreach (var p in picks)
                 {
-                    await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
+                    teeTimeIdByParticipantId[p.Id] = slot.Id;
                     assignedCount++;
                     touchedSlotIds.Add(slot.Id);
                     placedInPhase0.Add(p.Id);
@@ -169,7 +175,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                 .ToList();
             foreach (var p in sameFlight)
             {
-                await _teeTimes.SetParticipantTeeTimeAsync(p.Id, slot.Id, cancellationToken);
+                teeTimeIdByParticipantId[p.Id] = slot.Id;
                 unassignedQueue.Remove(p);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
@@ -188,7 +194,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
                     .OrderByDescending(p => PreferenceWeight(p.Player.PreferredTeeTimeSlots, slotBand))
                     .ThenBy(p => p.PlayerId)
                     .First();
-                await _teeTimes.SetParticipantTeeTimeAsync(fill.Id, slot.Id, cancellationToken);
+                teeTimeIdByParticipantId[fill.Id] = slot.Id;
                 unassignedQueue.Remove(fill);
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
@@ -227,7 +233,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             while (seatsLeft > 0 && unassignedQueue.Count > 0)
             {
                 var pick = TakeOneForSlot(unassignedQueue, flightCounts, bandFlag);
-                await _teeTimes.SetParticipantTeeTimeAsync(pick.Id, slot.Id, cancellationToken);
+                teeTimeIdByParticipantId[pick.Id] = slot.Id;
                 assignedCount++;
                 touchedSlotIds.Add(slot.Id);
                 NoteAssigned(slot.Id, pick);
@@ -270,7 +276,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             if (donorCandidates.Count == 0) continue;
 
             var (donorSlot, mover, _) = donorCandidates[0];
-            await _teeTimes.SetParticipantTeeTimeAsync(mover.Id, slot.Id, cancellationToken);
+            teeTimeIdByParticipantId[mover.Id] = slot.Id;
 
             placedThisRun[donorSlot.Id].Remove(mover);
             addedThisRun[donorSlot.Id]--;
@@ -279,10 +285,7 @@ public sealed class TeeTimeAutofillService : ITeeTimeAutofillService
             touchedSlotIds.Add(donorSlot.Id);
         }
 
-        foreach (var id in touchedSlotIds)
-        {
-            await _teeTimes.MarkAutoFilledAsync(id, now, cancellationToken);
-        }
+        await _teeTimes.ApplyAutofillAsync(teeTimeIdByParticipantId, touchedSlotIds, now, cancellationToken);
 
         if (unassignedQueue.Count > 0)
         {

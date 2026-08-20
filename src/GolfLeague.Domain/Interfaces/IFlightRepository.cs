@@ -16,6 +16,14 @@ public interface IFlightRepository
     Task AddHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default);
     Task UpdateHalfAsync(SeasonHalf half, CancellationToken cancellationToken = default);
     Task<SeasonHalf?> GetHalfByIdAsync(int halfId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lightweight batch lookup (no Flights/Memberships graph) for resolving
+    /// several halves' display names at once. Use this instead of calling
+    /// <see cref="GetHalfByIdAsync"/> in a loop — the per-half loop was a
+    /// source of avoidable SQL round trips on the audit log page.
+    /// </summary>
+    Task<IReadOnlyList<SeasonHalf>> GetHalvesByIdsAsync(IEnumerable<int> halfIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<SeasonHalf>> GetHalvesBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task DeleteAsync(int flightId, CancellationToken cancellationToken = default);
     Task AddMembershipAsync(FlightMembership membership, CancellationToken cancellationToken = default);

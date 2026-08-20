@@ -63,6 +63,16 @@ public sealed class FlightRepository : IFlightRepository
             .Include(h => h.Flights).ThenInclude(f => f.Memberships)
             .FirstOrDefaultAsync(h => h.Id == halfId, cancellationToken);
 
+    public async Task<IReadOnlyList<SeasonHalf>> GetHalvesByIdsAsync(IEnumerable<int> halfIds, CancellationToken cancellationToken = default)
+    {
+        var ids = halfIds.ToList();
+        if (ids.Count == 0) return [];
+
+        return await _context.SeasonHalves
+            .Where(h => ids.Contains(h.Id))
+            .ToListAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<SeasonHalf>> GetHalvesBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.SeasonHalves
             .Where(h => h.SeasonId == seasonId)

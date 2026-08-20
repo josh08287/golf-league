@@ -282,8 +282,8 @@ public class GetPlayersQueryHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(players);
         var handicapRepo = new Mock<IHandicapRepository>();
-        handicapRepo.Setup(r => r.GetCurrentAsync(It.IsAny<int>(), default))
-            .ReturnsAsync(new Handicap { HandicapIndex = 10.0 });
+        handicapRepo.Setup(r => r.GetAllAsync(default))
+            .ReturnsAsync(players.Select(p => new Handicap { PlayerId = p.Id, HandicapIndex = 10.0 }).ToList());
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
 
         var result = await handler.Handle(new GetPlayersQuery(1, 3), default);
@@ -313,7 +313,7 @@ public class GetPlayersQueryHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Player> { player });
         var handicapRepo = new Mock<IHandicapRepository>();
-        handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync((Handicap?)null);
+        handicapRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Handicap>());
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
 
         var result = await handler.Handle(new GetPlayersQuery(1, 10), default);
@@ -334,7 +334,7 @@ public class GetPlayersQueryHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Player> { player });
         var handicapRepo = new Mock<IHandicapRepository>();
-        handicapRepo.Setup(r => r.GetCurrentAsync(1, default)).ReturnsAsync((Handicap?)null);
+        handicapRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Handicap>());
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
 
         var result = await handler.Handle(new GetPlayersQuery(1, 10), default);
@@ -355,7 +355,7 @@ public class GetPlayersQueryHandlerTests
         var playerRepo = new Mock<IPlayerRepository>();
         playerRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(players);
         var handicapRepo = new Mock<IHandicapRepository>();
-        handicapRepo.Setup(r => r.GetCurrentAsync(It.IsAny<int>(), default)).ReturnsAsync((Handicap?)null);
+        handicapRepo.Setup(r => r.GetAllAsync(default)).ReturnsAsync(new List<Handicap>());
         var handler = new GetPlayersQueryHandler(playerRepo.Object, handicapRepo.Object, EmptyRoleRepo());
 
         var result = await handler.Handle(new GetPlayersQuery(1, 10), default);

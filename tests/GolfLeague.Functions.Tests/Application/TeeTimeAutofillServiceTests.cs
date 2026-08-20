@@ -64,6 +64,18 @@ public class TeeTimeAutofillServiceTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Callback<int, int?, CancellationToken>((pid, slotId, _) => assignments[pid] = slotId!.Value)
             .Returns(Task.CompletedTask);
+        // Production now batches all placements into one ApplyAutofillAsync
+        // call at the end of the run instead of per-placement SetParticipantTeeTimeAsync
+        // calls — capture assignments from there too so these tests observe
+        // the same outcome regardless of which path the service uses.
+        teeTimes.Setup(t => t.ApplyAutofillAsync(
+                It.IsAny<IReadOnlyDictionary<int, int>>(), It.IsAny<IEnumerable<int>>(), It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
+            .Callback<IReadOnlyDictionary<int, int>, IEnumerable<int>, DateTime, CancellationToken>((byParticipant, _, _, _) =>
+            {
+                foreach (var (pid, slotId) in byParticipant)
+                    assignments[pid] = slotId;
+            })
+            .Returns(Task.CompletedTask);
 
         var sut = new TeeTimeAutofillService(
             teeTimes.Object, rounds.Object, flights.Object,

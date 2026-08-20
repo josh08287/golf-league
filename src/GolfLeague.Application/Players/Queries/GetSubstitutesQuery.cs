@@ -44,10 +44,16 @@ public sealed class GetSubstitutesQueryHandler : IRequestHandler<GetSubstitutesQ
             .ToList();
         var rolesByUserId = await _appUserRepository.GetRolesAsync(appUserIds, cancellationToken);
 
+        var playerIds = players.Select(p => p.Id).ToHashSet();
+        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
+            .Where(h => playerIds.Contains(h.PlayerId))
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+
         var dtos = new List<PlayerDto>(players.Count);
         foreach (var player in players)
         {
-            var currentHandicap = await _handicapRepository.GetCurrentAsync(player.Id, cancellationToken);
+            currentHandicapByPlayerId.TryGetValue(player.Id, out var currentHandicap);
             IReadOnlyList<string> roles = player.AppUserId.HasValue
                 && rolesByUserId.TryGetValue(player.AppUserId.Value, out var r)
                 ? r

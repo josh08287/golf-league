@@ -88,17 +88,29 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
 
         await _roundRepository.AddAsync(round, cancellationToken);
 
+        // Batch-load all memberships for the half, active players, and current
+        // handicaps once instead of a per-flight/per-membership loop of
+        // individual lookups — this was previously 2-3 SQL round trips per
+        // player being seated into the round.
+        var allMemberships = await _flightRepository.GetMembershipsByHalfAsync(request.HalfId, cancellationToken);
+        var activePlayerIds = (await _playerRepository.GetAllActiveAsync(cancellationToken))
+            .Select(p => p.Id)
+            .ToHashSet();
+        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+
         var totalParticipants = 0;
         foreach (var flight in flights)
         {
-            var memberships = await _flightRepository.GetMembershipsAsync(flight.Id, cancellationToken);
+            var memberships = allMemberships.Where(m => m.FlightId == flight.Id);
             foreach (var membership in memberships)
             {
-                var player = await _playerRepository.GetByIdAsync(membership.PlayerId, cancellationToken);
-                if (player is null || !player.IsActive) continue;
+                if (!activePlayerIds.Contains(membership.PlayerId)) continue;
 
-                var current = await _handicapRepository.GetCurrentAsync(membership.PlayerId, cancellationToken);
-                var index = current?.HandicapIndex ?? 0.0;
+                var index = currentHandicapByPlayerId.TryGetValue(membership.PlayerId, out var current)
+                    ? current.HandicapIndex
+                    : 0.0;
 
                 await _roundRepository.AddParticipantAsync(new RoundParticipant
                 {
