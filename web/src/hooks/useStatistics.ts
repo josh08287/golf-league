@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult, LeagueLeaderboards, JoesVsOthersStatistics } from '@/types/api';
+import type { Course, CourseStatistics, PlayerStatistics, MostImprovedResult, LeagueLeaderboards, JoesVsOthersStatistics, SeasonWrapUp } from '@/types/api';
 
 export interface StatisticsPeriod {
   seasonId?: number | null;
@@ -31,6 +31,8 @@ export const statisticsKeys = {
     [...statisticsKeys.all, 'joes-vs-others', period ?? null] as const,
   coursesWithData: (period?: StatisticsPeriod) =>
     [...statisticsKeys.all, 'courses-with-data', period ?? null] as const,
+  seasonWrapUp: (seasonId: number | string) =>
+    [...statisticsKeys.all, 'season-wrap-up', String(seasonId)] as const,
 };
 
 export function useCourses() {
@@ -108,6 +110,17 @@ export function useCoursesWithData(period?: StatisticsPeriod) {
       );
       return response.data;
     },
+  });
+}
+
+export function useSeasonWrapUp(seasonId: number | string | null) {
+  return useQuery({
+    queryKey: statisticsKeys.seasonWrapUp(seasonId ?? ''),
+    queryFn: async () => {
+      const response = await apiClient.get<SeasonWrapUp>(`/seasons/${seasonId}/wrap-up`);
+      return response.data;
+    },
+    enabled: seasonId != null,
   });
 }
 

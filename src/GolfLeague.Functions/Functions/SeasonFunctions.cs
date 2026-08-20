@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Seasons.Commands;
 using GolfLeague.Application.Seasons.Queries;
+using GolfLeague.Application.Statistics.Queries;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -96,6 +97,19 @@ public sealed class SeasonFunctions
             new UpdateSeasonHalfCommand(id, startDate, endDate, userId),
             cancellationToken);
 
+        return result.ToOkResult();
+    }
+
+    [Function("GetSeasonWrapUp")]
+    public async Task<IActionResult> GetSeasonWrapUp(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/seasons/{id}/wrap-up")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var seasonId))
+            return new BadRequestObjectResult(new { error = "Invalid season ID." });
+
+        var result = await _mediator.Send(new GetSeasonWrapUpQuery(seasonId), cancellationToken);
         return result.ToOkResult();
     }
 

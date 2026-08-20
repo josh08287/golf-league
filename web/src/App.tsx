@@ -28,6 +28,7 @@ const StatisticsPage = lazy(() => import('@/pages/StatisticsPage').then((m) => (
 const JoesVsOthersPage = lazy(() => import('@/pages/JoesVsOthersPage').then((m) => ({ default: m.JoesVsOthersPage })));
 const LeaderboardPage = lazy(() => import('@/pages/LeaderboardPage').then((m) => ({ default: m.LeaderboardPage })));
 const TournamentResultsPage = lazy(() => import('@/pages/TournamentResultsPage').then((m) => ({ default: m.TournamentResultsPage })));
+const SeasonWrapUpPage = lazy(() => import('@/pages/SeasonWrapUpPage').then((m) => ({ default: m.SeasonWrapUpPage })));
 
 function NavigatorInjector() {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ export default function App() {
               <Route path="tee-times/:teeTimeId/enter-scores" element={<TeeTimeScoreEntryPage />} />
               <Route path="statistics" element={<StatisticsPage />} />
               <Route path="statistics/joes-vs-others" element={<JoesVsOthersPage />} />
+              <Route path="season-wrap-up" element={<SeasonWrapUpPage />} />
               <Route path="leaderboard" element={<LeaderboardPage />} />
               <Route path="rounds/:roundId/tournament-results" element={<TournamentResultsPage />} />
               {adminRoutes}

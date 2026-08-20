@@ -859,6 +859,39 @@ export interface RoundClosestToPin {
   participants: ClosestToPinParticipant[];
 }
 
+// ── Season Wrap-Up ────────────────────────────────────────────────────────────
+
+export interface PlayerScore {
+  playerId: number;
+  playerName: string;
+  value: number;
+  roundsPlayed: number;
+}
+
+export interface FlightHalfWinners {
+  flightId: number;
+  flightName: string;
+  netWinner: PlayerScore | null;
+  grossWinner: PlayerScore | null;
+}
+
+export interface HalfWrapUp {
+  halfId: number;
+  halfName: string;
+  flightWinners: FlightHalfWinners[];
+  overallLowGross: PlayerScore | null;
+  overallLowNet: PlayerScore | null;
+}
+
+export interface SeasonWrapUp {
+  seasonId: number;
+  seasonName: string;
+  halves: HalfWrapUp[];
+  seasonLowGross: PlayerScore[];
+  seasonLowNet: PlayerScore[];
+  mostImproved: MostImprovedPlayer | null;
+}
+
 // ── Tournament Rounds ─────────────────────────────────────────────────────────
 
 export interface TournamentMatchupDto {
