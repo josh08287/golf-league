@@ -133,7 +133,7 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
   }
 
   return (
-    <Modal open={!!round} title="Manage Tournament Players" onClose={handleClose}>
+    <Modal open={!!round} title="Manage Tournament" onClose={handleClose}>
       <div className="space-y-4">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">

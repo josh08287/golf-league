@@ -6,8 +6,8 @@ export function useCourseDetail(courseId: number | string | undefined) {
   return useQuery({
     queryKey: courseKeys.detail(String(courseId ?? '')),
     queryFn: async () => {
-      const res = await apiClient.get<{ data: CourseDetail }>(`/courses/${courseId}`);
-      return res.data.data;
+      const res = await apiClient.get<CourseDetail>(`/courses/${courseId}`);
+      return res.data;
     },
     enabled: Boolean(courseId),
   });

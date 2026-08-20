@@ -145,7 +145,7 @@ export function RoundsPage() {
                   size="sm"
                   onClick={() => setManagePlayersTarget(r)}
                 >
-                  Manage Players
+                  Manage Tournament
                 </Button>
               )}
               <Button
