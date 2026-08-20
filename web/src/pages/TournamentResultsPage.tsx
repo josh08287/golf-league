@@ -21,6 +21,7 @@ import type {
   LongestDriveWinner,
   TournamentFlight,
   TournamentCourseHole,
+  TournamentResults,
 } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -484,49 +485,9 @@ function RankingTable({
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
-export function TournamentResultsPage() {
-  const { roundId } = useParams<{ roundId: string }>();
-  const { data: results, isLoading, error } = useTournamentResults(roundId ?? '');
-
-  if (isLoading) {
-    return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
-      </div>
-    );
-  }
-
-  if (error || !results) {
-    return (
-      <div className="flex h-64 flex-col items-center justify-center gap-2 text-gray-500">
-        <AlertCircle className="h-8 w-8 text-red-400" />
-        <p>Failed to load tournament results.</p>
-      </div>
-    );
-  }
-
+export function TournamentResultsBody({ results }: { results: TournamentResults }) {
   return (
-    <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
-      {/* Header */}
-      <div>
-        <Link
-          to="/rounds"
-          className="mb-2 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Rounds
-        </Link>
-        <div className="mt-1 flex flex-wrap items-baseline gap-3">
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Trophy className="h-6 w-6 text-amber-500" />
-            Tournament Results
-          </h1>
-          <span className="text-gray-500">
-            {results.courseName} · {formatDate(results.roundDate)}
-          </span>
-        </div>
-      </div>
-
+    <div className="space-y-8">
       {/* Skins — two columns */}
       <section>
         <SectionTitle icon={Trophy} label="Skins" />
@@ -592,6 +553,54 @@ export function TournamentResultsPage() {
           />
         </div>
       </section>
+    </div>
+  );
+}
+
+export function TournamentResultsPage() {
+  const { roundId } = useParams<{ roundId: string }>();
+  const { data: results, isLoading, error } = useTournamentResults(roundId ?? '');
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  if (error || !results) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-2 text-gray-500">
+        <AlertCircle className="h-8 w-8 text-red-400" />
+        <p>Failed to load tournament results.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8 px-4 py-6">
+      {/* Header */}
+      <div>
+        <Link
+          to="/rounds"
+          className="mb-2 inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Rounds
+        </Link>
+        <div className="mt-1 flex flex-wrap items-baseline gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Trophy className="h-6 w-6 text-amber-500" />
+            Tournament Results
+          </h1>
+          <span className="text-gray-500">
+            {results.courseName} · {formatDate(results.roundDate)}
+          </span>
+        </div>
+      </div>
+
+      <TournamentResultsBody results={results} />
     </div>
   );
 }

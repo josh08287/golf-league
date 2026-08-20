@@ -1,4 +1,5 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 using static GolfLeague.Application.Common.FlightDisplayName;
@@ -35,6 +36,7 @@ public sealed record ActiveRoundLeaderboardDto(
     string CourseName,
     DateOnly ScheduledDate,
     string NineHoleSide,
+    bool IsTournament,
     List<ActiveRoundLeaderboardFlightDto> Flights);
 
 public sealed record GetActiveRoundLeaderboardQuery : IRequest<Result<ActiveRoundLeaderboardDto?>>;
@@ -62,8 +64,20 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
         if (round is null)
             return Result<ActiveRoundLeaderboardDto?>.Ok(null);
 
-        var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
         var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
+
+        if (round.RoundType == RoundType.Tournament)
+        {
+            return Result<ActiveRoundLeaderboardDto?>.Ok(new ActiveRoundLeaderboardDto(
+                round.Id,
+                course?.Name ?? string.Empty,
+                round.RoundDate,
+                round.NineHoleSide.ToString(),
+                true,
+                []));
+        }
+
+        var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
         var flights = round.HalfId.HasValue
             ? await _flightRepository.GetByHalfAsync(round.HalfId.Value, cancellationToken)
             : [];
@@ -133,6 +147,7 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
             courseName,
             round.RoundDate,
             round.NineHoleSide.ToString(),
+            false,
             flightGroups);
 
         return Result<ActiveRoundLeaderboardDto?>.Ok(dto);

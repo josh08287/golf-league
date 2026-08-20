@@ -1,7 +1,8 @@
 import { Link } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
-import { useActiveRoundLeaderboard } from '@/hooks/useRounds';
+import { useActiveRoundLeaderboard, useTournamentResults } from '@/hooks/useRounds';
+import { TournamentResultsBody } from '@/pages/TournamentResultsPage';
 import { Badge } from '@/components/ui/Badge';
 import {
   Table,
@@ -131,6 +132,10 @@ export function LeaderboardPage() {
   const featureFlags = useFeatureFlagStates();
   const flagEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.activeRoundLeaderboardEnabled] ?? false;
   const leaderboard = useActiveRoundLeaderboard(flagEnabled);
+  const data = leaderboard.data;
+
+  const isTournament = data?.isTournament ?? false;
+  const tournamentResults = useTournamentResults(isTournament ? String(data!.roundId) : '');
 
   if (featureFlags.isPending || (flagEnabled && leaderboard.isPending)) {
     return <FullPageSpinner />;
@@ -149,14 +154,16 @@ export function LeaderboardPage() {
     return <ErrorMessage message="Could not load the leaderboard. Please try again." />;
   }
 
-  const data = leaderboard.data;
-
   return (
     <div className="space-y-6">
       {data ? (
         <PageHeader
           title={data.courseName}
-          description={`${formatDate(data.scheduledDate)} — ${data.nineHoleSide} 9`}
+          description={
+            isTournament
+              ? formatDate(data.scheduledDate)
+              : `${formatDate(data.scheduledDate)} — ${data.nineHoleSide} 9`
+          }
         >
           <Badge variant="amber">Live</Badge>
         </PageHeader>
@@ -168,11 +175,21 @@ export function LeaderboardPage() {
         <p className="text-gray-500 text-sm">No round is currently in progress.</p>
       )}
 
-      {data && data.flights.length === 0 && (
+      {data && isTournament && tournamentResults.isPending && <FullPageSpinner />}
+
+      {data && isTournament && tournamentResults.isError && (
+        <ErrorMessage message="Could not load the tournament results. Please try again." />
+      )}
+
+      {data && isTournament && tournamentResults.data && (
+        <TournamentResultsBody results={tournamentResults.data} />
+      )}
+
+      {data && !isTournament && data.flights.length === 0 && (
         <p className="text-gray-500 text-sm">No scores have been entered for this round yet.</p>
       )}
 
-      {data && data.flights.length > 0 && (
+      {data && !isTournament && data.flights.length > 0 && (
         <div className="space-y-8">
           {data.flights.map((flight) => (
             <FlightLeaderboardTable key={flight.flightId ?? 'none'} flight={flight} />

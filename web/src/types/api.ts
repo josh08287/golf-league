@@ -280,6 +280,7 @@ export interface ActiveRoundLeaderboard {
   courseName: string;
   scheduledDate: string;
   nineHoleSide: string;
+  isTournament: boolean;
   flights: ActiveRoundLeaderboardFlight[];
 }
 
