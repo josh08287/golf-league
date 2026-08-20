@@ -251,6 +251,10 @@ public sealed class AuthService : IAuthService
     {
         var user = await _userManager.FindByIdAsync(userId.ToString())
             ?? throw new InvalidOperationException($"User {userId} not found.");
+
+        user.LastLoginAt = DateTime.UtcNow;
+        await _userManager.UpdateAsync(user);
+
         var (leagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId: null, cancellationToken);
         return await IssueTokensAsync(user, cancellationToken, leagueId, leagueRole);
     }
