@@ -193,9 +193,8 @@ function HoleExtrasPanel({
 
 // ── Flights ───────────────────────────────────────────────────────────────────
 
-function FlightsPanel({ flights, rankings }: { flights: TournamentFlight[]; rankings: TournamentRankingEntry[] }) {
+function FlightsPanel({ flights }: { flights: TournamentFlight[] }) {
   if (flights.length === 0) return null;
-  const nameById = new Map(rankings.map((r) => [r.playerId, r.playerName]));
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -203,8 +202,8 @@ function FlightsPanel({ flights, rankings }: { flights: TournamentFlight[]; rank
         <div key={f.id} className="rounded-lg border border-gray-200 p-3">
           <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {f.name}</h4>
           <ul className="space-y-0.5 text-sm text-gray-600">
-            {f.playerIds.map((pid) => (
-              <li key={pid}>{nameById.get(pid) ?? `Player ${pid}`}</li>
+            {f.players.map((p) => (
+              <li key={p.playerId}>{p.playerName}</li>
             ))}
           </ul>
         </div>
@@ -233,7 +232,7 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
             {m.player1Name}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
-            HCP {m.player1HandicapIndex.toFixed(1)} / CH {m.player1CourseHandicap}
+            CH {m.player1CourseHandicap}
           </p>
           {m.player1NetStrokes !== null && (
             <p className="mt-1 text-lg font-bold text-gray-700">{m.player1NetStrokes}</p>
@@ -253,7 +252,7 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
             {m.player2Name}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">
-            HCP {m.player2HandicapIndex.toFixed(1)} / CH {m.player2CourseHandicap}
+            CH {m.player2CourseHandicap}
           </p>
           {m.player2NetStrokes !== null && (
             <p className="mt-1 text-lg font-bold text-gray-700">{m.player2NetStrokes}</p>
@@ -405,7 +404,7 @@ export function TournamentResultsPage() {
       {results.flights.length > 0 && (
         <section>
           <SectionTitle icon={Users} label="Flights" />
-          <FlightsPanel flights={results.flights} rankings={results.grossStrokeRanking} />
+          <FlightsPanel flights={results.flights} />
         </section>
       )}
 

@@ -60,7 +60,9 @@ public sealed record TournamentRankingEntryDto(
 
 public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
 
-public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds);
+public sealed record TournamentFlightPlayerDto(int PlayerId, string PlayerName);
+
+public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds, List<TournamentFlightPlayerDto> Players);
 
 public sealed record TournamentResultsDto(
     int RoundId,
@@ -117,7 +119,10 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
 
         var grossSkins = CalculateSkins(active, useNet: false);
         var netSkins = CalculateSkins(active, useNet: true);
-        var matchupResults = CalculateMatchupResults(matchups, active);
+        // Course Handicap is known at tee-off regardless of scoring, so look matchup
+        // players up in the full roster (not `active`, which requires a submitted
+        // score) — otherwise CH shows as 0 for every matchup until scores start.
+        var matchupResults = CalculateMatchupResults(matchups, participants.ToList());
         var extraDtos = holeExtras.Select(e => new TournamentHoleExtraDto(
             e.HoleNumber,
             e.ClosestToPinPlayerId,
@@ -131,11 +136,16 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var netStablefordRanking = BuildRanking(active, p => p.TotalNetStablefordPoints, ascending: false);
 
         var flightDtos = flights
-            .Select(f => new TournamentFlightDto(
-                f.Id,
-                f.FlightNumber,
-                f.Name,
-                participants.Where(p => p.TournamentFlightId == f.Id).Select(p => p.PlayerId).ToList()))
+            .Select(f =>
+            {
+                var flightParticipants = participants.Where(p => p.TournamentFlightId == f.Id).ToList();
+                return new TournamentFlightDto(
+                    f.Id,
+                    f.FlightNumber,
+                    f.Name,
+                    flightParticipants.Select(p => p.PlayerId).ToList(),
+                    flightParticipants.Select(p => new TournamentFlightPlayerDto(p.PlayerId, p.Player.FullName)).ToList());
+            })
             .ToList();
 
         var ldByFlight = ldWinners.ToDictionary(w => w.TournamentFlightId);

@@ -943,11 +943,17 @@ export interface LongestDriveWinner {
   playerName: string | null;
 }
 
+export interface TournamentFlightPlayer {
+  playerId: number;
+  playerName: string;
+}
+
 export interface TournamentFlight {
   id: number;
   flightNumber: number;
   name: string;
   playerIds: number[];
+  players: TournamentFlightPlayer[];
 }
 
 export interface TournamentResults {
