@@ -1,14 +1,16 @@
 // ── Enum Normalization Utilities ───────────────────────────────────────────────
-// Backend serializes enums as integers, but frontend types expect strings
-// These helpers normalize enum values to their string representations
+// All backend enums the frontend reads are now serialized as strings
+// (System.Text.Json's JsonStringEnumConverter). These helpers remain to
+// normalize a numeric value defensively (e.g. a stale cached response) —
+// they should never need to run their numeric branch in practice.
 
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
-export type RoundType = 'NineHole' | 'EighteenHole';
+export type RoundType = 'NineHole' | 'EighteenHole' | 'Tournament';
 export type NineHoleSide = 'NotApplicable' | 'Front' | 'Back';
 
-// Backend enum values (as integers)
+// Backend enum ordinals, for the numeric-fallback branch below.
 // RoundStatus: Scheduled=0, InProgress=1, PendingFinalization=2, Finalized=3, Cancelled=4
-// RoundType: NineHole=0, EighteenHole=1
+// RoundType: NineHole=0, EighteenHole=1, Tournament=2
 // NineHoleSide: NotApplicable=0, Front=1, Back=2
 
 export function normalizeRoundStatus(status: string | number | undefined): RoundStatus {
@@ -30,7 +32,12 @@ export function normalizeRoundStatus(status: string | number | undefined): Round
 export function normalizeRoundType(type: string | number | undefined): RoundType {
   if (type === undefined || type === null) return 'NineHole';
   if (typeof type === 'number') {
-    return type === 1 ? 'EighteenHole' : 'NineHole';
+    const map: Record<number, RoundType> = {
+      0: 'NineHole',
+      1: 'EighteenHole',
+      2: 'Tournament',
+    };
+    return map[type] ?? 'NineHole';
   }
   return type as RoundType;
 }

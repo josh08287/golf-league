@@ -24,6 +24,7 @@ import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
 import { ManageTournamentPlayersModal } from '../../components/admin/ManageTournamentPlayersModal';
 import {
   normalizeRoundStatus,
+  normalizeRoundType,
   isRoundFinalized,
   isRoundInProgress,
   isRoundScheduled,
@@ -117,7 +118,7 @@ export function RoundsPage() {
       key: 'type',
       header: 'Type',
       render: (r: Round) =>
-        r.roundType === 'Tournament' ? (
+        normalizeRoundType(r.roundType) === 'Tournament' ? (
           <Badge variant="warning">Tournament</Badge>
         ) : (
           <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
@@ -136,7 +137,7 @@ export function RoundsPage() {
       header: '',
       render: (r: Round) => (
         <div className="flex items-center justify-end gap-2">
-          {r.roundType === 'Tournament' ? (
+          {normalizeRoundType(r.roundType) === 'Tournament' ? (
             <>
               {isRoundScheduled(r.status) && (
                 <Button
