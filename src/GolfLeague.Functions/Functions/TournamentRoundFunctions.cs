@@ -40,7 +40,9 @@ public sealed class TournamentRoundFunctions
             matchups,
             body.Notes,
             userId,
-            body.LongestDriveHoleNumber);
+            body.LongestDriveHoleNumber,
+            body.GrossSkinsPool,
+            body.NetSkinsPool);
 
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/tournament-rounds/{result.Value?.Round.Id}");
@@ -181,6 +183,27 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("SetTournamentSkinsPool")]
+    public async Task<IActionResult> SetTournamentSkinsPool(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/skins-pool")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var body = await req.TryDeserializeAsync<SetSkinsPoolRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetTournamentSkinsPoolCommand(roundId, body.GrossSkinsPool, body.NetSkinsPool, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     // ── Private request DTOs ────────────────────────────────────────────────────
 
     private sealed record MatchupInputDto(int Player1Id, int Player2Id);
@@ -192,7 +215,9 @@ public sealed class TournamentRoundFunctions
         List<int> PlayerIds,
         List<MatchupInputDto>? Matchups,
         string? Notes,
-        int? LongestDriveHoleNumber)
+        int? LongestDriveHoleNumber,
+        decimal? GrossSkinsPool,
+        decimal? NetSkinsPool)
     {
         public DateOnly ResolvedDate => RoundDate is not null
             ? DateOnly.ParseExact(RoundDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
@@ -207,4 +232,5 @@ public sealed class TournamentRoundFunctions
 
     private sealed record SaveExtrasRequest(List<HoleExtraInputDto> HoleExtras);
     private sealed record SetLongestDriveHoleRequest(int? HoleNumber);
+    private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
 }

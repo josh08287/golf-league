@@ -160,5 +160,7 @@ internal static class RoundDtoMapper
             round.NineHoleSide,
             round.RoundType,
             participantCount,
-            round.LongestDriveHoleNumber);
+            round.LongestDriveHoleNumber,
+            round.GrossSkinsPool,
+            round.NetSkinsPool);
 }

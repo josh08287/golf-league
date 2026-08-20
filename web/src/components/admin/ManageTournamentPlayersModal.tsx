@@ -9,13 +9,15 @@ import {
   useRemoveTournamentParticipant,
   useSetTournamentLongestDriveHole,
   useSetTournamentMatchups,
+  useSetTournamentSkinsPool,
 } from '../../hooks/admin/useRoundMutations';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
+import { isRoundFinalized } from '../../lib/enumUtils';
 import { Modal } from './Modal';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
-import { FormField, selectClass } from './FormField';
+import { FormField, inputClass, selectClass } from './FormField';
 import type { Participant, Round } from '../../types/api';
 
 interface ManageTournamentPlayersModalProps {
@@ -45,6 +47,12 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
   const removeParticipant = useRemoveTournamentParticipant(roundId);
   const setLongestDriveHole = useSetTournamentLongestDriveHole(roundId);
   const setMatchups = useSetTournamentMatchups(roundId);
+  const setSkinsPool = useSetTournamentSkinsPool(roundId);
+
+  const skinsPoolLocked = isRoundFinalized(round?.status);
+  const [grossSkinsPool, setGrossSkinsPoolInput] = useState('');
+  const [netSkinsPool, setNetSkinsPoolInput] = useState('');
+  const [skinsPoolInitialized, setSkinsPoolInitialized] = useState(false);
 
   const { data: course } = useCourseDetail(round?.courseId);
   const nonPar3Holes = (course?.holeDetails ?? [])
@@ -64,6 +72,22 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
       results.matchupResults.map((m) => ({ player1Id: m.player1Id, player2Id: m.player2Id })),
     );
   }, [results, matchupsDirty]);
+
+  // The modal is a single persistent component instance reused across every
+  // round the admin opens, so all local draft state must reset explicitly
+  // when the target round changes — otherwise an unsaved matchup/pool edit
+  // from one round leaks into the next round opened.
+  useEffect(() => {
+    setMatchupsDirty(false);
+    setSkinsPoolInitialized(false);
+  }, [roundId]);
+
+  useEffect(() => {
+    if (skinsPoolInitialized || !round) return;
+    setGrossSkinsPoolInput(round.grossSkinsPool != null ? String(round.grossSkinsPool) : '');
+    setNetSkinsPoolInput(round.netSkinsPool != null ? String(round.netSkinsPool) : '');
+    setSkinsPoolInitialized(true);
+  }, [round, skinsPoolInitialized]);
 
   if (!round) return null;
 
@@ -97,6 +121,26 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
       setMatchupsDirty(false);
     } catch {
       setError('Failed to save matchups.');
+    }
+  }
+
+  const skinsPoolDirty =
+    grossSkinsPool !== (round.grossSkinsPool != null ? String(round.grossSkinsPool) : '') ||
+    netSkinsPool !== (round.netSkinsPool != null ? String(round.netSkinsPool) : '');
+
+  async function saveSkinsPool() {
+    setError(null);
+    if ((grossSkinsPool && Number(grossSkinsPool) < 0) || (netSkinsPool && Number(netSkinsPool) < 0)) {
+      setError('Skins pool amounts cannot be negative.');
+      return;
+    }
+    try {
+      await setSkinsPool.mutateAsync({
+        grossSkinsPool: grossSkinsPool ? Number(grossSkinsPool) : null,
+        netSkinsPool: netSkinsPool ? Number(netSkinsPool) : null,
+      });
+    } catch {
+      setError('Failed to save the skins pool.');
     }
   }
 
@@ -156,6 +200,49 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
                 ))}
               </select>
             </FormField>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Gross Skins Pool ($)">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={grossSkinsPool}
+                  onChange={(e) => setGrossSkinsPoolInput(e.target.value)}
+                  className={inputClass}
+                  placeholder="Optional"
+                  disabled={skinsPoolLocked}
+                />
+              </FormField>
+              <FormField label="Net Skins Pool ($)">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={netSkinsPool}
+                  onChange={(e) => setNetSkinsPoolInput(e.target.value)}
+                  className={inputClass}
+                  placeholder="Optional"
+                  disabled={skinsPoolLocked}
+                />
+              </FormField>
+            </div>
+            {skinsPoolLocked ? (
+              <p className="text-xs text-gray-400">Skins pools are locked once the round is finalized.</p>
+            ) : (
+              <div className="flex items-center justify-end gap-2">
+                {skinsPoolDirty && <span className="text-xs text-amber-600">Unsaved changes</span>}
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={saveSkinsPool}
+                  disabled={!skinsPoolDirty || setSkinsPool.isPending}
+                >
+                  {setSkinsPool.isPending ? 'Saving…' : 'Save Skins Pool'}
+                </Button>
+              </div>
+            )}
 
             {availablePlayers.length > 0 && (
               <select

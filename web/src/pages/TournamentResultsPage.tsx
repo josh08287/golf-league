@@ -70,7 +70,15 @@ function SkinsPanel({ skins }: { skins: TournamentSkinsResult }) {
   const label = skins.skinType === 'Gross' ? 'Gross Skins' : 'Net Skins';
   return (
     <div>
-      <h3 className="mb-2 text-base font-semibold text-gray-700">{label}</h3>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-base font-semibold text-gray-700">{label}</h3>
+        {skins.poolAmount != null && (
+          <span className="text-sm text-gray-500">
+            Pool: ${skins.poolAmount.toFixed(2)}
+            {skins.perSkinPayout != null && ` ($${skins.perSkinPayout.toFixed(2)}/skin)`}
+          </span>
+        )}
+      </div>
       {skins.holeResults.length === 0 ? (
         <p className="text-sm text-gray-400 italic">No scores submitted yet.</p>
       ) : (
@@ -109,6 +117,7 @@ function SkinsPanel({ skins }: { skins: TournamentSkinsResult }) {
                     <span className="font-medium text-amber-800">{ps.playerName}</span>
                     <span className="text-amber-600">
                       {ps.totalSkinsWon} skin{ps.totalSkinsWon !== 1 ? 's' : ''} ({ps.totalSkinValue} pts)
+                      {ps.payoutAmount != null && ` — $${ps.payoutAmount.toFixed(2)}`}
                     </span>
                   </div>
                 ))}

@@ -158,6 +158,8 @@ export interface Round {
   roundType: RoundType;
   participantCount: number;
   longestDriveHoleNumber: number | null;
+  grossSkinsPool: number | null;
+  netSkinsPool: number | null;
 }
 
 export interface Participant {
@@ -894,12 +896,15 @@ export interface TournamentPlayerSkin {
   totalSkinsWon: number;
   totalSkinValue: number;
   holesWon: TournamentSkinHole[];
+  payoutAmount: number | null;
 }
 
 export interface TournamentSkinsResult {
   skinType: string;
   holeResults: TournamentSkinHole[];
   playerSummaries: TournamentPlayerSkin[];
+  poolAmount: number | null;
+  perSkinPayout: number | null;
 }
 
 export interface TournamentHoleExtra {

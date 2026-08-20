@@ -372,6 +372,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasMaxLength(20)
                   .HasDefaultValue(RoundType.NineHole);
             entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.Property(e => e.GrossSkinsPool).HasPrecision(10, 2);
+            entity.Property(e => e.NetSkinsPool).HasPrecision(10, 2);
             entity.HasOne<League>()
                   .WithMany()
                   .HasForeignKey(e => e.LeagueId)

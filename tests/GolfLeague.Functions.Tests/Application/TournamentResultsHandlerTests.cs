@@ -125,6 +125,56 @@ public class TournamentResultsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_SkinsPoolConfigured_SplitsEvenlyAcrossSkinsWon()
+    {
+        // Two holes, two different winners — $100 gross pool / 2 skins = $50/skin.
+        var alice = MakeParticipant(1, "Alice", holes: [MakeHole(1, gross: 3, net: 4), MakeHole(2, gross: 5, net: 4)]);
+        var bob = MakeParticipant(2, "Bob", holes: [MakeHole(1, gross: 4, net: 3), MakeHole(2, gross: 3, net: 4)]);
+
+        var round = MakeRound();
+        round.GrossSkinsPool = 100m;
+        round.NetSkinsPool = null;
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        result.Value!.GrossSkins.PoolAmount.Should().Be(100m);
+        result.Value!.GrossSkins.PerSkinPayout.Should().Be(50m);
+        result.Value!.GrossSkins.PlayerSummaries.Single(p => p.PlayerId == 1).PayoutAmount.Should().Be(50m); // Alice: 1 skin
+        result.Value!.GrossSkins.PlayerSummaries.Single(p => p.PlayerId == 2).PayoutAmount.Should().Be(50m); // Bob: 1 skin
+
+        // Net pool wasn't configured — no payout, but skins are still tracked.
+        result.Value!.NetSkins.PoolAmount.Should().BeNull();
+        result.Value!.NetSkins.PerSkinPayout.Should().BeNull();
+        result.Value!.NetSkins.PlayerSummaries.Should().OnlyContain(p => p.PayoutAmount == null);
+    }
+
+    [Fact]
+    public async Task Handle_SkinsPoolConfigured_NoSkinsWon_LeavesPayoutNull()
+    {
+        // Every hole ties — carryover accrues but nobody wins a skin, so a
+        // configured pool shouldn't produce a divide-by-zero payout.
+        var alice = MakeParticipant(1, "Alice", holes: MakeHole(1, gross: 4, net: 4));
+        var bob = MakeParticipant(2, "Bob", holes: MakeHole(1, gross: 4, net: 4));
+
+        var round = MakeRound();
+        round.GrossSkinsPool = 50m;
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        result.Value!.GrossSkins.PoolAmount.Should().Be(50m);
+        result.Value!.GrossSkins.PerSkinPayout.Should().BeNull();
+        result.Value!.GrossSkins.PlayerSummaries.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Handle_SkinsTie_CarriesOverAndMarksIsTie()
     {
         var alice = MakeParticipant(1, "Alice", holes: [MakeHole(1, gross: 4, net: 4), MakeHole(2, gross: 3, net: 3)]);

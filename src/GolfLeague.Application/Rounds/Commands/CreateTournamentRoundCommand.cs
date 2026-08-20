@@ -23,7 +23,9 @@ public sealed record CreateTournamentRoundCommand(
     List<MatchupInput>? Matchups,
     string? Notes,
     string UserId,
-    int? LongestDriveHoleNumber = null) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
+    int? LongestDriveHoleNumber = null,
+    decimal? GrossSkinsPool = null,
+    decimal? NetSkinsPool = null) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Round";
     public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
@@ -83,6 +85,9 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         if (request.PlayerIds.Count < 2)
             return Result<TournamentRoundDto>.Fail("A tournament round requires at least 2 players.");
 
+        if (request.GrossSkinsPool is < 0 || request.NetSkinsPool is < 0)
+            return Result<TournamentRoundDto>.Fail("Skins pool amounts cannot be negative.");
+
         var season = await _seasonRepository.GetByIdAsync(request.SeasonId, cancellationToken);
         if (season is null)
             return Result<TournamentRoundDto>.Fail($"Season with ID {request.SeasonId} not found.");
@@ -123,6 +128,8 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             RoundType = RoundType.Tournament,
             Notes = request.Notes,
             LongestDriveHoleNumber = request.LongestDriveHoleNumber,
+            GrossSkinsPool = request.GrossSkinsPool,
+            NetSkinsPool = request.NetSkinsPool,
         };
 
         await _roundRepository.AddAsync(round, cancellationToken);

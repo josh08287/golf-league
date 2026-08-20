@@ -121,6 +121,8 @@ export interface CreateTournamentRoundPayload {
   matchups?: MatchupInput[];
   notes?: string;
   longestDriveHoleNumber?: number;
+  grossSkinsPool?: number;
+  netSkinsPool?: number;
 }
 
 export function useCreateTournamentRound() {
@@ -167,6 +169,23 @@ export function useSetTournamentLongestDriveHole(roundId: string) {
   return useMutation({
     mutationFn: (holeNumber: number | null) =>
       apiClient.put(`/tournament-rounds/${roundId}/longest-drive-hole`, { holeNumber }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
+export interface SkinsPoolPayload {
+  grossSkinsPool: number | null;
+  netSkinsPool: number | null;
+}
+
+export function useSetTournamentSkinsPool(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: SkinsPoolPayload) =>
+      apiClient.put(`/tournament-rounds/${roundId}/skins-pool`, payload).then((r) => r.data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });

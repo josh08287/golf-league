@@ -24,12 +24,15 @@ public sealed record TournamentPlayerSkinDto(
     string PlayerName,
     int TotalSkinsWon,
     int TotalSkinValue,
-    List<TournamentSkinHoleDto> HolesWon);
+    List<TournamentSkinHoleDto> HolesWon,
+    decimal? PayoutAmount);
 
 public sealed record TournamentSkinsResultDto(
     string SkinType,
     List<TournamentSkinHoleDto> HoleResults,
-    List<TournamentPlayerSkinDto> PlayerSummaries);
+    List<TournamentPlayerSkinDto> PlayerSummaries,
+    decimal? PoolAmount,
+    decimal? PerSkinPayout);
 
 public sealed record TournamentMatchupResultDto(
     int MatchupNumber,
@@ -153,8 +156,8 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any())
             .ToList();
 
-        var grossSkins = CalculateSkins(active, useNet: false);
-        var netSkins = CalculateSkins(active, useNet: true);
+        var grossSkins = CalculateSkins(active, useNet: false, round.GrossSkinsPool);
+        var netSkins = CalculateSkins(active, useNet: true, round.NetSkinsPool);
         // Course Handicap is known at tee-off regardless of scoring, so look matchup
         // players up in the full roster (not `active`, which requires a submitted
         // score) — otherwise CH shows as 0 for every matchup until scores start.
@@ -225,7 +228,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         return Result<TournamentResultsDto>.Ok(result);
     }
 
-    private static TournamentSkinsResultDto CalculateSkins(List<RoundParticipant> participants, bool useNet)
+    private static TournamentSkinsResultDto CalculateSkins(List<RoundParticipant> participants, bool useNet, decimal? poolAmount)
     {
         var skinType = useNet ? "Net" : "Gross";
         var holeNumbers = participants
@@ -283,14 +286,21 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             }
         }
 
+        var totalSkinsWon = playerAccumulators.Values.Sum(a => a.TotalSkinsWon);
+        var perSkinPayout = poolAmount is decimal pool && totalSkinsWon > 0
+            ? pool / totalSkinsWon
+            : (decimal?)null;
+
         var playerSummaries = playerAccumulators.Values
             .Where(a => a.TotalSkinsWon > 0)
             .OrderByDescending(a => a.TotalSkinValue)
             .ThenByDescending(a => a.TotalSkinsWon)
-            .Select(a => new TournamentPlayerSkinDto(a.PlayerId, a.PlayerName, a.TotalSkinsWon, a.TotalSkinValue, a.HolesWon))
+            .Select(a => new TournamentPlayerSkinDto(
+                a.PlayerId, a.PlayerName, a.TotalSkinsWon, a.TotalSkinValue, a.HolesWon,
+                perSkinPayout is decimal perSkin ? perSkin * a.TotalSkinsWon : null))
             .ToList();
 
-        return new TournamentSkinsResultDto(skinType, holeResults, playerSummaries);
+        return new TournamentSkinsResultDto(skinType, holeResults, playerSummaries, poolAmount, perSkinPayout);
     }
 
     private static List<TournamentMatchupResultDto> CalculateMatchupResults(

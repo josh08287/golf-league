@@ -14,4 +14,6 @@ public sealed record RoundDto(
     NineHoleSide NineHoleSide,
     RoundType RoundType,
     int ParticipantCount,
-    int? LongestDriveHoleNumber);
+    int? LongestDriveHoleNumber,
+    decimal? GrossSkinsPool,
+    decimal? NetSkinsPool);

@@ -48,6 +48,8 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const [roundDate, setRoundDate] = useState('');
   const [notes, setNotes] = useState('');
   const [longestDriveHoleNumber, setLongestDriveHoleNumber] = useState('');
+  const [grossSkinsPool, setGrossSkinsPool] = useState('');
+  const [netSkinsPool, setNetSkinsPool] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -132,6 +134,10 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
       setError('Select at least 2 players.');
       return;
     }
+    if ((grossSkinsPool && Number(grossSkinsPool) < 0) || (netSkinsPool && Number(netSkinsPool) < 0)) {
+      setError('Skins pool amounts cannot be negative.');
+      return;
+    }
 
     const season = activeSeason;
     if (!season) {
@@ -148,6 +154,8 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
         matchups: matchups.length > 0 ? matchups : undefined,
         notes: notes || undefined,
         longestDriveHoleNumber: longestDriveHoleNumber ? Number(longestDriveHoleNumber) : undefined,
+        grossSkinsPool: grossSkinsPool ? Number(grossSkinsPool) : undefined,
+        netSkinsPool: netSkinsPool ? Number(netSkinsPool) : undefined,
       });
       onSuccess(result.round?.id ?? 0);
     } catch {
@@ -229,6 +237,32 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
           Players record the longest-drive winner for their flight during score entry on this hole.
         </p>
       </FormField>
+
+      {/* Skins Pools */}
+      <div className="grid grid-cols-2 gap-3">
+        <FormField label="Gross Skins Pool ($)">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={grossSkinsPool}
+            onChange={(e) => setGrossSkinsPool(e.target.value)}
+            className={inputClass}
+            placeholder="Optional"
+          />
+        </FormField>
+        <FormField label="Net Skins Pool ($)">
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={netSkinsPool}
+            onChange={(e) => setNetSkinsPool(e.target.value)}
+            className={inputClass}
+            placeholder="Optional"
+          />
+        </FormField>
+      </div>
 
       {/* Player Selection */}
       <div>

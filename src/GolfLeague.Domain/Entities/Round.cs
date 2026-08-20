@@ -24,6 +24,20 @@ public class Round
     public int? LongestDriveHoleNumber { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: the dollar pool paid out across all gross
+    /// skins won this round, split evenly per skin (pool / total skins won).
+    /// Null when no gross skins game is being run.
+    /// </summary>
+    public decimal? GrossSkinsPool { get; set; }
+
+    /// <summary>
+    /// Tournament rounds only: the dollar pool paid out across all net
+    /// skins won this round, split evenly per skin (pool / total skins won).
+    /// Null when no net skins game is being run.
+    /// </summary>
+    public decimal? NetSkinsPool { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.
