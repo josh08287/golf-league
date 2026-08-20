@@ -120,6 +120,7 @@ export interface CreateTournamentRoundPayload {
   playerIds: number[];
   matchups?: MatchupInput[];
   notes?: string;
+  longestDriveHoleNumber?: number;
 }
 
 export function useCreateTournamentRound() {
@@ -161,6 +162,18 @@ export function useSaveTournamentExtras(roundId: string) {
   });
 }
 
+export function useSetTournamentLongestDriveHole(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (holeNumber: number | null) =>
+      apiClient.put(`/tournament-rounds/${roundId}/longest-drive-hole`, { holeNumber }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
 export function useAddTournamentParticipants(roundId: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -187,13 +200,3 @@ export function useRemoveTournamentParticipant(roundId: string) {
   });
 }
 
-export function useSetLongestDriveWinners(roundId: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (playerIds: number[]) =>
-      apiClient.put(`/tournament-rounds/${roundId}/longest-drive`, { playerIds }).then((r) => r.data),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
-    },
-  });
-}

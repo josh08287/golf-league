@@ -73,6 +73,8 @@ public class TournamentResultsHandlerTests
                 .ReturnsAsync(new List<TournamentMatchup>());
             Rounds.Setup(r => r.GetTournamentHoleExtrasAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<TournamentHoleExtra>());
+            Rounds.Setup(r => r.GetTournamentFlightsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<TournamentFlight>());
             Rounds.Setup(r => r.GetLongestDriveWinnersAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<TournamentLongestDriveWinner>());
         }
@@ -297,13 +299,16 @@ public class TournamentResultsHandlerTests
     public async Task Handle_LongestDriveWinnersAndHoleExtras_AreMappedThrough()
     {
         var alice = MakeParticipant(1, "Alice", holes: MakeHole(1, gross: 4, net: 4));
+        alice.TournamentFlightId = 900;
         var extra = new TournamentHoleExtra { HoleNumber = 3, RoundId = 1, ClosestToPinPlayerId = 1, ClosestToPinPlayer = alice.Player };
-        var ldWinner = new TournamentLongestDriveWinner { RoundId = 1, PlayerId = 1, Player = alice.Player };
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+        var ldWinner = new TournamentLongestDriveWinner { RoundId = 1, TournamentFlightId = 900, PlayerId = 1, Player = alice.Player };
 
         var m = new Mocks();
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice });
         m.Rounds.Setup(r => r.GetTournamentHoleExtrasAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentHoleExtra> { extra });
+        m.Rounds.Setup(r => r.GetTournamentFlightsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
         m.Rounds.Setup(r => r.GetLongestDriveWinnersAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentLongestDriveWinner> { ldWinner });
 
         var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);

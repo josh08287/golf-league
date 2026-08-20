@@ -157,6 +157,7 @@ export interface Round {
   nineHoleSide: NineHoleSide;
   roundType: RoundType;
   participantCount: number;
+  longestDriveHoleNumber: number | null;
 }
 
 export interface Participant {
@@ -529,6 +530,19 @@ export interface TeeTimePlayerScore {
   totalNetStrokes: number | null;
   totalGrossStablefordPoints: number | null;
   totalNetStablefordPoints: number | null;
+  tournamentFlightId: number | null;
+  tournamentFlightName: string | null;
+}
+
+export interface TeeTimeCtpHole {
+  holeNumber: number;
+  winnerPlayerId: number | null;
+}
+
+export interface TeeTimeLongestDriveFlight {
+  tournamentFlightId: number;
+  flightName: string;
+  winnerPlayerId: number | null;
 }
 
 export interface TeeTimeGroupScorecard {
@@ -537,12 +551,16 @@ export interface TeeTimeGroupScorecard {
   courseName: string;
   courseId: number;
   nineHoleSide: NineHoleSide;
+  roundType: RoundType;
   roundStatus: RoundStatus;
   teeTimeId: number;
   scheduledTimeFormatted: string; // "HH:mm"
   teeTimeNumber: number;
+  longestDriveHoleNumber: number | null;
   holes: TeeTimeHoleInfo[];
   players: TeeTimePlayerScore[];
+  tournamentCtp: TeeTimeCtpHole[];
+  tournamentLongestDrive: TeeTimeLongestDriveFlight[];
 }
 
 export interface TeeTimeGroupScoresResult {
@@ -919,8 +937,17 @@ export interface TournamentRankingEntry {
 }
 
 export interface LongestDriveWinner {
-  playerId: number;
-  playerName: string;
+  tournamentFlightId: number;
+  flightName: string;
+  playerId: number | null;
+  playerName: string | null;
+}
+
+export interface TournamentFlight {
+  id: number;
+  flightNumber: number;
+  name: string;
+  playerIds: number[];
 }
 
 export interface TournamentResults {
@@ -931,7 +958,9 @@ export interface TournamentResults {
   grossSkins: TournamentSkinsResult;
   netSkins: TournamentSkinsResult;
   holeExtras: TournamentHoleExtra[];
+  longestDriveHoleNumber: number | null;
   longestDriveWinners: LongestDriveWinner[];
+  flights: TournamentFlight[];
   matchupResults: TournamentMatchupResult[];
   grossStrokeRanking: TournamentRankingEntry[];
   netStrokeRanking: TournamentRankingEntry[];

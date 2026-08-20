@@ -17,6 +17,13 @@ public class Round
     public string? Notes { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: the hole (never a par 3) the admin designated
+    /// for the longest-drive award. Null until configured; longest-drive
+    /// selection is unavailable until it's set.
+    /// </summary>
+    public int? LongestDriveHoleNumber { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.
@@ -47,6 +54,7 @@ public class Round
     public SeasonHalf? Half { get; set; }
     public Course Course { get; set; } = null!;
     public ICollection<RoundParticipant> Participants { get; set; } = [];
+    public ICollection<TournamentFlight> TournamentFlights { get; set; } = [];
     public ICollection<TournamentMatchup> TournamentMatchups { get; set; } = [];
     public ICollection<TournamentHoleExtra> TournamentHoleExtras { get; set; } = [];
     public ICollection<TournamentLongestDriveWinner> TournamentLongestDriveWinners { get; set; } = [];

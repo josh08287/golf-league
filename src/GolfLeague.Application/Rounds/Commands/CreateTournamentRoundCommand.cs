@@ -22,7 +22,8 @@ public sealed record CreateTournamentRoundCommand(
     List<int> PlayerIds,
     List<MatchupInput>? Matchups,
     string? Notes,
-    string UserId) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
+    string UserId,
+    int? LongestDriveHoleNumber = null) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Round";
     public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
@@ -94,6 +95,15 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         if (courseHoles.Count < 18)
             return Result<TournamentRoundDto>.Fail("Tournament rounds require a course with all 18 holes configured.");
 
+        if (request.LongestDriveHoleNumber is int ldHole)
+        {
+            var ldHoleEntity = courseHoles.FirstOrDefault(h => h.HoleNumber == ldHole);
+            if (ldHoleEntity is null)
+                return Result<TournamentRoundDto>.Fail($"Hole {ldHole} was not found for this course.");
+            if (ldHoleEntity.Par == 3)
+                return Result<TournamentRoundDto>.Fail("The longest-drive hole cannot be a par 3.");
+        }
+
         // Tournament rounds are numbered within the season across all tournament rounds
         var existingTournamentRounds = (await _roundRepository.GetBySeasonAsync(request.SeasonId, cancellationToken))
             .Where(r => r.RoundType == RoundType.Tournament)
@@ -112,6 +122,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             NineHoleSide = NineHoleSide.NotApplicable,
             RoundType = RoundType.Tournament,
             Notes = request.Notes,
+            LongestDriveHoleNumber = request.LongestDriveHoleNumber,
         };
 
         await _roundRepository.AddAsync(round, cancellationToken);

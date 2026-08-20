@@ -127,6 +127,43 @@ export function useSaveTeeTimeHoleScores(teeTimeId: number | null) {
 }
 
 /**
+ * Records (or clears) the closest-to-pin winner for a par-3 hole of a
+ * tournament round, on behalf of the caller's tee-time group. Saved
+ * immediately — call directly from the picker's onChange, not behind a
+ * separate Save button, so the leaderboard stays live.
+ */
+export function useSetTeeTimeTournamentCtp(teeTimeId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ holeNumber, winnerPlayerId }: { holeNumber: number; winnerPlayerId: number | null }) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      await apiClient.put(`/tee-times/${teeTimeId}/tournament-ctp/${holeNumber}`, { winnerPlayerId });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+    },
+  });
+}
+
+/**
+ * Records (or clears) the longest-drive winner for a tournament flight, on
+ * the round's configured hole, on behalf of the caller's tee-time group.
+ * Saved immediately, same as CTP.
+ */
+export function useSetTeeTimeTournamentLongestDrive(teeTimeId: number | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ tournamentFlightId, winnerPlayerId }: { tournamentFlightId: number; winnerPlayerId: number | null }) => {
+      if (teeTimeId == null) throw new Error('teeTimeId required');
+      await apiClient.put(`/tee-times/${teeTimeId}/tournament-longest-drive/${tournamentFlightId}`, { winnerPlayerId });
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+    },
+  });
+}
+
+/**
  * Uploads a scorecard photo and returns OCR'd per-player hole scores for the
  * user to confirm/edit. The image is processed in memory server-side and
  * never persisted — nothing to clean up here once the request completes.

@@ -45,6 +45,14 @@ public class RoundParticipant
     public int? SubstituteForParticipantId { get; set; }
     public RoundParticipant? SubstituteForParticipant { get; set; }
 
+    /// <summary>
+    /// Tournament rounds only: the handicap-based flight this participant
+    /// was auto-grouped into, used to scope the longest-drive award. Null
+    /// for non-tournament rounds.
+    /// </summary>
+    public int? TournamentFlightId { get; set; }
+    public TournamentFlight? TournamentFlight { get; set; }
+
     public Round Round { get; set; } = null!;
     public Player Player { get; set; } = null!;
     public Flight? Flight { get; set; }

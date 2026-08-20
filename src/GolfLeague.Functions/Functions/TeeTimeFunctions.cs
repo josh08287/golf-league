@@ -480,6 +480,64 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
+    /// PUT /v1/tee-times/{id}/tournament-ctp/{holeNumber} — Records (or
+    /// clears) the closest-to-pin winner for a par-3 hole, on behalf of the
+    /// caller's tournament round tee-time group. Saved immediately.
+    /// </summary>
+    [Function("SetTeeTimeTournamentCtp")]
+    public async Task<IActionResult> SetTournamentCtp(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{id:int}/tournament-ctp/{holeNumber:int}")] HttpRequest req,
+        int id,
+        int holeNumber,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetTournamentCtpRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var command = new SetTeeTimeTournamentCtpCommand(id, playerId.Value, holeNumber, body.WinnerPlayerId, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+        return result.ToOkResult();
+    }
+
+    /// <summary>
+    /// PUT /v1/tee-times/{id}/tournament-longest-drive/{tournamentFlightId} —
+    /// Records (or clears) the longest-drive winner for a tournament flight,
+    /// on behalf of the caller's tee-time group. Saved immediately.
+    /// </summary>
+    [Function("SetTeeTimeTournamentLongestDrive")]
+    public async Task<IActionResult> SetTournamentLongestDrive(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{id:int}/tournament-longest-drive/{tournamentFlightId:int}")] HttpRequest req,
+        int id,
+        int tournamentFlightId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetTournamentLongestDriveRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var command = new SetTeeTimeTournamentLongestDriveCommand(id, playerId.Value, tournamentFlightId, body.WinnerPlayerId, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+        return result.ToOkResult();
+    }
+
+    /// <summary>
     /// POST /v1/tee-times/{id}/scorecard-ocr — Parses an uploaded scorecard
     /// photo (multipart/form-data, field name "image") into per-player hole
     /// scores for the caller to confirm/edit. Read entirely into memory and
@@ -544,6 +602,8 @@ public sealed class TeeTimeFunctions
     private sealed record ConfirmedOverwriteDto(int PlayerId, int HoleNumber);
     private sealed record SubmitTeeTimeGroupScoresRequest(List<PlayerScoreInputDto>? PlayerScores, List<ConfirmedOverwriteDto>? ConfirmedOverwrites = null);
     private sealed record SaveHoleScoresRequest(List<PlayerScoreInputDto>? PlayerScores, List<ConfirmedOverwriteDto>? ConfirmedOverwrites = null);
+    private sealed record SetTournamentCtpRequest(int? WinnerPlayerId);
+    private sealed record SetTournamentLongestDriveRequest(int? WinnerPlayerId);
 
     /// <summary>
     /// POST /v1/admin/rounds/{roundId}/tee-times/{teeTimeId}/participants/{participantId}

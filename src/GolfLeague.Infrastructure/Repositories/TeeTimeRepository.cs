@@ -29,6 +29,7 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
             .Include(t => t.Participants).ThenInclude(p => p.Player)
             .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Season)
             .Include(t => t.Participants).ThenInclude(p => p.Flight).ThenInclude(f => f!.Half)
+            .Include(t => t.Participants).ThenInclude(p => p.TournamentFlight)
             .FirstOrDefaultAsync(t => t.Id == teeTimeId, cancellationToken);
 
     public async Task<IReadOnlyList<RoundTeeTime>> EnsureSlotsAsync(int roundId, int count, CancellationToken cancellationToken = default)

@@ -6,11 +6,13 @@ import { usePlayers, useSubstitutes } from '../../hooks/usePlayers';
 import {
   useAddTournamentParticipants,
   useRemoveTournamentParticipant,
+  useSetTournamentLongestDriveHole,
 } from '../../hooks/admin/useRoundMutations';
+import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { Modal } from './Modal';
 import { Button } from '../ui/Button';
 import { Spinner } from '../ui/Spinner';
-import { selectClass } from './FormField';
+import { FormField, selectClass } from './FormField';
 import type { Participant, Round } from '../../types/api';
 
 interface ManageTournamentPlayersModalProps {
@@ -38,11 +40,26 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
 
   const addParticipants = useAddTournamentParticipants(roundId);
   const removeParticipant = useRemoveTournamentParticipant(roundId);
+  const setLongestDriveHole = useSetTournamentLongestDriveHole(roundId);
+
+  const { data: course } = useCourseDetail(round?.courseId);
+  const nonPar3Holes = (course?.holeDetails ?? [])
+    .filter((h) => h.par !== 3)
+    .sort((a, b) => a.holeNumber - b.holeNumber);
 
   if (!round) return null;
 
   const currentPlayerIds = new Set((participants ?? []).map((p) => p.playerId));
   const availablePlayers = allPlayers.filter((p) => !currentPlayerIds.has(p.id));
+
+  async function changeLongestDriveHole(value: string) {
+    setError(null);
+    try {
+      await setLongestDriveHole.mutateAsync(value === '' ? null : Number(value));
+    } catch {
+      setError('Failed to update the longest-drive hole.');
+    }
+  }
 
   async function addPlayer(playerId: number) {
     setError(null);
@@ -76,6 +93,22 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
           </div>
         ) : (
           <>
+            <FormField label="Longest Drive Hole">
+              <select
+                value={round.longestDriveHoleNumber ?? ''}
+                onChange={(e) => changeLongestDriveHole(e.target.value)}
+                className={selectClass}
+                disabled={setLongestDriveHole.isPending}
+              >
+                <option value="">— None —</option>
+                {nonPar3Holes.map((h) => (
+                  <option key={h.holeNumber} value={h.holeNumber}>
+                    Hole {h.holeNumber} (Par {h.par})
+                  </option>
+                ))}
+              </select>
+            </FormField>
+
             {availablePlayers.length > 0 && (
               <select
                 className={selectClass}

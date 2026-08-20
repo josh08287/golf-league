@@ -36,6 +36,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
+    public DbSet<TournamentFlight> TournamentFlights => Set<TournamentFlight>();
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
     public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
@@ -66,6 +67,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureHoleTeeBoxes(modelBuilder);
         ConfigureRounds(modelBuilder);
         ConfigureRoundParticipants(modelBuilder);
+        ConfigureTournamentFlights(modelBuilder);
         ConfigureTournamentMatchups(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
         ConfigureTournamentLongestDriveWinners(modelBuilder);
@@ -409,6 +411,14 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.FlightId)
                   .IsRequired(false)
                   .OnDelete(DeleteBehavior.Restrict);
+            // Tournament flight: nullable, SetNull on delete so deleting the
+            // flight rows during a re-group (see TournamentFoursomeService)
+            // never fails or cascades into the participant itself.
+            entity.HasOne(e => e.TournamentFlight)
+                  .WithMany(f => f.Participants)
+                  .HasForeignKey(e => e.TournamentFlightId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.SetNull);
             // Tee-time link: nullable, SetNull on delete so deleting a tee
             // time (e.g. admin regenerating the schedule) clears assignments
             // rather than wiping the participant rows.
@@ -431,6 +441,21 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
             entity.HasIndex(e => new { e.RoundId, e.FlightId });
             entity.HasIndex(e => e.TeeTimeId);
+            entity.HasIndex(e => e.TournamentFlightId);
+        });
+    }
+
+    private static void ConfigureTournamentFlights(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TournamentFlight>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(50);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.TournamentFlights)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.RoundId, e.FlightNumber }).IsUnique();
         });
     }
 
@@ -485,11 +510,20 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany(r => r.TournamentLongestDriveWinners)
                   .HasForeignKey(e => e.RoundId)
                   .OnDelete(DeleteBehavior.Cascade);
+            // NoAction (not Cascade) to avoid SQL Server's multiple-cascade-
+            // path error, since TournamentFlight already cascades from Round.
+            // Winners are explicitly cleared before flights are replaced by
+            // TournamentFoursomeService, so this path never needs to fire.
+            entity.HasOne(e => e.TournamentFlight)
+                  .WithMany()
+                  .HasForeignKey(e => e.TournamentFlightId)
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasOne(e => e.Player)
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
-            entity.HasIndex(e => new { e.RoundId, e.PlayerId }).IsUnique();
+            // One winner per flight; "None yet" is the absence of a row.
+            entity.HasIndex(e => new { e.RoundId, e.TournamentFlightId }).IsUnique();
         });
     }
 

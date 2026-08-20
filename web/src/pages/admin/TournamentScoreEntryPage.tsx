@@ -10,10 +10,9 @@ import {
   Loader2,
   AlertCircle,
   Save,
-  X,
 } from 'lucide-react';
 import { useTournamentResults } from '@/hooks/useRounds';
-import { useSaveTournamentExtras, useSetLongestDriveWinners } from '@/hooks/admin/useRoundMutations';
+import { useSaveTournamentExtras } from '@/hooks/admin/useRoundMutations';
 import { useCourseDetail } from '@/hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { formatDate } from '@/lib/utils';
@@ -289,45 +288,6 @@ function PropAwardsEditor({
     }
   }
 
-  // ── LD state (multi-player, round-level) ──────────────────────────────────
-  const [ldPlayerIds, setLdPlayerIds] = useState<number[]>([]);
-  const [ldDirty, setLdDirty] = useState(false);
-  const [ldError, setLdError] = useState('');
-  const [ldPickerId, setLdPickerId] = useState<number | ''>('');
-  const saveLd = useSetLongestDriveWinners(roundId);
-
-  useEffect(() => {
-    setLdPlayerIds(results.longestDriveWinners.map((w) => w.playerId));
-    setLdDirty(false);
-  }, [results.longestDriveWinners]);
-
-  function addLdPlayer() {
-    if (ldPickerId === '' || ldPlayerIds.includes(Number(ldPickerId))) return;
-    setLdPlayerIds((prev) => [...prev, Number(ldPickerId)]);
-    setLdPickerId('');
-    setLdDirty(true);
-    setLdError('');
-  }
-
-  function removeLdPlayer(playerId: number) {
-    setLdPlayerIds((prev) => prev.filter((id) => id !== playerId));
-    setLdDirty(true);
-    setLdError('');
-  }
-
-  async function saveLd_() {
-    setLdError('');
-    try {
-      await saveLd.mutateAsync(ldPlayerIds);
-      setLdDirty(false);
-    } catch {
-      setLdError('Failed to save. Please try again.');
-    }
-  }
-
-  const ldPlayerMap = new Map(players.map((p) => [p.id, p.name]));
-  const ldAvailable = players.filter((p) => !ldPlayerIds.includes(p.id));
-
   const noScores = players.length === 0;
 
   return (
@@ -399,80 +359,33 @@ function PropAwardsEditor({
         )}
       </div>
 
-      {/* Longest Drive */}
+      {/* Longest Drive — read-only here; players record it live from their
+          tee-time score entry page (per flight, on the configured hole). */}
       <div className="space-y-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
           <Zap className="h-4 w-4 text-amber-500" />
           Longest Drive
         </h3>
-
-        {noScores ? (
+        {results.longestDriveHoleNumber === null ? (
           <p className="text-sm text-gray-400 italic">
-            No scores yet — enter scores first.
+            No longest-drive hole configured for this round.
+          </p>
+        ) : results.longestDriveWinners.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">
+            No winners recorded yet — players record this from hole {results.longestDriveHoleNumber} during score entry.
           </p>
         ) : (
-          <>
-            {/* Current winners as removable tags */}
-            <div className="min-h-[2.5rem] flex flex-wrap gap-2">
-              {ldPlayerIds.length === 0 && (
-                <span className="text-sm text-gray-400 italic">No winners recorded yet.</span>
-              )}
-              {ldPlayerIds.map((pid) => (
-                <span
-                  key={pid}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800"
-                >
-                  {ldPlayerMap.get(pid) ?? `Player ${pid}`}
-                  <button
-                    onClick={() => removeLdPlayer(pid)}
-                    className="ml-0.5 rounded-full p-0.5 hover:bg-amber-200 transition-colors"
-                    aria-label="Remove"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-
-            {/* Add player picker */}
-            {ldAvailable.length > 0 && (
-              <div className="flex items-center gap-2">
-                <select
-                  value={ldPickerId}
-                  onChange={(e) => setLdPickerId(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="flex-1 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
-                >
-                  <option value="">Add a player…</option>
-                  {ldAvailable.map((p) => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={ldPickerId === ''}
-                  onClick={addLdPlayer}
-                >
-                  Add
-                </Button>
-              </div>
-            )}
-
-            <div className="flex items-center gap-3">
-              <Button
-                variant="primary"
-                onClick={() => void saveLd_()}
-                disabled={!ldDirty || saveLd.isPending}
+          <ul className="space-y-1.5">
+            {results.longestDriveWinners.map((w) => (
+              <li
+                key={w.tournamentFlightId}
+                className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm"
               >
-                <Save className="mr-1.5 h-4 w-4" />
-                {saveLd.isPending ? 'Saving…' : 'Save Longest Drive'}
-              </Button>
-              {saveLd.isSuccess && !ldDirty && (
-                <span className="text-sm text-green-700">Saved.</span>
-              )}
-              {ldError && <span className="text-sm text-red-600">{ldError}</span>}
-            </div>
-          </>
+                <span className="font-medium text-gray-700">Flight {w.flightName}</span>
+                <span className="text-amber-800">{w.playerName ?? '—'}</span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

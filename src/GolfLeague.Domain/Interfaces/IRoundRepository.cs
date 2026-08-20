@@ -70,8 +70,15 @@ public interface IRoundRepository
     Task<IReadOnlyList<TournamentMatchup>> GetTournamentMatchupsAsync(int roundId, CancellationToken cancellationToken = default);
     Task UpsertTournamentHoleExtrasAsync(IEnumerable<TournamentHoleExtra> extras, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TournamentHoleExtra>> GetTournamentHoleExtrasAsync(int roundId, CancellationToken cancellationToken = default);
-    Task SetLongestDriveWinnersAsync(int roundId, IEnumerable<int> playerIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Sets (or clears, when playerId is null) the longest-drive winner for one tournament flight.</summary>
+    Task SetLongestDriveWinnerAsync(int roundId, int tournamentFlightId, int? playerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TournamentLongestDriveWinner>> GetLongestDriveWinnersAsync(int roundId, CancellationToken cancellationToken = default);
+
+    /// <summary>Replaces a tournament round's flights (used by the handicap-based auto-regroup). Deletes existing flights and their participant links first.</summary>
+    Task ReplaceTournamentFlightsAsync(int roundId, IEnumerable<TournamentFlight> flights, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TournamentFlight>> GetTournamentFlightsAsync(int roundId, CancellationToken cancellationToken = default);
+    Task SetParticipantTournamentFlightAsync(int participantId, int? tournamentFlightId, CancellationToken cancellationToken = default);
 
     // Closest to the pin (regular league rounds)
     Task SetClosestToPinWinnersAsync(int roundId, IEnumerable<(int HoleNumber, int PlayerId)> winners, CancellationToken cancellationToken = default);

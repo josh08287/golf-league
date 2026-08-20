@@ -18,6 +18,7 @@ import type {
   TournamentRankingEntry,
   TournamentHoleExtra,
   LongestDriveWinner,
+  TournamentFlight,
 } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -173,18 +174,41 @@ function HoleExtrasPanel({
         {ldWinners.length === 0 ? (
           <p className="text-sm text-gray-400 italic">Not recorded.</p>
         ) : (
-          <div className="flex flex-wrap gap-2">
+          <ul className="space-y-1.5">
             {ldWinners.map((w) => (
-              <span
-                key={w.playerId}
-                className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-800"
+              <li
+                key={w.tournamentFlightId}
+                className="flex items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm"
               >
-                {w.playerName}
-              </span>
+                <span className="font-medium text-gray-700">Flight {w.flightName}</span>
+                <span className="text-amber-800">{w.playerName ?? '—'}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+// ── Flights ───────────────────────────────────────────────────────────────────
+
+function FlightsPanel({ flights, rankings }: { flights: TournamentFlight[]; rankings: TournamentRankingEntry[] }) {
+  if (flights.length === 0) return null;
+  const nameById = new Map(rankings.map((r) => [r.playerId, r.playerName]));
+
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {flights.map((f) => (
+        <div key={f.id} className="rounded-lg border border-gray-200 p-3">
+          <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {f.name}</h4>
+          <ul className="space-y-0.5 text-sm text-gray-600">
+            {f.playerIds.map((pid) => (
+              <li key={pid}>{nameById.get(pid) ?? `Player ${pid}`}</li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -376,6 +400,14 @@ export function TournamentResultsPage() {
         <SectionTitle icon={Target} label="Closest to Pin & Longest Drive" />
         <HoleExtrasPanel extras={results.holeExtras} ldWinners={results.longestDriveWinners} />
       </section>
+
+      {/* Flights (longest-drive grouping) */}
+      {results.flights.length > 0 && (
+        <section>
+          <SectionTitle icon={Users} label="Flights" />
+          <FlightsPanel flights={results.flights} rankings={results.grossStrokeRanking} />
+        </section>
+      )}
 
       {/* Matchups */}
       {results.matchupResults.length > 0 && (

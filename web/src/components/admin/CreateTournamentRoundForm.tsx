@@ -6,6 +6,7 @@ import { useSeasons } from '../../hooks/useSeasons';
 import { usePlayers, useSubstitutes } from '../../hooks/usePlayers';
 import { useCreateTournamentRound } from '../../hooks/admin/useRoundMutations';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
+import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { api } from '../../lib/api';
 import { Button } from '../ui/Button';
 import { FormField, inputClass, selectClass } from './FormField';
@@ -46,10 +47,16 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const [courseId, setCourseId] = useState('');
   const [roundDate, setRoundDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [longestDriveHoleNumber, setLongestDriveHoleNumber] = useState('');
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [playersInitialized, setPlayersInitialized] = useState(false);
+
+  const { data: selectedCourse } = useCourseDetail(courseId || undefined);
+  const nonPar3Holes = (selectedCourse?.holeDetails ?? [])
+    .filter((h) => h.par !== 3)
+    .sort((a, b) => a.holeNumber - b.holeNumber);
 
   // Auto-generate default matchups whenever selected players change
   const regenerateMatchups = useCallback((players: SelectedPlayer[]) => {
@@ -140,6 +147,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
         playerIds: selectedPlayers.map((p) => p.id),
         matchups: matchups.length > 0 ? matchups : undefined,
         notes: notes || undefined,
+        longestDriveHoleNumber: longestDriveHoleNumber ? Number(longestDriveHoleNumber) : undefined,
       });
       onSuccess(result.round?.id ?? 0);
     } catch {
@@ -200,6 +208,26 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
           className={inputClass}
           placeholder="Optional"
         />
+      </FormField>
+
+      {/* Longest Drive Hole */}
+      <FormField label="Longest Drive Hole">
+        <select
+          value={longestDriveHoleNumber}
+          onChange={(e) => setLongestDriveHoleNumber(e.target.value)}
+          className={selectClass}
+          disabled={!courseId}
+        >
+          <option value="">— None —</option>
+          {nonPar3Holes.map((h) => (
+            <option key={h.holeNumber} value={h.holeNumber}>
+              Hole {h.holeNumber} (Par {h.par})
+            </option>
+          ))}
+        </select>
+        <p className="mt-1 text-xs text-gray-400">
+          Players record the longest-drive winner for their flight during score entry on this hole.
+        </p>
       </FormField>
 
       {/* Player Selection */}

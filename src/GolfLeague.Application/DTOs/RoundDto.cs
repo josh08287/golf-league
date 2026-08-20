@@ -13,4 +13,5 @@ public sealed record RoundDto(
     RoundStatus Status,
     NineHoleSide NineHoleSide,
     RoundType RoundType,
-    int ParticipantCount);
+    int ParticipantCount,
+    int? LongestDriveHoleNumber);

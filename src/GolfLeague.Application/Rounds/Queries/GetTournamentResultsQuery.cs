@@ -58,7 +58,9 @@ public sealed record TournamentRankingEntryDto(
     int? Score,
     bool IsTied);
 
-public sealed record LongestDriveWinnerDto(int PlayerId, string PlayerName);
+public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
+
+public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds);
 
 public sealed record TournamentResultsDto(
     int RoundId,
@@ -68,7 +70,9 @@ public sealed record TournamentResultsDto(
     TournamentSkinsResultDto GrossSkins,
     TournamentSkinsResultDto NetSkins,
     List<TournamentHoleExtraDto> HoleExtras,
+    int? LongestDriveHoleNumber,
     List<LongestDriveWinnerDto> LongestDriveWinners,
+    List<TournamentFlightDto> Flights,
     List<TournamentMatchupResultDto> MatchupResults,
     List<TournamentRankingEntryDto> GrossStrokeRanking,
     List<TournamentRankingEntryDto> NetStrokeRanking,
@@ -104,6 +108,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var participants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var matchups = await _roundRepository.GetTournamentMatchupsAsync(request.RoundId, cancellationToken);
         var holeExtras = await _roundRepository.GetTournamentHoleExtrasAsync(request.RoundId, cancellationToken);
+        var flights = await _roundRepository.GetTournamentFlightsAsync(request.RoundId, cancellationToken);
         var ldWinners = await _roundRepository.GetLongestDriveWinnersAsync(request.RoundId, cancellationToken);
 
         var active = participants
@@ -125,7 +130,22 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var grossStablefordRanking = BuildRanking(active, p => p.TotalGrossStablefordPoints, ascending: false);
         var netStablefordRanking = BuildRanking(active, p => p.TotalNetStablefordPoints, ascending: false);
 
-        var ldWinnerDtos = ldWinners.Select(w => new LongestDriveWinnerDto(w.PlayerId, w.Player.FullName)).ToList();
+        var flightDtos = flights
+            .Select(f => new TournamentFlightDto(
+                f.Id,
+                f.FlightNumber,
+                f.Name,
+                participants.Where(p => p.TournamentFlightId == f.Id).Select(p => p.PlayerId).ToList()))
+            .ToList();
+
+        var ldByFlight = ldWinners.ToDictionary(w => w.TournamentFlightId);
+        var ldWinnerDtos = flights
+            .Select(f =>
+            {
+                ldByFlight.TryGetValue(f.Id, out var winner);
+                return new LongestDriveWinnerDto(f.Id, f.Name, winner?.PlayerId, winner?.Player.FullName);
+            })
+            .ToList();
 
         var result = new TournamentResultsDto(
             round.Id,
@@ -135,7 +155,9 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             grossSkins,
             netSkins,
             extraDtos,
+            round.LongestDriveHoleNumber,
             ldWinnerDtos,
+            flightDtos,
             matchupResults,
             grossStrokeRanking,
             netStrokeRanking,

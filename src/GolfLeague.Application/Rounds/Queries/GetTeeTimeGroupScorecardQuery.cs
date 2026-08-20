@@ -24,7 +24,9 @@ public sealed record TeeTimePlayerScoreDto(
     int? TotalGrossStrokes,
     int? TotalNetStrokes,
     int? TotalGrossStablefordPoints,
-    int? TotalNetStablefordPoints);
+    int? TotalNetStablefordPoints,
+    int? TournamentFlightId,
+    string? TournamentFlightName);
 
 /// <summary>
 /// Score for a single hole (if entered).
@@ -44,6 +46,15 @@ public sealed record TeeTimeHoleScoreDto(
     int? LastModifiedByPlayerId,
     string? LastModifiedByPlayerName);
 
+/// <summary>Existing closest-to-pin winner (if any) for one par-3 hole, tournament rounds only.</summary>
+public sealed record TeeTimeCtpHoleDto(int HoleNumber, int? WinnerPlayerId);
+
+/// <summary>
+/// Existing longest-drive winner (if any) for one tournament flight
+/// represented in this tee-time group.
+/// </summary>
+public sealed record TeeTimeLongestDriveFlightDto(int TournamentFlightId, string FlightName, int? WinnerPlayerId);
+
 /// <summary>
 /// Complete scorecard for a tee time group including all players and their scores.
 /// </summary>
@@ -53,12 +64,16 @@ public sealed record TeeTimeGroupScorecardDto(
     string CourseName,
     int CourseId,
     NineHoleSide NineHoleSide,
+    RoundType RoundType,
     RoundStatus RoundStatus,
     int TeeTimeId,
     string ScheduledTimeFormatted,
     int TeeTimeNumber,
+    int? LongestDriveHoleNumber,
     List<CourseHoleInfoDto> Holes,
-    List<TeeTimePlayerScoreDto> Players);
+    List<TeeTimePlayerScoreDto> Players,
+    List<TeeTimeCtpHoleDto> TournamentCtp,
+    List<TeeTimeLongestDriveFlightDto> TournamentLongestDrive);
 
 /// <summary>
 /// Basic course hole information.
@@ -109,9 +124,13 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
 
         // Build hole info based on nine-hole side
         var allHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
-        var relevantHoles = round.NineHoleSide == NineHoleSide.Back
-            ? allHoles.Where(h => h.HoleNumber >= 10).OrderBy(h => h.HoleNumber).ToList()
-            : allHoles.Where(h => h.HoleNumber <= 9).OrderBy(h => h.HoleNumber).ToList();
+        var relevantHoles = round.NineHoleSide switch
+        {
+            NineHoleSide.Back => allHoles.Where(h => h.HoleNumber >= 10).OrderBy(h => h.HoleNumber).ToList(),
+            NineHoleSide.Front => allHoles.Where(h => h.HoleNumber <= 9).OrderBy(h => h.HoleNumber).ToList(),
+            // NotApplicable (18-hole rounds, e.g. tournaments) plays every hole.
+            _ => allHoles.OrderBy(h => h.HoleNumber).ToList(),
+        };
 
         // Normalize stroke indices to 1–9 rank within this nine so the frontend
         // can apply the same algorithm as StrokesOnHole(courseHandicap, strokeIndex, allIndices).
@@ -163,7 +182,42 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
                 participant.TotalGrossStrokes,
                 participant.TotalNetStrokes,
                 participant.TotalGrossStablefordPoints,
-                participant.TotalNetStablefordPoints));
+                participant.TotalNetStablefordPoints,
+                participant.TournamentFlightId,
+                participant.TournamentFlight?.Name));
+        }
+
+        var ctpDtos = new List<TeeTimeCtpHoleDto>();
+        var ldDtos = new List<TeeTimeLongestDriveFlightDto>();
+        if (round.RoundType == RoundType.Tournament)
+        {
+            var par3Holes = relevantHoles.Where(h => h.Par == 3).Select(h => h.HoleNumber).ToHashSet();
+            if (par3Holes.Count > 0)
+            {
+                var extras = await _roundRepository.GetTournamentHoleExtrasAsync(round.Id, cancellationToken);
+                var extrasByHole = extras.ToDictionary(e => e.HoleNumber);
+                ctpDtos = par3Holes
+                    .OrderBy(h => h)
+                    .Select(h => new TeeTimeCtpHoleDto(h, extrasByHole.TryGetValue(h, out var e) ? e.ClosestToPinPlayerId : null))
+                    .ToList();
+            }
+
+            var groupFlightIds = teeTime.Participants
+                .Where(p => p.TournamentFlightId.HasValue)
+                .Select(p => p.TournamentFlightId!.Value)
+                .Distinct()
+                .ToList();
+            if (groupFlightIds.Count > 0)
+            {
+                var flights = await _roundRepository.GetTournamentFlightsAsync(round.Id, cancellationToken);
+                var winners = await _roundRepository.GetLongestDriveWinnersAsync(round.Id, cancellationToken);
+                var winnersByFlight = winners.ToDictionary(w => w.TournamentFlightId);
+                ldDtos = flights
+                    .Where(f => groupFlightIds.Contains(f.Id))
+                    .OrderBy(f => f.FlightNumber)
+                    .Select(f => new TeeTimeLongestDriveFlightDto(f.Id, f.Name, winnersByFlight.TryGetValue(f.Id, out var w) ? w.PlayerId : null))
+                    .ToList();
+            }
         }
 
         var dto = new TeeTimeGroupScorecardDto(
@@ -172,12 +226,16 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
             course.Name,
             course.Id,
             round.NineHoleSide,
+            round.RoundType,
             round.Status,
             teeTime.Id,
             teeTime.ScheduledTime.ToString("HH:mm"),
             teeTime.TeeTimeNumber,
+            round.LongestDriveHoleNumber,
             holeDtos,
-            playerDtos);
+            playerDtos,
+            ctpDtos,
+            ldDtos);
 
         return Result<TeeTimeGroupScorecardDto>.Ok(dto);
     }

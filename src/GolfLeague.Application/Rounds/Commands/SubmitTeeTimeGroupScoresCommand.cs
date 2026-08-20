@@ -100,11 +100,16 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
 
         // Get course data
         var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
-        var relevantHoles = round.NineHoleSide == NineHoleSide.Back
-            ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
-            : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
+        var relevantHoles = round.NineHoleSide switch
+        {
+            NineHoleSide.Back => courseHoles.Where(h => h.HoleNumber >= 10).ToList(),
+            NineHoleSide.Front => courseHoles.Where(h => h.HoleNumber <= 9).ToList(),
+            // NotApplicable (18-hole rounds, e.g. tournaments) plays every hole.
+            _ => courseHoles.ToList(),
+        };
 
         var validHoleNumbers = relevantHoles.Select(h => h.HoleNumber).ToHashSet();
+        var expectedHoleCount = relevantHoles.Count;
 
         // Pre-pass: validate holes and detect conflicts across all participants
         // before writing anything (submit is atomic from the user's perspective).
@@ -130,9 +135,9 @@ public sealed class SubmitTeeTimeGroupScoresCommandHandler
                 .Select(h => h.HoleNumber)
                 .ToHashSet();
 
-            if (submittedHoleNumbers.Count != 9)
+            if (submittedHoleNumbers.Count != expectedHoleCount)
                 return Result<SubmitScoresOutcome>.Fail(
-                    $"Player {participant.Player.FullName}: Expected 9 holes, received {submittedHoleNumbers.Count}.");
+                    $"Player {participant.Player.FullName}: Expected {expectedHoleCount} holes, received {submittedHoleNumbers.Count}.");
 
             var invalidHoles = submittedHoleNumbers.Except(validHoleNumbers).ToList();
             if (invalidHoles.Count > 0)

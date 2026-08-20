@@ -48,6 +48,30 @@ public class TournamentParticipantManagementTests
         TeeTimeId = teeTimeId,
     };
 
+    /// <summary>
+    /// Builds a TournamentFoursomeService whose flight-regroup step is a
+    /// no-op: no season halves means ResolveFlightCountAsync falls back to
+    /// 1, and roundsForFlights.GetByIdAsync/ReplaceTournamentFlightsAsync/
+    /// GetTournamentFlightsAsync are wired just enough not to throw.
+    /// </summary>
+    private static TournamentFoursomeService MakeFoursomeService(Mock<ITeeTimeRepository> teeTimes, Round round, Mock<IRoundRepository>? rounds = null)
+    {
+        rounds ??= new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        rounds.Setup(r => r.ReplaceTournamentFlightsAsync(round.Id, It.IsAny<IEnumerable<TournamentFlight>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        rounds.Setup(r => r.GetTournamentFlightsAsync(round.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TournamentFlight> { new() { Id = 900, RoundId = round.Id, FlightNumber = 1, Name = "A" } });
+        rounds.Setup(r => r.SetParticipantTournamentFlightAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var flights = new Mock<IFlightRepository>();
+        flights.Setup(f => f.GetHalvesBySeasonAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<SeasonHalf>());
+
+        return new TournamentFoursomeService(teeTimes.Object, rounds.Object, flights.Object);
+    }
+
     [Fact]
     public async Task AddTournamentParticipants_Fails_WhenRoundInProgress()
     {
@@ -58,7 +82,7 @@ public class TournamentParticipantManagementTests
         var handicaps = new Mock<IHandicapRepository>();
         var teeTimes = new Mock<ITeeTimeRepository>();
 
-        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, new TournamentFoursomeService(teeTimes.Object));
+        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds));
 
         var result = await handler.Handle(new AddTournamentParticipantsCommand(round.Id, new List<int> { 2 }, "user1"), CancellationToken.None);
 
@@ -92,7 +116,7 @@ public class TournamentParticipantManagementTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, new TournamentFoursomeService(teeTimes.Object));
+        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds));
 
         var result = await handler.Handle(new AddTournamentParticipantsCommand(round.Id, new List<int> { 2 }, "user1"), CancellationToken.None);
 
@@ -109,7 +133,7 @@ public class TournamentParticipantManagementTests
         rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
         var teeTimes = new Mock<ITeeTimeRepository>();
 
-        var handler = new RemoveTournamentParticipantCommandHandler(rounds.Object, new TournamentFoursomeService(teeTimes.Object));
+        var handler = new RemoveTournamentParticipantCommandHandler(rounds.Object, MakeFoursomeService(teeTimes, round, rounds));
 
         var result = await handler.Handle(new RemoveTournamentParticipantCommand(round.Id, 1, "user1"), CancellationToken.None);
 
@@ -139,7 +163,7 @@ public class TournamentParticipantManagementTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new RemoveTournamentParticipantCommandHandler(rounds.Object, new TournamentFoursomeService(teeTimes.Object));
+        var handler = new RemoveTournamentParticipantCommandHandler(rounds.Object, MakeFoursomeService(teeTimes, round, rounds));
 
         var result = await handler.Handle(new RemoveTournamentParticipantCommand(round.Id, 1, "user1"), CancellationToken.None);
 
@@ -174,7 +198,8 @@ public class TournamentParticipantManagementTests
             .Callback<int, int?, CancellationToken>((pid, tid, _) => assignments[pid] = tid)
             .Returns(Task.CompletedTask);
 
-        var sut = new TournamentFoursomeService(teeTimes.Object);
+        var round = MakeTournamentRound(RoundStatus.Scheduled);
+        var sut = MakeFoursomeService(teeTimes, round);
         await sut.RegroupAsync(1, participants, CancellationToken.None);
 
         // Ascending order: 5(2.0), 2(5.0), 4(10.0), 3(15.0) -> slot 100; 1(20.0) -> slot 101

@@ -312,6 +312,39 @@ public sealed class RoundRepository : IRoundRepository
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task ReplaceTournamentFlightsAsync(int roundId, IEnumerable<TournamentFlight> flights, CancellationToken cancellationToken = default)
+    {
+        // Winners reference flights (NoAction FK — see AppDbContext), so
+        // clear them first or the delete below would violate the constraint.
+        await _context.TournamentLongestDriveWinners
+            .Where(w => w.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _context.TournamentFlights
+            .Where(f => f.RoundId == roundId)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        var flightsList = flights.ToList();
+        if (flightsList.Count > 0)
+        {
+            await _context.TournamentFlights.AddRangeAsync(flightsList, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<TournamentFlight>> GetTournamentFlightsAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.TournamentFlights
+            .Where(f => f.RoundId == roundId)
+            .OrderBy(f => f.FlightNumber)
+            .ToListAsync(cancellationToken);
+
+    public async Task SetParticipantTournamentFlightAsync(int participantId, int? tournamentFlightId, CancellationToken cancellationToken = default)
+    {
+        var participant = await _context.RoundParticipants.FindAsync([participantId], cancellationToken);
+        if (participant is null) return;
+        participant.TournamentFlightId = tournamentFlightId;
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<TournamentMatchup>> GetTournamentMatchupsAsync(int roundId, CancellationToken cancellationToken = default)
         => await _context.TournamentMatchups
             .Include(m => m.Player1)
@@ -342,21 +375,20 @@ public sealed class RoundRepository : IRoundRepository
             .OrderBy(e => e.HoleNumber)
             .ToListAsync(cancellationToken);
 
-    public async Task SetLongestDriveWinnersAsync(int roundId, IEnumerable<int> playerIds, CancellationToken cancellationToken = default)
+    public async Task SetLongestDriveWinnerAsync(int roundId, int tournamentFlightId, int? playerId, CancellationToken cancellationToken = default)
     {
         await _context.TournamentLongestDriveWinners
-            .Where(w => w.RoundId == roundId)
+            .Where(w => w.RoundId == roundId && w.TournamentFlightId == tournamentFlightId)
             .ExecuteDeleteAsync(cancellationToken);
 
-        var winners = playerIds.Distinct().Select(pid => new TournamentLongestDriveWinner
+        if (playerId is int pid)
         {
-            RoundId = roundId,
-            PlayerId = pid,
-        }).ToList();
-
-        if (winners.Count > 0)
-        {
-            await _context.TournamentLongestDriveWinners.AddRangeAsync(winners, cancellationToken);
+            await _context.TournamentLongestDriveWinners.AddAsync(new TournamentLongestDriveWinner
+            {
+                RoundId = roundId,
+                TournamentFlightId = tournamentFlightId,
+                PlayerId = pid,
+            }, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
         }
     }
@@ -364,9 +396,9 @@ public sealed class RoundRepository : IRoundRepository
     public async Task<IReadOnlyList<TournamentLongestDriveWinner>> GetLongestDriveWinnersAsync(int roundId, CancellationToken cancellationToken = default)
         => await _context.TournamentLongestDriveWinners
             .Include(w => w.Player)
+            .Include(w => w.TournamentFlight)
             .Where(w => w.RoundId == roundId)
-            .OrderBy(w => w.Player.LastName)
-            .ThenBy(w => w.Player.FirstName)
+            .OrderBy(w => w.TournamentFlight.FlightNumber)
             .ToListAsync(cancellationToken);
 
     public async Task SetClosestToPinWinnersAsync(int roundId, IEnumerable<(int HoleNumber, int PlayerId)> winners, CancellationToken cancellationToken = default)

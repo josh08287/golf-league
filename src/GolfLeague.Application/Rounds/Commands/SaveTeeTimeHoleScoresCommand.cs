@@ -71,9 +71,13 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
             return Result<SaveHoleScoresOutcome>.Fail("Cannot save scores — this round has been cancelled.");
 
         var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
-        var relevantHoles = round.NineHoleSide == NineHoleSide.Back
-            ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
-            : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
+        var relevantHoles = round.NineHoleSide switch
+        {
+            NineHoleSide.Back => courseHoles.Where(h => h.HoleNumber >= 10).ToList(),
+            NineHoleSide.Front => courseHoles.Where(h => h.HoleNumber <= 9).ToList(),
+            // NotApplicable (18-hole rounds, e.g. tournaments) plays every hole.
+            _ => courseHoles.ToList(),
+        };
 
         var hole = relevantHoles.FirstOrDefault(h => h.HoleNumber == request.HoleNumber);
         if (hole is null)

@@ -6,6 +6,8 @@ import {
   useSubmitTeeTimeGroupScores,
   useSaveTeeTimeHoleScores,
   useSetTeeTimeParticipantSkipped,
+  useSetTeeTimeTournamentCtp,
+  useSetTeeTimeTournamentLongestDrive,
   useParseScorecardImage,
 } from '@/hooks/useTeeTimeScoreEntry';
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
@@ -1008,6 +1010,105 @@ function ClosestToPinSection({ roundId, canEdit }: { roundId: number; canEdit: b
   );
 }
 
+/**
+ * Tournament-only closest-to-pin (par 3s) and longest-drive (the round's
+ * configured hole) entry, scoped to the current tee-time group. Unlike the
+ * regular-round ClosestToPinSection, any group member can record these (not
+ * just scorer/admin) and each pick saves immediately on selection — the
+ * leaderboard reads live from the same rows.
+ */
+function TournamentHoleExtrasSection({
+  teeTimeId,
+  currentHole,
+  players,
+  ctp,
+  longestDriveHoleNumber,
+  longestDrive,
+  canEdit,
+}: {
+  teeTimeId: number;
+  currentHole: TeeTimeHoleInfo;
+  players: TeeTimePlayerScore[];
+  ctp: TeeTimeGroupScorecard['tournamentCtp'];
+  longestDriveHoleNumber: number | null;
+  longestDrive: TeeTimeGroupScorecard['tournamentLongestDrive'];
+  canEdit: boolean;
+}) {
+  const setCtp = useSetTeeTimeTournamentCtp(teeTimeId);
+  const setLongestDrive = useSetTeeTimeTournamentLongestDrive(teeTimeId);
+
+  const ctpHole = currentHole.par === 3 ? ctp.find((c) => c.holeNumber === currentHole.holeNumber) : undefined;
+  const showLongestDrive = longestDriveHoleNumber === currentHole.holeNumber && longestDrive.length > 0;
+
+  if (!ctpHole && !showLongestDrive) return null;
+
+  const activePlayers = players.filter((p) => !p.isWithdrawn);
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 py-4">
+        {ctpHole && (
+          <div className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+              <Target className="h-4 w-4 text-[#1B5E20]" />
+              Closest to the Pin
+            </span>
+            <select
+              value={ctpHole.winnerPlayerId ?? ''}
+              onChange={(e) =>
+                setCtp.mutate({
+                  holeNumber: currentHole.holeNumber,
+                  winnerPlayerId: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                })
+              }
+              disabled={!canEdit || setCtp.isPending}
+              className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50 disabled:bg-gray-50"
+            >
+              <option value="">None</option>
+              {activePlayers.map((p) => (
+                <option key={p.playerId} value={p.playerId}>{p.playerName}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {showLongestDrive && (
+          <div className="space-y-2">
+            <span className="flex items-center gap-1.5 text-sm font-medium text-gray-700">
+              <Flag className="h-4 w-4 text-amber-500" />
+              Longest Drive
+            </span>
+            {longestDrive.map((flight) => {
+              const flightPlayers = activePlayers.filter((p) => p.tournamentFlightId === flight.tournamentFlightId);
+              if (flightPlayers.length === 0) return null;
+              return (
+                <div key={flight.tournamentFlightId} className="flex items-center justify-between gap-4 pl-1">
+                  <span className="text-sm text-gray-500">Flight {flight.flightName}</span>
+                  <select
+                    value={flight.winnerPlayerId ?? ''}
+                    onChange={(e) =>
+                      setLongestDrive.mutate({
+                        tournamentFlightId: flight.tournamentFlightId,
+                        winnerPlayerId: e.target.value === '' ? null : parseInt(e.target.value, 10),
+                      })
+                    }
+                    disabled={!canEdit || setLongestDrive.isPending}
+                    className="w-56 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50 disabled:bg-gray-50"
+                  >
+                    <option value="">None</option>
+                    {flightPlayers.map((p) => (
+                      <option key={p.playerId} value={p.playerId}>{p.playerName}</option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 interface PendingConflictSave {
   context: 'hole' | 'submit';
   conflicts: HoleScoreConflict[];
@@ -1610,20 +1711,33 @@ export function TeeTimeScoreEntryPage() {
           />
         </>
       ) : currentHole ? (
-        <HoleView
-          hole={currentHole}
-          players={players}
-          scores={scores}
-          holeDataMap={holeDataMap}
-          onScoreChange={(playerId, value) =>
-            handleScoreChange(playerId, currentHole.holeNumber, value)
-          }
-          onHoleDataChange={(playerId, field, value) =>
-            handleHoleDataChange(playerId, currentHole.holeNumber, field, value)
-          }
-          canEdit={canEdit}
-          advancedStatsMap={advancedStatsMap}
-        />
+        <>
+          <HoleView
+            hole={currentHole}
+            players={players}
+            scores={scores}
+            holeDataMap={holeDataMap}
+            onScoreChange={(playerId, value) =>
+              handleScoreChange(playerId, currentHole.holeNumber, value)
+            }
+            onHoleDataChange={(playerId, field, value) =>
+              handleHoleDataChange(playerId, currentHole.holeNumber, field, value)
+            }
+            canEdit={canEdit}
+            advancedStatsMap={advancedStatsMap}
+          />
+          {scorecard?.roundType === 'Tournament' && (
+            <TournamentHoleExtrasSection
+              teeTimeId={teeTimeIdNum}
+              currentHole={currentHole}
+              players={players}
+              ctp={scorecard.tournamentCtp}
+              longestDriveHoleNumber={scorecard.longestDriveHoleNumber}
+              longestDrive={scorecard.tournamentLongestDrive}
+              canEdit={canEdit}
+            />
+          )}
+        </>
       ) : null}
 
       {/* Navigation buttons for mobile */}

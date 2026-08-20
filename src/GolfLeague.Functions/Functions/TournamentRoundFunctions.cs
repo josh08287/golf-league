@@ -39,7 +39,8 @@ public sealed class TournamentRoundFunctions
             body.PlayerIds,
             matchups,
             body.Notes,
-            userId);
+            userId,
+            body.LongestDriveHoleNumber);
 
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/tournament-rounds/{result.Value?.Round.Id}");
@@ -159,24 +160,24 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
-    [Function("SetLongestDriveWinners")]
-    public async Task<IActionResult> SetLongestDriveWinners(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/longest-drive")] HttpRequest req,
+    [Function("SetTournamentLongestDriveHole")]
+    public async Task<IActionResult> SetTournamentLongestDriveHole(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/longest-drive-hole")] HttpRequest req,
         string id,
         CancellationToken cancellationToken)
     {
-        var authError = req.RequireRole("scorer", "admin");
+        var authError = req.RequireRole("admin");
         if (authError is not null) return authError;
 
         if (!int.TryParse(id, out var roundId))
             return new BadRequestObjectResult(new { error = "Invalid round ID." });
 
-        var body = await req.TryDeserializeAsync<SetLongestDriveRequest>(cancellationToken);
+        var body = await req.TryDeserializeAsync<SetLongestDriveHoleRequest>(cancellationToken);
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-        var result = await _mediator.Send(new SetLongestDriveWinnersCommand(roundId, body.PlayerIds, userId), cancellationToken);
+        var result = await _mediator.Send(new SetTournamentLongestDriveHoleCommand(roundId, body.HoleNumber, userId), cancellationToken);
         return result.ToOkResult();
     }
 
@@ -190,7 +191,8 @@ public sealed class TournamentRoundFunctions
         string? RoundDate,
         List<int> PlayerIds,
         List<MatchupInputDto>? Matchups,
-        string? Notes)
+        string? Notes,
+        int? LongestDriveHoleNumber)
     {
         public DateOnly ResolvedDate => RoundDate is not null
             ? DateOnly.ParseExact(RoundDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
@@ -204,5 +206,5 @@ public sealed class TournamentRoundFunctions
     private sealed record HoleExtraInputDto(int HoleNumber, int? ClosestToPinPlayerId, int? LongestDrivePlayerId);
 
     private sealed record SaveExtrasRequest(List<HoleExtraInputDto> HoleExtras);
-    private sealed record SetLongestDriveRequest(List<int> PlayerIds);
+    private sealed record SetLongestDriveHoleRequest(int? HoleNumber);
 }
