@@ -8,6 +8,14 @@ public interface IRoundRepository
     Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Scheduled, non-tournament rounds with <c>RoundDate</c> in [<paramref name="fromDate"/>,
+    /// <paramref name="toDate"/>], across all leagues. Used by <c>TeeTimeAutofillTimer</c>, which
+    /// runs hourly — filtered and pushed down to SQL (unlike <see cref="GetAllAsync"/>, which loads
+    /// every round ever played) so the hourly cost stays flat as round history grows.
+    /// </summary>
+    Task<IReadOnlyList<Round>> GetScheduledInDateRangeAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetByHalfAsync(int halfId, CancellationToken cancellationToken = default);
     Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default);

@@ -25,8 +25,18 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration["SQL_CONNECTION_STRING"]
+        var rawConnectionString = configuration["SQL_CONNECTION_STRING"]
             ?? throw new InvalidOperationException("SQL_CONNECTION_STRING is not configured.");
+
+        // Cap the ADO.NET pool explicitly. With EnableRetryOnFailure below (10 retries,
+        // up to 60s delay each) a burst of transient Azure SQL faults — e.g. serverless
+        // auto-pause resume — can otherwise pin the default 100-connection pool for
+        // minutes, making the app look hung to new requests until connections free up.
+        var connectionStringBuilder = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(rawConnectionString)
+        {
+            MaxPoolSize = 50,
+        };
+        var connectionString = connectionStringBuilder.ConnectionString;
 
         services.AddDbContext<AppDbContext>(options =>
         {

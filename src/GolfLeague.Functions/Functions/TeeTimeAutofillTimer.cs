@@ -1,7 +1,6 @@
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Leagues;
 using GolfLeague.Application.Rounds.Commands;
-using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using MediatR;
@@ -69,13 +68,7 @@ public sealed class TeeTimeAutofillTimer
             "TeeTimeAutofillTimer firing at {Now}. Looking for Scheduled rounds with RoundDate in [{Today}, {Horizon}].",
             now, today, horizon);
 
-        var rounds = await _rounds.GetAllAsync(cancellationToken);
-        var inWindow = rounds
-            .Where(r => r.Status == RoundStatus.Scheduled
-                     && r.RoundType != RoundType.Tournament
-                     && r.RoundDate >= today
-                     && r.RoundDate <= horizon)
-            .ToList();
+        var inWindow = await _rounds.GetScheduledInDateRangeAsync(today, horizon, cancellationToken);
 
         var cutoffTimeByLeague = new Dictionary<int, TimeOnly>();
         async Task<TimeOnly> GetCutoffTimeAsync(int leagueId)

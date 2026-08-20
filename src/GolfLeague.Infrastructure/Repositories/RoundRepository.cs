@@ -36,6 +36,15 @@ public sealed class RoundRepository : IRoundRepository
             .OrderByDescending(r => r.RoundDate)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Round>> GetScheduledInDateRangeAsync(DateOnly fromDate, DateOnly toDate, CancellationToken cancellationToken = default)
+        => await _context.Rounds
+            .Where(r => r.Status == RoundStatus.Scheduled
+                     && r.RoundType != RoundType.Tournament
+                     && r.RoundDate >= fromDate
+                     && r.RoundDate <= toDate)
+            .OrderBy(r => r.RoundDate)
+            .ToListAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Round>> GetBySeasonAsync(int seasonId, CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)

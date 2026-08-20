@@ -29,6 +29,21 @@ public sealed class ExceptionHandlingMiddleware : IFunctionsWorkerMiddleware
         {
             await next(context);
         }
+        catch (OperationCanceledException ex)
+        {
+            // Client disconnects and request timeouts surface as cancellation, not a bug —
+            // logging these as errors buries real failures (e.g. slow queries) in noise.
+            _logger.LogWarning(ex,
+                "Function {FunctionName} (invocation {InvocationId}) was cancelled.",
+                context.FunctionDefinition.Name, context.InvocationId);
+
+            var httpContext = context.GetHttpContext();
+            if (httpContext is not null && !httpContext.Response.HasStarted)
+            {
+                httpContext.Response.Clear();
+                httpContext.Response.StatusCode = 499; // client closed request (nginx convention)
+            }
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex,
