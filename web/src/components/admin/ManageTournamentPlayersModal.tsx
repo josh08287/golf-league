@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { api } from '../../lib/api';
-import { usePlayers, useSubstitutes } from '../../hooks/usePlayers';
+import { useAllPlayers, useSubstitutes } from '../../hooks/usePlayers';
 import { useTournamentResults } from '../../hooks/useRounds';
 import {
   useAddTournamentParticipants,
@@ -37,7 +37,7 @@ export function ManageTournamentPlayersModal({ round, onClose }: ManageTournamen
     enabled: !!round,
   });
 
-  const { data: playersPage } = usePlayers(1, undefined, 200);
+  const { data: playersPage } = useAllPlayers();
   const { data: substitutes } = useSubstitutes();
   const allPlayers = [
     ...(playersPage?.data?.filter((p) => p.isActive) ?? []),

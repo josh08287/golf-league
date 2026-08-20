@@ -74,22 +74,23 @@ class _AdminScoreEntryScreenState
     setState(() => _submitting = true);
     final api = ref.read(apiServiceProvider);
     try {
-      for (final entry in _localSkips.entries) {
-        await api.setParticipantSkipped(round.id, entry.key, entry.value);
-      }
-      for (final p in participants) {
-        if (_resolveSkipped(p)) continue;
-        await api.submitHoleScores(
-          round.id,
-          p.playerId,
-          holes
-              .map((h) => {
-                    'holeNumber': h,
-                    'grossScore': _scores[p.playerId]![h]!,
-                  })
-              .toList(),
-        );
-      }
+      // Each entry targets a distinct participant/player row, so these are
+      // independent writes and can go out concurrently instead of one at a time.
+      await Future.wait(_localSkips.entries.map(
+        (entry) => api.setParticipantSkipped(round.id, entry.key, entry.value),
+      ));
+      await Future.wait(participants
+          .where((p) => !_resolveSkipped(p))
+          .map((p) => api.submitHoleScores(
+                round.id,
+                p.playerId,
+                holes
+                    .map((h) => {
+                          'holeNumber': h,
+                          'grossScore': _scores[p.playerId]![h]!,
+                        })
+                    .toList(),
+              )));
       _localSkips.clear();
       ref.invalidate(roundParticipantsProvider(widget.roundId));
       ref.invalidate(scorecardsProvider(widget.roundId));

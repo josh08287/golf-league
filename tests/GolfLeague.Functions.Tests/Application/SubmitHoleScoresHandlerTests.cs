@@ -27,6 +27,7 @@ public class SubmitHoleScoresHandlerTests
         Status = status,
         NineHoleSide = NineHoleSide.Front,
         Participants = [],
+        Course = new Course { Id = 1, Name = "Test Course", Holes = MakeHoles() },
     };
 
     private static RoundParticipant MakeParticipant(int playerId = 100) => new()
@@ -44,18 +45,15 @@ public class SubmitHoleScoresHandlerTests
     private sealed class Mocks
     {
         public Mock<IRoundRepository> Rounds { get; } = new();
-        public Mock<ICourseRepository> Courses { get; } = new();
         public Mock<IPlayerRepository> Players { get; } = new();
 
         public Mocks()
         {
-            Courses.Setup(c => c.GetHolesAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeHoles());
-            Courses.Setup(c => c.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
             Players.Setup(p => p.GetByIdAsync(100, It.IsAny<CancellationToken>())).ReturnsAsync(new Player { Id = 100, FirstName = "Alice", LastName = "Test" });
             Rounds.Setup(r => r.GetParticipantAsync(1, 100, It.IsAny<CancellationToken>())).ReturnsAsync(MakeParticipant());
         }
 
-        public SubmitHoleScoresCommandHandler BuildSut() => new(Rounds.Object, Courses.Object, Players.Object);
+        public SubmitHoleScoresCommandHandler BuildSut() => new(Rounds.Object, Players.Object);
     }
 
     private static List<HoleScoreInput> NineHoles(int grossStrokesPerHole) =>

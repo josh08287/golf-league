@@ -89,6 +89,30 @@ public sealed class RoundRepository : IRoundRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<IReadOnlyList<HoleScore>> GetFlightHoleScoresForPuttingBaselineAsync(
+        IEnumerable<int> roundIds,
+        IEnumerable<int?> flightIds,
+        int excludePlayerId,
+        CancellationToken cancellationToken = default)
+    {
+        var roundIdList = roundIds.ToList();
+        var flightIdList = flightIds.ToList();
+        if (roundIdList.Count == 0 || flightIdList.Count == 0) return [];
+
+        return await _context.RoundParticipants
+            .Where(rp => roundIdList.Contains(rp.RoundId)
+                && flightIdList.Contains(rp.FlightId)
+                && rp.PlayerId != excludePlayerId
+                && !rp.IsWithdrawn && !rp.SkippedWeek && !rp.IsSubstitute)
+            .SelectMany(rp => rp.HoleScores)
+            .Select(h => new HoleScore
+            {
+                Putts = h.Putts,
+                FirstPuttDistanceFeet = h.FirstPuttDistanceFeet,
+            })
+            .ToListAsync(cancellationToken);
+    }
+
     public Task<RoundParticipant?> GetParticipantAsync(int roundId, int playerId, CancellationToken cancellationToken = default)
         => _context.RoundParticipants
             .Include(rp => rp.Player)

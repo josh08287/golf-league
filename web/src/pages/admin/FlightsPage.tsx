@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Lock, RefreshCw, Trash2, Users } from 'lucide-react';
 import { useFlights } from '../../hooks/useFlights';
-import { usePlayers } from '../../hooks/usePlayers';
+import { useAllPlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useDeleteFlight, useInitializeHalfFlights } from '../../hooks/admin/useFlightMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
@@ -139,7 +139,7 @@ function HalfSection({ half, flights, players, locked, onDelete, onInitialize, i
 export function FlightsPage() {
   const { data: flightsPage, isLoading, error } = useFlights();
   const flights = flightsPage?.data ?? [];
-  const { data: playersPage } = usePlayers(1, undefined, 1000);
+  const { data: playersPage } = useAllPlayers();
   const players = playersPage?.data ?? [];
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);

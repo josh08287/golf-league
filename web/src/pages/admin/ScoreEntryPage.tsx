@@ -389,21 +389,30 @@ export function ScoreEntryPage() {
     try {
       // Submit whichever holes have been entered for each non-skipped player.
       // Partial rounds are allowed — players with no entered holes are skipped.
-      for (const p of participants) {
-        if (resolveSkipped(p)) continue;
-        const enteredHoles = holes.filter((h) => {
-          const v = scores[String(p.playerId)]?.[h];
-          return v !== '' && v !== undefined;
-        });
-        if (enteredHoles.length === 0) continue;
-        await submitScores.mutateAsync({
-          playerId: p.playerId,
-          scores: enteredHoles.map((h) => ({
-            holeNumber: h,
-            grossScore: scores[String(p.playerId)][h] as number,
-          })),
-        });
-      }
+      // Each player's scores land in independent rows, so these submit
+      // concurrently rather than one-at-a-time.
+      const submissions = participants
+        .filter((p) => !resolveSkipped(p))
+        .map((p) => {
+          const enteredHoles = holes.filter((h) => {
+            const v = scores[String(p.playerId)]?.[h];
+            return v !== '' && v !== undefined;
+          });
+          return { p, enteredHoles };
+        })
+        .filter(({ enteredHoles }) => enteredHoles.length > 0);
+
+      await Promise.all(
+        submissions.map(({ p, enteredHoles }) =>
+          submitScores.mutateAsync({
+            playerId: p.playerId,
+            scores: enteredHoles.map((h) => ({
+              holeNumber: h,
+              grossScore: scores[String(p.playerId)][h] as number,
+            })),
+          }),
+        ),
+      );
 
       localStorage.removeItem(buildDraftKey(roundId));
       setSubmitSuccess(true);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Save, Undo2 } from 'lucide-react';
 import { apiClient } from '../../lib/api';
-import { usePlayers, playerKeys } from '../../hooks/usePlayers';
+import { useAllPlayers, playerKeys } from '../../hooks/usePlayers';
 import { useRecalculateRounds } from '../../hooks/admin/useRecalculateRounds';
 import { Spinner } from '../ui/Spinner';
 import { Button } from '../ui/Button';
@@ -19,7 +19,7 @@ export function FlightPlayerAssignment({ halfId, flights }: FlightPlayerAssignme
   const qc = useQueryClient();
   // Fetch the full roster in one page so drag-and-drop sees every player,
   // not just the first 20. Large size handles any realistic league size.
-  const { data: playersPage, isLoading } = usePlayers(1, undefined, 1000);
+  const { data: playersPage, isLoading } = useAllPlayers();
   const players = playersPage?.data ?? [];
 
   const [draggingId, setDraggingId] = useState<number | null>(null);

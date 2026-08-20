@@ -29,6 +29,19 @@ public interface IRoundRepository
     /// of SQL round trips on those pages.
     /// </summary>
     Task<IReadOnlyList<RoundParticipant>> GetParticipantsForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Hole scores for a player's flight-mates (everyone but <paramref name="excludePlayerId"/>)
+    /// across <paramref name="roundIds"/>/<paramref name="flightIds"/>, projected down to just the
+    /// putting fields used by strokes-gained-putting. Pushes the withdrawn/skipped/substitute
+    /// filtering into SQL and avoids materializing full Player/RoundParticipant graphs, unlike
+    /// <see cref="GetParticipantsForRoundsAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<HoleScore>> GetFlightHoleScoresForPuttingBaselineAsync(
+        IEnumerable<int> roundIds,
+        IEnumerable<int?> flightIds,
+        int excludePlayerId,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresAsync(int participantId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(int holeNumber, IEnumerable<int> participantIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<HoleScore>> GetHoleScoresForParticipantsAsync(IEnumerable<int> participantIds, CancellationToken cancellationToken = default);

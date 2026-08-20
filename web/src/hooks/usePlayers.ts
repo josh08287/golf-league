@@ -48,6 +48,20 @@ export function usePlayers(page = 1, sort?: TableSort, pageSize = 20) {
   });
 }
 
+/**
+ * The full active+inactive roster, unsorted, in one page. Several admin
+ * screens (flight assignment, tournament player pickers, messaging) each
+ * need "every player" client-side and previously called usePlayers with
+ * their own one-off pageSize (200/500/1000) — since pageSize is part of the
+ * query key, those were separate uncached fetches that each re-scanned the
+ * roster. This hook gives them one shared cache entry instead.
+ */
+const ALL_PLAYERS_PAGE_SIZE = 1000;
+
+export function useAllPlayers() {
+  return usePlayers(1, undefined, ALL_PLAYERS_PAGE_SIZE);
+}
+
 export function usePlayer(id: string) {
   return useQuery({
     queryKey: playerKeys.detail(id),

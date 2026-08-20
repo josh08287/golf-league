@@ -176,13 +176,8 @@ public sealed class GetPlayerStatisticsQueryHandler
             // Gather flight hole scores for the same flight(s) this player was in
             var flightIds = finalized.Select(p => p.FlightId).Distinct().ToList();
             var roundIds = finalized.Select(rp => rp.RoundId).Distinct().ToList();
-            var allRoundParticipants = await _roundRepository.GetParticipantsForRoundsAsync(roundIds, cancellationToken);
-            var flightHoleScores = allRoundParticipants
-                .Where(otherP => otherP.PlayerId != request.PlayerId
-                    && flightIds.Contains(otherP.FlightId)
-                    && !otherP.IsWithdrawn && !otherP.SkippedWeek && !otherP.IsSubstitute)
-                .SelectMany(otherP => otherP.HoleScores)
-                .ToList();
+            var flightHoleScores = await _roundRepository.GetFlightHoleScoresForPuttingBaselineAsync(
+                roundIds, flightIds, request.PlayerId, cancellationToken);
 
             var sgResult = StrokesGainedPuttingService.Calculate(allHoleScores, flightHoleScores);
 

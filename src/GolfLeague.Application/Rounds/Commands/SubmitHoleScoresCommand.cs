@@ -28,16 +28,13 @@ public sealed record SubmitHoleScoresCommand(
 public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleScoresCommand, Result<ScorecardDto>>
 {
     private readonly IRoundRepository _roundRepository;
-    private readonly ICourseRepository _courseRepository;
     private readonly IPlayerRepository _playerRepository;
 
     public SubmitHoleScoresCommandHandler(
         IRoundRepository roundRepository,
-        ICourseRepository courseRepository,
         IPlayerRepository playerRepository)
     {
         _roundRepository = roundRepository;
-        _courseRepository = courseRepository;
         _playerRepository = playerRepository;
     }
 
@@ -60,11 +57,11 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         if (participant.SkippedWeek)
             return Result<ScorecardDto>.Fail($"Player {request.PlayerId} is marked as skipping round {request.RoundId}. Clear the skip flag before entering scores.");
 
-        var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
-        var course = await _courseRepository.GetByIdAsync(round.CourseId, cancellationToken);
+        var course = round.Course;
+        var courseHoles = course.Holes.ToList();
         var player = await _playerRepository.GetByIdAsync(request.PlayerId, cancellationToken);
 
-        if (course is null || player is null)
+        if (player is null)
             return Result<ScorecardDto>.Fail("Course or player data could not be loaded.");
 
         bool isTournament = round.RoundType == RoundType.Tournament;
@@ -153,8 +150,8 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
             // not leave two simultaneous InProgress rounds, which would confuse
             // tee-time resolution and could cause one round's scores to appear
             // under the wrong round in the UI.
-            var allRounds = await _roundRepository.GetAllAsync(cancellationToken);
-            var anyInProgress = allRounds.Any(r => r.Id != round.Id && r.Status == RoundStatus.InProgress);
+            var inProgressRound = await _roundRepository.GetInProgressRoundAsync(cancellationToken);
+            var anyInProgress = inProgressRound is not null && inProgressRound.Id != round.Id;
             if (!anyInProgress)
             {
                 // Use the dedicated status updater so we don't reattach the whole

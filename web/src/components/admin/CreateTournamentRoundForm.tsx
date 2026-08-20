@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
-import { usePlayers, useSubstitutes } from '../../hooks/usePlayers';
+import { useAllPlayers, useSubstitutes } from '../../hooks/usePlayers';
 import { useCreateTournamentRound } from '../../hooks/admin/useRoundMutations';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
@@ -28,7 +28,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
 
-  const { data: playersPage, isLoading: playersLoading } = usePlayers(1, undefined, 200);
+  const { data: playersPage, isLoading: playersLoading } = useAllPlayers();
   const { data: substitutes } = useSubstitutes();
   // Tournament rounds aren't half-scoped, so every active regular player is
   // eligible, plus every substitute (active or not — deactivated subs remain

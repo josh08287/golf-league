@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { usePlayers } from '../../hooks/usePlayers';
+import { useAllPlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useFlights } from '../../hooks/useFlights';
 import { useSendBroadcast } from '../../hooks/admin/useSendBroadcast';
@@ -146,7 +146,7 @@ function PlayerCheckboxList({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function MessagesPage() {
-  const { data: playersPage, isLoading: playersLoading } = usePlayers(1, undefined, 500);
+  const { data: playersPage, isLoading: playersLoading } = useAllPlayers();
   const { data: seasons } = useSeasons();
   const activeSeason = useMemo(() => seasons?.find((s) => s.isActive) ?? null, [seasons]);
 
