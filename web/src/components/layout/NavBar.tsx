@@ -85,7 +85,6 @@ export function NavBar() {
     { to: '/rounds', label: 'Rounds' },
     { to: '/players', label: 'Players' },
     { to: '/statistics', label: 'Statistics' },
-    { to: '/season-wrap-up', label: 'Season Wrap-Up' },
   ];
 
   const authedLinks = [

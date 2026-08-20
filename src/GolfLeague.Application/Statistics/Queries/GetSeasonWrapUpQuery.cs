@@ -21,12 +21,18 @@ public sealed record PlayerScoreDto(
     double Value,
     int RoundsPlayed);
 
+public sealed record SingleRoundPointsDto(
+    int PlayerId,
+    string PlayerName,
+    int Points,
+    int RoundId,
+    DateOnly RoundDate,
+    int WeekNumber);
+
 public sealed record HalfWrapUpDto(
     int HalfId,
     string HalfName,
-    List<FlightHalfWinnersDto> FlightWinners,
-    PlayerScoreDto? OverallLowGross,
-    PlayerScoreDto? OverallLowNet);
+    List<FlightHalfWinnersDto> FlightWinners);
 
 public sealed record SeasonWrapUpDto(
     int SeasonId,
@@ -34,6 +40,8 @@ public sealed record SeasonWrapUpDto(
     List<HalfWrapUpDto> Halves,
     List<PlayerScoreDto> SeasonLowGross,
     List<PlayerScoreDto> SeasonLowNet,
+    SingleRoundPointsDto? SeasonHighGrossPoints,
+    SingleRoundPointsDto? SeasonHighNetPoints,
     MostImprovedPlayerDto? MostImproved);
 
 // ── Query + Handler ──────────────────────────────────────────────────────────
@@ -77,23 +85,17 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
         var seasonLowGross = AveragePositions(seasonParticipants, useGross: true).Take(2).ToList();
         var seasonLowNet = AveragePositions(seasonParticipants, useGross: false).Take(2).ToList();
 
+        // Season-wide high gross / net Stableford points — best single round.
+        var roundsById = finalizedSeasonRounds.ToDictionary(r => r.Id);
+        var seasonHighGrossPoints = HighestSingleRoundPoints(seasonParticipants, roundsById, useGross: true);
+        var seasonHighNetPoints = HighestSingleRoundPoints(seasonParticipants, roundsById, useGross: false);
+
         // Per-half breakdown.
         var halves = season.Halves.OrderBy(h => h.HalfNumber).ToList();
         var halfDtos = new List<HalfWrapUpDto>(halves.Count);
 
         foreach (var half in halves)
         {
-            var halfRoundIds = finalizedSeasonRounds
-                .Where(r => r.HalfId == half.Id)
-                .Select(r => r.Id)
-                .ToHashSet();
-            var halfParticipants = seasonParticipants
-                .Where(p => halfRoundIds.Contains(p.RoundId))
-                .ToList();
-
-            var overallLowGross = AveragePositions(halfParticipants, useGross: true).FirstOrDefault();
-            var overallLowNet = AveragePositions(halfParticipants, useGross: false).FirstOrDefault();
-
             var flights = await _flightRepository.GetByHalfAsync(half.Id, cancellationToken);
             var flightWinners = new List<FlightHalfWinnersDto>(flights.Count);
 
@@ -118,7 +120,7 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
                     grossWinner is null ? null : new PlayerScoreDto(grossWinner.PlayerId, grossWinner.PlayerFullName, grossWinner.TotalPoints, grossWinner.RoundsPlayed)));
             }
 
-            halfDtos.Add(new HalfWrapUpDto(half.Id, half.Name, flightWinners, overallLowGross, overallLowNet));
+            halfDtos.Add(new HalfWrapUpDto(half.Id, half.Name, flightWinners));
         }
 
         // Season-long Most Improved — reuse the existing handler, scoped to this season.
@@ -126,7 +128,36 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
         var mostImproved = mostImprovedResult.IsSuccess ? mostImprovedResult.Value!.Winner : null;
 
         return Result<SeasonWrapUpDto>.Ok(new SeasonWrapUpDto(
-            season.Id, season.Name, halfDtos, seasonLowGross, seasonLowNet, mostImproved));
+            season.Id, season.Name, halfDtos, seasonLowGross, seasonLowNet,
+            seasonHighGrossPoints, seasonHighNetPoints, mostImproved));
+    }
+
+    private static SingleRoundPointsDto? HighestSingleRoundPoints(
+        IReadOnlyList<Domain.Entities.RoundParticipant> participants,
+        IReadOnlyDictionary<int, Domain.Entities.Round> roundsById,
+        bool useGross)
+    {
+        return participants
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
+            .Select(p => new
+            {
+                Participant = p,
+                Points = useGross ? p.TotalGrossStablefordPoints : p.TotalNetStablefordPoints,
+            })
+            .Where(x => x.Points.HasValue)
+            .OrderByDescending(x => x.Points!.Value)
+            .Select(x =>
+            {
+                var round = roundsById[x.Participant.RoundId];
+                return new SingleRoundPointsDto(
+                    x.Participant.PlayerId,
+                    x.Participant.Player?.FullName ?? string.Empty,
+                    x.Points!.Value,
+                    round.Id,
+                    round.RoundDate,
+                    round.WeekNumber);
+            })
+            .FirstOrDefault();
     }
 
     private static IEnumerable<PlayerScoreDto> AveragePositions(

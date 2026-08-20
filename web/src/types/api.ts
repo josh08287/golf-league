@@ -879,8 +879,15 @@ export interface HalfWrapUp {
   halfId: number;
   halfName: string;
   flightWinners: FlightHalfWinners[];
-  overallLowGross: PlayerScore | null;
-  overallLowNet: PlayerScore | null;
+}
+
+export interface SingleRoundPoints {
+  playerId: number;
+  playerName: string;
+  points: number;
+  roundId: number;
+  roundDate: string;
+  weekNumber: number;
 }
 
 export interface SeasonWrapUp {
@@ -889,6 +896,8 @@ export interface SeasonWrapUp {
   halves: HalfWrapUp[];
   seasonLowGross: PlayerScore[];
   seasonLowNet: PlayerScore[];
+  seasonHighGrossPoints: SingleRoundPoints | null;
+  seasonHighNetPoints: SingleRoundPoints | null;
   mostImproved: MostImprovedPlayer | null;
 }
 

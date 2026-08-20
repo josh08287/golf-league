@@ -1,6 +1,6 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
-import { Users, ArrowRight } from 'lucide-react';
+import { Users, ArrowRight, Trophy } from 'lucide-react';
 import { useFlights, useFlightStandings } from '@/hooks/useFlights';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useRounds } from '@/hooks/useRounds';
@@ -177,6 +177,7 @@ function PeriodSelector({
 }
 
 export function FlightsPage() {
+  const prefix = useLeaguePrefix();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: seasons } = useSeasons();
   // Pull a generous window of rounds (most recent first) so we can find the
@@ -253,19 +254,29 @@ export function FlightsPage() {
         title="Standings"
         description="Competition groups created for each half based on starting handicaps."
       >
-        <div className="flex gap-2 text-sm">
-          <button
-            onClick={() => setUseGross(false)}
-            className={`px-3 py-1.5 rounded ${!useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
-          >
-            Net
-          </button>
-          <button
-            onClick={() => setUseGross(true)}
-            className={`px-3 py-1.5 rounded ${useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
-          >
-            Gross
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="flex gap-2 text-sm">
+            <button
+              onClick={() => setUseGross(false)}
+              className={`px-3 py-1.5 rounded ${!useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
+            >
+              Net
+            </button>
+            <button
+              onClick={() => setUseGross(true)}
+              className={`px-3 py-1.5 rounded ${useGross ? 'bg-[#1B5E20] text-white' : 'bg-gray-100'}`}
+            >
+              Gross
+            </button>
+          </div>
+          {selectedSeasonId != null && (
+            <Button variant="outline" size="sm" asChild>
+              <Link to={`${prefix}/season-wrap-up?seasonId=${selectedSeasonId}`}>
+                <Trophy className="mr-1 h-3.5 w-3.5" />
+                Season Wrap-Up
+              </Link>
+            </Button>
+          )}
         </div>
       </PageHeader>
 
