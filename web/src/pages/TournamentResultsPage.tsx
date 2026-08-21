@@ -206,12 +206,14 @@ function HoleExtrasPanel({
 // ── Flights ───────────────────────────────────────────────────────────────────
 
 function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: TournamentCourseHole[] }) {
+  const sortedPlayers = [...flight.players].sort((a, b) => a.courseHandicap - b.courseHandicap);
+
   if (holes.length === 0) {
     return (
       <div className="rounded-lg border border-gray-200 p-3">
         <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {flight.name}</h4>
         <ul className="space-y-0.5 text-sm text-gray-600">
-          {flight.players.map((p) => (
+          {sortedPlayers.map((p) => (
             <li key={p.playerId}>{p.playerName}</li>
           ))}
         </ul>
@@ -245,7 +247,7 @@ function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: T
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {flight.players.map((p) => {
+            {sortedPlayers.map((p) => {
               const scoresByHole = new Map(p.holeScores.map((h) => [h.holeNumber, h]));
               return (
                 <tr key={p.playerId}>
