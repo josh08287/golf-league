@@ -11,7 +11,6 @@ public class Season
     public DateOnly StartDate { get; set; }
     public DateOnly EndDate { get; set; }
     public bool IsActive { get; set; }
-    public int? BestNRounds { get; set; }
 
     public ICollection<SeasonHalf> Halves { get; set; } = [];
     public ICollection<Round> Rounds { get; set; } = [];

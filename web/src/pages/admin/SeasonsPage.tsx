@@ -21,7 +21,6 @@ const schema = z.object({
   year: z.number({ invalid_type_error: 'Enter a year' }).int().min(2000).max(2100),
   startDate: z.string().min(1, 'Start date is required'),
   endDate: z.string().min(1, 'End date is required'),
-  bestNRounds: z.number({ invalid_type_error: 'Enter a number' }).int().min(1).optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -58,10 +57,6 @@ function CreateSeasonForm({ onSuccess, onCancel }: { onSuccess: () => void; onCa
           <input {...register('endDate')} type="date" className={inputClass} />
         </FormField>
       </div>
-
-      <FormField label="Best N Rounds" error={errors.bestNRounds} hint="Leave blank to count all rounds">
-        <input {...register('bestNRounds', { valueAsNumber: true })} type="number" className={inputClass} placeholder="e.g. 10" />
-      </FormField>
 
       {create.isError && (
         <p className="text-sm text-red-600">Failed to create season. Try again.</p>
@@ -265,7 +260,6 @@ export function SeasonsPage() {
                 </div>
                 <p className="mt-0.5 text-xs text-gray-500">
                   {s.startDate} — {s.endDate}
-                  {s.bestNRounds != null && ` · Best ${s.bestNRounds} rounds`}
                 </p>
                 {s.halves && s.halves.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">

@@ -30,7 +30,6 @@ export function useCreateSeason() {
       year: number;
       startDate: string;
       endDate: string;
-      bestNRounds?: number;
     }) => apiClient.post('/seasons', payload).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: seasonKeys.all }),
   });

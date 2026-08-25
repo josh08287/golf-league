@@ -49,7 +49,7 @@ public sealed class SeasonFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
-            new CreateSeasonCommand(body.Name, body.Year, startDate, endDate, body.BestNRounds, userId),
+            new CreateSeasonCommand(body.Name, body.Year, startDate, endDate, userId),
             cancellationToken);
 
         return result.ToCreatedResult($"/api/v1/seasons/{result.Value?.Id}");
@@ -134,8 +134,7 @@ public sealed class SeasonFunctions
         string Name,
         int Year,
         string StartDate,
-        string EndDate,
-        int? BestNRounds);
+        string EndDate);
 
     private sealed record UpdateSeasonHalfRequest(
         string StartDate,

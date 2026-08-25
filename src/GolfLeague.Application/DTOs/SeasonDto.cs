@@ -18,5 +18,4 @@ public sealed record SeasonDto(
     string StartDate,
     string EndDate,
     bool IsActive,
-    int? BestNRounds,
     List<SeasonHalfDto> Halves);

@@ -481,7 +481,6 @@ export interface Season {
   startDate: string;
   endDate: string;
   isActive: boolean;
-  bestNRounds: number | null;
   halves: SeasonHalf[];
 }
 

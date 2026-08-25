@@ -13,7 +13,6 @@ public sealed record CreateSeasonCommand(
     int Year,
     DateOnly StartDate,
     DateOnly EndDate,
-    int? BestNRounds,
     string UserId) : IRequest<Result<SeasonDto>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Season";
@@ -48,7 +47,6 @@ public sealed class CreateSeasonCommandHandler : IRequestHandler<CreateSeasonCom
             Year = request.Year,
             StartDate = request.StartDate,
             EndDate = request.EndDate,
-            BestNRounds = request.BestNRounds,
             IsActive = false,
         };
 

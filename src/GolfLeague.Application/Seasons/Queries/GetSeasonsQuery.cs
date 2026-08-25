@@ -56,7 +56,7 @@ public sealed class GetSeasonsQueryHandler : IRequestHandler<GetSeasonsQuery, Re
         s.Id, s.Name, s.Year,
         s.StartDate.ToString("yyyy-MM-dd"),
         s.EndDate.ToString("yyyy-MM-dd"),
-        s.IsActive, s.BestNRounds,
+        s.IsActive,
         s.Halves
             .OrderBy(h => h.HalfNumber)
             .Select(h => new SeasonHalfDto(
