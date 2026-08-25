@@ -4,10 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/Ca
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { ErrorMessage } from '../../components/ui/ErrorMessage';
-import { useLeagueSettings, useUpdateLeagueSetting } from '../../hooks/admin/useLeagueSettings';
+import { useLeagueSettings, useUpdateLeagueSetting, settingErrorMessage } from '../../hooks/admin/useLeagueSettings';
 import { useFeatureFlags, useUpdateFeatureFlag } from '../../hooks/admin/useFeatureFlags';
 import { useAuthStore } from '../../store/authStore';
-import { SETTING_KEYS, FEATURE_FLAG_KEYS } from '../../types/api';
+import { SETTING_KEYS, FEATURE_FLAG_KEYS, HANDICAP_CALC_MODES } from '../../types/api';
 import { localTimeToEastern, easternTimeToLocal, localTimeZoneAbbreviation } from '../../lib/utils';
 
 /** Global feature flags surfaced to super-admins, in display order. */
@@ -203,6 +203,66 @@ export function SettingsPage() {
     update.mutate({ key: SETTING_KEYS.whatsAppGroupLink, value: whatsAppLinkInput.trim() });
   }
 
+  // ── Handicap calculation ──────────────────────────────────────────────────
+
+  const handicapModeValue = settings?.find((s) => s.key === SETTING_KEYS.handicapCalcMode)?.value ?? HANDICAP_CALC_MODES.usga;
+  const [handicapModeInput, setHandicapModeInput] = useState<string>(HANDICAP_CALC_MODES.usga);
+  const [handicapModeInitialized, setHandicapModeInitialized] = useState(false);
+
+  if (settings && !handicapModeInitialized) {
+    setHandicapModeInput(handicapModeValue);
+    setHandicapModeInitialized(true);
+  }
+
+  const windowXValue = getNumericSetting(SETTING_KEYS.handicapWindowX, 5);
+  const windowYValue = getNumericSetting(SETTING_KEYS.handicapWindowY, 5);
+  const [windowXInput, setWindowXInput] = useState<string>('');
+  const [windowYInput, setWindowYInput] = useState<string>('');
+  const [windowInitialized, setWindowInitialized] = useState(false);
+
+  if (settings && !windowInitialized) {
+    setWindowXInput(String(windowXValue));
+    setWindowYInput(String(windowYValue));
+    setWindowInitialized(true);
+  }
+
+  const formulaValue = settings?.find((s) => s.key === SETTING_KEYS.handicapCustomFormula)?.value ?? '';
+  const [formulaInput, setFormulaInput] = useState<string>('');
+  const [formulaInitialized, setFormulaInitialized] = useState(false);
+
+  if (settings && !formulaInitialized) {
+    setFormulaInput(formulaValue);
+    setFormulaInitialized(true);
+  }
+
+  const windowXParsed = parseInt(windowXInput, 10);
+  const windowYParsed = parseInt(windowYInput, 10);
+  const windowValid = !isNaN(windowXParsed) && windowXParsed >= 1 && !isNaN(windowYParsed) && windowYParsed >= 1;
+  const windowXExceedsY = windowValid && windowXParsed > windowYParsed;
+
+  const windowDirty = windowValid && (windowXParsed !== windowXValue || windowYParsed !== windowYValue);
+  const formulaDirty = formulaInput.trim() !== formulaValue;
+
+  function handleSaveHandicapMode(mode: string) {
+    setHandicapModeInput(mode);
+    update.mutate({ key: SETTING_KEYS.handicapCalcMode, value: mode });
+  }
+
+  function handleSaveWindow() {
+    if (!windowValid) return;
+    update.mutate({ key: SETTING_KEYS.handicapWindowX, value: String(windowXParsed) });
+    update.mutate({ key: SETTING_KEYS.handicapWindowY, value: String(windowYParsed) });
+  }
+
+  function handleSaveFormula() {
+    update.mutate({ key: SETTING_KEYS.handicapCustomFormula, value: formulaInput.trim() });
+  }
+
+  const formulaError =
+    update.isError && update.variables?.key === SETTING_KEYS.handicapCustomFormula
+      ? settingErrorMessage(update.error)
+      : undefined;
+
   return (
     <div className="space-y-6">
       <PageHeader title="Settings" subtitle="League configuration" />
@@ -248,6 +308,131 @@ export function SettingsPage() {
                   </Button>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Handicap Calculation</CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-gray-100">
+              <div className="py-4">
+                <p className="text-sm font-medium text-gray-900">Differential formula</p>
+                <p className="mt-0.5 text-sm text-gray-500">
+                  How each round's 9-hole score differential is computed before it's averaged into a player's handicap.
+                </p>
+                <div className="mt-3 space-y-2">
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="handicap-mode"
+                      className="mt-0.5"
+                      checked={handicapModeInput === HANDICAP_CALC_MODES.usga}
+                      onChange={() => handleSaveHandicapMode(HANDICAP_CALC_MODES.usga)}
+                      disabled={update.isPending}
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">USGA formula</span>{' '}
+                      <span className="text-gray-500">(gross strokes − course rating) × 113 / slope rating</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="handicap-mode"
+                      className="mt-0.5"
+                      checked={handicapModeInput === HANDICAP_CALC_MODES.straightStrokes}
+                      onChange={() => handleSaveHandicapMode(HANDICAP_CALC_MODES.straightStrokes)}
+                      disabled={update.isPending}
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">Straight strokes</span>{' '}
+                      <span className="text-gray-500">gross strokes − course rating, ignoring slope</span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 text-sm">
+                    <input
+                      type="radio"
+                      name="handicap-mode"
+                      className="mt-0.5"
+                      checked={handicapModeInput === HANDICAP_CALC_MODES.custom}
+                      onChange={() => handleSaveHandicapMode(HANDICAP_CALC_MODES.custom)}
+                      disabled={update.isPending}
+                    />
+                    <span>
+                      <span className="font-medium text-gray-900">Custom formula</span>{' '}
+                      <span className="text-gray-500">enter your own formula below</span>
+                    </span>
+                  </label>
+                </div>
+
+                {handicapModeInput === HANDICAP_CALC_MODES.custom && (
+                  <div className="mt-3 pl-6">
+                    <textarea
+                      value={formulaInput}
+                      onChange={(e) => setFormulaInput(e.target.value)}
+                      placeholder="grossStrokes - courseRating / 2"
+                      rows={2}
+                      disabled={update.isPending}
+                      className="w-full max-w-md rounded-md border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Available variables: <code>grossStrokes</code>, <code>courseRating</code>, <code>slopeRating</code>, <code>par</code>. Must evaluate to a number.
+                    </p>
+                    <div className="mt-2">
+                      <Button size="sm" onClick={handleSaveFormula} disabled={!formulaDirty || update.isPending}>
+                        Save formula
+                      </Button>
+                    </div>
+                    {formulaError && <p className="mt-1 text-sm text-red-600">{formulaError}</p>}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-start justify-between gap-6 py-4">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900">Rolling window</p>
+                  <p className="mt-0.5 text-sm text-gray-500">
+                    Average the best (lowest) X differentials out of a player's last Y rounds played — WHS-style. Set both to the same value for a simple rolling average.
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-sm text-gray-500">Best</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={windowXInput}
+                    onChange={(e) => setWindowXInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWindow(); }}
+                    disabled={update.isPending}
+                    className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <span className="text-sm text-gray-500">of last</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={windowYInput}
+                    onChange={(e) => setWindowYInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') handleSaveWindow(); }}
+                    disabled={update.isPending}
+                    className="w-16 rounded-md border border-gray-300 px-2 py-1.5 text-sm text-center focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                  />
+                  <span className="text-sm text-gray-500">rounds</span>
+                  <Button
+                    size="sm"
+                    onClick={handleSaveWindow}
+                    disabled={!windowDirty || windowXExceedsY || update.isPending}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+              {windowXExceedsY && (
+                <p className="pb-2 text-sm text-red-600">"Best" cannot be greater than "of last".</p>
+              )}
+              <p className="pt-4 text-xs text-gray-500">
+                Changes here only affect handicaps calculated from this point on. To apply them retroactively, use "Recalculate All Handicaps" on the admin dashboard.
+              </p>
             </CardContent>
           </Card>
 

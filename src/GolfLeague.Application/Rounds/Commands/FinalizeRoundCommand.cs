@@ -1,9 +1,10 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Handicaps;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
-using GolfLeague.Domain.Services;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -22,17 +23,23 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IHandicapRepository _handicapRepository;
+    private readonly HandicapRecalculationService _handicapCalc;
+    private readonly ILeagueContext _leagueContext;
     private readonly ILogger<FinalizeRoundCommandHandler> _logger;
 
     public FinalizeRoundCommandHandler(
         IRoundRepository roundRepository,
         ICourseRepository courseRepository,
         IHandicapRepository handicapRepository,
+        HandicapRecalculationService handicapCalc,
+        ILeagueContext leagueContext,
         ILogger<FinalizeRoundCommandHandler> logger)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _handicapRepository = handicapRepository;
+        _handicapCalc = handicapCalc;
+        _leagueContext = leagueContext;
         _logger = logger;
     }
 
@@ -58,27 +65,30 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.Finalized, cancellationToken);
         round.Status = RoundStatus.Finalized;
 
-        // Recalculate each finalized participant's handicap index as the
-        // simple average of their last RollingWindowSize 9-hole differentials
-        // (see HandicapCalculationService) — not full WHS best-N/cap rules.
+        // Recalculate each finalized participant's handicap index using the
+        // league's configured mode and best-X-of-Y window (see
+        // HandicapRecalculationService) — not full WHS cap rules.
+        var settings = await _handicapCalc.LoadSettingsAsync(_leagueContext.LeagueId ?? 0, cancellationToken);
+
         foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.TotalGrossStrokes.HasValue))
         {
-            await RecalculateAndPersistAsync(participant.PlayerId, round.RoundDate, cancellationToken);
+            await RecalculateAndPersistAsync(participant.PlayerId, round.RoundDate, settings, cancellationToken);
         }
 
         return Result<RoundDto>.Ok(RoundDtoMapper.Map(round, course.Name, round.Participants.Count));
     }
 
-    private async Task RecalculateAndPersistAsync(int playerId, DateOnly roundDate, CancellationToken cancellationToken)
+    private async Task RecalculateAndPersistAsync(int playerId, DateOnly roundDate, HandicapCalcSettings settings, CancellationToken cancellationToken)
     {
-        var differentials = await _handicapRepository
-            .GetLastNNineHoleDifferentialsAsync(
+        var roundInputs = await _handicapRepository
+            .GetLastNRoundInputsAsync(
                 playerId,
-                HandicapCalculationService.RollingWindowSize,
+                settings.WindowY,
                 asOfDate: roundDate,
                 cancellationToken);
 
-        if (differentials.Count == 0)
+        var newIndex = _handicapCalc.CalculateNewIndex(roundInputs, settings);
+        if (newIndex is null)
         {
             _logger.LogDebug(
                 "Player {PlayerId} has no qualifying rounds yet; skipping handicap recalc.",
@@ -86,22 +96,17 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
             return;
         }
 
-        // CalculateNewIndex returns the average 9-hole differential.
-        // HandicapIndex stores the full 18-hole index = 9-hole diff × 2.
-        var nineHoleIndex = HandicapCalculationService.CalculateNewIndex(differentials);
-        var newIndex = Math.Round(nineHoleIndex * 2, 1, MidpointRounding.ToEven);
-
         await _handicapRepository.AddAsync(new Handicap
         {
             PlayerId = playerId,
-            HandicapIndex = newIndex,
+            HandicapIndex = newIndex.Value,
             EffectiveDate = roundDate,
             Source = HandicapSource.Calculated,
-            Notes = $"Recalculated from last {differentials.Count} 9-hole round(s)",
+            Notes = $"Recalculated from last {roundInputs.Count} 9-hole round(s)",
         }, cancellationToken);
 
         _logger.LogInformation(
-            "Recalculated handicap for player {PlayerId}: {NewIndex} (over {Count} differentials)",
-            playerId, newIndex, differentials.Count);
+            "Recalculated handicap for player {PlayerId}: {NewIndex} (over {Count} rounds)",
+            playerId, newIndex.Value, roundInputs.Count);
     }
 }

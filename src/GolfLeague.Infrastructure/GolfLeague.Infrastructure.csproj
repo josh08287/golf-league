@@ -28,6 +28,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.*" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.*" />
     <PackageReference Include="Azure.AI.DocumentIntelligence" Version="1.*" />
+    <PackageReference Include="NCalc" Version="5.*" />
   </ItemGroup>
 
   <ItemGroup>

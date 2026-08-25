@@ -1,7 +1,8 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Handicaps;
+using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Interfaces;
-using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Players.Queries;
@@ -17,6 +18,8 @@ public sealed class GetPlayerRoundsQueryHandler
     : IRequestHandler<GetPlayerRoundsQuery, Result<List<PlayerRoundSummaryDto>>>
 {
     private readonly IRoundRepository _roundRepository;
+    private readonly HandicapRecalculationService _handicapCalc;
+    private readonly ILeagueContext _leagueContext;
 
     /// <summary>
     /// Default sort: most recent round date first.
@@ -39,9 +42,14 @@ public sealed class GetPlayerRoundsQueryHandler
         .Add("netPts", r => r.TotalNetStablefordPoints)
         .Add("totalNetStablefordPoints", r => r.TotalNetStablefordPoints);
 
-    public GetPlayerRoundsQueryHandler(IRoundRepository roundRepository)
+    public GetPlayerRoundsQueryHandler(
+        IRoundRepository roundRepository,
+        HandicapRecalculationService handicapCalc,
+        ILeagueContext leagueContext)
     {
         _roundRepository = roundRepository;
+        _handicapCalc = handicapCalc;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<List<PlayerRoundSummaryDto>>> Handle(
@@ -51,17 +59,22 @@ public sealed class GetPlayerRoundsQueryHandler
         var participants = await _roundRepository.GetParticipantsAsyncByPlayer(
             request.PlayerId, cancellationToken);
 
+        var settings = await _handicapCalc.LoadSettingsAsync(_leagueContext.LeagueId ?? 0, cancellationToken);
+
         var dtos = participants
             .Select(rp =>
             {
                 double? scoreDifferential = null;
                 if (!rp.SkippedWeek && rp.TotalGrossStrokes.HasValue && rp.Round.Course is not null)
                 {
+                    var roundInput = new HandicapRoundInput(
+                        rp.TotalGrossStrokes.Value,
+                        rp.Round.Course.CourseRating,
+                        rp.Round.Course.SlopeRating,
+                        rp.Round.Course.Holes.Sum(h => h.Par));
+
                     scoreDifferential = Math.Round(
-                        StablefordScoringService.NineHoleScoreDifferential(
-                            rp.TotalGrossStrokes.Value,
-                            rp.Round.Course.CourseRating,
-                            rp.Round.Course.SlopeRating),
+                        _handicapCalc.ComputeDifferential(roundInput, settings),
                         1, MidpointRounding.ToEven);
                 }
 

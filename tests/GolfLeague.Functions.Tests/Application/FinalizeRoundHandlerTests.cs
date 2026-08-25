@@ -1,8 +1,13 @@
 using FluentAssertions;
+using GolfLeague.Application.Handicaps;
+using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Leagues;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
+using GolfLeague.Infrastructure.Handicaps;
 using Microsoft.Extensions.Logging;
 using Moq;
 using Xunit;
@@ -42,18 +47,29 @@ public class FinalizeRoundHandlerTests
         public Mock<IRoundRepository> Rounds { get; } = new();
         public Mock<ICourseRepository> Courses { get; } = new();
         public Mock<IHandicapRepository> Handicaps { get; } = new();
+        public Mock<ILeagueSettingRepository> Settings { get; } = new();
+        public Mock<ILeagueContext> LeagueContext { get; } = new();
 
         public Mocks()
         {
             Courses.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
-            Handicaps.Setup(h => h.GetLastNNineHoleDifferentialsAsync(
+            Handicaps.Setup(h => h.GetLastNRoundInputsAsync(
                     It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
-                .ReturnsAsync(new List<double>());
+                .ReturnsAsync(new List<HandicapRoundInput>());
+            Settings.Setup(s => s.GetAllAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<LeagueSetting>());
+            LeagueContext.Setup(c => c.LeagueId).Returns(1);
         }
 
         public FinalizeRoundCommandHandler BuildSut() =>
-            new(Rounds.Object, Courses.Object, Handicaps.Object, new Mock<ILogger<FinalizeRoundCommandHandler>>().Object);
+            new(
+                Rounds.Object,
+                Courses.Object,
+                Handicaps.Object,
+                new HandicapRecalculationService(Settings.Object, new HandicapFormulaEvaluator()),
+                LeagueContext.Object,
+                new Mock<ILogger<FinalizeRoundCommandHandler>>().Object);
     }
 
     [Fact]
@@ -127,7 +143,7 @@ public class FinalizeRoundHandlerTests
 
         await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
 
-        m.Handicaps.Verify(h => h.GetLastNNineHoleDifferentialsAsync(
+        m.Handicaps.Verify(h => h.GetLastNRoundInputsAsync(
             It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -141,7 +157,7 @@ public class FinalizeRoundHandlerTests
 
         await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
 
-        m.Handicaps.Verify(h => h.GetLastNNineHoleDifferentialsAsync(
+        m.Handicaps.Verify(h => h.GetLastNRoundInputsAsync(
             It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -156,7 +172,7 @@ public class FinalizeRoundHandlerTests
 
         await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
 
-        m.Handicaps.Verify(h => h.GetLastNNineHoleDifferentialsAsync(
+        m.Handicaps.Verify(h => h.GetLastNRoundInputsAsync(
             It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
@@ -167,8 +183,8 @@ public class FinalizeRoundHandlerTests
         var round = MakeRound();
         round.Participants = [MakeParticipant(1)];
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
-        m.Handicaps.Setup(h => h.GetLastNNineHoleDifferentialsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<double>());
+        m.Handicaps.Setup(h => h.GetLastNRoundInputsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<HandicapRoundInput>());
 
         await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
 
@@ -178,16 +194,19 @@ public class FinalizeRoundHandlerTests
     [Fact]
     public async Task Handle_RecalculatesHandicap_DoublesNineHoleAverageAndRoundsToEven()
     {
-        // Differentials 5.0 and 5.1 average to 5.05 -> 9-hole index rounds
-        // to 5.0 (ToEven at 1 decimal on the average itself is done inside
-        // CalculateNewIndex); the handler then doubles to the 18-hole index
-        // and rounds again to 1 decimal, ToEven.
+        // Differentials 10.0 and 8.0 (using courseRating=0, slopeRating=113
+        // so the USGA differential equals grossStrokes) average to 9.0 ->
+        // the handler doubles to the 18-hole index and rounds to 1 decimal, ToEven.
         var m = new Mocks();
         var round = MakeRound();
         round.Participants = [MakeParticipant(1)];
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
-        m.Handicaps.Setup(h => h.GetLastNNineHoleDifferentialsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<double> { 10.0, 8.0 }); // average = 9.0 -> doubled = 18.0
+        m.Handicaps.Setup(h => h.GetLastNRoundInputsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<HandicapRoundInput>
+            {
+                new(GrossStrokes: 10, CourseRating: 0, SlopeRating: 113, Par: 36),
+                new(GrossStrokes: 8, CourseRating: 0, SlopeRating: 113, Par: 36),
+            }); // average = 9.0 -> doubled = 18.0
 
         Handicap? captured = null;
         m.Handicaps.Setup(h => h.AddAsync(It.IsAny<Handicap>(), It.IsAny<CancellationToken>()))
@@ -215,10 +234,10 @@ public class FinalizeRoundHandlerTests
             MakeParticipant(3, withdrawn: true),
         ];
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
-        m.Handicaps.Setup(h => h.GetLastNNineHoleDifferentialsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<double> { 4.0 });
-        m.Handicaps.Setup(h => h.GetLastNNineHoleDifferentialsAsync(2, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new List<double> { 6.0 });
+        m.Handicaps.Setup(h => h.GetLastNRoundInputsAsync(1, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<HandicapRoundInput> { new(GrossStrokes: 4, CourseRating: 0, SlopeRating: 113, Par: 36) });
+        m.Handicaps.Setup(h => h.GetLastNRoundInputsAsync(2, 5, It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<HandicapRoundInput> { new(GrossStrokes: 6, CourseRating: 0, SlopeRating: 113, Par: 36) });
 
         await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
 

@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Leagues;
@@ -59,11 +60,16 @@ public sealed class UpdateLeagueSettingCommandHandler
 {
     private readonly ILeagueSettingRepository _settings;
     private readonly ILeagueContext _leagueContext;
+    private readonly IHandicapFormulaEvaluator _formulaEvaluator;
 
-    public UpdateLeagueSettingCommandHandler(ILeagueSettingRepository settings, ILeagueContext leagueContext)
+    public UpdateLeagueSettingCommandHandler(
+        ILeagueSettingRepository settings,
+        ILeagueContext leagueContext,
+        IHandicapFormulaEvaluator formulaEvaluator)
     {
         _settings = settings;
         _leagueContext = leagueContext;
+        _formulaEvaluator = formulaEvaluator;
     }
 
     public async Task<Result<LeagueSettingDto>> Handle(UpdateLeagueSettingCommand request, CancellationToken cancellationToken)
@@ -74,8 +80,32 @@ public sealed class UpdateLeagueSettingCommandHandler
         if (!KnownSettings.Defaults.ContainsKey(request.Key))
             return Result<LeagueSettingDto>.Fail($"Unknown setting key '{request.Key}'.");
 
+        var validationError = ValidateValue(request.Key, request.Value);
+        if (validationError is not null)
+            return Result<LeagueSettingDto>.Fail(validationError);
+
         await _settings.UpsertAsync(_leagueContext.LeagueId.Value, request.Key, request.Value, cancellationToken);
         return Result<LeagueSettingDto>.Ok(new LeagueSettingDto(request.Key, request.Value));
+    }
+
+    private string? ValidateValue(string key, string value)
+    {
+        if (key == KnownSettings.HandicapCalcMode && !KnownSettings.HandicapCalcModes.Contains(value))
+            return $"Unknown handicap calculation mode '{value}'.";
+
+        if (key is KnownSettings.HandicapWindowX or KnownSettings.HandicapWindowY)
+        {
+            if (!int.TryParse(value, out var n) || n < 1)
+                return "Handicap rolling-window values must be whole numbers of at least 1.";
+        }
+
+        if (key == KnownSettings.HandicapCustomFormula && value.Length > 0)
+        {
+            if (!_formulaEvaluator.TryValidate(value, out var error))
+                return $"Invalid handicap formula: {error}";
+        }
+
+        return null;
     }
 }
 
@@ -150,6 +180,41 @@ public static class KnownSettings
     /// </summary>
     public const string WhatsAppGroupLink = "whatsapp_group_link";
 
+    /// <summary>
+    /// How a round's 9-hole score differential is computed: "usga" (default,
+    /// (grossStrokes - courseRating) * 113 / slopeRating), "straight_strokes"
+    /// (grossStrokes - courseRating, ignoring slope), or "custom" (evaluates
+    /// <see cref="HandicapCustomFormula"/>). See
+    /// <see cref="GolfLeague.Domain.Enums.HandicapDifferentialMode"/>.
+    /// </summary>
+    public const string HandicapCalcMode = "handicap_calc_mode";
+
+    public const string HandicapModeUsga = "usga";
+    public const string HandicapModeStraightStrokes = "straight_strokes";
+    public const string HandicapModeCustom = "custom";
+
+    public static readonly HashSet<string> HandicapCalcModes =
+        [HandicapModeUsga, HandicapModeStraightStrokes, HandicapModeCustom];
+
+    /// <summary>
+    /// Number of best (lowest) differentials averaged, out of the last
+    /// <see cref="HandicapWindowY"/> rounds — the "X" in "best X of Y".
+    /// </summary>
+    public const string HandicapWindowX = "handicap_window_x";
+
+    /// <summary>
+    /// Number of most-recent rounds considered as the candidate pool for
+    /// the best-X average — the "Y" in "best X of Y".
+    /// </summary>
+    public const string HandicapWindowY = "handicap_window_y";
+
+    /// <summary>
+    /// League-admin-supplied arithmetic formula used to compute a round's
+    /// 9-hole differential when <see cref="HandicapCalcMode"/> is "custom".
+    /// Available variables: grossStrokes, courseRating, slopeRating, par.
+    /// </summary>
+    public const string HandicapCustomFormula = "handicap_custom_formula";
+
     public static readonly Dictionary<string, string> Defaults = new()
     {
         [TeeTimeEmailEnabled] = "false",
@@ -159,6 +224,10 @@ public static class KnownSettings
         [SubstitutesEnabled] = "false",
         [RoundCost] = "20",
         [WhatsAppGroupLink] = "",
+        [HandicapCalcMode] = HandicapModeUsga,
+        [HandicapWindowX] = "5",
+        [HandicapWindowY] = "5",
+        [HandicapCustomFormula] = "",
     };
 
     /// <summary>

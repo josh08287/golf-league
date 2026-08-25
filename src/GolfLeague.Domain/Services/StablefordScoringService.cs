@@ -50,4 +50,12 @@ public static class StablefordScoringService
 
     public static double NineHoleScoreDifferential(int grossStrokes, double courseRating, int slopeRating)
         => (grossStrokes - (courseRating / 2)) * (113.0 / slopeRating);
+
+    /// <summary>Straight-strokes differential: gross strokes over course rating, ignoring slope.</summary>
+    public static double StraightStrokesDifferential(int grossStrokes, double courseRating)
+        => grossStrokes - courseRating;
+
+    /// <summary>Straight-strokes 9-hole differential: gross strokes over half the course rating.</summary>
+    public static double NineHoleStraightStrokesDifferential(int grossStrokes, double courseRating)
+        => grossStrokes - (courseRating / 2);
 }

@@ -1,7 +1,6 @@
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
-using GolfLeague.Domain.Services;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -37,14 +36,14 @@ public sealed class HandicapRepository : IHandicapRepository
             .ThenByDescending(h => h.Id)
             .ToListAsync(cancellationToken);
 
-    public async Task<IReadOnlyList<double>> GetLastNNineHoleDifferentialsAsync(
+    public async Task<IReadOnlyList<HandicapRoundInput>> GetLastNRoundInputsAsync(
         int playerId,
         int count,
         DateOnly? asOfDate = null,
         CancellationToken cancellationToken = default)
     {
         var query = _context.RoundParticipants
-            .Include(rp => rp.Round).ThenInclude(r => r.Course)
+            .Include(rp => rp.Round).ThenInclude(r => r.Course).ThenInclude(c => c.Holes)
             .Where(rp =>
                 rp.PlayerId == playerId &&
                 !rp.IsWithdrawn &&
@@ -64,10 +63,11 @@ public sealed class HandicapRepository : IHandicapRepository
 
         return participants
             .Where(rp => rp.Round.Course is not null)
-            .Select(rp => StablefordScoringService.NineHoleScoreDifferential(
+            .Select(rp => new HandicapRoundInput(
                 rp.TotalGrossStrokes!.Value,
                 rp.Round.Course.CourseRating,
-                rp.Round.Course.SlopeRating))
+                rp.Round.Course.SlopeRating,
+                rp.Round.Course.Holes.Sum(h => h.Par)))
             .ToList();
     }
 

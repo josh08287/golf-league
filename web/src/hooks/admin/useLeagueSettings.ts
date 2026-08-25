@@ -33,3 +33,12 @@ export function useUpdateLeagueSetting() {
     onSuccess: () => qc.invalidateQueries({ queryKey: settingsKeys.all }),
   });
 }
+
+/** Extracts the backend's `{ error: string }` message from a failed settings mutation, if present. */
+export function settingErrorMessage(error: unknown): string | undefined {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const response = (error as { response?: { data?: { error?: string } } }).response;
+    return response?.data?.error;
+  }
+  return undefined;
+}

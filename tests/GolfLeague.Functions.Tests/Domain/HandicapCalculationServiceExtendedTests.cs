@@ -56,4 +56,21 @@ public class HandicapCalculationServiceExtendedTests
         var diffs = new[] { 5.0, 6.0, 8.0, 10.0 };
         HandicapCalculationService.CalculateNewIndex(diffs).Should().Be(7.2);
     }
+
+    [Fact]
+    public void CalculateNewIndex_BestXOfY_DropsWorstDifferentials()
+    {
+        // Best-3-of-6, WHS style: drop the 3 highest, average the 3 lowest.
+        // Pool (not position-ordered): [10, 4, 8, 2, 12, 6] -> best 3 = [2, 4, 6] -> avg 4.0
+        var diffs = new[] { 10.0, 4.0, 8.0, 2.0, 12.0, 6.0 };
+        HandicapCalculationService.CalculateNewIndex(diffs, windowX: 3, windowY: 6).Should().Be(4.0);
+    }
+
+    [Fact]
+    public void CalculateNewIndex_WindowXLargerThanPool_AveragesEntirePool()
+    {
+        // (10+4+8)/3 = 7.333... rounds to 7.3.
+        var diffs = new[] { 10.0, 4.0, 8.0 };
+        HandicapCalculationService.CalculateNewIndex(diffs, windowX: 5, windowY: 5).Should().Be(7.3);
+    }
 }

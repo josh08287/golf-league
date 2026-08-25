@@ -271,7 +271,7 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default)
         => await _context.RoundParticipants
-            .Include(rp => rp.Round).ThenInclude(r => r.Course)
+            .Include(rp => rp.Round).ThenInclude(r => r.Course).ThenInclude(c => c.Holes)
             .Include(rp => rp.HoleScores)
             .Where(rp => rp.PlayerId == playerId)
             .OrderBy(rp => rp.Round.RoundDate)

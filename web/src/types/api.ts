@@ -1070,6 +1070,16 @@ export const SETTING_KEYS = {
   substitutesEnabled: 'substitutes_enabled',
   roundCost: 'round_cost',
   whatsAppGroupLink: 'whatsapp_group_link',
+  handicapCalcMode: 'handicap_calc_mode',
+  handicapWindowX: 'handicap_window_x',
+  handicapWindowY: 'handicap_window_y',
+  handicapCustomFormula: 'handicap_custom_formula',
+} as const;
+
+export const HANDICAP_CALC_MODES = {
+  usga: 'usga',
+  straightStrokes: 'straight_strokes',
+  custom: 'custom',
 } as const;
 
 /** Settings safe to expose to anonymous site visitors. See GET /v1/settings/public. */

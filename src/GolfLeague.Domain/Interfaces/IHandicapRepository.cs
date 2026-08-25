@@ -2,6 +2,13 @@ using GolfLeague.Domain.Entities;
 
 namespace GolfLeague.Domain.Interfaces;
 
+/// <summary>
+/// A single qualifying round's raw inputs for computing a 9-hole score
+/// differential, before any mode (USGA / straight strokes / custom formula)
+/// is applied. See <see cref="GolfLeague.Domain.Services.HandicapFormulaInput"/>.
+/// </summary>
+public readonly record struct HandicapRoundInput(int GrossStrokes, double CourseRating, int SlopeRating, int Par);
+
 public interface IHandicapRepository
 {
     Task<Handicap?> GetCurrentAsync(int playerId, CancellationToken cancellationToken = default);
@@ -15,11 +22,13 @@ public interface IHandicapRepository
     Task<IReadOnlyList<Handicap>> GetAllAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// The player's most-recent N 9-hole score differentials (newest first),
-    /// restricted to finalized rounds on or before <paramref name="asOfDate"/>.
-    /// Pass <c>null</c> for <paramref name="asOfDate"/> to include all rounds.
+    /// The player's most-recent <paramref name="count"/> qualifying rounds'
+    /// raw score inputs (newest first), restricted to finalized rounds on or
+    /// before <paramref name="asOfDate"/>. Pass <c>null</c> for
+    /// <paramref name="asOfDate"/> to include all rounds. Callers convert
+    /// each entry to a differential using the league's configured mode.
     /// </summary>
-    Task<IReadOnlyList<double>> GetLastNNineHoleDifferentialsAsync(
+    Task<IReadOnlyList<HandicapRoundInput>> GetLastNRoundInputsAsync(
         int playerId,
         int count,
         DateOnly? asOfDate = null,
