@@ -68,11 +68,11 @@ public class HandicapRecalculationServiceTests
     }
 
     [Fact]
-    public void CalculateNewIndex_StraightStrokesMode_IgnoresSlope()
+    public void CalculateNewIndex_StraightStrokesMode_UsesGrossStrokesOverPar()
     {
         var sut = BuildSut(new List<LeagueSetting>());
         var settings = new HandicapCalcSettings(HandicapDifferentialMode.StraightStrokes, WindowX: 1, WindowY: 1, CustomFormula: "");
-        // grossStrokes=40, courseRating=36 -> straight-strokes 9-hole diff = 40 - 18 = 22, doubled = 44.
+        // grossStrokes=40, par=36 -> straight-strokes 9-hole diff = 40 - 18 = 22 (course rating/slope ignored), doubled = 44.
         var rounds = new List<HandicapRoundInput> { new(GrossStrokes: 40, CourseRating: 36, SlopeRating: 200, Par: 36) };
 
         sut.CalculateNewIndex(rounds, settings).Should().Be(44.0);

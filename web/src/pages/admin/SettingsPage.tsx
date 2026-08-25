@@ -347,7 +347,7 @@ export function SettingsPage() {
                     />
                     <span>
                       <span className="font-medium text-gray-900">Straight strokes</span>{' '}
-                      <span className="text-gray-500">gross strokes − course rating, ignoring slope</span>
+                      <span className="text-gray-500">gross strokes − par, ignoring course rating and slope</span>
                     </span>
                   </label>
                   <label className="flex items-start gap-2 text-sm">

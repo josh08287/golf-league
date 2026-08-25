@@ -10,7 +10,7 @@ public enum HandicapDifferentialMode
     /// <summary>USGA-style: (grossStrokes - courseRating) * 113 / slopeRating.</summary>
     Usga,
 
-    /// <summary>Straight strokes over course rating, ignoring slope: grossStrokes - courseRating.</summary>
+    /// <summary>Gross strokes over par, ignoring course rating and slope: grossStrokes - par.</summary>
     StraightStrokes,
 
     /// <summary>League-admin-supplied formula, evaluated per round. See LeagueSettings.handicap_custom_formula.</summary>

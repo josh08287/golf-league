@@ -183,8 +183,8 @@ public static class KnownSettings
     /// <summary>
     /// How a round's 9-hole score differential is computed: "usga" (default,
     /// (grossStrokes - courseRating) * 113 / slopeRating), "straight_strokes"
-    /// (grossStrokes - courseRating, ignoring slope), or "custom" (evaluates
-    /// <see cref="HandicapCustomFormula"/>). See
+    /// (grossStrokes - par, ignoring course rating and slope), or "custom"
+    /// (evaluates <see cref="HandicapCustomFormula"/>). See
     /// <see cref="GolfLeague.Domain.Enums.HandicapDifferentialMode"/>.
     /// </summary>
     public const string HandicapCalcMode = "handicap_calc_mode";

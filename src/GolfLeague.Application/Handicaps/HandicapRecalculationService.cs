@@ -66,7 +66,7 @@ public sealed class HandicapRecalculationService
     public double ComputeDifferential(HandicapRoundInput round, HandicapCalcSettings settings) => settings.Mode switch
     {
         HandicapDifferentialMode.StraightStrokes =>
-            StablefordScoringService.NineHoleStraightStrokesDifferential(round.GrossStrokes, round.CourseRating),
+            StablefordScoringService.NineHoleStraightStrokesDifferential(round.GrossStrokes, round.Par),
         HandicapDifferentialMode.Custom when !string.IsNullOrWhiteSpace(settings.CustomFormula) =>
             _formulaEvaluator.Evaluate(settings.CustomFormula, new HandicapFormulaInput(round.GrossStrokes, round.CourseRating, round.SlopeRating, round.Par)),
         _ => StablefordScoringService.NineHoleScoreDifferential(round.GrossStrokes, round.CourseRating, round.SlopeRating),
