@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Application.Flights.Services;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
@@ -29,13 +30,16 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
 {
     private readonly IRoundRepository _roundRepository;
     private readonly IPlayerRepository _playerRepository;
+    private readonly MatchPlayResultCalculator _matchPlayResultCalculator;
 
     public SubmitHoleScoresCommandHandler(
         IRoundRepository roundRepository,
-        IPlayerRepository playerRepository)
+        IPlayerRepository playerRepository,
+        MatchPlayResultCalculator matchPlayResultCalculator)
     {
         _roundRepository = roundRepository;
         _playerRepository = playerRepository;
+        _matchPlayResultCalculator = matchPlayResultCalculator;
     }
 
     public async Task<Result<ScorecardDto>> Handle(SubmitHoleScoresCommand request, CancellationToken cancellationToken)
@@ -142,6 +146,12 @@ public sealed class SubmitHoleScoresCommandHandler : IRequestHandler<SubmitHoleS
         participant.TotalNetStablefordPoints = holeScoreEntities.Sum(h => h.NetStablefordPoints);
 
         await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+
+        if (round.Half?.ScoringFormat == ScoringFormat.MatchPlay)
+        {
+            await _matchPlayResultCalculator.RecomputeForRoundPlayerAsync(
+                round.Id, participant.PlayerId, round.Half.MatchPlayCustomFormula, cancellationToken);
+        }
 
         if (round.Status == RoundStatus.Scheduled)
         {

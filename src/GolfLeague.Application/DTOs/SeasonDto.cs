@@ -7,7 +7,9 @@ public sealed record SeasonHalfDto(
     string Name,
     string StartDate,
     string EndDate,
-    bool IsLocked = false);
+    bool IsLocked = false,
+    string ScoringFormat = "stableford",
+    string? MatchPlayCustomFormula = null);
 
 public sealed record SeasonDto(
     int Id,

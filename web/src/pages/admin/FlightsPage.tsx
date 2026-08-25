@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Lock, RefreshCw, Trash2, Users } from 'lucide-react';
-import { useFlights } from '../../hooks/useFlights';
+import { Lock, RefreshCw, Trash2, Users, CalendarRange } from 'lucide-react';
+import { useFlights, useFlightMatches } from '../../hooks/useFlights';
 import { useAllPlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
-import { useDeleteFlight, useInitializeHalfFlights } from '../../hooks/admin/useFlightMutations';
+import { useDeleteFlight, useInitializeHalfFlights, useGenerateMatchPlaySchedule } from '../../hooks/admin/useFlightMutations';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
@@ -49,6 +49,102 @@ function FlightCard({ flight, playerCount, locked, onDelete }: FlightCardProps) 
         </div>
       </div>
     </Card>
+  );
+}
+
+function MatchScheduleSection({ half, flights, locked }: { half: SeasonHalf; flights: Flight[]; locked: boolean }) {
+  const { data: matches, isLoading } = useFlightMatches(String(half.id));
+  const generateSchedule = useGenerateMatchPlaySchedule();
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleGenerate() {
+    setError(null);
+    setWarnings([]);
+    try {
+      const result = await generateSchedule.mutateAsync({ halfId: half.id });
+      setWarnings(result.warnings);
+    } catch {
+      setError('Failed to generate the match schedule. Try again.');
+    }
+  }
+
+  const flightNameById = new Map(flights.map((f) => [f.id, f.name]));
+  const matchesByWeek = new Map<number, typeof matches>();
+  for (const m of matches ?? []) {
+    if (!matchesByWeek.has(m.weekNumber)) matchesByWeek.set(m.weekNumber, []);
+    matchesByWeek.get(m.weekNumber)!.push(m);
+  }
+  const weeks = [...matchesByWeek.keys()].sort((a, b) => a - b);
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+          <CalendarRange className="h-4 w-4" />
+          Match Schedule
+        </h3>
+        {!locked && flights.length > 0 && (
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handleGenerate}
+            disabled={generateSchedule.isPending}
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${generateSchedule.isPending ? 'animate-spin' : ''}`} />
+            {matches && matches.length > 0 ? 'Regenerate Schedule' : 'Generate Schedule'}
+          </Button>
+        )}
+      </div>
+
+      {flights.length === 0 && (
+        <p className="text-sm text-gray-400">Set up flights first before generating a match schedule.</p>
+      )}
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {warnings.length > 0 && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 space-y-1">
+          {warnings.map((w, i) => (
+            <p key={i} className="text-xs text-amber-800">{w}</p>
+          ))}
+        </div>
+      )}
+
+      {isLoading && <Spinner />}
+
+      {!isLoading && weeks.length === 0 && flights.length > 0 && (
+        <p className="text-sm text-gray-400">No matches scheduled yet.</p>
+      )}
+
+      {weeks.length > 0 && (
+        <div className="space-y-3">
+          {weeks.map((week) => (
+            <div key={week}>
+              <p className="mb-1 text-xs font-medium uppercase tracking-wide text-gray-500">Week {week}</p>
+              <div className="grid gap-1.5 sm:grid-cols-2">
+                {matchesByWeek.get(week)!.map((m) => (
+                  <div key={m.id} className="rounded border border-gray-100 bg-gray-50 px-3 py-1.5 text-sm">
+                    <span className="text-xs text-gray-400 mr-2">{flightNameById.get(m.flightId) ?? ''}</span>
+                    {m.player2Id === null ? (
+                      <span className="text-gray-700">{m.player1FullName} <span className="text-gray-400 italic">— BYE</span></span>
+                    ) : (
+                      <span className="text-gray-700">
+                        {m.player1FullName} vs {m.player2FullName}
+                        {m.player1Points != null && (
+                          <span className="ml-2 text-xs font-medium text-gray-500">
+                            {m.player1Points}-{m.player2Points}
+                          </span>
+                        )}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -131,6 +227,10 @@ function HalfSection({ half, flights, players, locked, onDelete, onInitialize, i
           </p>
           <FlightPlayerAssignment halfId={half.id} flights={flights} />
         </div>
+      )}
+
+      {half.scoringFormat === 'matchPlay' && (
+        <MatchScheduleSection half={half} flights={flights} locked={locked} />
       )}
     </section>
   );

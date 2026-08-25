@@ -1,7 +1,7 @@
 import { Link, useSearchParams } from 'react-router-dom';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { Users, ArrowRight, Trophy } from 'lucide-react';
-import { useFlights, useFlightStandings } from '@/hooks/useFlights';
+import { useFlights, useFlightStandings, useMatchPlayStandings } from '@/hooks/useFlights';
 import { useSeasons } from '@/hooks/useSeasons';
 import { useRounds } from '@/hooks/useRounds';
 import { normalizeRoundStatus } from '@/lib/enumUtils';
@@ -36,15 +36,119 @@ function positionBadge(position: number) {
 interface FlightCardProps {
   flight: Flight;
   useGross: boolean;
+  scoringFormat: 'stableford' | 'matchPlay';
 }
 
-function FlightCard({ flight, useGross }: FlightCardProps) {
-  const prefix = useLeaguePrefix();
+function StablefordFlightCardBody({ flight, useGross }: { flight: Flight; useGross: boolean }) {
   const { data: standings, isPending } = useFlightStandings(
     String(flight.id),
     String(flight.halfId),
     useGross
   );
+
+  if (isPending) {
+    return (
+      <div className="py-8 flex justify-center">
+        <div className="animate-spin h-5 w-5 border-2 border-primary-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!standings || standings.length === 0) {
+    return <p className="text-sm text-gray-500 py-4 text-center">No standings available for this half yet.</p>;
+  }
+
+  return (
+    <>
+      <div className="rounded border border-gray-200 overflow-hidden">
+        <Table>
+          <TableBody>
+            {standings.slice(0, 5).map((standing: Standing) => (
+              <TableRow key={standing.playerId} className="hover:bg-gray-50">
+                <TableCell className="w-10 py-2 text-center">
+                  {positionBadge(standing.position)}
+                </TableCell>
+                <TableCell className="py-2">
+                  <PlayerLink playerId={standing.playerId} name={standing.playerFullName} />
+                </TableCell>
+                <TableCell className="w-16 py-2 text-center text-sm font-semibold">
+                  {standing.totalPoints}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {standings.length > 5 && (
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          +{standings.length - 5} more players
+        </p>
+      )}
+    </>
+  );
+}
+
+function MatchPlayFlightCardBody({ flight }: { flight: Flight }) {
+  const { data: standings, isPending } = useMatchPlayStandings(String(flight.id), String(flight.halfId));
+
+  if (isPending) {
+    return (
+      <div className="py-8 flex justify-center">
+        <div className="animate-spin h-5 w-5 border-2 border-primary-600 border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (!standings || standings.length === 0) {
+    return <p className="text-sm text-gray-500 py-4 text-center">No match play results available for this half yet.</p>;
+  }
+
+  return (
+    <>
+      <div className="rounded border border-gray-200 overflow-hidden">
+        <Table>
+          <TableBody>
+            {standings.slice(0, 5).map((standing) => (
+              <TableRow key={standing.playerId} className="hover:bg-gray-50">
+                <TableCell className="w-10 py-2 text-center">
+                  {positionBadge(standing.position)}
+                </TableCell>
+                <TableCell className="py-2">
+                  <PlayerLink playerId={standing.playerId} name={standing.playerFullName} />
+                </TableCell>
+                <TableCell className="w-16 py-2 text-center text-sm font-semibold">
+                  {standing.totalPoints}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {standings.length > 5 && (
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          +{standings.length - 5} more players
+        </p>
+      )}
+    </>
+  );
+}
+
+function PlayerLink({ playerId, name }: { playerId: number; name: string }) {
+  const prefix = useLeaguePrefix();
+  return (
+    <Link to={`${prefix}/players/${playerId}`} className="font-medium text-primary-900 hover:underline text-sm">
+      {name}
+    </Link>
+  );
+}
+
+function FlightCard({ flight, useGross, scoringFormat }: FlightCardProps) {
+  const prefix = useLeaguePrefix();
+  const leaderboardHref = scoringFormat === 'matchPlay'
+    ? `${prefix}/flights/${flight.id}/match-play?halfId=${flight.halfId}`
+    : `${prefix}/flights/${flight.id}?halfId=${flight.halfId}`;
 
   return (
     <Card className="flex flex-col hover:shadow-md transition-shadow">
@@ -60,51 +164,14 @@ function FlightCard({ flight, useGross }: FlightCardProps) {
       </CardHeader>
 
       <CardContent className="pt-0 flex-1">
-        {isPending ? (
-          <div className="py-8 flex justify-center">
-            <div className="animate-spin h-5 w-5 border-2 border-primary-600 border-t-transparent rounded-full" />
-          </div>
-        ) : standings && standings.length > 0 ? (
-          <>
-            <div className="rounded border border-gray-200 overflow-hidden">
-              <Table>
-                <TableBody>
-                  {standings.slice(0, 5).map((standing: Standing) => (
-                    <TableRow key={standing.playerId} className="hover:bg-gray-50">
-                      <TableCell className="w-10 py-2 text-center">
-                        {positionBadge(standing.position)}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Link
-                          to={`${prefix}/players/${standing.playerId}`}
-                          className="font-medium text-primary-900 hover:underline text-sm"
-                        >
-                          {standing.playerFullName}
-                        </Link>
-                      </TableCell>
-                      <TableCell className="w-16 py-2 text-center text-sm font-semibold">
-                        {standing.totalPoints}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            {standings.length > 5 && (
-              <p className="text-xs text-gray-500 mt-2 text-center">
-                +{standings.length - 5} more players
-              </p>
-            )}
-          </>
+        {scoringFormat === 'matchPlay' ? (
+          <MatchPlayFlightCardBody flight={flight} />
         ) : (
-          <p className="text-sm text-gray-500 py-4 text-center">
-            No standings available for this half yet.
-          </p>
+          <StablefordFlightCardBody flight={flight} useGross={useGross} />
         )}
 
         <Button variant="outline" size="sm" className="w-full mt-4" asChild>
-          <Link to={`${prefix}/flights/${flight.id}?halfId=${flight.halfId}`}>
+          <Link to={leaderboardHref}>
             Full Leaderboard
             <ArrowRight className="ml-1 h-3 w-3" />
           </Link>
@@ -309,7 +376,12 @@ export function FlightsPage() {
           </div>
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {flightsForHalf.map((flight) => (
-              <FlightCard key={flight.id} flight={flight} useGross={useGross} />
+              <FlightCard
+                key={flight.id}
+                flight={flight}
+                useGross={useGross}
+                scoringFormat={selectedHalfInfo.half.scoringFormat}
+              />
             ))}
           </div>
         </section>

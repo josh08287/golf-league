@@ -94,7 +94,7 @@ public sealed class SeasonFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
-            new UpdateSeasonHalfCommand(id, startDate, endDate, userId),
+            new UpdateSeasonHalfCommand(id, startDate, endDate, userId, body.ScoringFormat, body.MatchPlayCustomFormula),
             cancellationToken);
 
         return result.ToOkResult();
@@ -139,5 +139,7 @@ public sealed class SeasonFunctions
 
     private sealed record UpdateSeasonHalfRequest(
         string StartDate,
-        string EndDate);
+        string EndDate,
+        string? ScoringFormat = null,
+        string? MatchPlayCustomFormula = null);
 }

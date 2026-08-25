@@ -29,3 +29,22 @@ export function useInitializeHalfFlights() {
     },
   });
 }
+
+export interface GenerateMatchPlayScheduleResult {
+  flightSummaries: { flightId: number; flightName: string; matchesScheduled: number; hasBye: boolean }[];
+  warnings: string[];
+}
+
+export function useGenerateMatchPlaySchedule() {
+  const qc = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: { halfId: number }) =>
+      apiClient
+        .post<GenerateMatchPlayScheduleResult>('/flights/generate-match-schedule', payload)
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: flightKeys.all });
+    },
+  });
+}

@@ -125,6 +125,51 @@ export interface Standing {
   roundScores: RoundScore[];
 }
 
+export interface MatchPlayMatchResult {
+  roundId: number;
+  weekNumber: number;
+  roundDate: string;
+  opponentPlayerId: number | null;
+  opponentFullName: string | null;
+  playerPoints: number;
+  opponentPoints: number;
+  playerHolesWon: number;
+  opponentHolesWon: number;
+  wasBye: boolean;
+  wasAgainstCard: boolean;
+}
+
+export interface MatchPlayStanding {
+  position: number;
+  playerId: number;
+  playerFullName: string;
+  playerInitials: string;
+  matchesPlayed: number;
+  totalPoints: number;
+  averagePointsPerMatch: number;
+  wins: number;
+  halves: number;
+  losses: number;
+  currentHandicapIndex: number;
+  matchResults: MatchPlayMatchResult[];
+}
+
+export interface FlightMatch {
+  id: number;
+  flightId: number;
+  roundId: number;
+  weekNumber: number;
+  roundDate: string;
+  player1Id: number;
+  player1FullName: string;
+  player2Id: number | null;
+  player2FullName: string | null;
+  player1Points: number | null;
+  player2Points: number | null;
+  player1Absent: boolean;
+  player2Absent: boolean;
+}
+
 export type RoundStatus = 'Scheduled' | 'InProgress' | 'PendingFinalization' | 'Finalized' | 'Cancelled';
 export type NineHoleSide = 'Front' | 'Back' | 'NotApplicable';
 export type RoundType = 'NineHole' | 'EighteenHole' | 'Tournament';
@@ -424,6 +469,9 @@ export interface SeasonHalf {
   endDate: string;
   /** True once the half's rounds have started; its roster is then frozen. */
   isLocked: boolean;
+  scoringFormat: 'stableford' | 'matchPlay';
+  /** Match play only. Null/empty = standard scoring (2/1/0 per hole + 4-point match bonus). */
+  matchPlayCustomFormula: string | null;
 }
 
 export interface Season {
@@ -1081,6 +1129,18 @@ export const HANDICAP_CALC_MODES = {
   straightStrokes: 'straight_strokes',
   custom: 'custom',
 } as const;
+
+export const SCORING_FORMATS = {
+  stableford: 'stableford',
+  matchPlay: 'matchPlay',
+} as const;
+
+/** Variables available in a match-play custom NCalc formula, evaluated once per player per hole. */
+export const MATCH_PLAY_FORMULA_VARIABLES = [
+  'netStrokes', 'opponentNetStrokes', 'grossStrokes', 'opponentGrossStrokes',
+  'par', 'strokeIndex', 'holeNumber', 'courseRating', 'slopeRating',
+  'handicapIndex', 'opponentHandicapIndex', 'isAgainstCard',
+] as const;
 
 /** Settings safe to expose to anonymous site visitors. See GET /v1/settings/public. */
 export interface PublicLeagueSettings {

@@ -68,6 +68,7 @@ public class Round
     public SeasonHalf? Half { get; set; }
     public Course Course { get; set; } = null!;
     public ICollection<RoundParticipant> Participants { get; set; } = [];
+    public ICollection<FlightMatch> FlightMatches { get; set; } = [];
     public ICollection<TournamentFlight> TournamentFlights { get; set; } = [];
     public ICollection<TournamentMatchup> TournamentMatchups { get; set; } = [];
     public ICollection<TournamentHoleExtra> TournamentHoleExtras { get; set; } = [];

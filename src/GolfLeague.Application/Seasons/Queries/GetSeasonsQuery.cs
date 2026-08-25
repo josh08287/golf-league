@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -62,6 +63,8 @@ public sealed class GetSeasonsQueryHandler : IRequestHandler<GetSeasonsQuery, Re
                 h.Id, h.SeasonId, h.HalfNumber, h.Name,
                 h.StartDate.ToString("yyyy-MM-dd"),
                 h.EndDate.ToString("yyyy-MM-dd"),
-                lockedHalfIds?.Contains(h.Id) ?? false))
+                lockedHalfIds?.Contains(h.Id) ?? false,
+                h.ScoringFormat.ToWireString(),
+                h.MatchPlayCustomFormula))
             .ToList());
 }

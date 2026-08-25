@@ -12,6 +12,7 @@ using GolfLeague.Infrastructure.Caching;
 using GolfLeague.Infrastructure.Data;
 using GolfLeague.Infrastructure.Email;
 using GolfLeague.Infrastructure.Handicaps;
+using GolfLeague.Infrastructure.MatchPlay;
 using GolfLeague.Infrastructure.Repositories;
 using GolfLeague.Infrastructure.ScorecardOcr;
 using Microsoft.AspNetCore.Identity;
@@ -93,6 +94,8 @@ public static class DependencyInjection
         services.AddScoped<ICourseRepository>(sp => new CachedCourseRepository(sp.GetRequiredService<CourseRepository>(), sp.GetRequiredService<IMemoryCache>()));
         services.AddScoped<IHandicapRepository, HandicapRepository>();
         services.AddSingleton<IHandicapFormulaEvaluator, HandicapFormulaEvaluator>();
+        services.AddScoped<IFlightMatchRepository, FlightMatchRepository>();
+        services.AddSingleton<IMatchPlayFormulaEvaluator, MatchPlayFormulaEvaluator>();
         services.AddScoped<IAuditRepository, AuditRepository>();
         services.AddScoped<AuditWriter>();
         services.AddScoped<ISeasonRepository, SeasonRepository>();
@@ -107,6 +110,7 @@ public static class DependencyInjection
         services.AddScoped<ITeeTimeAutofillService, TeeTimeAutofillService>();
         services.AddScoped<TournamentFoursomeService>();
         services.AddScoped<GolfLeague.Application.Handicaps.HandicapRecalculationService>();
+        services.AddScoped<GolfLeague.Application.Flights.Services.MatchPlayResultCalculator>();
 
         services.AddScoped<LeagueContext>();
         services.AddScoped<ILeagueContext>(sp => sp.GetRequiredService<LeagueContext>());

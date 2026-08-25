@@ -13,6 +13,7 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Modal } from '../../components/admin/Modal';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
+import { SCORING_FORMATS, MATCH_PLAY_FORMULA_VARIABLES } from '../../types/api';
 import type { Season, SeasonHalf } from '../../types/api';
 
 const schema = z.object({
@@ -96,8 +97,18 @@ function EditHalfForm({ half, onSuccess, onCancel }: { half: SeasonHalf; onSucce
     defaultValues: { startDate: half.startDate, endDate: half.endDate },
   });
 
+  const [scoringFormat, setScoringFormat] = useState<'stableford' | 'matchPlay'>(half.scoringFormat);
+  const [useCustomFormula, setUseCustomFormula] = useState(Boolean(half.matchPlayCustomFormula));
+  const [formulaInput, setFormulaInput] = useState(half.matchPlayCustomFormula ?? '');
+
   async function onSubmit(values: HalfFormValues) {
-    await update.mutateAsync({ halfId: half.id, startDate: values.startDate, endDate: values.endDate });
+    await update.mutateAsync({
+      halfId: half.id,
+      startDate: values.startDate,
+      endDate: values.endDate,
+      scoringFormat,
+      matchPlayCustomFormula: scoringFormat === SCORING_FORMATS.matchPlay && useCustomFormula ? formulaInput.trim() : null,
+    });
     onSuccess();
   }
 
@@ -110,6 +121,89 @@ function EditHalfForm({ half, onSuccess, onCancel }: { half: SeasonHalf; onSucce
         <FormField label="End Date" error={errors.endDate} required>
           <input {...register('endDate')} type="date" className={inputClass} />
         </FormField>
+      </div>
+
+      <div>
+        <p className="mb-2 text-sm font-medium text-gray-900">Scoring format</p>
+        <div className="space-y-2">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="scoring-format"
+              className="mt-0.5"
+              checked={scoringFormat === SCORING_FORMATS.stableford}
+              onChange={() => setScoringFormat('stableford')}
+            />
+            <span>
+              <span className="font-medium text-gray-900">Stableford</span>{' '}
+              <span className="text-gray-500">points per hole based on net score vs. par</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="scoring-format"
+              className="mt-0.5"
+              checked={scoringFormat === SCORING_FORMATS.matchPlay}
+              onChange={() => setScoringFormat('matchPlay')}
+            />
+            <span>
+              <span className="font-medium text-gray-900">Match play</span>{' '}
+              <span className="text-gray-500">round-robin head-to-head within each flight</span>
+            </span>
+          </label>
+        </div>
+
+        {scoringFormat === SCORING_FORMATS.matchPlay && (
+          <div className="mt-3 space-y-2 pl-6">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="match-play-scoring"
+                className="mt-0.5"
+                checked={!useCustomFormula}
+                onChange={() => setUseCustomFormula(false)}
+              />
+              <span>
+                <span className="font-medium text-gray-900">Standard scoring</span>{' '}
+                <span className="text-gray-500">2 pts per hole won, 1 pt each for a halve, plus a 4-pt bonus for winning the match</span>
+              </span>
+            </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="radio"
+                name="match-play-scoring"
+                className="mt-0.5"
+                checked={useCustomFormula}
+                onChange={() => setUseCustomFormula(true)}
+              />
+              <span>
+                <span className="font-medium text-gray-900">Custom formula</span>{' '}
+                <span className="text-gray-500">enter your own per-hole formula below</span>
+              </span>
+            </label>
+
+            {useCustomFormula && (
+              <div className="pl-6">
+                <textarea
+                  value={formulaInput}
+                  onChange={(e) => setFormulaInput(e.target.value)}
+                  placeholder="netStrokes < opponentNetStrokes ? 2 : (netStrokes > opponentNetStrokes ? 0 : 1)"
+                  rows={2}
+                  disabled={update.isPending}
+                  className="w-full rounded-md border border-gray-300 px-3 py-1.5 font-mono text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Available variables: {MATCH_PLAY_FORMULA_VARIABLES.map((v, i) => (
+                    <span key={v}>
+                      <code>{v}</code>{i < MATCH_PLAY_FORMULA_VARIABLES.length - 1 ? ', ' : ''}
+                    </span>
+                  ))}. Evaluated once per player per hole; must evaluate to a number.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {update.isError && (

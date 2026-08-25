@@ -38,6 +38,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<TournamentFlight> TournamentFlights => Set<TournamentFlight>();
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
+    public DbSet<FlightMatch> FlightMatches => Set<FlightMatch>();
+    public DbSet<FlightMatchHoleResult> FlightMatchHoleResults => Set<FlightMatchHoleResult>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
     public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
     public DbSet<RoundClosestToPin> RoundClosestToPins => Set<RoundClosestToPin>();
@@ -69,6 +71,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureRoundParticipants(modelBuilder);
         ConfigureTournamentFlights(modelBuilder);
         ConfigureTournamentMatchups(modelBuilder);
+        ConfigureFlightMatches(modelBuilder);
+        ConfigureFlightMatchHoleResults(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
         ConfigureTournamentLongestDriveWinners(modelBuilder);
         ConfigureRoundClosestToPins(modelBuilder);
@@ -191,6 +195,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.SeasonId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.SeasonId, e.HalfNumber }).IsUnique();
+            entity.Property(e => e.ScoringFormat)
+                  .HasConversion<int>()
+                  .HasDefaultValue(ScoringFormat.Stableford);
+            entity.Property(e => e.MatchPlayCustomFormula).HasMaxLength(2000);
         });
     }
 
@@ -482,6 +490,49 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.Player2Id)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.RoundId, e.MatchupNumber }).IsUnique();
+        });
+    }
+
+    private static void ConfigureFlightMatches(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<FlightMatch>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Flight)
+                  .WithMany(f => f.Matches)
+                  .HasForeignKey(e => e.FlightId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Half)
+                  .WithMany(h => h.Matches)
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Round)
+                  .WithMany(r => r.FlightMatches)
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Player1)
+                  .WithMany()
+                  .HasForeignKey(e => e.Player1Id)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Player2)
+                  .WithMany()
+                  .HasForeignKey(e => e.Player2Id)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.HalfId, e.FlightId });
+            entity.HasIndex(e => e.RoundId);
+        });
+    }
+
+    private static void ConfigureFlightMatchHoleResults(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<FlightMatchHoleResult>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.FlightMatch)
+                  .WithMany(m => m.HoleResults)
+                  .HasForeignKey(e => e.FlightMatchId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasIndex(e => new { e.FlightMatchId, e.HoleNumber }).IsUnique();
         });
     }
 

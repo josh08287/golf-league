@@ -9,6 +9,7 @@ import { adminRoutes } from '@/routes/adminRoutes';
 const HomePage = lazy(() => import('@/pages/HomePage').then((m) => ({ default: m.HomePage })));
 const FlightsPage = lazy(() => import('@/pages/FlightsPage').then((m) => ({ default: m.FlightsPage })));
 const FlightLeaderboardPage = lazy(() => import('@/pages/FlightLeaderboardPage').then((m) => ({ default: m.FlightLeaderboardPage })));
+const MatchPlayLeaderboardPage = lazy(() => import('@/pages/MatchPlayLeaderboardPage').then((m) => ({ default: m.MatchPlayLeaderboardPage })));
 const RoundsPage = lazy(() => import('@/pages/RoundsPage').then((m) => ({ default: m.RoundsPage })));
 const RoundDetailPage = lazy(() => import('@/pages/RoundDetailPage').then((m) => ({ default: m.RoundDetailPage })));
 const PlayerProfilePage = lazy(() => import('@/pages/PlayerProfilePage').then((m) => ({ default: m.PlayerProfilePage })));
@@ -61,6 +62,7 @@ export default function App() {
               <Route index element={<HomePage />} />
               <Route path="flights" element={<FlightsPage />} />
               <Route path="flights/:flightId" element={<FlightLeaderboardPage />} />
+              <Route path="flights/:flightId/match-play" element={<MatchPlayLeaderboardPage />} />
               <Route path="rounds" element={<RoundsPage />} />
               <Route path="rounds/:roundId" element={<RoundDetailPage />} />
               <Route path="players" element={<PlayersPage />} />

@@ -52,13 +52,17 @@ export function useUpdateSeasonHalf() {
       halfId,
       startDate,
       endDate,
+      scoringFormat,
+      matchPlayCustomFormula,
     }: {
       halfId: number;
       startDate: string;
       endDate: string;
+      scoringFormat?: 'stableford' | 'matchPlay';
+      matchPlayCustomFormula?: string | null;
     }) =>
       apiClient
-        .put(`/seasons/halves/${halfId}`, { startDate, endDate })
+        .put(`/seasons/halves/${halfId}`, { startDate, endDate, scoringFormat, matchPlayCustomFormula })
         .then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: seasonKeys.all }),
   });

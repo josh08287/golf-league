@@ -1,8 +1,10 @@
 using FluentAssertions;
+using GolfLeague.Application.Flights.Services;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using Moq;
 using Xunit;
 
@@ -46,6 +48,8 @@ public class SubmitHoleScoresHandlerTests
     {
         public Mock<IRoundRepository> Rounds { get; } = new();
         public Mock<IPlayerRepository> Players { get; } = new();
+        public Mock<IFlightMatchRepository> FlightMatches { get; } = new();
+        public Mock<IMatchPlayFormulaEvaluator> FormulaEvaluator { get; } = new();
 
         public Mocks()
         {
@@ -53,7 +57,10 @@ public class SubmitHoleScoresHandlerTests
             Rounds.Setup(r => r.GetParticipantAsync(1, 100, It.IsAny<CancellationToken>())).ReturnsAsync(MakeParticipant());
         }
 
-        public SubmitHoleScoresCommandHandler BuildSut() => new(Rounds.Object, Players.Object);
+        public SubmitHoleScoresCommandHandler BuildSut() => new(
+            Rounds.Object,
+            Players.Object,
+            new MatchPlayResultCalculator(FlightMatches.Object, Rounds.Object, FormulaEvaluator.Object));
     }
 
     private static List<HoleScoreInput> NineHoles(int grossStrokesPerHole) =>

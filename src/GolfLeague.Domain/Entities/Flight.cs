@@ -12,4 +12,5 @@ public class Flight
     public Season Season { get; set; } = null!;
     public SeasonHalf Half { get; set; } = null!;
     public ICollection<FlightMembership> Memberships { get; set; } = [];
+    public ICollection<FlightMatch> Matches { get; set; } = [];
 }

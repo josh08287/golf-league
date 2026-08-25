@@ -117,6 +117,54 @@ public sealed class FlightFunctions
         return result.ToOkResult();
     }
 
+    [Function("GenerateMatchPlaySchedule")]
+    public async Task<IActionResult> GenerateMatchPlaySchedule(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/flights/generate-match-schedule")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        var body = await req.TryDeserializeAsync<GenerateMatchPlayScheduleRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new GenerateMatchPlayScheduleCommand(body.HalfId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("GetMatchPlayStandings")]
+    public async Task<IActionResult> GetMatchPlayStandings(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/flights/{id}/match-play-standings")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var flightId))
+            return new BadRequestObjectResult(new { error = "Invalid flight ID." });
+
+        if (!int.TryParse(req.Query["halfId"], out var halfId))
+            return new BadRequestObjectResult(new { error = "Query parameter 'halfId' is required." });
+
+        var sort = SortRequest.TryParse(req.Query["sortBy"], req.Query["sortDir"]);
+        var result = await _mediator.Send(new GetMatchPlayStandingsQuery(flightId, halfId, sort), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("GetFlightMatches")]
+    public async Task<IActionResult> GetFlightMatches(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/flights/matches")] HttpRequest req,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(req.Query["halfId"], out var halfId))
+            return new BadRequestObjectResult(new { error = "Query parameter 'halfId' is required." });
+
+        int? flightId = int.TryParse(req.Query["flightId"], out var fid) ? fid : null;
+
+        var result = await _mediator.Send(new GetFlightMatchesQuery(halfId, flightId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record CreateFlightRequest(
         string Name,
         int HalfId,
@@ -125,4 +173,6 @@ public sealed class FlightFunctions
     private sealed record InitializeHalfRequest(
         int HalfId,
         int? MaxPlayersPerFlight);
+
+    private sealed record GenerateMatchPlayScheduleRequest(int HalfId);
 }
