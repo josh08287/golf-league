@@ -80,7 +80,18 @@ jobs:
       # Migrations/seeding no longer run automatically on Function host cold start
       # (that would wake the SQL Serverless DB from auto-pause far more often than
       # real deploys happen). Run them once here instead, right after each deploy.
+      # Retries with backoff: right after a deploy the host is still cold-starting
+      # (and the SQL Serverless DB may itself be resuming from auto-pause), so an
+      # immediate call can transiently 503.
       - name: Apply database migrations
         run: |
-          curl -sS -X POST -f \
-            "https://golf-league-fn-g5vkqe.azurewebsites.net/api/admin/migrate?code=${{ secrets.ADMIN_MIGRATE_FUNCTION_KEY }}"
+          url="https://golf-league-fn-g5vkqe.azurewebsites.net/api/admin/migrate?code=${{ secrets.ADMIN_MIGRATE_FUNCTION_KEY }}"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -sS -X POST -f "$url"; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed, retrying in 20s..."
+            sleep 20
+          done
+          echo "All attempts failed."
+          exit 1
