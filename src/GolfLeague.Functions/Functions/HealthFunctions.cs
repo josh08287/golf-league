@@ -1,8 +1,6 @@
-using GolfLeague.Infrastructure.Data;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Functions.Worker;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace GolfLeague.Functions.Functions;
@@ -24,40 +22,27 @@ public sealed class HealthFunctions
 
 public sealed class AdminMigrateFunction
 {
-    private readonly AppDbContext _dbContext;
+    private readonly IServiceProvider _services;
     private readonly ILogger<AdminMigrateFunction> _logger;
 
-    public AdminMigrateFunction(AppDbContext dbContext, ILogger<AdminMigrateFunction> logger)
+    public AdminMigrateFunction(IServiceProvider services, ILogger<AdminMigrateFunction> logger)
     {
-        _dbContext = dbContext;
+        _services = services;
         _logger = logger;
     }
 
+    // Applies pending migrations and runs role/league/season/admin seeding on demand.
+    // Called once per deploy by the CI/CD workflow instead of running this on every
+    // Function host cold start, which would otherwise wake the paused SQL Serverless DB
+    // far more often than real deploys happen.
     [Function("MigrateDatabase")]
     public async Task<IActionResult> MigrateDatabase(
         [HttpTrigger(AuthorizationLevel.Function, "post", Route = "admin/migrate")] HttpRequest req)
     {
         try
         {
-            var pending = (await _dbContext.Database.GetPendingMigrationsAsync()).ToList();
-            var applied = (await _dbContext.Database.GetAppliedMigrationsAsync()).ToList();
-
-            _logger.LogInformation("Migrate: {AppliedCount} applied, {PendingCount} pending.", applied.Count, pending.Count);
-
-            var strategy = _dbContext.Database.CreateExecutionStrategy();
-            await strategy.ExecuteAsync(async () =>
-            {
-                await _dbContext.Database.MigrateAsync();
-            });
-
-            var afterApplied = (await _dbContext.Database.GetAppliedMigrationsAsync()).ToList();
-            return new OkObjectResult(new
-            {
-                ok = true,
-                appliedBefore = applied,
-                pendingBefore = pending,
-                appliedAfter = afterApplied,
-            });
+            await DatabaseInitializer.EnsureDatabaseInitializedAsync(_services, _logger);
+            return new OkObjectResult(new { ok = true });
         }
         catch (Exception ex)
         {

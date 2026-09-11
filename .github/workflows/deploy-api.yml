@@ -76,3 +76,11 @@ jobs:
           app-name: golf-league-fn-g5vkqe
           package: api.zip
           publish-profile: ${{ secrets.AZURE_FUNCTIONS_PUBLISH_PROFILE }}
+
+      # Migrations/seeding no longer run automatically on Function host cold start
+      # (that would wake the SQL Serverless DB from auto-pause far more often than
+      # real deploys happen). Run them once here instead, right after each deploy.
+      - name: Apply database migrations
+        run: |
+          curl -sS -X POST -f \
+            "https://golf-league-fn-g5vkqe.azurewebsites.net/api/admin/migrate?code=${{ secrets.ADMIN_MIGRATE_FUNCTION_KEY }}"

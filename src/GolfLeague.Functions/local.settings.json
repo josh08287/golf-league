@@ -3,6 +3,7 @@
   "Values": {
     "AzureWebJobsStorage": "UseDevelopmentStorage=true",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
+    "RUN_MIGRATIONS_ON_STARTUP": "true",
     "SQL_CONNECTION_STRING": "Server=tcp:capgolfleague-eca.database.windows.net,1433;Initial Catalog=capgolfleague;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=\"Active Directory Default\";",
     "BLOB_STORAGE_ACCOUNT": "",
     "WEB_BASE_URL": "http://localhost:5173",
