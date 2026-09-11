@@ -86,7 +86,7 @@ jobs:
       # immediate call can transiently 503.
       - name: Apply database migrations
         run: |
-          url="https://golf-league-fn-g5vkqe.azurewebsites.net/api/admin/migrate?code=${{ secrets.ADMIN_MIGRATE_FUNCTION_KEY }}"
+          url="https://golf-league-fn-g5vkqe.azurewebsites.net/api/db-migrate?code=${{ secrets.ADMIN_MIGRATE_FUNCTION_KEY }}"
           for attempt in 1 2 3 4 5 6; do
             if curl -sS -X POST -f "$url"; then
               exit 0

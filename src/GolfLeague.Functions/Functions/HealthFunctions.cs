@@ -35,9 +35,12 @@ public sealed class AdminMigrateFunction
     // Called once per deploy by the CI/CD workflow instead of running this on every
     // Function host cold start, which would otherwise wake the paused SQL Serverless DB
     // far more often than real deploys happen.
+    // Route deliberately avoids the "admin/" prefix — Azure Functions reserves
+    // that segment for its own host admin API (/admin/host/*, /admin/functions/*),
+    // which intercepts it before user-function routing and 404s a custom route there.
     [Function("MigrateDatabase")]
     public async Task<IActionResult> MigrateDatabase(
-        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "admin/migrate")] HttpRequest req)
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "db-migrate")] HttpRequest req)
     {
         try
         {
