@@ -7,14 +7,13 @@ using MediatR;
 namespace GolfLeague.Application.Rounds.Commands;
 
 /// <summary>
-/// Replaces a tournament round's matchups with a fresh handicap-based
-/// default pairing — same algorithm as <see cref="CreateTournamentRoundCommand"/>'s
-/// default pairing (sort by handicap index ascending, pair 1v2, 3v4, ...),
-/// except regular players and substitutes are paired within their own group
-/// only. A substitute would otherwise have no meaningful handicap-based
-/// match among regular roster players (they're filling in ad hoc, often
-/// without a season-tracked handicap history), so they're kept to
-/// substitute-vs-substitute matchups, numbered after every regular matchup.
+/// Replaces a tournament round's matchups with a fresh default pairing:
+/// regular players are paired by ascending handicap index (1v2, 3v4, ...) —
+/// same algorithm as <see cref="CreateTournamentRoundCommand"/>'s default
+/// pairing. Substitutes are excluded from that handicap-based pairing (they're
+/// filling in ad hoc, often without a season-tracked handicap history, so a
+/// handicap-based match among them is not meaningful) and are instead paired
+/// randomly against other substitutes, numbered after every regular matchup.
 /// An odd player out in either group is left unmatched, same as creation.
 /// </summary>
 public sealed record RegenerateTournamentMatchupsCommand(int RoundId, string UserId)
@@ -45,7 +44,7 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
             return Result<List<TournamentMatchupDto>>.Fail("Matchups can only be regenerated while the round is Scheduled.");
 
         var regulars = round.Participants.Where(p => !p.IsSubstitute).OrderBy(p => p.HandicapIndex).ToList();
-        var subs = round.Participants.Where(p => p.IsSubstitute).OrderBy(p => p.HandicapIndex).ToList();
+        var subs = round.Participants.Where(p => p.IsSubstitute).OrderBy(_ => Random.Shared.Next()).ToList();
 
         var matchupEntities = new List<TournamentMatchup>();
         var matchupDtos = new List<TournamentMatchupDto>();

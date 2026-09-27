@@ -10,9 +10,10 @@ namespace GolfLeague.Tests.Application;
 
 /// <summary>
 /// RegenerateTournamentMatchupsCommand re-derives matchups from the round's
-/// current roster by ascending handicap — same pairing rule as tournament
-/// creation's default matchups, except substitutes are only ever paired
-/// against other substitutes, appended after every regular matchup.
+/// current roster: regular players are paired by ascending handicap — same
+/// pairing rule as tournament creation's default matchups — while
+/// substitutes are paired randomly against other substitutes, appended
+/// after every regular matchup.
 /// </summary>
 public class RegenerateTournamentMatchupsTests
 {
@@ -126,10 +127,45 @@ public class RegenerateTournamentMatchupsTests
         result.Value[0].Player1Id.Should().Be(2); // regular2 (5.0)
         result.Value[0].Player2Id.Should().Be(1); // regular1 (10.0)
 
-        // Sub matchup is appended last.
+        // Sub matchup is appended last — pairing is random, not handicap-based,
+        // so only membership (not order) is asserted.
         result.Value[1].MatchupNumber.Should().Be(2);
-        result.Value[1].Player1Id.Should().Be(4); // sub2 (3.0)
-        result.Value[1].Player2Id.Should().Be(3); // sub1 (8.0)
+        new[] { result.Value[1].Player1Id, result.Value[1].Player2Id }
+            .Should().BeEquivalentTo(new[] { 3, 4 });
+    }
+
+    [Fact]
+    public async Task Handle_SubstitutePairing_IgnoresHandicapOrder()
+    {
+        // Regression guard: substitutes must not be paired by ascending
+        // handicap. With enough subs, run regeneration repeatedly and assert
+        // at least one run does not produce the handicap-sorted pairing.
+        var regular1 = MakeParticipant(1, 10.0);
+        var regular2 = MakeParticipant(2, 5.0);
+        var subLow = MakeParticipant(10, 1.0, isSubstitute: true);
+        var subMid1 = MakeParticipant(11, 2.0, isSubstitute: true);
+        var subMid2 = MakeParticipant(12, 3.0, isSubstitute: true);
+        var subHigh = MakeParticipant(13, 4.0, isSubstitute: true);
+
+        bool sawNonHandicapOrder = false;
+        for (int i = 0; i < 50 && !sawNonHandicapOrder; i++)
+        {
+            var round = MakeTournamentRound(participants: [regular1, regular2, subLow, subMid1, subMid2, subHigh]);
+            var rounds = MakeRounds(round);
+
+            var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+                .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
+
+            var subMatchups = result.Value!.Skip(1).ToList(); // after the single regular matchup
+            var handicapOrderPairing =
+                subMatchups[0].Player1Id == subLow.PlayerId && subMatchups[0].Player2Id == subMid1.PlayerId &&
+                subMatchups[1].Player1Id == subMid2.PlayerId && subMatchups[1].Player2Id == subHigh.PlayerId;
+
+            if (!handicapOrderPairing)
+                sawNonHandicapOrder = true;
+        }
+
+        sawNonHandicapOrder.Should().BeTrue("substitute pairing should be randomized, not handicap-ordered");
     }
 
     [Fact]
