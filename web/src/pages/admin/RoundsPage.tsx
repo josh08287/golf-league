@@ -21,7 +21,6 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { CreateRoundForm } from '../../components/admin/CreateRoundForm';
 import { CreateTournamentRoundForm } from '../../components/admin/CreateTournamentRoundForm';
 import { CreateHalfForm } from '../../components/admin/CreateHalfForm';
-import { ManageTournamentPlayersModal } from '../../components/admin/ManageTournamentPlayersModal';
 import {
   normalizeRoundStatus,
   normalizeRoundType,
@@ -57,7 +56,6 @@ export function RoundsPage() {
   const [cancelTarget, setCancelTarget] = useState<Round | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Round | null>(null);
   const [reopenTarget, setReopenTarget] = useState<Round | null>(null);
-  const [managePlayersTarget, setManagePlayersTarget] = useState<Round | null>(null);
 
   const finalize = useFinalizeRound(String(finalizeTarget?.id ?? ''));
   const cancelRound = useCancelRound();
@@ -143,7 +141,7 @@ export function RoundsPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setManagePlayersTarget(r)}
+                  onClick={() => navigate(`${prefix}/admin/rounds/${r.id}/manage-tournament`)}
                 >
                   Manage Tournament
                 </Button>
@@ -291,11 +289,6 @@ export function RoundsPage() {
         isLoading={deleteRound.isPending}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
-      />
-
-      <ManageTournamentPlayersModal
-        round={managePlayersTarget}
-        onClose={() => setManagePlayersTarget(null)}
       />
 
       <ConfirmDialog

@@ -11,6 +11,7 @@ const FlightsPage = lazy(() => import('../pages/admin/FlightsPage').then((m) => 
 const RoundsPage = lazy(() => import('../pages/admin/RoundsPage').then((m) => ({ default: m.RoundsPage })));
 const ScoreEntryPage = lazy(() => import('../pages/admin/ScoreEntryPage').then((m) => ({ default: m.ScoreEntryPage })));
 const TournamentScoreEntryPage = lazy(() => import('../pages/admin/TournamentScoreEntryPage').then((m) => ({ default: m.TournamentScoreEntryPage })));
+const ManageTournamentPage = lazy(() => import('../pages/admin/ManageTournamentPage').then((m) => ({ default: m.ManageTournamentPage })));
 const TeeTimesAdminPage = lazy(() => import('../pages/admin/TeeTimesAdminPage').then((m) => ({ default: m.TeeTimesAdminPage })));
 const CoursesPage = lazy(() => import('../pages/admin/CoursesPage').then((m) => ({ default: m.CoursesPage })));
 const SeasonsPage = lazy(() => import('../pages/admin/SeasonsPage').then((m) => ({ default: m.SeasonsPage })));
@@ -29,6 +30,7 @@ export const adminRoutes = (
       <Route path="rounds" element={<RoundsPage />} />
       <Route path="rounds/:id/scores" element={<ScoreEntryPage />} />
       <Route path="rounds/:id/tournament-scores" element={<TournamentScoreEntryPage />} />
+      <Route path="rounds/:id/manage-tournament" element={<ManageTournamentPage />} />
       <Route path="tee-times" element={<TeeTimesAdminPage />} />
       <Route path="courses" element={<CoursesPage />} />
       <Route path="seasons" element={<SeasonsPage />} />
