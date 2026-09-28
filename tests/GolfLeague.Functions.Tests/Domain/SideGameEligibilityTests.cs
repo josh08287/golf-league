@@ -27,16 +27,30 @@ public class SideGameEligibilityTests
     }
 
     [Fact]
-    public void EligibleGames_For9Holes_OnlyReturnsBestBall()
+    public void BingoBangoBongo_IsValidFor9And18Holes()
     {
-        var eligible = SideGameEligibility.EligibleGames(9);
-        eligible.Should().ContainSingle().Which.Should().Be(SideGameType.TwoVTwoBestBall);
+        SideGameEligibility.IsValidFor(SideGameType.BingoBangoBongo, 9).Should().BeTrue();
+        SideGameEligibility.IsValidFor(SideGameType.BingoBangoBongo, 18).Should().BeTrue();
     }
 
     [Fact]
-    public void EligibleGames_For18Holes_ReturnsBothGames()
+    public void Wolf_IsValidFor9And18Holes()
+    {
+        SideGameEligibility.IsValidFor(SideGameType.Wolf, 9).Should().BeTrue();
+        SideGameEligibility.IsValidFor(SideGameType.Wolf, 18).Should().BeTrue();
+    }
+
+    [Fact]
+    public void EligibleGames_For9Holes_ExcludesNassauOnly()
+    {
+        var eligible = SideGameEligibility.EligibleGames(9);
+        eligible.Should().BeEquivalentTo([SideGameType.TwoVTwoBestBall, SideGameType.BingoBangoBongo, SideGameType.Wolf]);
+    }
+
+    [Fact]
+    public void EligibleGames_For18Holes_ReturnsAllGames()
     {
         var eligible = SideGameEligibility.EligibleGames(18);
-        eligible.Should().BeEquivalentTo([SideGameType.Nassau, SideGameType.TwoVTwoBestBall]);
+        eligible.Should().BeEquivalentTo([SideGameType.Nassau, SideGameType.TwoVTwoBestBall, SideGameType.BingoBangoBongo, SideGameType.Wolf]);
     }
 }

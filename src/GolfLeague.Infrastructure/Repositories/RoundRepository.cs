@@ -236,13 +236,31 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task DeleteParticipantAsync(int participantId, CancellationToken cancellationToken = default)
     {
-        // TeeTimeSideGameTeam.ParticipantId is NoAction (see AppDbContext
-        // comment) to avoid a second SQL Server cascade path onto that table,
-        // so any team rows for this participant must be cleared explicitly
-        // before the participant row can be deleted.
+        // TeeTimeSideGameTeam.ParticipantId, TeeTimeSideGameHolePick.WinnerParticipantId,
+        // and TeeTimeWolfHolePick's participant FKs are all NoAction (see
+        // AppDbContext comments) to avoid a second SQL Server cascade path
+        // onto those tables, so references to this participant must be
+        // cleared explicitly before the participant row can be deleted.
         await _context.TeeTimeSideGameTeams
             .Where(t => t.ParticipantId == participantId)
             .ExecuteDeleteAsync(cancellationToken);
+
+        // Honor picks are historical record — null the winner reference
+        // rather than deleting the row so the "recorded, no clear winner"
+        // pick isn't confused with "never recorded".
+        await _context.TeeTimeSideGameHolePicks
+            .Where(p => p.WinnerParticipantId == participantId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.WinnerParticipantId, (int?)null), cancellationToken);
+
+        // A Wolf call's WolfParticipantId is required, so a departing Wolf's
+        // pick row can't be preserved in a meaningful way — remove it. A
+        // departing partner is nulled out instead, same as an honor winner.
+        await _context.TeeTimeWolfHolePicks
+            .Where(p => p.WolfParticipantId == participantId)
+            .ExecuteDeleteAsync(cancellationToken);
+        await _context.TeeTimeWolfHolePicks
+            .Where(p => p.PartnerParticipantId == participantId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.PartnerParticipantId, (int?)null), cancellationToken);
 
         await _context.RoundParticipants
             .Where(rp => rp.Id == participantId)

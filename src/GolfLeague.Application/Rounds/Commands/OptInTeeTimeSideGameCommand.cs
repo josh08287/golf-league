@@ -11,10 +11,12 @@ namespace GolfLeague.Application.Rounds.Commands;
 public sealed record SideGameTeamAssignment(int ParticipantId, int TeamNumber);
 
 /// <summary>
-/// Opts a tee-time group into an optional side game (Nassau or 2v2 best
-/// ball). Any player currently in the group may opt in on the group's
-/// behalf. Games are always scored from each player's own hole scores —
-/// opting in never changes how scores are entered.
+/// Opts a tee-time group into an optional side game (Nassau, 2v2 best ball,
+/// Bingo Bango Bongo, or Wolf). Any player currently in the group may opt in
+/// on the group's behalf. Every player still enters their own gross/net
+/// score exactly as normal — opting in never changes that, though Bingo
+/// Bango Bongo and Wolf additionally need a few per-hole picks captured
+/// alongside score entry (see SetSideGameHolePickCommand / SetWolfHolePickCommand).
 /// </summary>
 public sealed record OptInTeeTimeSideGameCommand(
     int TeeTimeId,
@@ -22,6 +24,8 @@ public sealed record OptInTeeTimeSideGameCommand(
     DomainEnums.ScoringBasis? ScoringBasis,
     DomainEnums.NassauFormat? NassauFormat,
     List<SideGameTeamAssignment>? Teams,
+    /// <summary>Wolf only: participant ids in tee-off/rotation order (≥4 active players required).</summary>
+    List<int>? WolfRotationOrder,
     int PlayerId,
     string UserId) : IRequest<Result<TeeTimeSideGame>>, IAmAuditableCommand
 {
@@ -93,6 +97,23 @@ public sealed class OptInTeeTimeSideGameCommandHandler
         }
         if (request.GameType == DomainEnums.SideGameType.Nassau && request.ScoringBasis is null)
             return Result<TeeTimeSideGame>.Fail("A scoring basis (gross or net) is required for Nassau.");
+
+        if (request.GameType == DomainEnums.SideGameType.Wolf)
+        {
+            if (request.WolfRotationOrder is null || request.WolfRotationOrder.Count < 4)
+                return Result<TeeTimeSideGame>.Fail("Wolf needs a rotation order of at least 4 active players.");
+
+            var activeParticipantIds = activeParticipants.Select(p => p.Id).ToHashSet();
+            if (request.WolfRotationOrder.Any(id => !activeParticipantIds.Contains(id)))
+                return Result<TeeTimeSideGame>.Fail("The Wolf rotation references a player not active in this group.");
+            if (request.WolfRotationOrder.Distinct().Count() != request.WolfRotationOrder.Count)
+                return Result<TeeTimeSideGame>.Fail("Each player can only appear once in the Wolf rotation.");
+
+            // Rotation position stored 1-based in TeamNumber, same table 2v2/Nassau use for team sides.
+            teams = request.WolfRotationOrder
+                .Select((participantId, index) => new TeeTimeSideGameTeam { TeamNumber = index + 1, ParticipantId = participantId })
+                .ToList();
+        }
 
         var sideGame = new TeeTimeSideGame
         {

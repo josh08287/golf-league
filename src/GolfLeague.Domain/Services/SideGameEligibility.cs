@@ -14,6 +14,8 @@ public static class SideGameEligibility
     {
         [SideGameType.Nassau] = [18],
         [SideGameType.TwoVTwoBestBall] = [9, 18],
+        [SideGameType.BingoBangoBongo] = [9, 18],
+        [SideGameType.Wolf] = [9, 18],
     };
 
     public static bool IsValidFor(SideGameType type, int holeCount) =>

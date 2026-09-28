@@ -3,11 +3,14 @@ using GolfLeague.Domain.Enums;
 namespace GolfLeague.Domain.Entities;
 
 /// <summary>
-/// An optional side game (Nassau, 2v2 best ball, etc.) a tee-time group has
-/// opted into for their round. Every game in this system is scored purely
-/// from each player's own HoleScore rows — no game ever combines strokes
-/// into a shared team ball, so opting in never changes how scores are
-/// entered, only how they're aggregated for display.
+/// An optional side game (Nassau, 2v2 best ball, Bingo Bango Bongo, Wolf)
+/// a tee-time group has opted into for their round. Every player still
+/// enters their own gross/net score exactly as normal — opting in never
+/// changes how strokes are recorded. Nassau and 2v2 best ball are scored
+/// purely from those HoleScore rows; Bingo Bango Bongo and Wolf need a few
+/// extra per-hole facts that aren't part of a scorecard (who was first on
+/// the green, who the Wolf picked as a partner), captured in
+/// <see cref="HolePicks"/> / <see cref="WolfPicks"/>.
 /// </summary>
 public class TeeTimeSideGame
 {
@@ -37,5 +40,17 @@ public class TeeTimeSideGame
     public int OptedInByPlayerId { get; set; }
     public DateTime OptedInAt { get; set; }
 
+    /// <summary>
+    /// Team assignments for 2v2 best ball and team Nassau. Wolf repurposes
+    /// this same table to store its rotation order instead — TeamNumber
+    /// holds the 1-based rotation position rather than a team side; see
+    /// WolfScoringService for how the rotation is read back.
+    /// </summary>
     public ICollection<TeeTimeSideGameTeam> Teams { get; set; } = [];
+
+    /// <summary>Bingo Bango Bongo only: per-hole honor winners.</summary>
+    public ICollection<TeeTimeSideGameHolePick> HolePicks { get; set; } = [];
+
+    /// <summary>Wolf only: per-hole partner/lone-wolf calls.</summary>
+    public ICollection<TeeTimeWolfHolePick> WolfPicks { get; set; } = [];
 }

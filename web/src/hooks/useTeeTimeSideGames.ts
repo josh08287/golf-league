@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
-import type { NassauFormat, ScoringBasis, SideGameType, TeeTimeSideGames } from '@/types/api';
+import type { BbbHonor, NassauFormat, ScoringBasis, SideGameType, TeeTimeSideGames } from '@/types/api';
 
 function unwrap<T>(data: unknown): T {
   if (data && typeof data === 'object' && 'data' in (data as object)) {
@@ -34,6 +34,7 @@ export interface OptInSideGameInput {
   scoringBasis?: ScoringBasis;
   nassauFormat?: NassauFormat;
   teams?: { participantId: number; teamNumber: number }[];
+  wolfRotationOrder?: number[];
 }
 
 export function useOptInSideGame(teeTimeId: number) {
@@ -54,6 +55,50 @@ export function useOptOutSideGame(teeTimeId: number) {
   return useMutation({
     mutationFn: async (sideGameId: number) => {
       const res = await apiClient.delete(`/tee-times/${teeTimeId}/side-games/${sideGameId}`);
+      return unwrap(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeSideGameKeys.teeTime(teeTimeId) });
+    },
+  });
+}
+
+/** Records (or clears) one Bingo Bango Bongo honor's winner for one hole. */
+export function useSetSideGameHolePick(teeTimeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { sideGameId: number; holeNumber: number; honor: BbbHonor; winnerParticipantId: number | null }) => {
+      const res = await apiClient.put(
+        `/tee-times/${teeTimeId}/side-games/${input.sideGameId}/bbb-picks/${input.holeNumber}/${input.honor}`,
+        { winnerParticipantId: input.winnerParticipantId },
+      );
+      return unwrap(res.data);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: teeTimeSideGameKeys.teeTime(teeTimeId) });
+    },
+  });
+}
+
+/** Records one hole's Wolf call (partner picked, or lone wolf). */
+export function useSetWolfHolePick(teeTimeId: number) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      sideGameId: number;
+      holeNumber: number;
+      wolfParticipantId: number;
+      isLoneWolf: boolean;
+      partnerParticipantId: number | null;
+    }) => {
+      const res = await apiClient.put(
+        `/tee-times/${teeTimeId}/side-games/${input.sideGameId}/wolf-picks/${input.holeNumber}`,
+        {
+          wolfParticipantId: input.wolfParticipantId,
+          isLoneWolf: input.isLoneWolf,
+          partnerParticipantId: input.partnerParticipantId,
+        },
+      );
       return unwrap(res.data);
     },
     onSuccess: () => {

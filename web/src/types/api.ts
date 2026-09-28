@@ -1177,12 +1177,17 @@ export const FEATURE_FLAG_KEYS = {
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────
-// Optional per-foursome games (Nassau, 2v2 best ball), opted into from the
-// score entry screen. Always scored from each player's own hole scores.
+// Optional per-foursome games (Nassau, 2v2 best ball, Bingo Bango Bongo,
+// Wolf), opted into from the score entry screen. Every player still enters
+// their own gross/net score exactly as normal — opting in never changes
+// that, though Bingo Bango Bongo and Wolf additionally capture a few
+// per-hole picks (who won an honor, who the Wolf partnered with) alongside
+// score entry.
 
-export type SideGameType = 'Nassau' | 'TwoVTwoBestBall';
+export type SideGameType = 'Nassau' | 'TwoVTwoBestBall' | 'BingoBangoBongo' | 'Wolf';
 export type ScoringBasis = 'Gross' | 'Net';
 export type NassauFormat = 'TeamVsTeam' | 'Individual';
+export type BbbHonor = 'FirstOnGreen' | 'ClosestOnceOn' | 'FirstInHole';
 
 export interface SideGameTeam {
   teamNumber: number;
@@ -1211,6 +1216,50 @@ export interface BestBallStatus {
   status: string;
 }
 
+export interface BbbPlayerTally {
+  participantId: number;
+  playerName: string;
+  points: number;
+}
+
+export interface BbbHolePick {
+  holeNumber: number;
+  honor: BbbHonor;
+  winnerParticipantId: number | null;
+  winnerPlayerName: string | null;
+}
+
+export interface BbbStatus {
+  standings: BbbPlayerTally[];
+  picks: BbbHolePick[];
+}
+
+export interface WolfPlayerTally {
+  participantId: number;
+  playerName: string;
+  points: number;
+}
+
+export interface WolfHolePickStatus {
+  holeNumber: number;
+  wolfParticipantId: number;
+  wolfPlayerName: string;
+  isLoneWolf: boolean;
+  partnerParticipantId: number | null;
+  partnerPlayerName: string | null;
+  outcome: string | null;
+}
+
+export interface WolfStatus {
+  rotationParticipantIds: number[];
+  rotationPlayerNames: string[];
+  nextWolfParticipantId: number;
+  nextWolfPlayerName: string;
+  nextHoleNumber: number;
+  standings: WolfPlayerTally[];
+  picks: WolfHolePickStatus[];
+}
+
 export interface TeeTimeSideGame {
   id: number;
   gameType: SideGameType;
@@ -1221,6 +1270,8 @@ export interface TeeTimeSideGame {
   totalHoles: number;
   nassau: NassauStatus | null;
   bestBall: BestBallStatus | null;
+  bbb: BbbStatus | null;
+  wolf: WolfStatus | null;
 }
 
 export interface TeeTimeSideGames {

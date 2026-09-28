@@ -12,8 +12,9 @@ using Microsoft.Azure.Functions.Worker;
 namespace GolfLeague.Functions.Functions;
 
 /// <summary>
-/// Optional per-foursome side games (Nassau, 2v2 best ball). The whole
-/// feature is gated by the side_games_enabled feature flag.
+/// Optional per-foursome side games (Nassau, 2v2 best ball, Bingo Bango
+/// Bongo, Wolf). The whole feature is gated by the side_games_enabled
+/// feature flag.
 /// </summary>
 public sealed class TeeTimeSideGameFunctions
 {
@@ -89,6 +90,7 @@ public sealed class TeeTimeSideGameFunctions
             body.ScoringBasis,
             body.NassauFormat,
             teams,
+            body.WolfRotationOrder,
             playerId.Value,
             userId);
 
@@ -122,11 +124,87 @@ public sealed class TeeTimeSideGameFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>
+    /// PUT /v1/tee-times/{teeTimeId}/side-games/{sideGameId}/bbb-picks/{holeNumber}/{honor}
+    /// — Records (or clears) one Bingo Bango Bongo honor's winner for one
+    /// hole. Any active player in the group may record it.
+    /// </summary>
+    [Function("SetSideGameHolePick")]
+    public async Task<IActionResult> SetHolePick(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{teeTimeId:int}/side-games/{sideGameId:int}/bbb-picks/{holeNumber:int}/{honor}")] HttpRequest req,
+        int teeTimeId,
+        int sideGameId,
+        int holeNumber,
+        string honor,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!await FeatureEnabledAsync(cancellationToken))
+            return new BadRequestObjectResult(new { error = "Side games are not enabled." });
+
+        if (!Enum.TryParse<BbbHonor>(honor, ignoreCase: true, out var honorValue))
+            return new BadRequestObjectResult(new { error = $"Unknown honor '{honor}'." });
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetHolePickRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var command = new SetSideGameHolePickCommand(teeTimeId, sideGameId, holeNumber, honorValue, body.WinnerParticipantId, playerId.Value, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+        return result.ToOkResult();
+    }
+
+    /// <summary>
+    /// PUT /v1/tee-times/{teeTimeId}/side-games/{sideGameId}/wolf-picks/{holeNumber}
+    /// — Records one hole's Wolf call (partner picked, or lone wolf). Any
+    /// active player in the group may record it.
+    /// </summary>
+    [Function("SetWolfHolePick")]
+    public async Task<IActionResult> SetWolfPick(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{teeTimeId:int}/side-games/{sideGameId:int}/wolf-picks/{holeNumber:int}")] HttpRequest req,
+        int teeTimeId,
+        int sideGameId,
+        int holeNumber,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!await FeatureEnabledAsync(cancellationToken))
+            return new BadRequestObjectResult(new { error = "Side games are not enabled." });
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetWolfPickRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var command = new SetWolfHolePickCommand(
+            teeTimeId, sideGameId, holeNumber, body.WolfParticipantId, body.IsLoneWolf, body.PartnerParticipantId, playerId.Value, userId);
+        var result = await _mediator.Send(command, cancellationToken);
+        return result.ToOkResult();
+    }
+
     private sealed record SideGameTeamAssignmentRequest(int ParticipantId, int TeamNumber);
 
     private sealed record OptInSideGameRequest(
         SideGameType GameType,
         ScoringBasis? ScoringBasis,
         NassauFormat? NassauFormat,
-        List<SideGameTeamAssignmentRequest>? Teams);
+        List<SideGameTeamAssignmentRequest>? Teams,
+        List<int>? WolfRotationOrder);
+
+    private sealed record SetHolePickRequest(int? WinnerParticipantId);
+
+    private sealed record SetWolfPickRequest(int WolfParticipantId, bool IsLoneWolf, int? PartnerParticipantId);
 }

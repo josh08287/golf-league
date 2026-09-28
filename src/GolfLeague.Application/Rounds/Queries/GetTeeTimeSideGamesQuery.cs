@@ -27,10 +27,37 @@ public sealed record BestBallStatusDto(
     int HolesHalved,
     string Status);
 
+public sealed record BbbPlayerTallyDto(int ParticipantId, string PlayerName, int Points);
+
+public sealed record BbbHolePickDto(int HoleNumber, BbbHonor Honor, int? WinnerParticipantId, string? WinnerPlayerName);
+
+public sealed record BbbStatusDto(List<BbbPlayerTallyDto> Standings, List<BbbHolePickDto> Picks);
+
+public sealed record WolfPlayerTallyDto(int ParticipantId, string PlayerName, int Points);
+
+public sealed record WolfHolePickStatusDto(
+    int HoleNumber,
+    int WolfParticipantId,
+    string WolfPlayerName,
+    bool IsLoneWolf,
+    int? PartnerParticipantId,
+    string? PartnerPlayerName,
+    string? Outcome);
+
+public sealed record WolfStatusDto(
+    List<int> RotationParticipantIds,
+    List<string> RotationPlayerNames,
+    int NextWolfParticipantId,
+    string NextWolfPlayerName,
+    int NextHoleNumber,
+    List<WolfPlayerTallyDto> Standings,
+    List<WolfHolePickStatusDto> Picks);
+
 /// <summary>
 /// One side game a tee-time group has opted into, with its live-computed
-/// status. Status is always derived from currently-entered HoleScore rows,
-/// never persisted, so it's always in sync with the scorecard.
+/// status. Status is always derived from currently-entered HoleScore rows
+/// (plus any recorded BBB/Wolf picks), never persisted beyond the raw
+/// picks, so it's always in sync with the scorecard.
 /// </summary>
 public sealed record TeeTimeSideGameDto(
     int Id,
@@ -41,7 +68,9 @@ public sealed record TeeTimeSideGameDto(
     int HolesEntered,
     int TotalHoles,
     NassauStatusDto? Nassau,
-    BestBallStatusDto? BestBall);
+    BestBallStatusDto? BestBall,
+    BbbStatusDto? Bbb,
+    WolfStatusDto? Wolf);
 
 public sealed record TeeTimeSideGamesDto(
     int TeeTimeId,
@@ -122,6 +151,8 @@ public sealed class GetTeeTimeSideGamesQueryHandler
 
         NassauStatusDto? nassauStatus = null;
         BestBallStatusDto? bestBallStatus = null;
+        BbbStatusDto? bbbStatus = null;
+        WolfStatusDto? wolfStatus = null;
 
         if (game.GameType == SideGameType.Nassau)
         {
@@ -190,6 +221,14 @@ public sealed class GetTeeTimeSideGamesQueryHandler
                 status.HolesHalved,
                 statusText);
         }
+        else if (game.GameType == SideGameType.BingoBangoBongo)
+        {
+            bbbStatus = BuildBbbStatus(game, activeParticipants, participantsById);
+        }
+        else if (game.GameType == SideGameType.Wolf)
+        {
+            wolfStatus = BuildWolfStatus(game, activeParticipants, participantsById, holeCount);
+        }
 
         return new TeeTimeSideGameDto(
             game.Id,
@@ -200,7 +239,98 @@ public sealed class GetTeeTimeSideGamesQueryHandler
             holesEntered,
             holeCount,
             nassauStatus,
-            bestBallStatus);
+            bestBallStatus,
+            bbbStatus,
+            wolfStatus);
+    }
+
+    private static BbbStatusDto BuildBbbStatus(
+        TeeTimeSideGame game,
+        List<RoundParticipant> activeParticipants,
+        Dictionary<int, RoundParticipant> participantsById)
+    {
+        var picks = game.HolePicks
+            .Select(p => new BingoBangoBongoScoringService.HolePick(p.HoleNumber, p.Honor, p.WinnerParticipantId))
+            .ToList();
+
+        var tally = BingoBangoBongoScoringService.Tally(picks);
+        var tallyByParticipant = tally.ToDictionary(t => t.ParticipantId, t => t.Points);
+
+        var standings = activeParticipants
+            .Select(p => new BbbPlayerTallyDto(p.Id, p.Player.FullName, tallyByParticipant.GetValueOrDefault(p.Id)))
+            .OrderByDescending(s => s.Points)
+            .ToList();
+
+        var pickDtos = game.HolePicks
+            .OrderBy(p => p.HoleNumber).ThenBy(p => p.Honor)
+            .Select(p => new BbbHolePickDto(
+                p.HoleNumber,
+                p.Honor,
+                p.WinnerParticipantId,
+                p.WinnerParticipantId.HasValue && participantsById.TryGetValue(p.WinnerParticipantId.Value, out var w) ? w.Player.FullName : null))
+            .ToList();
+
+        return new BbbStatusDto(standings, pickDtos);
+    }
+
+    private static WolfStatusDto BuildWolfStatus(
+        TeeTimeSideGame game,
+        List<RoundParticipant> activeParticipants,
+        Dictionary<int, RoundParticipant> participantsById,
+        int holeCount)
+    {
+        var rotation = game.Teams.OrderBy(t => t.TeamNumber).Select(t => t.ParticipantId).ToList();
+        var rotationNames = rotation.Select(id => participantsById.TryGetValue(id, out var p) ? p.Player.FullName : "Unknown").ToList();
+
+        var picksByHole = game.WolfPicks.ToDictionary(p => p.HoleNumber);
+
+        var outcomes = new List<WolfScoringService.HoleOutcome>();
+        var pickDtos = new List<WolfHolePickStatusDto>();
+        var activeParticipantIds = activeParticipants.Select(p => p.Id).ToList();
+
+        for (int holeNumber = 1; holeNumber <= holeCount; holeNumber++)
+        {
+            if (!picksByHole.TryGetValue(holeNumber, out var pick))
+                continue;
+
+            var netStrokesByParticipant = activeParticipants
+                .Select(p => (p.Id, Hole: p.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber)))
+                .Where(x => x.Hole is not null)
+                .ToDictionary(x => x.Id, x => x.Hole!.NetStrokes);
+
+            var scoringPick = new WolfScoringService.HolePick(holeNumber, pick.WolfParticipantId, pick.IsLoneWolf, pick.PartnerParticipantId);
+            var outcome = WolfScoringService.ScoreHole(scoringPick, netStrokesByParticipant, activeParticipantIds);
+            outcomes.Add(outcome);
+
+            string? outcomeText = netStrokesByParticipant.Count == 0 ? null : outcome.Winner switch
+            {
+                BestBallScoringService.HoleWinner.Halved => "Halved",
+                BestBallScoringService.HoleWinner.TeamA => $"Wolf side won (+{outcome.PointsAwarded})",
+                _ => $"Other side won (+{outcome.PointsAwarded})",
+            };
+
+            pickDtos.Add(new WolfHolePickStatusDto(
+                holeNumber,
+                pick.WolfParticipantId,
+                participantsById.TryGetValue(pick.WolfParticipantId, out var wolfP) ? wolfP.Player.FullName : "Unknown",
+                pick.IsLoneWolf,
+                pick.PartnerParticipantId,
+                pick.PartnerParticipantId.HasValue && participantsById.TryGetValue(pick.PartnerParticipantId.Value, out var partnerP) ? partnerP.Player.FullName : null,
+                outcomeText));
+        }
+
+        var tally = WolfScoringService.Tally(outcomes);
+        var tallyByParticipant = tally.ToDictionary(t => t.ParticipantId, t => t.Points);
+        var standings = activeParticipants
+            .Select(p => new WolfPlayerTallyDto(p.Id, p.Player.FullName, tallyByParticipant.GetValueOrDefault(p.Id)))
+            .OrderByDescending(s => s.Points)
+            .ToList();
+
+        var nextHoleNumber = Enumerable.Range(1, holeCount).FirstOrDefault(h => !picksByHole.ContainsKey(h), holeCount + 1);
+        var nextWolfParticipantId = rotation.Count > 0 && nextHoleNumber <= holeCount ? rotation[(nextHoleNumber - 1) % rotation.Count] : 0;
+        var nextWolfName = participantsById.TryGetValue(nextWolfParticipantId, out var nextWolf) ? nextWolf.Player.FullName : "Unknown";
+
+        return new WolfStatusDto(rotation, rotationNames, nextWolfParticipantId, nextWolfName, nextHoleNumber, standings, pickDtos);
     }
 
     private static NassauMatchDto BuildNassauMatch(

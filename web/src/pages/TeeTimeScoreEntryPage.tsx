@@ -14,7 +14,7 @@ import {
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useRoundClosestToPin, useSetRoundClosestToPin } from '@/hooks/useClosestToPin';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
-import { SideGamesPanel, SideGamesStatusBar } from '@/components/scoring/SideGamesPanel';
+import { SideGamesPanel, SideGamesStatusBar, SideGamesHolePickersSection } from '@/components/scoring/SideGamesPanel';
 import { useAuthStore } from '@/store/authStore';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -1800,6 +1800,17 @@ export function TeeTimeScoreEntryPage() {
               ctp={scorecard.tournamentCtp}
               longestDriveHoleNumber={scorecard.longestDriveHoleNumber}
               longestDrive={scorecard.tournamentLongestDrive}
+              canEdit={canEdit}
+            />
+          )}
+          {sideGamesEnabled && (
+            <SideGamesHolePickersSection
+              teeTimeId={teeTimeIdNum}
+              holeNumber={currentHole.holeNumber}
+              players={players
+                .filter((p) => !p.isWithdrawn && !(skippedOverrides[p.playerId] ?? p.skippedWeek))
+                .map((p) => ({ participantId: p.participantId, playerName: p.playerName }))}
+              enabled={sideGamesEnabled}
               canEdit={canEdit}
             />
           )}

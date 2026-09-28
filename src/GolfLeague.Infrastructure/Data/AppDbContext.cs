@@ -37,6 +37,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
     public DbSet<TeeTimeSideGame> TeeTimeSideGames => Set<TeeTimeSideGame>();
     public DbSet<TeeTimeSideGameTeam> TeeTimeSideGameTeams => Set<TeeTimeSideGameTeam>();
+    public DbSet<TeeTimeSideGameHolePick> TeeTimeSideGameHolePicks => Set<TeeTimeSideGameHolePick>();
+    public DbSet<TeeTimeWolfHolePick> TeeTimeWolfHolePicks => Set<TeeTimeWolfHolePick>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<TournamentFlight> TournamentFlights => Set<TournamentFlight>();
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
@@ -83,6 +85,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureRoundClosestToPins(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
         ConfigureTeeTimeSideGames(modelBuilder);
+        ConfigureTeeTimeSideGameHolePicks(modelBuilder);
+        ConfigureTeeTimeWolfHolePicks(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
         ConfigurePlayerInvites(modelBuilder);
@@ -682,6 +686,51 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .OnDelete(DeleteBehavior.NoAction);
             // A participant can only be on one team within a given side game.
             entity.HasIndex(e => new { e.TeeTimeSideGameId, e.ParticipantId }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTeeTimeSideGameHolePicks(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TeeTimeSideGameHolePick>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.SideGame)
+                  .WithMany(g => g.HolePicks)
+                  .HasForeignKey(e => e.TeeTimeSideGameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            // NoAction for the same reason as TeeTimeSideGameTeam.ParticipantId
+            // (see comment above) — avoids a second SQL Server cascade path
+            // onto this table. RoundRepository.DeleteParticipantAsync clears
+            // any pick referencing a departing participant first.
+            entity.HasOne(e => e.WinnerParticipant)
+                  .WithMany()
+                  .HasForeignKey(e => e.WinnerParticipantId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            // One row per honor per hole per game.
+            entity.HasIndex(e => new { e.TeeTimeSideGameId, e.HoleNumber, e.Honor }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTeeTimeWolfHolePicks(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TeeTimeWolfHolePick>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.SideGame)
+                  .WithMany(g => g.WolfPicks)
+                  .HasForeignKey(e => e.TeeTimeSideGameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            // NoAction for the same reason as TeeTimeSideGameTeam.ParticipantId.
+            entity.HasOne(e => e.WolfParticipant)
+                  .WithMany()
+                  .HasForeignKey(e => e.WolfParticipantId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(e => e.PartnerParticipant)
+                  .WithMany()
+                  .HasForeignKey(e => e.PartnerParticipantId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            // One Wolf call per hole per game.
+            entity.HasIndex(e => new { e.TeeTimeSideGameId, e.HoleNumber }).IsUnique();
         });
     }
 

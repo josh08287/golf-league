@@ -6,5 +6,7 @@ namespace GolfLeague.Domain.Enums;
 public enum SideGameType
 {
     Nassau,
-    TwoVTwoBestBall
+    TwoVTwoBestBall,
+    BingoBangoBongo,
+    Wolf
 }
