@@ -19,6 +19,38 @@ const BBB_HONOR_LABELS: Record<BbbHonor, string> = {
   FirstInHole: 'First in the hole',
 };
 
+const GAME_INSTRUCTIONS: Record<SideGameType, string[]> = {
+  Nassau: [
+    'Three separate 1-point bets in one: front 9, back 9, and overall 18 — each scored as its own match.',
+    'Every hole, whoever has the lower score (by the basis you pick below) wins that hole 1-up. A tie halves the hole.',
+    'Whoever is more holes "up" than down when a segment ends wins that bet. If a segment ends all square, it\'s a push.',
+    'Choose Individual to play every possible 1v1 matchup in the group at once, or 2v2 Team to split into two pairs and compare each side\'s best ball per hole.',
+    'Pick gross or net scoring below — net uses each player\'s handicap strokes, gross does not.',
+  ],
+  TwoVTwoBestBall: [
+    'Split the foursome into two 2-player teams.',
+    'On every hole, each team\'s score is its better (lower) of the two players\' net strokes — the other player\'s score doesn\'t matter.',
+    'Whichever team has the lower best-ball score wins the hole. A tie halves it.',
+    'Running tally is holes won by each team, shown live as scores come in.',
+  ],
+  BingoBangoBongo: [
+    'Three individual honors are up for grabs on every hole, each worth 1 point — no connection to your actual score.',
+    '"Bingo" — first ball on the green.',
+    '"Bango" — closest to the pin once everyone\'s ball is on the green.',
+    '"Bongo" — first ball in the hole.',
+    'Whoever is entering scores also picks the honor winners for that hole (or leaves it blank if there\'s no clear winner — no point is awarded that hole).',
+    'Works great for players of any skill level since it rewards different parts of the game, not just the lowest score.',
+  ],
+  Wolf: [
+    'Needs at least 4 players. Set the tee-off order below — that order repeats hole after hole and decides whose turn it is to be the "Wolf".',
+    'On the Wolf\'s hole, they watch the other 3 tee off first, then choose: partner up with one of them for that hole, or go it alone as the "Lone Wolf".',
+    'With a partner: the Wolf + partner\'s best ball is compared against the other two players\' best ball. Winning side splits 1 point per player.',
+    'Lone Wolf: the Wolf plays alone against the other 3\'s best ball. Win and the Wolf takes 2 points solo; lose and the other 3 split 2 points.',
+    'A tied hole (best ball vs. best ball) is halved — no points awarded.',
+    'The partner/lone-wolf call is made from the hole-entry screen once that hole\'s scores are in.',
+  ],
+};
+
 const GAME_LABELS: Record<SideGameType, string> = {
   Nassau: 'Nassau',
   TwoVTwoBestBall: '2v2 Best Ball',
@@ -297,6 +329,15 @@ function OptInDialog({ gameType, players, isPending, error, onCancel, onConfirm 
     <Card className="border-primary-200">
       <CardContent className="p-4 space-y-4">
         <p className="text-sm font-semibold text-gray-900">Opt into {GAME_LABELS[gameType]}</p>
+
+        <div className="rounded-lg bg-primary-50 px-3 py-2.5">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-primary-700">How it works</p>
+          <ul className="list-disc space-y-1 pl-4 text-xs text-primary-900">
+            {GAME_INSTRUCTIONS[gameType].map((line, i) => (
+              <li key={i}>{line}</li>
+            ))}
+          </ul>
+        </div>
 
         {gameType === 'Nassau' && (
           <>
