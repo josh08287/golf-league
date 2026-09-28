@@ -190,7 +190,7 @@ public sealed class TeeTimeSideGameFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var command = new SetWolfHolePickCommand(
-            teeTimeId, sideGameId, holeNumber, body.WolfParticipantId, body.IsLoneWolf, body.PartnerParticipantId, playerId.Value, userId);
+            teeTimeId, sideGameId, holeNumber, body.WolfParticipantId, body.IsLoneWolf, body.IsBlindWolf, body.PartnerParticipantId, playerId.Value, userId);
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToOkResult();
     }
@@ -206,5 +206,5 @@ public sealed class TeeTimeSideGameFunctions
 
     private sealed record SetHolePickRequest(int? WinnerParticipantId);
 
-    private sealed record SetWolfPickRequest(int WolfParticipantId, bool IsLoneWolf, int? PartnerParticipantId);
+    private sealed record SetWolfPickRequest(int WolfParticipantId, bool IsLoneWolf, bool IsBlindWolf, int? PartnerParticipantId);
 }

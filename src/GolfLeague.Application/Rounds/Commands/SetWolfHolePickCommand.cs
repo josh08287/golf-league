@@ -11,15 +11,17 @@ public sealed record WolfHolePickResultDto(
     int WolfParticipantId,
     string WolfPlayerName,
     bool IsLoneWolf,
+    bool IsBlindWolf,
     int? PartnerParticipantId,
     string? PartnerPlayerName);
 
 /// <summary>
 /// Records one hole's Wolf call: who the current-turn Wolf picked as a
-/// partner, or that they went it alone. Any active member of the tee-time
-/// group may call this. The Wolf for the hole is derived from the rotation
-/// order set at opt-in (WolfParticipantId is cross-checked against it, not
-/// trusted from the caller alone).
+/// partner, or that they went it alone (lone wolf, or the higher-stakes
+/// blind wolf — declared before watching anyone else's tee shot). Any
+/// active member of the tee-time group may call this. The Wolf for the hole
+/// is derived from the rotation order set at opt-in (WolfParticipantId is
+/// cross-checked against it, not trusted from the caller alone).
 /// </summary>
 public sealed record SetWolfHolePickCommand(
     int TeeTimeId,
@@ -27,6 +29,7 @@ public sealed record SetWolfHolePickCommand(
     int HoleNumber,
     int WolfParticipantId,
     bool IsLoneWolf,
+    bool IsBlindWolf,
     int? PartnerParticipantId,
     int SubmittedByPlayerId,
     string UserId) : IRequest<Result<WolfHolePickResultDto>>, IAmAuditableCommand
@@ -77,6 +80,9 @@ public sealed class SetWolfHolePickCommandHandler
         if (wolf is null)
             return Result<WolfHolePickResultDto>.Fail("The Wolf must be an active member of this tee time group.");
 
+        if (request.IsBlindWolf && !request.IsLoneWolf)
+            return Result<WolfHolePickResultDto>.Fail("Blind wolf is always a lone-wolf call.");
+
         RoundParticipant? partner = null;
         if (!request.IsLoneWolf)
         {
@@ -91,9 +97,9 @@ public sealed class SetWolfHolePickCommandHandler
         }
 
         await _sideGameRepository.UpsertWolfPickAsync(
-            request.SideGameId, request.HoleNumber, wolf.Id, request.IsLoneWolf, partner?.Id, request.SubmittedByPlayerId, cancellationToken);
+            request.SideGameId, request.HoleNumber, wolf.Id, request.IsLoneWolf, request.IsBlindWolf, partner?.Id, request.SubmittedByPlayerId, cancellationToken);
 
         return Result<WolfHolePickResultDto>.Ok(new WolfHolePickResultDto(
-            request.HoleNumber, wolf.Id, wolf.Player.FullName, request.IsLoneWolf, partner?.Id, partner?.Player.FullName));
+            request.HoleNumber, wolf.Id, wolf.Player.FullName, request.IsLoneWolf, request.IsBlindWolf, partner?.Id, partner?.Player.FullName));
     }
 }

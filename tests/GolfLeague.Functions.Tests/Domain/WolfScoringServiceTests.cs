@@ -11,7 +11,7 @@ public class WolfScoringServiceTests
     [Fact]
     public void ScoreHole_WolfWithPartner_WinsWithNormalPoints()
     {
-        var pick = new WolfScoringService.HolePick(HoleNumber: 1, WolfParticipantId: 1, IsLoneWolf: false, PartnerParticipantId: 2);
+        var pick = new WolfScoringService.HolePick(HoleNumber: 1, WolfParticipantId: 1, IsLoneWolf: false, IsBlindWolf: false, PartnerParticipantId: 2);
         var strokes = new Dictionary<int, int> { [1] = 4, [2] = 5, [3] = 5, [4] = 6 };
 
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
@@ -20,12 +20,13 @@ public class WolfScoringServiceTests
         outcome.PointsAwarded.Should().Be(WolfScoringService.NormalHolePoints);
         outcome.WolfSideParticipantIds.Should().BeEquivalentTo([1, 2]);
         outcome.OtherSideParticipantIds.Should().BeEquivalentTo([3, 4]);
+        outcome.IsBlindWolf.Should().BeFalse();
     }
 
     [Fact]
     public void ScoreHole_LoneWolfWins_AwardsDoublePoints()
     {
-        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, PartnerParticipantId: null);
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: false, PartnerParticipantId: null);
         var strokes = new Dictionary<int, int> { [1] = 3, [2] = 5, [3] = 5, [4] = 6 };
 
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
@@ -39,7 +40,7 @@ public class WolfScoringServiceTests
     [Fact]
     public void ScoreHole_LoneWolfLoses_OtherSideAwardedDoublePoints()
     {
-        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, PartnerParticipantId: null);
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: false, PartnerParticipantId: null);
         var strokes = new Dictionary<int, int> { [1] = 6, [2] = 5, [3] = 5, [4] = 6 };
 
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
@@ -49,10 +50,49 @@ public class WolfScoringServiceTests
     }
 
     [Fact]
+    public void ScoreHole_BlindWolfWins_AwardsFourPointsToWolfAlone()
+    {
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: true, PartnerParticipantId: null);
+        var strokes = new Dictionary<int, int> { [1] = 3, [2] = 5, [3] = 5, [4] = 6 };
+
+        var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
+
+        outcome.Winner.Should().Be(BestBallScoringService.HoleWinner.TeamA);
+        outcome.IsBlindWolf.Should().BeTrue();
+        outcome.PointsAwarded.Should().Be(WolfScoringService.BlindWolfWinPoints);
+    }
+
+    [Fact]
+    public void ScoreHole_BlindWolfLoses_AwardsOnePointPerOpponent()
+    {
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: true, PartnerParticipantId: null);
+        var strokes = new Dictionary<int, int> { [1] = 6, [2] = 5, [3] = 5, [4] = 6 };
+
+        var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
+
+        outcome.Winner.Should().Be(BestBallScoringService.HoleWinner.TeamB);
+        outcome.IsBlindWolf.Should().BeTrue();
+        // 1 point per opponent (3 opponents) = 3 total, not the pooled 2 a normal lone wolf loss would award.
+        outcome.PointsAwarded.Should().Be(WolfScoringService.BlindWolfLossPointsPerOpponent * 3);
+    }
+
+    [Fact]
     public void ScoreHole_Halved_AwardsNoPoints()
     {
-        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: false, PartnerParticipantId: 2);
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: false, IsBlindWolf: false, PartnerParticipantId: 2);
         var strokes = new Dictionary<int, int> { [1] = 4, [2] = 5, [3] = 4, [4] = 6 };
+
+        var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
+
+        outcome.Winner.Should().Be(BestBallScoringService.HoleWinner.Halved);
+        outcome.PointsAwarded.Should().Be(0);
+    }
+
+    [Fact]
+    public void ScoreHole_BlindWolfHalved_AwardsNoPoints()
+    {
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: true, PartnerParticipantId: null);
+        var strokes = new Dictionary<int, int> { [1] = 4, [2] = 4, [3] = 5, [4] = 6 };
 
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
 
@@ -63,7 +103,7 @@ public class WolfScoringServiceTests
     [Fact]
     public void ScoreHole_MissingScores_HalvesWithNoPoints()
     {
-        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, PartnerParticipantId: null);
+        var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: false, PartnerParticipantId: null);
         var strokes = new Dictionary<int, int> { [1] = 4 }; // other side has no scores recorded yet
 
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
@@ -76,7 +116,7 @@ public class WolfScoringServiceTests
     {
         var outcomes = new List<WolfScoringService.HoleOutcome>
         {
-            new(1, BestBallScoringService.HoleWinner.TeamA, PointsAwarded: 1, WolfSideParticipantIds: [1, 2], OtherSideParticipantIds: [3, 4]),
+            new(1, BestBallScoringService.HoleWinner.TeamA, WolfSideParticipantIds: [1, 2], OtherSideParticipantIds: [3, 4], PointsAwarded: 1, IsBlindWolf: false),
         };
 
         var tally = WolfScoringService.Tally(outcomes);
@@ -91,7 +131,7 @@ public class WolfScoringServiceTests
     {
         var outcomes = new List<WolfScoringService.HoleOutcome>
         {
-            new(1, BestBallScoringService.HoleWinner.TeamA, PointsAwarded: 2, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4]),
+            new(1, BestBallScoringService.HoleWinner.TeamA, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4], PointsAwarded: 2, IsBlindWolf: false),
         };
 
         var tally = WolfScoringService.Tally(outcomes);
@@ -100,12 +140,41 @@ public class WolfScoringServiceTests
     }
 
     [Fact]
+    public void Tally_BlindWolfWin_AwardsAllPointsToWolfOnly()
+    {
+        var outcomes = new List<WolfScoringService.HoleOutcome>
+        {
+            new(1, BestBallScoringService.HoleWinner.TeamA, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4], PointsAwarded: 4, IsBlindWolf: true),
+        };
+
+        var tally = WolfScoringService.Tally(outcomes);
+
+        tally.Should().ContainSingle(t => t.ParticipantId == 1 && t.Points == 4);
+    }
+
+    [Fact]
+    public void Tally_BlindWolfLoss_AwardsOnePointEachToOpponentsNotPooled()
+    {
+        var outcomes = new List<WolfScoringService.HoleOutcome>
+        {
+            new(1, BestBallScoringService.HoleWinner.TeamB, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4], PointsAwarded: 3, IsBlindWolf: true),
+        };
+
+        var tally = WolfScoringService.Tally(outcomes);
+
+        tally.Should().Contain(t => t.ParticipantId == 2 && t.Points == 1);
+        tally.Should().Contain(t => t.ParticipantId == 3 && t.Points == 1);
+        tally.Should().Contain(t => t.ParticipantId == 4 && t.Points == 1);
+        tally.Should().NotContain(t => t.ParticipantId == 1);
+    }
+
+    [Fact]
     public void Tally_AccumulatesAcrossHoles()
     {
         var outcomes = new List<WolfScoringService.HoleOutcome>
         {
-            new(1, BestBallScoringService.HoleWinner.TeamA, 1, [1, 2], [3, 4]),
-            new(2, BestBallScoringService.HoleWinner.TeamA, 2, [1], [2, 3, 4]),
+            new(1, BestBallScoringService.HoleWinner.TeamA, WolfSideParticipantIds: [1, 2], OtherSideParticipantIds: [3, 4], PointsAwarded: 1, IsBlindWolf: false),
+            new(2, BestBallScoringService.HoleWinner.TeamA, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4], PointsAwarded: 2, IsBlindWolf: false),
         };
 
         var tally = WolfScoringService.Tally(outcomes);

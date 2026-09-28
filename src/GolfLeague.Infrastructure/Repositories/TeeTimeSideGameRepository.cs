@@ -71,7 +71,7 @@ public sealed class TeeTimeSideGameRepository : ITeeTimeSideGameRepository
     }
 
     public async Task<TeeTimeWolfHolePick> UpsertWolfPickAsync(
-        int sideGameId, int holeNumber, int wolfParticipantId, bool isLoneWolf, int? partnerParticipantId, int recordedByPlayerId,
+        int sideGameId, int holeNumber, int wolfParticipantId, bool isLoneWolf, bool isBlindWolf, int? partnerParticipantId, int recordedByPlayerId,
         CancellationToken cancellationToken = default)
     {
         var existing = await _context.TeeTimeWolfHolePicks
@@ -89,6 +89,7 @@ public sealed class TeeTimeSideGameRepository : ITeeTimeSideGameRepository
 
         existing.WolfParticipantId = wolfParticipantId;
         existing.IsLoneWolf = isLoneWolf;
+        existing.IsBlindWolf = isBlindWolf;
         existing.PartnerParticipantId = isLoneWolf ? null : partnerParticipantId;
         existing.RecordedByPlayerId = recordedByPlayerId;
         existing.RecordedAt = DateTime.UtcNow;

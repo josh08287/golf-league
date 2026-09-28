@@ -40,6 +40,7 @@ public sealed record WolfHolePickStatusDto(
     int WolfParticipantId,
     string WolfPlayerName,
     bool IsLoneWolf,
+    bool IsBlindWolf,
     int? PartnerParticipantId,
     string? PartnerPlayerName,
     string? Outcome);
@@ -298,22 +299,26 @@ public sealed class GetTeeTimeSideGamesQueryHandler
                 .Where(x => x.Hole is not null)
                 .ToDictionary(x => x.Id, x => x.Hole!.NetStrokes);
 
-            var scoringPick = new WolfScoringService.HolePick(holeNumber, pick.WolfParticipantId, pick.IsLoneWolf, pick.PartnerParticipantId);
+            var scoringPick = new WolfScoringService.HolePick(holeNumber, pick.WolfParticipantId, pick.IsLoneWolf, pick.IsBlindWolf, pick.PartnerParticipantId);
             var outcome = WolfScoringService.ScoreHole(scoringPick, netStrokesByParticipant, activeParticipantIds);
             outcomes.Add(outcome);
 
-            string? outcomeText = netStrokesByParticipant.Count == 0 ? null : outcome.Winner switch
-            {
-                BestBallScoringService.HoleWinner.Halved => "Halved",
-                BestBallScoringService.HoleWinner.TeamA => $"Wolf side won (+{outcome.PointsAwarded})",
-                _ => $"Other side won (+{outcome.PointsAwarded})",
-            };
+            string? outcomeText = netStrokesByParticipant.Count == 0 || outcome.Winner == BestBallScoringService.HoleWinner.Halved
+                ? (netStrokesByParticipant.Count == 0 ? null : "Halved")
+                : outcome.IsBlindWolf
+                    ? (outcome.Winner == BestBallScoringService.HoleWinner.TeamA
+                        ? $"Blind wolf won (+{outcome.PointsAwarded} to the Wolf)"
+                        : $"Blind wolf lost (+{WolfScoringService.BlindWolfLossPointsPerOpponent} to each of the other {outcome.OtherSideParticipantIds.Count})")
+                    : outcome.Winner == BestBallScoringService.HoleWinner.TeamA
+                        ? $"Wolf side won (+{outcome.PointsAwarded})"
+                        : $"Other side won (+{outcome.PointsAwarded})";
 
             pickDtos.Add(new WolfHolePickStatusDto(
                 holeNumber,
                 pick.WolfParticipantId,
                 participantsById.TryGetValue(pick.WolfParticipantId, out var wolfP) ? wolfP.Player.FullName : "Unknown",
                 pick.IsLoneWolf,
+                pick.IsBlindWolf,
                 pick.PartnerParticipantId,
                 pick.PartnerParticipantId.HasValue && participantsById.TryGetValue(pick.PartnerParticipantId.Value, out var partnerP) ? partnerP.Player.FullName : null,
                 outcomeText));

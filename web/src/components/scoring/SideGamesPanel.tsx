@@ -43,11 +43,12 @@ const GAME_INSTRUCTIONS: Record<SideGameType, string[]> = {
   ],
   Wolf: [
     'Needs at least 4 players. Set the tee-off order below — that order repeats hole after hole and decides whose turn it is to be the "Wolf".',
-    'On the Wolf\'s hole, they watch the other 3 tee off first, then choose: partner up with one of them for that hole, or go it alone as the "Lone Wolf".',
+    'On the Wolf\'s hole, they watch the other 3 tee off first, then choose: partner up with one of them for that hole, go it alone as the "Lone Wolf", or declare "Blind Wolf" before anyone has hit.',
     'With a partner: the Wolf + partner\'s best ball is compared against the other two players\' best ball. Winning side splits 1 point per player.',
-    'Lone Wolf: the Wolf plays alone against the other 3\'s best ball. Win and the Wolf takes 2 points solo; lose and the other 3 split 2 points.',
-    'A tied hole (best ball vs. best ball) is halved — no points awarded.',
-    'The partner/lone-wolf call is made from the hole-entry screen once that hole\'s scores are in.',
+    'Lone Wolf (called after watching the others tee off): the Wolf plays alone against the other 3\'s best ball. Win and the Wolf takes 2 points solo; lose and the other 3 split 2 points.',
+    'Blind Wolf (the bold move — declared before anyone tees off): win and the Wolf takes 4 points alone; lose and each of the other 3 gets 1 point (3 total, not split) — the biggest risk, biggest reward call in the game.',
+    'A tied hole (best ball vs. best ball) is halved — no points awarded, regardless of which call was made.',
+    'The partner/lone-wolf/blind-wolf call is made from the hole-entry screen — blind wolf must be declared before that hole\'s scores are entered.',
   ],
 };
 
@@ -538,6 +539,8 @@ export function SideGamesHolePickersSection({ teeTimeId, holeNumber, players, en
   );
 }
 
+type WolfCallMode = 'partner' | 'lone' | 'blind';
+
 function WolfHolePicker({
   game,
   holeNumber,
@@ -550,7 +553,7 @@ function WolfHolePicker({
   holeNumber: number;
   players: EligiblePlayer[];
   canEdit: boolean;
-  onSave: (input: { wolfParticipantId: number; isLoneWolf: boolean; partnerParticipantId: number | null }) => void;
+  onSave: (input: { wolfParticipantId: number; isLoneWolf: boolean; isBlindWolf: boolean; partnerParticipantId: number | null }) => void;
   isPending: boolean;
 }) {
   const wolf = game.wolf!;
@@ -558,11 +561,12 @@ function WolfHolePicker({
   const wolfParticipantId = existingPick?.wolfParticipantId ?? wolf.rotationParticipantIds[(holeNumber - 1) % wolf.rotationParticipantIds.length];
   const wolfName = players.find((p) => p.participantId === wolfParticipantId)?.playerName ?? 'Unknown';
 
-  const [isLoneWolf, setIsLoneWolf] = useState(existingPick?.isLoneWolf ?? false);
+  const initialMode: WolfCallMode = existingPick?.isBlindWolf ? 'blind' : existingPick?.isLoneWolf ? 'lone' : 'partner';
+  const [mode, setMode] = useState<WolfCallMode>(initialMode);
   const [partnerParticipantId, setPartnerParticipantId] = useState<number | ''>(existingPick?.partnerParticipantId ?? '');
 
   const partnerOptions = players.filter((p) => p.participantId !== wolfParticipantId);
-  const canSave = isLoneWolf || partnerParticipantId !== '';
+  const canSave = mode !== 'partner' || partnerParticipantId !== '';
 
   return (
     <div className="space-y-2">
@@ -571,13 +575,13 @@ function WolfHolePicker({
         Wolf — {wolfName}'s turn
       </span>
 
-      <div className="flex gap-2 pl-1">
+      <div className="flex flex-wrap gap-2 pl-1">
         <button
           type="button"
           disabled={!canEdit}
-          onClick={() => setIsLoneWolf(false)}
+          onClick={() => setMode('partner')}
           className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
-            !isLoneWolf ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
+            mode === 'partner' ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
           Pick a partner
@@ -585,16 +589,32 @@ function WolfHolePicker({
         <button
           type="button"
           disabled={!canEdit}
-          onClick={() => setIsLoneWolf(true)}
+          onClick={() => setMode('lone')}
           className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
-            isLoneWolf ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
+            mode === 'lone' ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
           }`}
         >
-          Lone Wolf (2x points)
+          Lone Wolf (2 pts)
+        </button>
+        <button
+          type="button"
+          disabled={!canEdit}
+          onClick={() => setMode('blind')}
+          className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
+            mode === 'blind' ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
+          }`}
+        >
+          Blind Wolf (4 pts / 1 pt each)
         </button>
       </div>
 
-      {!isLoneWolf && (
+      {mode === 'blind' && (
+        <p className="pl-1 text-xs text-amber-700">
+          Only declare Blind Wolf before anyone in the group has hit their tee shot.
+        </p>
+      )}
+
+      {mode === 'partner' && (
         <select
           value={partnerParticipantId}
           onChange={(e) => setPartnerParticipantId(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
@@ -617,8 +637,9 @@ function WolfHolePicker({
           onClick={() =>
             onSave({
               wolfParticipantId,
-              isLoneWolf,
-              partnerParticipantId: isLoneWolf ? null : (partnerParticipantId as number),
+              isLoneWolf: mode !== 'partner',
+              isBlindWolf: mode === 'blind',
+              partnerParticipantId: mode === 'partner' ? (partnerParticipantId as number) : null,
             })
           }
         >
@@ -626,7 +647,7 @@ function WolfHolePicker({
         </Button>
         {existingPick && (
           <span className="ml-2 text-xs text-gray-500">
-            {existingPick.isLoneWolf ? 'Lone wolf' : `Partnered with ${existingPick.partnerPlayerName}`}
+            {existingPick.isBlindWolf ? 'Blind wolf' : existingPick.isLoneWolf ? 'Lone wolf' : `Partnered with ${existingPick.partnerPlayerName}`}
             {existingPick.outcome && ` — ${existingPick.outcome}`}
           </span>
         )}

@@ -80,7 +80,7 @@ export function useSetSideGameHolePick(teeTimeId: number) {
   });
 }
 
-/** Records one hole's Wolf call (partner picked, or lone wolf). */
+/** Records one hole's Wolf call (partner picked, lone wolf, or blind wolf). */
 export function useSetWolfHolePick(teeTimeId: number) {
   const qc = useQueryClient();
   return useMutation({
@@ -89,6 +89,7 @@ export function useSetWolfHolePick(teeTimeId: number) {
       holeNumber: number;
       wolfParticipantId: number;
       isLoneWolf: boolean;
+      isBlindWolf: boolean;
       partnerParticipantId: number | null;
     }) => {
       const res = await apiClient.put(
@@ -96,6 +97,7 @@ export function useSetWolfHolePick(teeTimeId: number) {
         {
           wolfParticipantId: input.wolfParticipantId,
           isLoneWolf: input.isLoneWolf,
+          isBlindWolf: input.isBlindWolf,
           partnerParticipantId: input.partnerParticipantId,
         },
       );

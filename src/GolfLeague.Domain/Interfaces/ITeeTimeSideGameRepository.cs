@@ -37,6 +37,6 @@ public interface ITeeTimeSideGameRepository
 
     /// <summary>Upserts one hole's Wolf call.</summary>
     Task<TeeTimeWolfHolePick> UpsertWolfPickAsync(
-        int sideGameId, int holeNumber, int wolfParticipantId, bool isLoneWolf, int? partnerParticipantId, int recordedByPlayerId,
+        int sideGameId, int holeNumber, int wolfParticipantId, bool isLoneWolf, bool isBlindWolf, int? partnerParticipantId, int recordedByPlayerId,
         CancellationToken cancellationToken = default);
 }

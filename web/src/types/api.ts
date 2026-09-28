@@ -1245,6 +1245,7 @@ export interface WolfHolePickStatus {
   wolfParticipantId: number;
   wolfPlayerName: string;
   isLoneWolf: boolean;
+  isBlindWolf: boolean;
   partnerParticipantId: number | null;
   partnerPlayerName: string | null;
   outcome: string | null;

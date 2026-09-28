@@ -2,39 +2,54 @@ namespace GolfLeague.Domain.Services;
 
 /// <summary>
 /// Wolf: each hole has a rotating Wolf who either picks a partner (2v2
-/// best-ball for that hole) or goes it alone against the other 3 ("lone
-/// wolf", worth double points). Reuses BestBallScoringService's best-ball
-/// primitive for the hole comparison, then applies the point value and
-/// splits it across whichever side won.
+/// best-ball for that hole), goes it alone after watching the other 3 tee
+/// off ("lone wolf"), or declares alone before anyone has hit ("blind
+/// wolf" — the boldest, highest-stakes call). Reuses
+/// BestBallScoringService's best-ball primitive for the hole comparison,
+/// then applies whichever point rule matches the call:
+///   - Partnered: win = 1 point per player on the winning side.
+///   - Lone wolf: win = 2 points to the Wolf alone; loss = the other 3
+///     split 2 points (points are pooled per side, same shape as partnered).
+///   - Blind wolf: win = 4 points to the Wolf alone; loss = 1 point EACH to
+///     the other 3 (3 total, not pooled — this is the asymmetric case that
+///     makes blind wolf a bigger gamble than a plain lone wolf).
+/// A halved hole (tied best ball) never awards points, regardless of call.
 /// </summary>
 public static class WolfScoringService
 {
     public const int NormalHolePoints = 1;
     public const int LoneWolfHolePoints = 2;
+    public const int BlindWolfWinPoints = 4;
+    public const int BlindWolfLossPointsPerOpponent = 1;
 
     public sealed record HolePick(
         int HoleNumber,
         int WolfParticipantId,
         bool IsLoneWolf,
+        bool IsBlindWolf,
         int? PartnerParticipantId);
 
     public sealed record HoleOutcome(
         int HoleNumber,
         BestBallScoringService.HoleWinner Winner,
-        int PointsAwarded,
         IReadOnlyList<int> WolfSideParticipantIds,
-        IReadOnlyList<int> OtherSideParticipantIds);
+        IReadOnlyList<int> OtherSideParticipantIds,
+        /// <summary>Points awarded to whichever side actually won the hole (0 if halved).</summary>
+        int PointsAwarded,
+        bool IsBlindWolf);
 
     public sealed record PlayerTally(int ParticipantId, int Points);
 
     /// <summary>
     /// Scores one hole given the Wolf's call and every active participant's
     /// net strokes on that hole (keyed by ParticipantId). Participants
-    /// missing a score for this hole are excluded from both sides.
+    /// missing a score for this hole are excluded from both sides. Blind
+    /// wolf implies lone wolf (going in blind means no partner either way).
     /// </summary>
     public static HoleOutcome ScoreHole(HolePick pick, IReadOnlyDictionary<int, int> netStrokesByParticipant, IReadOnlyList<int> activeParticipantIds)
     {
-        var wolfSide = pick.IsLoneWolf
+        var isAlone = pick.IsLoneWolf || pick.IsBlindWolf;
+        var wolfSide = isAlone
             ? new List<int> { pick.WolfParticipantId }
             : new List<int> { pick.WolfParticipantId, pick.PartnerParticipantId!.Value };
 
@@ -44,34 +59,57 @@ public static class WolfScoringService
         var otherStrokes = otherSide.Where(netStrokesByParticipant.ContainsKey).Select(id => netStrokesByParticipant[id]).ToList();
 
         if (wolfStrokes.Count == 0 || otherStrokes.Count == 0)
-            return new HoleOutcome(pick.HoleNumber, BestBallScoringService.HoleWinner.Halved, 0, wolfSide, otherSide);
+            return new HoleOutcome(pick.HoleNumber, BestBallScoringService.HoleWinner.Halved, wolfSide, otherSide, 0, pick.IsBlindWolf);
 
         var holeResult = BestBallScoringService.ScoreHole(pick.HoleNumber, wolfStrokes, otherStrokes);
-        var pointValue = pick.IsLoneWolf ? LoneWolfHolePoints : NormalHolePoints;
-        var pointsAwarded = holeResult.Winner == BestBallScoringService.HoleWinner.Halved ? 0 : pointValue;
+        if (holeResult.Winner == BestBallScoringService.HoleWinner.Halved)
+            return new HoleOutcome(pick.HoleNumber, holeResult.Winner, wolfSide, otherSide, 0, pick.IsBlindWolf);
 
-        return new HoleOutcome(pick.HoleNumber, holeResult.Winner, pointsAwarded, wolfSide, otherSide);
+        var wolfWon = holeResult.Winner == BestBallScoringService.HoleWinner.TeamA;
+        int pointsAwarded;
+        if (pick.IsBlindWolf)
+            pointsAwarded = wolfWon ? BlindWolfWinPoints : BlindWolfLossPointsPerOpponent * otherSide.Count;
+        else
+            pointsAwarded = isAlone ? LoneWolfHolePoints : NormalHolePoints;
+
+        return new HoleOutcome(pick.HoleNumber, holeResult.Winner, wolfSide, otherSide, pointsAwarded, pick.IsBlindWolf);
     }
 
     /// <summary>
-    /// Tallies running points per participant across every scored hole. A
-    /// side's points are split evenly across its members when it wins (the
-    /// lone wolf keeps all points when playing alone and winning).
+    /// Tallies running points per participant across every scored hole.
+    /// Normal/lone-wolf wins pool the hole's points evenly across the
+    /// winning side (the lone wolf keeps all of it alone). Blind wolf is the
+    /// one asymmetric case: a Wolf win awards all 4 points to the Wolf only,
+    /// while a Wolf loss awards 1 point to each of the 3 opponents (not
+    /// pooled/split).
     /// </summary>
     public static IReadOnlyList<PlayerTally> Tally(IReadOnlyList<HoleOutcome> outcomes)
     {
         var totals = new Dictionary<int, int>();
 
+        void Add(int participantId, int points) =>
+            totals[participantId] = totals.GetValueOrDefault(participantId) + points;
+
         foreach (var outcome in outcomes)
         {
             if (outcome.PointsAwarded == 0) continue;
 
-            var winningSide = outcome.Winner == BestBallScoringService.HoleWinner.TeamA
-                ? outcome.WolfSideParticipantIds
-                : outcome.OtherSideParticipantIds;
+            var wolfWon = outcome.Winner == BestBallScoringService.HoleWinner.TeamA;
 
-            foreach (var participantId in winningSide)
-                totals[participantId] = totals.GetValueOrDefault(participantId) + outcome.PointsAwarded;
+            if (outcome.IsBlindWolf)
+            {
+                if (wolfWon)
+                    Add(outcome.WolfSideParticipantIds[0], outcome.PointsAwarded);
+                else
+                    foreach (var participantId in outcome.OtherSideParticipantIds)
+                        Add(participantId, BlindWolfLossPointsPerOpponent);
+            }
+            else
+            {
+                var winningSide = wolfWon ? outcome.WolfSideParticipantIds : outcome.OtherSideParticipantIds;
+                foreach (var participantId in winningSide)
+                    Add(participantId, outcome.PointsAwarded);
+            }
         }
 
         return totals
