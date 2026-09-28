@@ -95,8 +95,11 @@ public sealed class OptInTeeTimeSideGameCommandHandler
                 .Select(t => new TeeTimeSideGameTeam { TeamNumber = t.TeamNumber, ParticipantId = t.ParticipantId })
                 .ToList();
         }
-        if (request.GameType == DomainEnums.SideGameType.Nassau && request.ScoringBasis is null)
-            return Result<TeeTimeSideGame>.Fail("A scoring basis (gross or net) is required for Nassau.");
+        var needsScoringBasis = request.GameType is DomainEnums.SideGameType.Nassau
+            or DomainEnums.SideGameType.TwoVTwoBestBall
+            or DomainEnums.SideGameType.Wolf;
+        if (needsScoringBasis && request.ScoringBasis is null)
+            return Result<TeeTimeSideGame>.Fail($"A scoring basis (gross or net) is required for {request.GameType}.");
 
         if (request.GameType == DomainEnums.SideGameType.Wolf)
         {

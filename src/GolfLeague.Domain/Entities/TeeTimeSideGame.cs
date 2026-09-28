@@ -22,9 +22,10 @@ public class TeeTimeSideGame
     public SideGameType GameType { get; set; }
 
     /// <summary>
-    /// Gross or net scoring basis. Only meaningful for Nassau; ignored for
-    /// team games like 2v2 best ball, which always compare net (matching
-    /// how match-play formats are scored elsewhere in this app).
+    /// Gross or net scoring basis, chosen at opt-in time. Used by Nassau,
+    /// 2v2 best ball, and Wolf — every player's strokes are read using this
+    /// basis when comparing scores for the hole. Ignored by Bingo Bango
+    /// Bongo, which is scored from recorded honor picks, not strokes.
     /// </summary>
     public ScoringBasis ScoringBasis { get; set; }
 

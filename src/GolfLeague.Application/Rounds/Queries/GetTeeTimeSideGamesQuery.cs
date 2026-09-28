@@ -199,8 +199,8 @@ public sealed class GetTeeTimeSideGamesQueryHandler
             var holeResults = new List<BestBallScoringService.HoleResult>();
             for (int holeNumber = 1; holeNumber <= 18; holeNumber++)
             {
-                var aStrokes = teamA.Select(p => StrokesFor(p, holeNumber, ScoringBasis.Net)).Where(s => s != int.MinValue).ToList();
-                var bStrokes = teamB.Select(p => StrokesFor(p, holeNumber, ScoringBasis.Net)).Where(s => s != int.MinValue).ToList();
+                var aStrokes = teamA.Select(p => StrokesFor(p, holeNumber, game.ScoringBasis)).Where(s => s != int.MinValue).ToList();
+                var bStrokes = teamB.Select(p => StrokesFor(p, holeNumber, game.ScoringBasis)).Where(s => s != int.MinValue).ToList();
                 if (aStrokes.Count == 0 || bStrokes.Count == 0) continue;
 
                 holeResults.Add(BestBallScoringService.ScoreHole(holeNumber, aStrokes, bStrokes));
@@ -294,17 +294,17 @@ public sealed class GetTeeTimeSideGamesQueryHandler
             if (!picksByHole.TryGetValue(holeNumber, out var pick))
                 continue;
 
-            var netStrokesByParticipant = activeParticipants
+            var strokesByParticipant = activeParticipants
                 .Select(p => (p.Id, Hole: p.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber)))
                 .Where(x => x.Hole is not null)
-                .ToDictionary(x => x.Id, x => x.Hole!.NetStrokes);
+                .ToDictionary(x => x.Id, x => game.ScoringBasis == ScoringBasis.Gross ? x.Hole!.GrossStrokes : x.Hole!.NetStrokes);
 
             var scoringPick = new WolfScoringService.HolePick(holeNumber, pick.WolfParticipantId, pick.IsLoneWolf, pick.IsBlindWolf, pick.PartnerParticipantId);
-            var outcome = WolfScoringService.ScoreHole(scoringPick, netStrokesByParticipant, activeParticipantIds);
+            var outcome = WolfScoringService.ScoreHole(scoringPick, strokesByParticipant, activeParticipantIds);
             outcomes.Add(outcome);
 
-            string? outcomeText = netStrokesByParticipant.Count == 0 || outcome.Winner == BestBallScoringService.HoleWinner.Halved
-                ? (netStrokesByParticipant.Count == 0 ? null : "Halved")
+            string? outcomeText = strokesByParticipant.Count == 0 || outcome.Winner == BestBallScoringService.HoleWinner.Halved
+                ? (strokesByParticipant.Count == 0 ? null : "Halved")
                 : outcome.IsBlindWolf
                     ? (outcome.Winner == BestBallScoringService.HoleWinner.TeamA
                         ? $"Blind wolf won (+{outcome.PointsAwarded} to the Wolf)"

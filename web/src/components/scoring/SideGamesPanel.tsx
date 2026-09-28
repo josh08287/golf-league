@@ -29,8 +29,9 @@ const GAME_INSTRUCTIONS: Record<SideGameType, string[]> = {
   ],
   TwoVTwoBestBall: [
     'Split the foursome into two 2-player teams.',
-    'On every hole, each team\'s score is its better (lower) of the two players\' net strokes — the other player\'s score doesn\'t matter.',
+    'On every hole, each team\'s score is its better (lower) of the two players\' strokes — the other player\'s score doesn\'t matter.',
     'Whichever team has the lower best-ball score wins the hole. A tie halves it.',
+    'Pick gross or net scoring below — net uses each player\'s handicap strokes, gross does not.',
     'Running tally is holes won by each team, shown live as scores come in.',
   ],
   BingoBangoBongo: [
@@ -48,6 +49,7 @@ const GAME_INSTRUCTIONS: Record<SideGameType, string[]> = {
     'Lone Wolf (called after watching the others tee off): the Wolf plays alone against the other 3\'s best ball. Win and the Wolf takes 2 points solo; lose and the other 3 split 2 points.',
     'Blind Wolf (the bold move — declared before anyone tees off): win and the Wolf takes 4 points alone; lose and each of the other 3 gets 1 point (3 total, not split) — the biggest risk, biggest reward call in the game.',
     'A tied hole (best ball vs. best ball) is halved — no points awarded, regardless of which call was made.',
+    'Pick gross or net scoring below — net uses each player\'s handicap strokes, gross does not.',
     'The partner/lone-wolf/blind-wolf call is made from the hole-entry screen — blind wolf must be declared before that hole\'s scores are entered.',
   ],
 };
@@ -81,6 +83,9 @@ function SideGameStatusCard({ game, onOptOut, optOutPending }: {
                   {' '}
                   ({game.scoringBasis}{game.nassauFormat === 'TeamVsTeam' ? ', 2v2' : ', individual'})
                 </span>
+              )}
+              {(game.gameType === 'TwoVTwoBestBall' || game.gameType === 'Wolf') && (
+                <span className="text-gray-500 font-normal"> ({game.scoringBasis})</span>
               )}
             </p>
             <p className="text-xs text-gray-500">
@@ -288,6 +293,7 @@ function OptInDialog({ gameType, players, isPending, error, onCancel, onConfirm 
 
   const needsTeams = gameType === 'TwoVTwoBestBall' || (gameType === 'Nassau' && nassauFormat === 'TeamVsTeam');
   const isWolf = gameType === 'Wolf';
+  const needsScoringBasis = gameType === 'Nassau' || gameType === 'TwoVTwoBestBall' || gameType === 'Wolf';
 
   function toggleTeam(participantId: number) {
     setTeamAssignments((prev) => ({
@@ -314,7 +320,7 @@ function OptInDialog({ gameType, players, isPending, error, onCancel, onConfirm 
 
     onConfirm({
       gameType,
-      scoringBasis: gameType === 'Nassau' ? scoringBasis : undefined,
+      scoringBasis: needsScoringBasis ? scoringBasis : undefined,
       nassauFormat: gameType === 'Nassau' ? nassauFormat : undefined,
       teams,
       wolfRotationOrder: isWolf ? wolfOrder : undefined,
@@ -341,43 +347,43 @@ function OptInDialog({ gameType, players, isPending, error, onCancel, onConfirm 
         </div>
 
         {gameType === 'Nassau' && (
-          <>
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-gray-600">Format</p>
-              <div className="flex gap-2">
-                {(['Individual', 'TeamVsTeam'] as NassauFormat[]).map((f) => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setNassauFormat(f)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      nassauFormat === f ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {f === 'Individual' ? 'Every player 1v1' : '2v2 teams'}
-                  </button>
-                ))}
-              </div>
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-gray-600">Format</p>
+            <div className="flex gap-2">
+              {(['Individual', 'TeamVsTeam'] as NassauFormat[]).map((f) => (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setNassauFormat(f)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    nassauFormat === f ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {f === 'Individual' ? 'Every player 1v1' : '2v2 teams'}
+                </button>
+              ))}
             </div>
+          </div>
+        )}
 
-            <div>
-              <p className="mb-1.5 text-xs font-medium text-gray-600">Scoring basis</p>
-              <div className="flex gap-2">
-                {(['Net', 'Gross'] as ScoringBasis[]).map((b) => (
-                  <button
-                    key={b}
-                    type="button"
-                    onClick={() => setScoringBasis(b)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium ${
-                      scoringBasis === b ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
-                    }`}
-                  >
-                    {b}
-                  </button>
-                ))}
-              </div>
+        {needsScoringBasis && (
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-gray-600">Scoring basis</p>
+            <div className="flex gap-2">
+              {(['Net', 'Gross'] as ScoringBasis[]).map((b) => (
+                <button
+                  key={b}
+                  type="button"
+                  onClick={() => setScoringBasis(b)}
+                  className={`rounded-full px-3 py-1 text-xs font-medium ${
+                    scoringBasis === b ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
+                  }`}
+                >
+                  {b}
+                </button>
+              ))}
             </div>
-          </>
+          </div>
         )}
 
         {needsTeams && (
