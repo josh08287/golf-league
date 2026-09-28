@@ -21,6 +21,15 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Half)
             .Include(r => r.Season)
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)
+            // Course.Holes and Participants are sibling collections on the same
+            // root — EF Core warns about this exact shape (Multiple Collection
+            // Include). AsNoTracking (the context-wide default — see
+            // AppDbContext) cannot de-duplicate rows the way a tracked query
+            // can, so a single joined query can return the same participant
+            // more than once. AsSplitQuery issues one SQL query per collection
+            // instead of a single cross-joined one, matching the same fix
+            // already applied to TeeTimeRepository's equivalent queries.
+            .AsSplitQuery()
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
     public Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default)
@@ -274,6 +283,9 @@ public sealed class RoundRepository : IRoundRepository
         => await _context.RoundParticipants
             .Include(rp => rp.Round).ThenInclude(r => r.Course).ThenInclude(c => c.Holes)
             .Include(rp => rp.HoleScores)
+            // Round.Course.Holes and HoleScores are two independent collections
+            // on this query — see GetByIdAsync's comment on the same shape.
+            .AsSplitQuery()
             .Where(rp => rp.PlayerId == playerId)
             .OrderBy(rp => rp.Round.RoundDate)
             .ToListAsync(cancellationToken);
@@ -284,6 +296,9 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Half)
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)
             .Include(r => r.Participants).ThenInclude(rp => rp.HoleScores)
+            // Participants and Participants.HoleScores are nested collections —
+            // see GetByIdAsync's comment on the same shape.
+            .AsSplitQuery()
             .Where(r => r.HalfId == halfId && r.WeekNumber < currentWeekNumber)
             .OrderByDescending(r => r.WeekNumber)
             .FirstOrDefaultAsync(cancellationToken);
@@ -324,6 +339,9 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Half)
             .Include(r => r.Participants).ThenInclude(rp => rp.Player)
             .Include(r => r.Participants).ThenInclude(rp => rp.HoleScores)
+            // Participants and Participants.HoleScores are nested collections —
+            // see GetByIdAsync's comment on the same shape.
+            .AsSplitQuery()
             .Where(r => r.SeasonId == seasonId && r.RoundDate < currentRoundDate)
             .OrderBy(r => r.RoundDate)
             .ThenBy(r => r.WeekNumber)
