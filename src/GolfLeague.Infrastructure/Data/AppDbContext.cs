@@ -41,6 +41,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<FlightMatch> FlightMatches => Set<FlightMatch>();
     public DbSet<FlightMatchHoleResult> FlightMatchHoleResults => Set<FlightMatchHoleResult>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
+    public DbSet<TournamentComment> TournamentComments => Set<TournamentComment>();
     public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
     public DbSet<RoundClosestToPin> RoundClosestToPins => Set<RoundClosestToPin>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -75,6 +76,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureFlightMatches(modelBuilder);
         ConfigureFlightMatchHoleResults(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
+        ConfigureTournamentComments(modelBuilder);
         ConfigureTournamentLongestDriveWinners(modelBuilder);
         ConfigureRoundClosestToPins(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
@@ -556,6 +558,24 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.LongestDrivePlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.RoundId, e.HoleNumber }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTournamentComments(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TournamentComment>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Body).IsRequired().HasMaxLength(1000);
+            entity.HasOne(e => e.Round)
+                  .WithMany()
+                  .HasForeignKey(e => e.RoundId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Player)
+                  .WithMany()
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.RoundId, e.CreatedAt });
         });
     }
 

@@ -246,6 +246,45 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("GetTournamentComments")]
+    public async Task<IActionResult> GetTournamentComments(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tournament-rounds/{id}/comments")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var result = await _mediator.Send(new GetTournamentCommentsQuery(roundId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("PostTournamentComment")]
+    public async Task<IActionResult> PostTournamentComment(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tournament-rounds/{id}/comments")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<PostCommentRequest>(cancellationToken);
+        if (body is null || string.IsNullOrWhiteSpace(body.Message))
+            return new BadRequestObjectResult(new { error = "Message is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new PostTournamentCommentCommand(roundId, playerId.Value, body.Message, userId), cancellationToken);
+        return result.ToCreatedResult();
+    }
+
     // ── Private request DTOs ────────────────────────────────────────────────────
 
     private sealed record MatchupInputDto(int Player1Id, int? Player2Id);
@@ -276,4 +315,5 @@ public sealed class TournamentRoundFunctions
     private sealed record SetLongestDriveHoleRequest(int? HoleNumber);
     private sealed record SetLongestDriveWinnerRequest(int? WinnerPlayerId);
     private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
+    private sealed record PostCommentRequest(string Message);
 }

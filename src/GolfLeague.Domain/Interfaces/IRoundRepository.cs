@@ -116,4 +116,8 @@ public interface IRoundRepository
 
     /// <summary>Closest-to-pin winners for every round in <paramref name="roundIds"/> in one round trip.</summary>
     Task<IReadOnlyList<RoundClosestToPin>> GetClosestToPinWinnersForRoundsAsync(IEnumerable<int> roundIds, CancellationToken cancellationToken = default);
+
+    // Tournament comments
+    Task<TournamentComment> AddTournamentCommentAsync(TournamentComment comment, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<TournamentComment>> GetTournamentCommentsAsync(int roundId, CancellationToken cancellationToken = default);
 }

@@ -11,8 +11,12 @@ import {
   AlertCircle,
   ListOrdered,
   Swords,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
-import { useTournamentResults } from '@/hooks/useRounds';
+import { useTournamentResults, useTournamentComments, usePostTournamentComment } from '@/hooks/useRounds';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDate } from '@/lib/utils';
 import { HandicapDots } from '@/components/scoring/HandicapDots';
 import type {
@@ -26,6 +30,7 @@ import type {
   TournamentCourseHole,
   TournamentResults,
 } from '@/types/api';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -506,6 +511,88 @@ function RankingTable({
   );
 }
 
+// ── Comments ──────────────────────────────────────────────────────────────────
+
+function CommentsPanel({ roundId }: { roundId: string }) {
+  const { user, isAuthenticated } = useAuth();
+  const { data: comments, isLoading } = useTournamentComments(roundId);
+  const postComment = usePostTournamentComment(roundId);
+  const [message, setMessage] = useState('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    postComment.mutate(trimmed, {
+      onSuccess: () => setMessage(''),
+    });
+  };
+
+  return (
+    <section>
+      <SectionTitle icon={MessageSquare} label="Comments" />
+
+      <div className="space-y-3">
+        {isLoading ? (
+          <p className="text-sm text-gray-400 italic">Loading comments…</p>
+        ) : !comments || comments.length === 0 ? (
+          <p className="text-sm text-gray-400 italic">No comments yet.</p>
+        ) : (
+          <ul className="space-y-2">
+            {comments.map((c) => (
+              <li key={c.id} className="rounded-lg border border-gray-200 bg-white p-3">
+                <div className="mb-1 flex items-baseline justify-between gap-2">
+                  <span className="text-sm font-semibold text-gray-800">{c.playerName}</span>
+                  <span className="text-xs text-gray-400">
+                    {new Date(c.createdAt).toLocaleString(undefined, {
+                      dateStyle: 'medium',
+                      timeStyle: 'short',
+                    })}
+                  </span>
+                </div>
+                <p className="whitespace-pre-wrap text-sm text-gray-700">{c.body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {isAuthenticated && user?.playerId ? (
+          <form onSubmit={handleSubmit} className="flex items-start gap-2 pt-1">
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              maxLength={1000}
+              rows={2}
+              placeholder="Post a message…"
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            />
+            <button
+              type="submit"
+              disabled={!message.trim() || postComment.isPending}
+              className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Send className="h-4 w-4" />
+              Post
+            </button>
+          </form>
+        ) : isAuthenticated ? (
+          <p className="text-xs text-gray-400 italic">
+            Your account isn't linked to a player profile, so you can't post here.
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400 italic">
+            <Link to="/login" className="text-green-700 hover:underline">Log in</Link> to post a message.
+          </p>
+        )}
+
+        {postComment.isError && (
+          <p className="text-xs text-red-500">Failed to post message. Please try again.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 // ── View tabs ─────────────────────────────────────────────────────────────────
 
 type ResultsView = 'strokes' | 'matches';
@@ -624,6 +711,8 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
 export function TournamentResultsPage() {
   const { roundId } = useParams<{ roundId: string }>();
   const { data: results, isLoading, error } = useTournamentResults(roundId ?? '');
+  const { data: flagStates } = useFeatureFlagStates();
+  const commentsEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentCommentsEnabled] ?? false;
 
   if (isLoading) {
     return (
@@ -665,6 +754,8 @@ export function TournamentResultsPage() {
       </div>
 
       <TournamentResultsBody results={results} />
+
+      {commentsEnabled && roundId && <CommentsPanel roundId={roundId} />}
     </div>
   );
 }

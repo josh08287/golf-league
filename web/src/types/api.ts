@@ -1103,6 +1103,13 @@ export interface TournamentResults {
   netStablefordRanking: TournamentRankingEntry[];
 }
 
+export interface TournamentComment {
+  id: number;
+  playerId: number;
+  playerName: string;
+  body: string;
+  createdAt: string;
+}
 
 // ── League Settings ───────────────────────────────────────────────────────────
 
@@ -1165,4 +1172,5 @@ export const FEATURE_FLAG_KEYS = {
   roundDayTeeTimeSwitchEnabled: 'round_day_tee_time_switch_enabled',
   scorecardOcrEnabled: 'scorecard_ocr_enabled',
   joesVsOthersEnabled: 'joes_vs_others_enabled',
+  tournamentCommentsEnabled: 'tournament_comments_enabled',
 } as const;

@@ -54,6 +54,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Adds a "Joes vs Non-Joes" page reachable from the Statistics page, comparing aggregate stats for every player named Joe or Joseph against everyone else. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.tournamentCommentsEnabled,
+    label: 'Tournament results comments',
+    description:
+      'Lets logged-in players post short messages on a tournament round\'s results page, shown with the poster\'s name and timestamp. Applies to every league.',
+  },
 ];
 
 function Toggle({

@@ -166,6 +166,12 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string JoesVsOthersEnabled = "joes_vs_others_enabled";
 
+    /// <summary>
+    /// Lets logged-in players post short messages to a tournament round's
+    /// results page, shown with the poster's name and timestamp.
+    /// </summary>
+    public const string TournamentCommentsEnabled = "tournament_comments_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -176,5 +182,6 @@ public static class KnownFeatureFlags
         [RoundDayTeeTimeSwitchEnabled] = false,
         [ScorecardOcrEnabled] = false,
         [JoesVsOthersEnabled] = false,
+        [TournamentCommentsEnabled] = false,
     };
 }

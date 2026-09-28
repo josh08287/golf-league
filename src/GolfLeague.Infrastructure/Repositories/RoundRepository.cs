@@ -518,4 +518,18 @@ public sealed class RoundRepository : IRoundRepository
             .ThenBy(w => w.HoleNumber)
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<TournamentComment> AddTournamentCommentAsync(TournamentComment comment, CancellationToken cancellationToken = default)
+    {
+        await _context.TournamentComments.AddAsync(comment, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return comment;
+    }
+
+    public async Task<IReadOnlyList<TournamentComment>> GetTournamentCommentsAsync(int roundId, CancellationToken cancellationToken = default)
+        => await _context.TournamentComments
+            .Include(c => c.Player)
+            .Where(c => c.RoundId == roundId)
+            .OrderBy(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
 }

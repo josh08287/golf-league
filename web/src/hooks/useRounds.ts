@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
 import type { TableSort } from '@/hooks/useSortableTable';
 import type {
@@ -7,6 +7,7 @@ import type {
   RoundScorecard,
   RoundSkins,
   TournamentResults,
+  TournamentComment,
   PagedResponse,
   ActiveRoundLeaderboard,
 } from '@/types/api';
@@ -25,6 +26,7 @@ export const roundKeys = {
     [...roundKeys.all, 'scorecards', roundId, { sort: sort ?? null }] as const,
   skins: (roundId: string) => [...roundKeys.all, 'skins', roundId] as const,
   tournamentResults: (roundId: string) => [...roundKeys.all, 'tournament-results', roundId] as const,
+  tournamentComments: (roundId: string) => [...roundKeys.all, 'tournament-comments', roundId] as const,
   activeLeaderboard: () => [...roundKeys.all, 'active-leaderboard'] as const,
 };
 
@@ -145,5 +147,33 @@ export function useTournamentResults(roundId: string) {
     // real time, so poll instead of requiring a manual refresh.
     refetchInterval: 30 * 1000,
     refetchOnWindowFocus: true,
+  });
+}
+
+export function useTournamentComments(roundId: string) {
+  return useQuery({
+    queryKey: roundKeys.tournamentComments(roundId),
+    queryFn: async () => {
+      const response = await apiClient.get<TournamentComment[]>(`/tournament-rounds/${roundId}/comments`);
+      return response.data;
+    },
+    enabled: Boolean(roundId),
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function usePostTournamentComment(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (message: string) => {
+      const response = await apiClient.post<TournamentComment>(
+        `/tournament-rounds/${roundId}/comments`,
+        { message },
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentComments(roundId) });
+    },
   });
 }
