@@ -47,6 +47,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<PlayerInvite> PlayerInvites => Set<PlayerInvite>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public new DbSet<UserPasskey> UserPasskeys => Set<UserPasskey>();
+    public DbSet<OAuthFlowState> OAuthFlowStates => Set<OAuthFlowState>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,6 +84,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureAppUsers(modelBuilder);
         ConfigureRefreshTokens(modelBuilder);
         ConfigureUserPasskeys(modelBuilder);
+        ConfigureOAuthFlowStates(modelBuilder);
 
         ApplyGlobalQueryFilters(modelBuilder);
     }
@@ -736,6 +738,20 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => e.CredentialId).IsUnique();
             entity.HasIndex(e => e.UserId);
+        });
+    }
+
+    private static void ConfigureOAuthFlowStates(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<OAuthFlowState>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Provider).IsRequired().HasMaxLength(20);
+            entity.Property(e => e.StateKey).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Verifier).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.RedirectUri).IsRequired().HasMaxLength(500);
+            entity.Property(e => e.InviteToken).HasMaxLength(64);
+            entity.HasIndex(e => new { e.Provider, e.StateKey }).IsUnique();
         });
     }
 

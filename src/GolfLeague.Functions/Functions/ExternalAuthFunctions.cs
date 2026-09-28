@@ -33,7 +33,8 @@ public sealed class ExternalAuthFunctions
         if (body is null || string.IsNullOrWhiteSpace(body.RedirectUri))
             return new BadRequestObjectResult(new { error = "redirectUri is required." });
 
-        var result = _externalAuth.Start(provider.ToLowerInvariant(), body.RedirectUri, body.InviteToken, body.EnvUrl);
+        var result = await _externalAuth.StartAsync(
+            provider.ToLowerInvariant(), body.RedirectUri, body.InviteToken, body.EnvUrl, cancellationToken);
         if (!result.IsSuccess)
             return new BadRequestObjectResult(new { error = result.Error });
 

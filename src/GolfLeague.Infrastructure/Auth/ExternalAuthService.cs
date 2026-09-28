@@ -8,8 +8,9 @@ using GolfLeague.Application.Interfaces;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.Extensions.Caching.Memory;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +21,7 @@ public sealed class ExternalAuthService : IExternalAuthService
     private static readonly TimeSpan FlowLifetime = TimeSpan.FromMinutes(5);
 
     private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IMemoryCache _cache;
+    private readonly AppDbContext _db;
     private readonly IConfiguration _config;
     private readonly UserManager<AppUser> _userManager;
     private readonly AuthService _authService;
@@ -30,7 +31,7 @@ public sealed class ExternalAuthService : IExternalAuthService
 
     public ExternalAuthService(
         IHttpClientFactory httpClientFactory,
-        IMemoryCache cache,
+        AppDbContext db,
         IConfiguration config,
         UserManager<AppUser> userManager,
         AuthService authService,
@@ -39,7 +40,7 @@ public sealed class ExternalAuthService : IExternalAuthService
         ILogger<ExternalAuthService> logger)
     {
         _httpClientFactory = httpClientFactory;
-        _cache = cache;
+        _db = db;
         _config = config;
         _userManager = userManager;
         _authService = authService;
@@ -48,7 +49,12 @@ public sealed class ExternalAuthService : IExternalAuthService
         _logger = logger;
     }
 
-    public Result<ExternalAuthStartDto> Start(string provider, string redirectUri, string? inviteToken = null, string? envUrl = null)
+    public async Task<Result<ExternalAuthStartDto>> StartAsync(
+        string provider,
+        string redirectUri,
+        string? inviteToken = null,
+        string? envUrl = null,
+        CancellationToken cancellationToken = default)
     {
         if (!TryGetProvider(provider, out var p))
             return Result<ExternalAuthStartDto>.Fail($"Unknown provider: {provider}");
@@ -64,7 +70,23 @@ public sealed class ExternalAuthService : IExternalAuthService
         var verifier = GenerateUrlSafeToken(64);
         var challenge = ComputeS256(verifier);
 
-        _cache.Set(CacheKey(provider, stateKey), new PkceState(verifier, redirectUri, inviteToken), FlowLifetime);
+        // Stored in the database (not IMemoryCache) because the wait for the
+        // user to authenticate with the provider can outlast the Functions
+        // instance that handled /start — a cold start or scale event routes
+        // the /callback request to a different instance with an empty cache,
+        // which previously failed every login until the host warmed up.
+        _db.OAuthFlowStates.Add(new OAuthFlowState
+        {
+            Id = Guid.NewGuid(),
+            Provider = provider,
+            StateKey = stateKey,
+            Verifier = verifier,
+            RedirectUri = redirectUri,
+            InviteToken = inviteToken,
+            CreatedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.Add(FlowLifetime),
+        });
+        await _db.SaveChangesAsync(cancellationToken);
 
         var url = p.BuildAuthorizeUrl(clientId, redirectUri, state, challenge);
         return Result<ExternalAuthStartDto>.Ok(new ExternalAuthStartDto(url, state));
@@ -81,10 +103,13 @@ public sealed class ExternalAuthService : IExternalAuthService
             return Result<AuthResponseDto>.Fail($"Unknown provider: {provider}");
 
         var stateKey = state.Split('|')[0];
-        if (!_cache.TryGetValue(CacheKey(provider, stateKey), out PkceState? pkce) || pkce is null)
+        var pkce = await _db.OAuthFlowStates
+            .FirstOrDefaultAsync(f => f.Provider == provider && f.StateKey == stateKey, cancellationToken);
+        if (pkce is null || pkce.ExpiresAt < DateTime.UtcNow)
             return Result<AuthResponseDto>.Fail("Invalid or expired authorization flow.");
 
-        _cache.Remove(CacheKey(provider, stateKey));
+        _db.OAuthFlowStates.Remove(pkce);
+        await _db.SaveChangesAsync(cancellationToken);
 
         if (!string.Equals(pkce.RedirectUri, redirectUri, StringComparison.Ordinal))
             return Result<AuthResponseDto>.Fail("redirectUri mismatch.");
@@ -217,8 +242,6 @@ public sealed class ExternalAuthService : IExternalAuthService
         return provider is not null;
     }
 
-    private static string CacheKey(string provider, string state) => $"oauth:{provider}:{state}";
-
     private static string GenerateUrlSafeToken(int byteLength)
     {
         var bytes = RandomNumberGenerator.GetBytes(byteLength);
@@ -230,8 +253,6 @@ public sealed class ExternalAuthService : IExternalAuthService
         var hash = SHA256.HashData(Encoding.ASCII.GetBytes(verifier));
         return Convert.ToBase64String(hash).Replace('+', '-').Replace('/', '_').TrimEnd('=');
     }
-
-    private sealed record PkceState(string Verifier, string RedirectUri, string? InviteToken = null);
 }
 
 internal sealed record TokenResponse(string AccessToken);
