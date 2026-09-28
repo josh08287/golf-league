@@ -60,12 +60,13 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
 
         await _roundRepository.ReplaceTournamentMatchupsAsync(round.Id, matchupEntities, cancellationToken);
 
-        // Also re-run flight/tee-time grouping: rounds created or added-to
-        // before the substitute-exclusion fix can have substitutes stuck in a
-        // handicap flight from a prior grouping. Regenerating matchups is the
-        // action an admin reaches for to "fix up" a round's pairings, so make
-        // it correct the flights too rather than requiring a separate step.
-        await _foursomeService.RegroupAsync(round.Id, round.Participants.ToList(), cancellationToken);
+        // Also re-run flight grouping (rounds created or added-to before the
+        // substitute-exclusion fix can have substitutes stuck in a handicap
+        // flight from a prior grouping) and tee-time grouping — driven by the
+        // matchups just generated, so consecutive matchups (1&2, 3&4, ...)
+        // always share a tee time and byes pair up with other byes.
+        await _foursomeService.RegroupTeeTimesFromMatchupsAsync(
+            round.Id, round.Participants.ToList(), matchupEntities, cancellationToken);
 
         return Result<List<TournamentMatchupDto>>.Ok(matchupDtos);
     }

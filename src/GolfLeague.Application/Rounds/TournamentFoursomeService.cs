@@ -49,6 +49,73 @@ public sealed class TournamentFoursomeService
         await RegroupFlightsAsync(roundId, active, cancellationToken);
     }
 
+    /// <summary>
+    /// Tee-time grouping driven by the round's current matchups instead of
+    /// raw handicap order: consecutive matchup pairs (1&amp;2, 3&amp;4, ...) always
+    /// share a tee time, so playing partners land in a matchup they can
+    /// watch/verify. Bye matchups (a single player, no opponent) are grouped
+    /// the same way among themselves — two byes to a tee time — to use the
+    /// fewest slots rather than trailing off at 1-per-slot. Used by
+    /// "regenerate from handicaps," which always has a fresh, complete
+    /// matchup set to drive from; other callers (creation, roster add/remove)
+    /// keep the handicap-ordered <see cref="RegroupAsync"/> above since they
+    /// don't guarantee every participant is already in a matchup.
+    /// </summary>
+    public async Task RegroupTeeTimesFromMatchupsAsync(
+        int roundId,
+        IReadOnlyList<RoundParticipant> participants,
+        IReadOnlyList<TournamentMatchup> matchups,
+        CancellationToken cancellationToken = default)
+    {
+        var byPlayerId = participants
+            .Where(p => !p.IsWithdrawn)
+            .ToDictionary(p => p.PlayerId);
+
+        var orderedMatchups = matchups.OrderBy(m => m.MatchupNumber).ToList();
+        var fullPairs = orderedMatchups.Where(m => m.Player2Id is not null).ToList();
+        var byes = orderedMatchups.Where(m => m.Player2Id is null).ToList();
+
+        // Two matchups (4 players) per tee time — capacity is enforced by
+        // grouping in twos, not by any capacity check, since a matchup group
+        // never exceeds a foursome: 2 full pairs, or up to 2 byes.
+        var teeTimeGroups = new List<List<int>>(); // each inner list = player IDs sharing a tee time
+
+        void GroupTwoAtATime(List<TournamentMatchup> group)
+        {
+            for (var i = 0; i < group.Count; i += 2)
+            {
+                var playerIds = new List<int> { group[i].Player1Id };
+                if (group[i].Player2Id is int p2) playerIds.Add(p2);
+                if (i + 1 < group.Count)
+                {
+                    playerIds.Add(group[i + 1].Player1Id);
+                    if (group[i + 1].Player2Id is int p2b) playerIds.Add(p2b);
+                }
+                teeTimeGroups.Add(playerIds);
+            }
+        }
+
+        GroupTwoAtATime(fullPairs);
+        GroupTwoAtATime(byes);
+
+        var slots = (await _teeTimes.EnsureSlotsAsync(roundId, teeTimeGroups.Count, cancellationToken))
+            .OrderBy(s => s.TeeTimeNumber)
+            .ToList();
+
+        for (var i = 0; i < teeTimeGroups.Count; i++)
+        {
+            var teeTimeId = slots[i].Id;
+            foreach (var playerId in teeTimeGroups[i])
+            {
+                if (!byPlayerId.TryGetValue(playerId, out var participant)) continue;
+                if (participant.TeeTimeId != teeTimeId)
+                    await _teeTimes.SetParticipantTeeTimeAsync(participant.Id, teeTimeId, cancellationToken);
+            }
+        }
+
+        await RegroupFlightsAsync(roundId, participants.Where(p => !p.IsWithdrawn).ToList(), cancellationToken);
+    }
+
     private async Task RegroupFlightsAsync(int roundId, IReadOnlyList<RoundParticipant> active, CancellationToken cancellationToken)
     {
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
