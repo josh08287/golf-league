@@ -236,6 +236,14 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task DeleteParticipantAsync(int participantId, CancellationToken cancellationToken = default)
     {
+        // TeeTimeSideGameTeam.ParticipantId is NoAction (see AppDbContext
+        // comment) to avoid a second SQL Server cascade path onto that table,
+        // so any team rows for this participant must be cleared explicitly
+        // before the participant row can be deleted.
+        await _context.TeeTimeSideGameTeams
+            .Where(t => t.ParticipantId == participantId)
+            .ExecuteDeleteAsync(cancellationToken);
+
         await _context.RoundParticipants
             .Where(rp => rp.Id == participantId)
             .ExecuteDeleteAsync(cancellationToken);

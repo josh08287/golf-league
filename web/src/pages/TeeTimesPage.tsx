@@ -410,6 +410,8 @@ function SlotCard({
             )}
           </div>
         )}
+
+        <p className="mt-2 text-right text-[10px] text-gray-300">#{slot.id}</p>
       </CardContent>
     </Card>
   );

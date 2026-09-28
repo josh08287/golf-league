@@ -172,6 +172,14 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string TournamentCommentsEnabled = "tournament_comments_enabled";
 
+    /// <summary>
+    /// Lets a tee-time group opt into optional side games (Nassau, 2v2 best
+    /// ball) from the score entry screen, tracked and scored per group.
+    /// Every game is scored purely from each player's own hole scores —
+    /// opting in never changes how scores are entered.
+    /// </summary>
+    public const string SideGamesEnabled = "side_games_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -183,5 +191,6 @@ public static class KnownFeatureFlags
         [ScorecardOcrEnabled] = false,
         [JoesVsOthersEnabled] = false,
         [TournamentCommentsEnabled] = false,
+        [SideGamesEnabled] = false,
     };
 }

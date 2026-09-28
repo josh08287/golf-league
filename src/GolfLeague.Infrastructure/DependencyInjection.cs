@@ -90,6 +90,7 @@ public static class DependencyInjection
         services.AddScoped<IFlightRepository, FlightRepository>();
         services.AddScoped<IRoundRepository, RoundRepository>();
         services.AddScoped<ITeeTimeRepository, TeeTimeRepository>();
+        services.AddScoped<ITeeTimeSideGameRepository, TeeTimeSideGameRepository>();
         services.AddScoped<CourseRepository>();
         services.AddScoped<ICourseRepository>(sp => new CachedCourseRepository(sp.GetRequiredService<CourseRepository>(), sp.GetRequiredService<IMemoryCache>()));
         services.AddScoped<IHandicapRepository, HandicapRepository>();

@@ -35,6 +35,8 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<Round> Rounds => Set<Round>();
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
+    public DbSet<TeeTimeSideGame> TeeTimeSideGames => Set<TeeTimeSideGame>();
+    public DbSet<TeeTimeSideGameTeam> TeeTimeSideGameTeams => Set<TeeTimeSideGameTeam>();
     public DbSet<HoleScore> HoleScores => Set<HoleScore>();
     public DbSet<TournamentFlight> TournamentFlights => Set<TournamentFlight>();
     public DbSet<TournamentMatchup> TournamentMatchups => Set<TournamentMatchup>();
@@ -80,6 +82,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureTournamentLongestDriveWinners(modelBuilder);
         ConfigureRoundClosestToPins(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
+        ConfigureTeeTimeSideGames(modelBuilder);
         ConfigureHoleScores(modelBuilder);
         ConfigureAuditLogs(modelBuilder);
         ConfigurePlayerInvites(modelBuilder);
@@ -642,6 +645,43 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
             // (RoundId, TeeTimeNumber) uniquely identifies a slot — prevents
             // duplicate slot rows from racing inserts.
             entity.HasIndex(e => new { e.RoundId, e.TeeTimeNumber }).IsUnique();
+        });
+    }
+
+    private static void ConfigureTeeTimeSideGames(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TeeTimeSideGame>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.TeeTime)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeeTimeId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            // A tee time can only opt into a given game type once.
+            entity.HasIndex(e => new { e.TeeTimeId, e.GameType }).IsUnique();
+        });
+
+        modelBuilder.Entity<TeeTimeSideGameTeam>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.SideGame)
+                  .WithMany(g => g.Teams)
+                  .HasForeignKey(e => e.TeeTimeSideGameId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            // NoAction (not Cascade) because RoundParticipant already cascades
+            // from Round directly, and TeeTimeSideGameTeam also reaches Round
+            // via TeeTimeSideGame → RoundTeeTime — two cascade paths converging
+            // on this table trip SQL Server's error 1785. Team rows are
+            // deleted via the SideGame → Cascade path instead (deleting a
+            // RoundParticipant never needs to delete a team row directly: a
+            // participant leaving the round is handled by removing them from
+            // the side game in code before the participant row is removed).
+            entity.HasOne(e => e.Participant)
+                  .WithMany()
+                  .HasForeignKey(e => e.ParticipantId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            // A participant can only be on one team within a given side game.
+            entity.HasIndex(e => new { e.TeeTimeSideGameId, e.ParticipantId }).IsUnique();
         });
     }
 

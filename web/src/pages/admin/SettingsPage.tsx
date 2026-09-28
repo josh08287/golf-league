@@ -60,6 +60,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Lets logged-in players post short messages on a tournament round\'s results page, shown with the poster\'s name and timestamp. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.sideGamesEnabled,
+    label: 'Optional foursome side games',
+    description:
+      'Lets a tee-time group opt into optional side games (Nassau, 2v2 best ball) from the score entry screen, with live status shown per group. Every game is scored from each player\'s own hole scores. Applies to every league.',
+  },
 ];
 
 function Toggle({

@@ -14,6 +14,7 @@ import {
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useRoundClosestToPin, useSetRoundClosestToPin } from '@/hooks/useClosestToPin';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { SideGamesPanel, SideGamesStatusBar } from '@/components/scoring/SideGamesPanel';
 import { useAuthStore } from '@/store/authStore';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -436,6 +437,7 @@ interface GroupSetupStepProps {
   pendingSkipIds: Set<number>;
   onContinue: () => void;
   scorecardOcrEnabled: boolean;
+  sideGamesEnabled: boolean;
   holes: TeeTimeHoleInfo[];
   onScanApplied: (scores: Record<number, Record<number, number | ''>>) => void;
 }
@@ -453,6 +455,7 @@ function GroupSetupStep({
   pendingSkipIds,
   onContinue,
   scorecardOcrEnabled,
+  sideGamesEnabled,
   holes,
   onScanApplied,
 }: GroupSetupStepProps) {
@@ -585,6 +588,15 @@ function GroupSetupStep({
           );
         })}
       </div>
+
+      {sideGamesEnabled && (
+        <SideGamesPanel
+          teeTimeId={teeTimeId}
+          players={activePlayers
+            .filter((p) => !(skippedMap[p.playerId] ?? p.skippedWeek))
+            .map((p) => ({ participantId: p.participantId, playerName: p.playerName }))}
+        />
+      )}
 
       <Button variant="primary" size="lg" className="w-full" onClick={onContinue}>
         Start Entering Scores
@@ -1250,6 +1262,7 @@ export function TeeTimeScoreEntryPage() {
   const featureFlags = useFeatureFlagStates();
   const ctpEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.closestToPinEnabled] ?? false;
   const scorecardOcrEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.scorecardOcrEnabled] ?? false;
+  const sideGamesEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.sideGamesEnabled] ?? false;
   const isScorerOrAdmin =
     (user?.isSuperAdmin ?? false) ||
     (user?.roles?.some((r) => r === 'scorer' || r === 'admin') ?? false);
@@ -1680,6 +1693,7 @@ export function TeeTimeScoreEntryPage() {
           pendingSkipIds={pendingSkipIds}
           onContinue={() => setSetupComplete(true)}
           scorecardOcrEnabled={scorecardOcrEnabled}
+          sideGamesEnabled={sideGamesEnabled}
           holes={holes}
           onScanApplied={(scores) => {
             setSetupComplete(true);
@@ -1739,6 +1753,11 @@ export function TeeTimeScoreEntryPage() {
           Hole {currentHoleIndex + 1} of {holes.length}
           {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
         </p>
+      )}
+
+      {/* Side games status — always visible once setup is done, whether entering scores or reviewing */}
+      {(setupComplete || !canEdit) && (
+        <SideGamesStatusBar teeTimeId={teeTimeIdNum} enabled={sideGamesEnabled} />
       )}
 
       {/* Main content */}

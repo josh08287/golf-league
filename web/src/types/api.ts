@@ -1173,4 +1173,58 @@ export const FEATURE_FLAG_KEYS = {
   scorecardOcrEnabled: 'scorecard_ocr_enabled',
   joesVsOthersEnabled: 'joes_vs_others_enabled',
   tournamentCommentsEnabled: 'tournament_comments_enabled',
+  sideGamesEnabled: 'side_games_enabled',
 } as const;
+
+// ── Side Games ──────────────────────────────────────────────────────────────
+// Optional per-foursome games (Nassau, 2v2 best ball), opted into from the
+// score entry screen. Always scored from each player's own hole scores.
+
+export type SideGameType = 'Nassau' | 'TwoVTwoBestBall';
+export type ScoringBasis = 'Gross' | 'Net';
+export type NassauFormat = 'TeamVsTeam' | 'Individual';
+
+export interface SideGameTeam {
+  teamNumber: number;
+  participantIds: number[];
+  playerNames: string[];
+}
+
+export interface NassauMatch {
+  sideAName: string;
+  sideBName: string;
+  frontStatus: string;
+  backStatus: string;
+  overallStatus: string;
+}
+
+export interface NassauStatus {
+  matches: NassauMatch[];
+}
+
+export interface BestBallStatus {
+  teamAName: string;
+  teamBName: string;
+  teamAHolesWon: number;
+  teamBHolesWon: number;
+  holesHalved: number;
+  status: string;
+}
+
+export interface TeeTimeSideGame {
+  id: number;
+  gameType: SideGameType;
+  scoringBasis: ScoringBasis;
+  nassauFormat: NassauFormat | null;
+  teams: SideGameTeam[];
+  holesEntered: number;
+  totalHoles: number;
+  nassau: NassauStatus | null;
+  bestBall: BestBallStatus | null;
+}
+
+export interface TeeTimeSideGames {
+  teeTimeId: number;
+  eligibleGameTypes: SideGameType[];
+  configuredGames: TeeTimeSideGame[];
+}
