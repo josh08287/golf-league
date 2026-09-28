@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Trophy,
@@ -8,6 +9,8 @@ import {
   ArrowLeft,
   Loader2,
   AlertCircle,
+  ListOrdered,
+  Swords,
 } from 'lucide-react';
 import { useTournamentResults } from '@/hooks/useRounds';
 import { formatDate } from '@/lib/utils';
@@ -503,36 +506,108 @@ function RankingTable({
   );
 }
 
+// ── View tabs ─────────────────────────────────────────────────────────────────
+
+type ResultsView = 'strokes' | 'matches';
+
+function ViewTabs({ view, onChange }: { view: ResultsView; onChange: (v: ResultsView) => void }) {
+  const tabs: { key: ResultsView; label: string; icon: React.ElementType }[] = [
+    { key: 'strokes', label: 'Strokes Leaderboard', icon: ListOrdered },
+    { key: 'matches', label: 'Match Status', icon: Swords },
+  ];
+
+  return (
+    <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+      {tabs.map((t) => {
+        const active = view === t.key;
+        const Icon = t.icon;
+        return (
+          <button
+            key={t.key}
+            type="button"
+            onClick={() => onChange(t.key)}
+            className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+              active
+                ? 'bg-white text-green-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {t.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export function TournamentResultsBody({ results }: { results: TournamentResults }) {
+  const [view, setView] = useState<ResultsView>('strokes');
+  const hasMatchups = results.matchupResults.length > 0;
+
   return (
     <div className="space-y-8">
-      {/* Skins — two columns */}
-      <section>
-        <SectionTitle icon={Trophy} label="Skins" />
-        <div className="grid gap-6 lg:grid-cols-2">
-          <SkinsPanel skins={results.grossSkins} />
-          <SkinsPanel skins={results.netSkins} />
-        </div>
-      </section>
-
-      {/* Hole Extras */}
+      {/* Prop Awards — shown at the top regardless of which view is active */}
       <section>
         <SectionTitle icon={Target} label="Closest to Pin & Longest Drive" />
         <HoleExtrasPanel extras={results.holeExtras} ldWinners={results.longestDriveWinners} />
       </section>
 
-      {/* Flights (longest-drive grouping) */}
-      {results.flights.length > 0 && (
-        <section>
-          <SectionTitle icon={Users} label="Flights" />
-          <FlightsPanel flights={results.flights} holes={results.holes} />
-        </section>
-      )}
+      {hasMatchups && <ViewTabs view={view} onChange={setView} />}
 
-      {/* Matchups */}
-      {results.matchupResults.length > 0 && (
+      {view === 'strokes' || !hasMatchups ? (
+        <>
+          {/* Skins — two columns */}
+          <section>
+            <SectionTitle icon={Trophy} label="Skins" />
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SkinsPanel skins={results.grossSkins} />
+              <SkinsPanel skins={results.netSkins} />
+            </div>
+          </section>
+
+          {/* Flights (stroke-play scorecards) */}
+          {results.flights.length > 0 && (
+            <section>
+              <SectionTitle icon={Users} label="Flights" />
+              <FlightsPanel flights={results.flights} holes={results.holes} />
+            </section>
+          )}
+
+          {/* Rankings */}
+          <section>
+            <SectionTitle icon={BarChart2} label="Rankings" />
+            <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+              <RankingTable
+                title="Gross Stroke Play"
+                entries={results.grossStrokeRanking}
+                scoreLabel="Gross"
+                ascending={true}
+              />
+              <RankingTable
+                title="Net Stroke Play"
+                entries={results.netStrokeRanking}
+                scoreLabel="Net"
+                ascending={true}
+              />
+              <RankingTable
+                title="Gross Stableford"
+                entries={results.grossStablefordRanking}
+                scoreLabel="Pts"
+                ascending={false}
+              />
+              <RankingTable
+                title="Net Stableford"
+                entries={results.netStablefordRanking}
+                scoreLabel="Pts"
+                ascending={false}
+              />
+            </div>
+          </section>
+        </>
+      ) : (
         <section>
           <SectionTitle icon={Users} label="Matchup Results" />
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -542,37 +617,6 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
           </div>
         </section>
       )}
-
-      {/* Rankings */}
-      <section>
-        <SectionTitle icon={BarChart2} label="Rankings" />
-        <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-          <RankingTable
-            title="Gross Stroke Play"
-            entries={results.grossStrokeRanking}
-            scoreLabel="Gross"
-            ascending={true}
-          />
-          <RankingTable
-            title="Net Stroke Play"
-            entries={results.netStrokeRanking}
-            scoreLabel="Net"
-            ascending={true}
-          />
-          <RankingTable
-            title="Gross Stableford"
-            entries={results.grossStablefordRanking}
-            scoreLabel="Pts"
-            ascending={false}
-          />
-          <RankingTable
-            title="Net Stableford"
-            entries={results.netStablefordRanking}
-            scoreLabel="Pts"
-            ascending={false}
-          />
-        </div>
-      </section>
     </div>
   );
 }
