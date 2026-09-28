@@ -32,7 +32,7 @@ public class RegenerateTournamentMatchupsTests
         HandicapIndex = handicapIndex,
         CourseHandicap = (int)handicapIndex,
         IsSubstitute = isSubstitute,
-        Player = new Player { Id = id, FirstName = "P", LastName = id.ToString() },
+        Player = new Player { Id = id, FirstName = "P", LastName = id.ToString(), IsSubstitute = isSubstitute },
     };
 
     private static Mock<IRoundRepository> MakeRounds(Round round)
@@ -40,6 +40,8 @@ public class RegenerateTournamentMatchupsTests
         var rounds = new Mock<IRoundRepository>();
         rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
         rounds.Setup(r => r.ReplaceTournamentMatchupsAsync(round.Id, It.IsAny<IEnumerable<TournamentMatchup>>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        rounds.Setup(r => r.UpdateParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
         return rounds;
     }
@@ -186,6 +188,47 @@ public class RegenerateTournamentMatchupsTests
         result.Value.Should().HaveCount(1);
         result.Value![0].Player1Id.Should().Be(2); // regular2 (5.0)
         result.Value[0].Player2Id.Should().Be(1); // regular1 (10.0)
+    }
+
+    [Fact]
+    public async Task Handle_UsesCurrentPlayerSubstituteStatus_NotStaleParticipantSnapshot()
+    {
+        // Regression: a player added to the round while a regular, then later
+        // flagged as a league substitute (or vice versa), leaves a stale
+        // RoundParticipant.IsSubstitute snapshot. Regeneration must re-derive
+        // from the live Player.IsSubstitute flag so a substitute never gets
+        // paired against a non-substitute.
+        var regular1 = MakeParticipant(1, 10.0);
+        var regular2 = MakeParticipant(2, 5.0);
+        // Snapshot says regular (added before being marked a sub), but the
+        // player is now a substitute.
+        var nowSub = MakeParticipant(3, 7.0, isSubstitute: false);
+        nowSub.Player!.IsSubstitute = true;
+        // Snapshot says substitute (added while a sub), but has since been
+        // promoted back to a regular roster player.
+        var nowRegular = MakeParticipant(4, 6.0, isSubstitute: true);
+        nowRegular.Player!.IsSubstitute = false;
+
+        var round = MakeTournamentRound(participants: [regular1, regular2, nowSub, nowRegular]);
+        var rounds = MakeRounds(round);
+
+        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+            .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        // 3 regulars (1 pair + 1 leftover), 1 sub (unmatched) -> one matchup total.
+        result.Value.Should().HaveCount(1);
+
+        // Regulars now: regular1(10), regular2(5), nowRegular(6) -> sorted 2,4,1
+        result.Value![0].Player1Id.Should().Be(2);
+        result.Value[0].Player2Id.Should().Be(4);
+        // regular1 is the odd one out; nowSub(3) is the lone sub and unmatched.
+        result.Value.Should().NotContain(m => m.Player1Id == 1 || m.Player2Id == 1);
+        result.Value.Should().NotContain(m => m.Player1Id == 3 || m.Player2Id == 3);
+
+        // Snapshots on the participants themselves must also be corrected.
+        nowSub.IsSubstitute.Should().BeTrue();
+        nowRegular.IsSubstitute.Should().BeFalse();
     }
 
     [Fact]

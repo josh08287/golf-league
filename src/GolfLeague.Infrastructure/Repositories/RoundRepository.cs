@@ -220,7 +220,8 @@ public sealed class RoundRepository : IRoundRepository
                 .SetProperty(rp => rp.SkippedWeek, participant.SkippedWeek)
                 .SetProperty(rp => rp.HandicapIndex, participant.HandicapIndex)
                 .SetProperty(rp => rp.CourseHandicap, participant.CourseHandicap)
-                .SetProperty(rp => rp.FlightId, participant.FlightId),
+                .SetProperty(rp => rp.FlightId, participant.FlightId)
+                .SetProperty(rp => rp.IsSubstitute, participant.IsSubstitute),
             cancellationToken);
     }
 

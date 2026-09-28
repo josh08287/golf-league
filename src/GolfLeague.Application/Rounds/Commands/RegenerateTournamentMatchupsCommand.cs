@@ -43,6 +43,18 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
         if (round.Status != RoundStatus.Scheduled)
             return Result<List<TournamentMatchupDto>>.Fail("Matchups can only be regenerated while the round is Scheduled.");
 
+        // Use the player's current substitute-pool status, not the
+        // RoundParticipant.IsSubstitute snapshot taken when they were added —
+        // that snapshot goes stale if the player's substitute flag changes
+        // afterward (e.g. added as a regular, then later marked a substitute).
+        // Persist the refreshed snapshot so downstream reads (standings,
+        // scoring exclusions) stay in sync too.
+        foreach (var participant in round.Participants.Where(p => p.IsSubstitute != p.Player.IsSubstitute))
+        {
+            participant.IsSubstitute = participant.Player.IsSubstitute;
+            await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+        }
+
         var regulars = round.Participants.Where(p => !p.IsSubstitute).OrderBy(p => p.HandicapIndex).ToList();
         var subs = round.Participants.Where(p => p.IsSubstitute).OrderBy(_ => Random.Shared.Next()).ToList();
 
