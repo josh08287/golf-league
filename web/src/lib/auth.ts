@@ -91,6 +91,17 @@ export function isAuthenticated(): boolean {
   return getAccessToken() !== null;
 }
 
+/**
+ * True when a refresh token is still stored locally — i.e. the last refresh
+ * attempt either succeeded or failed for a reason other than the server
+ * rejecting the token (see refresh()). The response interceptor uses this to
+ * tell "genuinely logged out" apart from "refresh failed transiently, don't
+ * force a re-login."
+ */
+export function hasStoredSession(): boolean {
+  return getRefreshToken() !== null;
+}
+
 export function getTokenLeagueId(): number | null {
   const token = getAccessToken();
   if (!token) return null;
@@ -155,8 +166,18 @@ export async function refresh(leagueId?: number): Promise<string | null> {
     const data = unwrap<AuthResponse>(res.data);
     storeAuthResponse(data);
     return data.accessToken;
-  } catch {
-    clearAuth();
+  } catch (err) {
+    // Only clear the stored session when the server actually rejected the
+    // refresh token (401 — invalid, expired, or already used). Anything else
+    // — a network error, a timeout, or a 5xx — means the backend or SQL
+    // hasn't finished waking up from cold, not that the session is bad. The
+    // refresh token itself is still valid and single-use-not-yet-consumed,
+    // so wiping it here would force a real login for no reason; leave it in
+    // place so the next natural retry (or the request interceptor's own
+    // retry) can succeed once the backend is warm.
+    if (axios.isAxiosError(err) && err.response?.status === 401) {
+      clearAuth();
+    }
     return null;
   }
 }

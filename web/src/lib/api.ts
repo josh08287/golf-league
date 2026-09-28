@@ -3,7 +3,7 @@ import axios, {
   AxiosHeaders,
   InternalAxiosRequestConfig,
 } from 'axios';
-import { getAccessToken, isTokenExpired, refresh, clearAuth } from './auth';
+import { getAccessToken, isTokenExpired, refresh, clearAuth, hasStoredSession } from './auth';
 import { useAuthStore } from '@/store/authStore';
 import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 
@@ -95,8 +95,18 @@ apiClient.interceptors.response.use(
       return apiClient.request(config);
     }
 
-    // Refresh failed — sign the user out and redirect to /login unless already there.
-    // Guard against multiple simultaneous 401s all trying to redirect.
+    // Refresh failed. If a refresh token is still stored, refresh() left it
+    // in place because the failure was transient (cold-start timeout, 5xx,
+    // network error) rather than the server rejecting it — don't force a
+    // re-login for that; just let this request fail and allow a later retry
+    // to succeed once the backend is warm.
+    if (hasStoredSession()) {
+      return Promise.reject(error);
+    }
+
+    // Refresh token was actually cleared (real 401 from the server) — sign
+    // the user out and redirect to /login unless already there. Guard
+    // against multiple simultaneous 401s all trying to redirect.
     if (redirectingToLogin) return Promise.reject(error);
     redirectingToLogin = true;
 
