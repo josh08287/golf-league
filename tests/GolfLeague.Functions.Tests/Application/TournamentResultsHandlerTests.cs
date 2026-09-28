@@ -403,6 +403,67 @@ public class TournamentResultsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_AppendsSubstitutesAsUnflightedGroupAfterRealFlights()
+    {
+        var flighted = MakeParticipant(1, "Alice", holes: MakeHole(1, gross: 4, net: 4));
+        flighted.TournamentFlightId = 900;
+        var sub = MakeParticipant(2, "Subby", holes: MakeHole(1, gross: 5, net: 5));
+        sub.IsSubstitute = true;
+        sub.TournamentFlightId = null;
+
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { flighted, sub });
+        m.Rounds.Setup(r => r.GetTournamentFlightsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        result.Value!.Flights.Should().HaveCount(2);
+        result.Value.Flights[0].Name.Should().Be("A");
+        result.Value.Flights[0].PlayerIds.Should().ContainSingle().Which.Should().Be(1);
+
+        var subGroup = result.Value.Flights[1];
+        subGroup.Name.Should().Be("Substitutes");
+        subGroup.PlayerIds.Should().ContainSingle().Which.Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Handle_NoSubstitutes_DoesNotAddSubstitutesGroup()
+    {
+        var flighted = MakeParticipant(1, "Alice", holes: MakeHole(1, gross: 4, net: 4));
+        flighted.TournamentFlightId = 900;
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { flighted });
+        m.Rounds.Setup(r => r.GetTournamentFlightsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        result.Value!.Flights.Should().ContainSingle();
+        result.Value.Flights.Should().NotContain(f => f.Name == "Substitutes");
+    }
+
+    [Fact]
+    public async Task Handle_WithdrawnSubstitute_IsExcludedFromSubstitutesGroup()
+    {
+        var withdrawnSub = MakeParticipant(2, "Subby", holes: MakeHole(1, gross: 5, net: 5));
+        withdrawnSub.IsSubstitute = true;
+        withdrawnSub.IsWithdrawn = true;
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { withdrawnSub });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        result.Value!.Flights.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Handle_MatchupHoleByHole_ClosesOutOnceLeadExceedsHolesRemaining()
     {
         // Alice wins holes 1-3 of a 3-hole "match" (test uses a short match to keep it

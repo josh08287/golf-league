@@ -52,11 +52,22 @@ public sealed class TournamentFoursomeService
     private async Task RegroupFlightsAsync(int roundId, IReadOnlyList<RoundParticipant> active, CancellationToken cancellationToken)
     {
         var round = await _rounds.GetByIdAsync(roundId, cancellationToken);
-        if (round is null || active.Count == 0) return;
+        if (round is null) return;
+
+        // Substitutes aren't part of the regular flight grouping — they're
+        // often without a season-tracked handicap history, so a handicap-based
+        // flight isn't meaningful for them. Leave their TournamentFlightId
+        // null; the results page groups them into a separate "Substitutes"
+        // bucket appended after the real flights.
+        var regulars = active.Where(p => !p.IsSubstitute).ToList();
+        foreach (var sub in active.Where(p => p.IsSubstitute))
+            await _rounds.SetParticipantTournamentFlightAsync(sub.Id, null, cancellationToken);
+
+        if (regulars.Count == 0) return;
 
         var flightCount = await ResolveFlightCountAsync(round.SeasonId, round.RoundDate, cancellationToken);
         if (flightCount < 1) flightCount = 1;
-        flightCount = Math.Min(flightCount, active.Count);
+        flightCount = Math.Min(flightCount, regulars.Count);
 
         var newFlights = Enumerable.Range(1, flightCount)
             .Select(n => new TournamentFlight { RoundId = roundId, FlightNumber = n, Name = FlightName(n) })
@@ -64,7 +75,7 @@ public sealed class TournamentFoursomeService
         await _rounds.ReplaceTournamentFlightsAsync(roundId, newFlights, cancellationToken);
 
         var savedFlights = await _rounds.GetTournamentFlightsAsync(roundId, cancellationToken);
-        var ordered = active.OrderBy(p => p.HandicapIndex).ThenBy(p => p.PlayerId).ToList();
+        var ordered = regulars.OrderBy(p => p.HandicapIndex).ThenBy(p => p.PlayerId).ToList();
         var perFlight = (int)Math.Ceiling(ordered.Count / (double)flightCount);
 
         for (var i = 0; i < ordered.Count; i++)

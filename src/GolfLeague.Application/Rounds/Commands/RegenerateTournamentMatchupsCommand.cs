@@ -27,10 +27,13 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
     : IRequestHandler<RegenerateTournamentMatchupsCommand, Result<List<TournamentMatchupDto>>>
 {
     private readonly IRoundRepository _roundRepository;
+    private readonly TournamentFoursomeService _foursomeService;
 
-    public RegenerateTournamentMatchupsCommandHandler(IRoundRepository roundRepository)
+    public RegenerateTournamentMatchupsCommandHandler(
+        IRoundRepository roundRepository, TournamentFoursomeService foursomeService)
     {
         _roundRepository = roundRepository;
+        _foursomeService = foursomeService;
     }
 
     public async Task<Result<List<TournamentMatchupDto>>> Handle(RegenerateTournamentMatchupsCommand request, CancellationToken cancellationToken)
@@ -89,6 +92,13 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
         PairGroup(subs);
 
         await _roundRepository.ReplaceTournamentMatchupsAsync(round.Id, matchupEntities, cancellationToken);
+
+        // Also re-run flight/tee-time grouping: rounds created or added-to
+        // before the substitute-exclusion fix can have substitutes stuck in a
+        // handicap flight from a prior grouping. Regenerating matchups is the
+        // action an admin reaches for to "fix up" a round's pairings, so make
+        // it correct the flights too rather than requiring a separate step.
+        await _foursomeService.RegroupAsync(round.Id, round.Participants.ToList(), cancellationToken);
 
         return Result<List<TournamentMatchupDto>>.Ok(matchupDtos);
     }

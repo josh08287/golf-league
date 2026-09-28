@@ -26,13 +26,14 @@ public class TournamentFlightRegroupTests
         Status = RoundStatus.Scheduled,
     };
 
-    private static RoundParticipant MakeParticipant(int id, double handicapIndex) => new()
+    private static RoundParticipant MakeParticipant(int id, double handicapIndex, bool isSubstitute = false) => new()
     {
         Id = id,
         PlayerId = id,
         RoundId = 1,
         HandicapIndex = handicapIndex,
-        Player = new Player { Id = id, FirstName = "P", LastName = id.ToString() },
+        IsSubstitute = isSubstitute,
+        Player = new Player { Id = id, FirstName = "P", LastName = id.ToString(), IsSubstitute = isSubstitute },
     };
 
     private static (TournamentFoursomeService Sut, Mock<IRoundRepository> Rounds, List<TournamentFlight> SavedFlights, Dictionary<int, int?> FlightAssignments)
@@ -146,5 +147,36 @@ public class TournamentFlightRegroupTests
         assignments[4].Should().Be(900);
         assignments[3].Should().Be(901);
         assignments[1].Should().Be(901);
+    }
+
+    [Fact]
+    public async Task Substitutes_AreExcludedFromFlightGrouping_AndLeftUnassigned()
+    {
+        // Regression: substitutes were previously mixed into the
+        // handicap-sorted flight split alongside regular players, corrupting
+        // the "proper players per flight" grouping shown on the results page.
+        var round = MakeRound(seasonId: 1, roundDate: new DateOnly(2026, 6, 15));
+        var half = new SeasonHalf { Id = 10, SeasonId = 1, HalfNumber = 1, StartDate = new DateOnly(2026, 6, 1), EndDate = new DateOnly(2026, 7, 31) };
+        var (sut, _, _, assignments) = BuildSut(round, [half], _ => 2);
+
+        var players = new List<RoundParticipant>
+        {
+            MakeParticipant(1, 20.0),
+            MakeParticipant(2, 5.0),
+            MakeParticipant(3, 15.0),
+            MakeParticipant(4, 10.0),
+            // Lowest handicap of the bunch, but a substitute — must not
+            // occupy a flight slot that displaces a regular player.
+            MakeParticipant(5, 1.0, isSubstitute: true),
+        };
+        await sut.RegroupAsync(round.Id, players, CancellationToken.None);
+
+        // Only the 4 regulars are split into the 2 flights: 2(5.0), 4(10.0) ->
+        // flight 0; 3(15.0), 1(20.0) -> flight 1.
+        assignments[2].Should().Be(900);
+        assignments[4].Should().Be(900);
+        assignments[3].Should().Be(901);
+        assignments[1].Should().Be(901);
+        assignments[5].Should().BeNull();
     }
 }

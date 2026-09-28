@@ -174,6 +174,17 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var grossStablefordRanking = BuildRanking(active, p => p.TotalGrossStablefordPoints, ascending: false);
         var netStablefordRanking = BuildRanking(active, p => p.TotalNetStablefordPoints, ascending: false);
 
+        static TournamentFlightPlayerDto ToFlightPlayerDto(RoundParticipant p) => new(
+            p.PlayerId,
+            p.Player.FullName,
+            p.CourseHandicap,
+            p.HoleScores
+                .OrderBy(h => h.HoleNumber)
+                .Select(h => new TournamentFlightHoleScoreDto(h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes))
+                .ToList(),
+            p.TotalGrossStrokes,
+            p.TotalNetStrokes);
+
         var flightDtos = flights
             .Select(f =>
             {
@@ -183,20 +194,24 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                     f.FlightNumber,
                     f.Name,
                     flightParticipants.Select(p => p.PlayerId).ToList(),
-                    flightParticipants
-                        .Select(p => new TournamentFlightPlayerDto(
-                            p.PlayerId,
-                            p.Player.FullName,
-                            p.CourseHandicap,
-                            p.HoleScores
-                                .OrderBy(h => h.HoleNumber)
-                                .Select(h => new TournamentFlightHoleScoreDto(h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes))
-                                .ToList(),
-                            p.TotalGrossStrokes,
-                            p.TotalNetStrokes))
-                        .ToList());
+                    flightParticipants.Select(ToFlightPlayerDto).ToList());
             })
             .ToList();
+
+        // Substitutes aren't part of the handicap-based flight grouping (see
+        // TournamentFoursomeService) — they're never assigned a
+        // TournamentFlightId. Show them in one extra, unflighted group at the
+        // end of the list rather than dropping them from this view entirely.
+        var substituteParticipants = participants.Where(p => p.IsSubstitute && !p.IsWithdrawn).ToList();
+        if (substituteParticipants.Count > 0)
+        {
+            flightDtos.Add(new TournamentFlightDto(
+                0,
+                flights.Count + 1,
+                "Substitutes",
+                substituteParticipants.Select(p => p.PlayerId).ToList(),
+                substituteParticipants.Select(ToFlightPlayerDto).ToList()));
+        }
 
         var ldByFlight = ldWinners.ToDictionary(w => w.TournamentFlightId);
         var ldWinnerDtos = flights

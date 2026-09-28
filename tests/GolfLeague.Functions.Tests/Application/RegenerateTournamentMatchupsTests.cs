@@ -1,4 +1,5 @@
 using FluentAssertions;
+using GolfLeague.Application.Rounds;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
@@ -13,7 +14,9 @@ namespace GolfLeague.Tests.Application;
 /// current roster: regular players are paired by ascending handicap — same
 /// pairing rule as tournament creation's default matchups — while
 /// substitutes are paired randomly against other substitutes, appended
-/// after every regular matchup.
+/// after every regular matchup. It also re-runs flight/tee-time grouping
+/// (TournamentFoursomeService) so a round created before the
+/// substitute-exclusion fix gets its flights corrected too.
 /// </summary>
 public class RegenerateTournamentMatchupsTests
 {
@@ -43,7 +46,35 @@ public class RegenerateTournamentMatchupsTests
             .Returns(Task.CompletedTask);
         rounds.Setup(r => r.UpdateParticipantAsync(It.IsAny<RoundParticipant>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
+        List<TournamentFlight> savedFlights = [];
+        rounds.Setup(r => r.ReplaceTournamentFlightsAsync(round.Id, It.IsAny<IEnumerable<TournamentFlight>>(), It.IsAny<CancellationToken>()))
+            .Callback<int, IEnumerable<TournamentFlight>, CancellationToken>((_, f, _) =>
+            {
+                savedFlights = f.Select((flight, i) => { flight.Id = 900 + i; return flight; }).ToList();
+            })
+            .Returns(Task.CompletedTask);
+        rounds.Setup(r => r.GetTournamentFlightsAsync(round.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => savedFlights);
+        rounds.Setup(r => r.SetParticipantTournamentFlightAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
         return rounds;
+    }
+
+    private static RegenerateTournamentMatchupsCommandHandler BuildHandler(Mock<IRoundRepository> rounds)
+    {
+        var teeTimes = new Mock<ITeeTimeRepository>();
+        teeTimes.Setup(t => t.EnsureSlotsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((int _, int count, CancellationToken _) =>
+                Enumerable.Range(1, Math.Max(count, 1)).Select(n => new RoundTeeTime { Id = 100 + n, TeeTimeNumber = n }).ToList());
+        teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        var flights = new Mock<IFlightRepository>();
+        flights.Setup(f => f.GetHalvesBySeasonAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<SeasonHalf>());
+
+        var foursomeService = new TournamentFoursomeService(teeTimes.Object, rounds.Object, flights.Object);
+        return new RegenerateTournamentMatchupsCommandHandler(rounds.Object, foursomeService);
     }
 
     [Fact]
@@ -52,7 +83,7 @@ public class RegenerateTournamentMatchupsTests
         var rounds = new Mock<IRoundRepository>();
         rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync((Round?)null);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
@@ -64,7 +95,7 @@ public class RegenerateTournamentMatchupsTests
         var round = new Round { Id = 1, RoundType = RoundType.NineHole };
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
@@ -77,7 +108,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(RoundStatus.InProgress, MakeParticipant(1, 10), MakeParticipant(2, 8));
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
@@ -95,7 +126,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(participants: [p1, p2, p3, p4]);
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -118,7 +149,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(participants: [regular1, regular2, sub1, sub2]);
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -155,7 +186,7 @@ public class RegenerateTournamentMatchupsTests
             var round = MakeTournamentRound(participants: [regular1, regular2, subLow, subMid1, subMid2, subHigh]);
             var rounds = MakeRounds(round);
 
-            var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+            var result = await BuildHandler(rounds)
                 .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
             var subMatchups = result.Value!.Skip(1).ToList(); // after the single regular matchup
@@ -180,7 +211,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(participants: [regular1, regular2, regular3, sub1]);
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -212,7 +243,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(participants: [regular1, regular2, nowSub, nowRegular]);
         var rounds = MakeRounds(round);
 
-        var result = await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        var result = await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
@@ -239,7 +270,7 @@ public class RegenerateTournamentMatchupsTests
         var round = MakeTournamentRound(participants: [p1, p2]);
         var rounds = MakeRounds(round);
 
-        await new RegenerateTournamentMatchupsCommandHandler(rounds.Object)
+        await BuildHandler(rounds)
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         rounds.Verify(r => r.ReplaceTournamentMatchupsAsync(
