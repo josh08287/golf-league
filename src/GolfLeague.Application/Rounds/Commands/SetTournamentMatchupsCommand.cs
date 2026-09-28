@@ -50,11 +50,34 @@ public sealed class SetTournamentMatchupsCommandHandler : IRequestHandler<SetTou
         var matchupNum = 1;
         foreach (var m in request.Matchups)
         {
-            if (!participantIds.Contains(m.Player1Id) || !participantIds.Contains(m.Player2Id))
-                return Result<List<TournamentMatchupDto>>.Fail($"Players {m.Player1Id} and/or {m.Player2Id} are not participants of this round.");
+            if (!participantIds.Contains(m.Player1Id))
+                return Result<List<TournamentMatchupDto>>.Fail($"Player {m.Player1Id} is not a participant of this round.");
 
             var p1Part = participants.First(p => p.PlayerId == m.Player1Id);
-            var p2Part = participants.First(p => p.PlayerId == m.Player2Id);
+
+            if (m.Player2Id is null)
+            {
+                // Bye — Player1 has no opponent in this matchup.
+                matchupEntities.Add(new TournamentMatchup
+                {
+                    RoundId = request.RoundId,
+                    MatchupNumber = matchupNum,
+                    Player1Id = m.Player1Id,
+                    Player2Id = null,
+                });
+                matchupDtos.Add(new TournamentMatchupDto(
+                    matchupNum,
+                    m.Player1Id, p1Part.Player.FullName, p1Part.HandicapIndex, p1Part.CourseHandicap,
+                    null, null, null, null,
+                    null));
+                matchupNum++;
+                continue;
+            }
+
+            if (!participantIds.Contains(m.Player2Id.Value))
+                return Result<List<TournamentMatchupDto>>.Fail($"Players {m.Player1Id} and/or {m.Player2Id} are not participants of this round.");
+
+            var p2Part = participants.First(p => p.PlayerId == m.Player2Id.Value);
 
             matchupEntities.Add(new TournamentMatchup
             {

@@ -109,9 +109,10 @@ export function useDeleteRound() {
   });
 }
 
+/** player2Id is null for a "bye" — player1 has no opponent in this matchup. */
 export interface MatchupInput {
   player1Id: number;
-  player2Id: number;
+  player2Id: number | null;
 }
 
 export interface CreateTournamentRoundPayload {

@@ -248,7 +248,7 @@ public sealed class TournamentRoundFunctions
 
     // ── Private request DTOs ────────────────────────────────────────────────────
 
-    private sealed record MatchupInputDto(int Player1Id, int Player2Id);
+    private sealed record MatchupInputDto(int Player1Id, int? Player2Id);
 
     private sealed record CreateTournamentRoundRequest(
         int SeasonId,

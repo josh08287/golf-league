@@ -107,9 +107,10 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
 
   function swapMatchupPlayers(matchupIndex: number) {
     setMatchups((prev) =>
-      prev.map((m, i) =>
-        i === matchupIndex ? { player1Id: m.player2Id, player2Id: m.player1Id } : m,
-      ),
+      prev.map((m, i) => {
+        if (i !== matchupIndex || m.player2Id === null) return m;
+        return { player1Id: m.player2Id, player2Id: m.player1Id };
+      }),
     );
   }
 
@@ -353,7 +354,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
                 </select>
                 <span className="text-xs font-semibold text-gray-500">vs</span>
                 <select
-                  value={m.player2Id}
+                  value={m.player2Id ?? ''}
                   onChange={(e) => setMatchupPlayer(idx, 2, Number(e.target.value))}
                   className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-600"
                 >

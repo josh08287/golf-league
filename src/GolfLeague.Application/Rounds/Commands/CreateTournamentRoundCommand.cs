@@ -31,7 +31,8 @@ public sealed record CreateTournamentRoundCommand(
     public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
 }
 
-public sealed record MatchupInput(int Player1Id, int Player2Id);
+/// <summary>Player2Id is null for a "bye" — Player1 has no opponent in this matchup.</summary>
+public sealed record MatchupInput(int Player1Id, int? Player2Id);
 
 /// <summary>
 /// Player2* fields are null for a "bye" — an odd player out with no
@@ -178,8 +179,25 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             foreach (var m in request.Matchups)
             {
                 var p1 = participantHandicaps.FirstOrDefault(p => p.PlayerId == m.Player1Id);
+                if (p1 == default) continue;
+
+                if (m.Player2Id is null)
+                {
+                    matchupEntities.Add(new TournamentMatchup
+                    {
+                        RoundId = round.Id,
+                        MatchupNumber = matchupNum,
+                        Player1Id = m.Player1Id,
+                        Player2Id = null,
+                    });
+                    matchupDtos.Add(new TournamentMatchupDto(matchupNum, p1.PlayerId, p1.FullName, p1.HcpIndex, p1.CourseHcp,
+                        null, null, null, null, null));
+                    matchupNum++;
+                    continue;
+                }
+
                 var p2 = participantHandicaps.FirstOrDefault(p => p.PlayerId == m.Player2Id);
-                if (p1 == default || p2 == default) continue;
+                if (p2 == default) continue;
 
                 matchupEntities.Add(new TournamentMatchup
                 {

@@ -77,17 +77,14 @@ export function ManageTournamentPage() {
 
   // Pull the round's current pairings into local editor state whenever the
   // server data changes and the admin hasn't started editing — once dirty,
-  // an in-flight 30s poll refetch shouldn't clobber unsaved edits.
+  // an in-flight 30s poll refetch shouldn't clobber unsaved edits. Bye
+  // matchups (an odd player out from "regenerate from handicaps") come
+  // through with player2Id null — kept as-is so saving here doesn't
+  // silently drop that player's spot in the round.
   useEffect(() => {
     if (matchupsDirty || !results) return;
-    // Bye matchups (an odd player out from "regenerate from handicaps") have
-    // no second player and aren't representable in this two-player-per-row
-    // editor — leave them out of the draft; saving here always writes
-    // two-player pairs only.
     setMatchupDraft(
-      results.matchupResults
-        .filter((m): m is typeof m & { player2Id: number } => m.player2Id !== null)
-        .map((m) => ({ player1Id: m.player1Id, player2Id: m.player2Id })),
+      results.matchupResults.map((m) => ({ player1Id: m.player1Id, player2Id: m.player2Id })),
     );
   }, [results, matchupsDirty]);
 
@@ -124,7 +121,7 @@ export function ManageTournamentPage() {
     if (currentParticipants.length < 2) return;
     setMatchupsDirty(true);
     setMatchupDraft((prev) => {
-      const usedIds = new Set(prev.flatMap((m) => [m.player1Id, m.player2Id]));
+      const usedIds = new Set(prev.flatMap((m) => [m.player1Id, m.player2Id]).filter((id): id is number => id !== null));
       const unused = currentParticipants.filter((p) => !usedIds.has(p.playerId));
       const p1 = unused[0]?.playerId ?? currentParticipants[0].playerId;
       const p2 =
@@ -143,18 +140,23 @@ export function ManageTournamentPage() {
   function swapMatchupPlayers(matchupIndex: number) {
     setMatchupsDirty(true);
     setMatchupDraft((prev) =>
-      prev.map((m, i) =>
-        i === matchupIndex ? { player1Id: m.player2Id, player2Id: m.player1Id } : m,
-      ),
+      prev.map((m, i) => {
+        // A bye has no second player to swap into slot 1 — swapping would
+        // leave Player1 null, which isn't valid, so it's a no-op here.
+        if (i !== matchupIndex || m.player2Id === null) return m;
+        return { player1Id: m.player2Id, player2Id: m.player1Id };
+      }),
     );
   }
 
-  function setMatchupPlayer(matchupIndex: number, slot: 1 | 2, playerId: number) {
+  function setMatchupPlayer(matchupIndex: number, slot: 1 | 2, playerId: number | null) {
     setMatchupsDirty(true);
     setMatchupDraft((prev) =>
       prev.map((m, i) => {
         if (i !== matchupIndex) return m;
-        return slot === 1 ? { ...m, player1Id: playerId } : { ...m, player2Id: playerId };
+        // player1Id must always be set — a "no opponent" selection only
+        // ever applies to slot 2 (the bye's opponent).
+        return slot === 1 ? { ...m, player1Id: playerId ?? m.player1Id } : { ...m, player2Id: playerId };
       }),
     );
   }
@@ -439,10 +441,11 @@ export function ManageTournamentPage() {
                 </select>
                 <span className="text-xs font-semibold text-gray-500">vs</span>
                 <select
-                  value={m.player2Id}
-                  onChange={(e) => setMatchupPlayer(idx, 2, Number(e.target.value))}
+                  value={m.player2Id ?? ''}
+                  onChange={(e) => setMatchupPlayer(idx, 2, e.target.value === '' ? null : Number(e.target.value))}
                   className="flex-1 rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-green-600"
                 >
+                  <option value="">— no opponent (bye) —</option>
                   {currentParticipants.map((p) => (
                     <option key={p.playerId} value={p.playerId}>
                       {p.playerName}
@@ -453,7 +456,8 @@ export function ManageTournamentPage() {
                   type="button"
                   title="Swap players"
                   onClick={() => swapMatchupPlayers(idx)}
-                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                  disabled={m.player2Id === null}
+                  className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent"
                 >
                   <ArrowUpDown className="h-4 w-4" />
                 </button>
