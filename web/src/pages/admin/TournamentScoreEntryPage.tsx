@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Trophy,
@@ -10,12 +10,18 @@ import {
   Loader2,
   AlertCircle,
   Save,
+  ClipboardList,
 } from 'lucide-react';
-import { useTournamentResults } from '@/hooks/useRounds';
-import { useSaveTournamentExtras } from '@/hooks/admin/useRoundMutations';
+import { useTournamentResults, useRound } from '@/hooks/useRounds';
+import {
+  useSaveTournamentExtras,
+  useSubmitHoleScores,
+  useSetTournamentLongestDriveWinner,
+} from '@/hooks/admin/useRoundMutations';
 import { useCourseDetail } from '@/hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { formatDate } from '@/lib/utils';
+import { isRoundFinalized } from '@/lib/enumUtils';
 import { Button } from '@/components/ui/Button';
 import type {
   TournamentSkinsResult,
@@ -23,6 +29,8 @@ import type {
   TournamentMatchupResult,
   TournamentRankingEntry,
   TournamentResults,
+  TournamentFlight,
+  TournamentCourseHole,
 } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
@@ -226,14 +234,406 @@ function RankingTable({
   );
 }
 
+// ── Score Entry (admin review/edit of every player's scorecard) ─────────────────
+
+function handicapStrokesForHoleTournament(courseHandicap: number, strokeIndex: number): number {
+  const base = Math.floor(courseHandicap / 18);
+  const extra = courseHandicap % 18;
+  return base + (strokeIndex <= extra ? 1 : 0);
+}
+
+function clampNetScore(gross: number, par: number, handicapStrokes: number) {
+  const maxGross = par + 2 + handicapStrokes;
+  return Math.min(gross, maxGross);
+}
+
+function netStableford(gross: number, par: number, handicapStrokes: number): number {
+  const cappedGross = clampNetScore(gross, par, handicapStrokes);
+  const net = cappedGross - handicapStrokes;
+  return Math.max(0, Math.min(6, par + 2 - net));
+}
+
+function grossStableford(gross: number, par: number): number {
+  return Math.max(0, Math.min(6, par + 2 - gross));
+}
+
+type ScoreGrid = Record<number, Record<number, number | ''>>;
+
+interface ScoreCellProps {
+  value: number | '';
+  onChange: (value: number | '') => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputRef: (el: HTMLInputElement | null) => void;
+  readonly: boolean;
+}
+
+function ScoreCell({ value, onChange, onKeyDown, inputRef, readonly }: ScoreCellProps) {
+  return (
+    <input
+      ref={inputRef}
+      type="number"
+      min={1}
+      value={value === '' ? '' : value}
+      readOnly={readonly}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === '') {
+          onChange('');
+        } else {
+          const n = parseInt(v, 10);
+          if (!isNaN(n) && n >= 1) onChange(n);
+        }
+      }}
+      onKeyDown={onKeyDown}
+      className={[
+        'h-9 w-14 rounded border text-center text-sm transition-colors',
+        readonly
+          ? 'cursor-default bg-gray-50 text-gray-400'
+          : 'border-gray-300 bg-white focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]',
+      ].join(' ')}
+    />
+  );
+}
+
+function FlightScoreEntryTable({
+  flight,
+  holes,
+  scores,
+  onScoreChange,
+  readonly,
+  cellRefs,
+}: {
+  flight: TournamentFlight;
+  holes: TournamentCourseHole[];
+  scores: ScoreGrid;
+  onScoreChange: (playerId: number, hole: number, value: number | '') => void;
+  readonly: boolean;
+  cellRefs: React.MutableRefObject<Record<number, Array<HTMLInputElement | null>>>;
+}) {
+  const pars: Record<number, number> = {};
+  const strokeIndexes: Record<number, number> = {};
+  for (const h of holes) {
+    pars[h.holeNumber] = h.par;
+    strokeIndexes[h.holeNumber] = h.strokeIndex;
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>, playerId: number, holeIdx: number, playerIdx: number) {
+    if (e.key !== 'Tab') return;
+    e.preventDefault();
+    const nextHole = holeIdx + 1;
+    if (nextHole < holes.length) {
+      cellRefs.current[playerId]?.[nextHole]?.focus();
+    } else {
+      const nextPlayer = flight.players[playerIdx + 1];
+      if (nextPlayer) cellRefs.current[nextPlayer.playerId]?.[0]?.focus();
+    }
+  }
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
+      <table className="min-w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 bg-gray-50">
+            <th className="sticky left-0 z-10 bg-gray-50 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Player
+            </th>
+            {holes.map((h) => (
+              <th key={h.holeNumber} className="px-1 py-3 text-center text-xs font-semibold text-gray-500">
+                {h.holeNumber}
+              </th>
+            ))}
+            <th className="px-3 py-3 text-center text-xs font-semibold text-gray-500">Total</th>
+          </tr>
+          <tr className="border-b border-gray-100 bg-gray-50/50">
+            <td className="sticky left-0 z-10 bg-gray-50/50 px-3 py-1.5 text-xs font-medium text-gray-400">Par</td>
+            {holes.map((h) => (
+              <td key={h.holeNumber} className="px-1 py-1.5 text-center text-xs text-gray-400">
+                {h.par}
+              </td>
+            ))}
+            <td className="px-3 py-1.5 text-center text-xs text-gray-400">
+              {holes.reduce((sum, h) => sum + h.par, 0)}
+            </td>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-gray-100">
+          {flight.players.map((player, pi) => {
+            const playerScores = scores[player.playerId] ?? {};
+            const grossTotal = holes.reduce<number>((sum, h) => {
+              const v = playerScores[h.holeNumber];
+              return sum + (typeof v === 'number' ? v : 0);
+            }, 0);
+
+            return (
+              <Fragment key={player.playerId}>
+                <tr className="hover:bg-gray-50/50">
+                  <td className="sticky left-0 z-10 bg-white px-3 py-2">
+                    <div className="font-medium text-gray-900">{player.playerName}</div>
+                    <div className="text-xs text-gray-400">CH {player.courseHandicap}</div>
+                  </td>
+                  {holes.map((h, hi) => (
+                    <td key={h.holeNumber} className="px-1 py-2">
+                      <ScoreCell
+                        value={playerScores[h.holeNumber] ?? ''}
+                        readonly={readonly}
+                        onChange={(v) => onScoreChange(player.playerId, h.holeNumber, v)}
+                        onKeyDown={(e) => handleKeyDown(e, player.playerId, hi, pi)}
+                        inputRef={(el) => {
+                          if (!cellRefs.current[player.playerId]) cellRefs.current[player.playerId] = [];
+                          cellRefs.current[player.playerId][hi] = el;
+                        }}
+                      />
+                    </td>
+                  ))}
+                  <td className="px-3 py-2 text-center font-semibold text-gray-700">
+                    {grossTotal > 0 ? grossTotal : '—'}
+                  </td>
+                </tr>
+                <tr className="bg-green-50 text-[#1B5E20]">
+                  <td className="sticky left-0 z-10 px-3 py-1.5 text-xs font-medium" style={{ background: 'inherit' }}>
+                    Net Stableford
+                  </td>
+                  {holes.map((h) => {
+                    const gross = playerScores[h.holeNumber];
+                    const points =
+                      gross === '' || gross === undefined
+                        ? null
+                        : netStableford(
+                            gross,
+                            pars[h.holeNumber] ?? 4,
+                            handicapStrokesForHoleTournament(player.courseHandicap, strokeIndexes[h.holeNumber] ?? h.holeNumber),
+                          );
+                    return (
+                      <td key={h.holeNumber} className="px-1 py-1.5 text-center text-xs font-semibold">
+                        {points ?? '—'}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-1.5 text-center text-xs font-bold">
+                    {holes.reduce<number>((sum, h) => {
+                      const gross = playerScores[h.holeNumber];
+                      if (gross === '' || gross === undefined) return sum;
+                      return (
+                        sum +
+                        netStableford(
+                          gross,
+                          pars[h.holeNumber] ?? 4,
+                          handicapStrokesForHoleTournament(player.courseHandicap, strokeIndexes[h.holeNumber] ?? h.holeNumber),
+                        )
+                      );
+                    }, 0)}
+                  </td>
+                </tr>
+                <tr className="bg-blue-50/60 text-blue-800">
+                  <td className="sticky left-0 z-10 px-3 py-1.5 text-xs font-medium" style={{ background: 'inherit' }}>
+                    Gross Stableford
+                  </td>
+                  {holes.map((h) => {
+                    const gross = playerScores[h.holeNumber];
+                    const points = gross === '' || gross === undefined ? null : grossStableford(gross, pars[h.holeNumber] ?? 4);
+                    return (
+                      <td key={h.holeNumber} className="px-1 py-1.5 text-center text-xs font-semibold">
+                        {points ?? '—'}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-1.5 text-center text-xs font-bold">
+                    {holes.reduce<number>((sum, h) => {
+                      const gross = playerScores[h.holeNumber];
+                      if (gross === '' || gross === undefined) return sum;
+                      return sum + grossStableford(gross, pars[h.holeNumber] ?? 4);
+                    }, 0)}
+                  </td>
+                </tr>
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function LongestDriveFlightSelector({
+  flight,
+  currentWinnerId,
+  roundId,
+}: {
+  flight: TournamentFlight;
+  currentWinnerId: number | null;
+  roundId: string;
+}) {
+  const setWinner = useSetTournamentLongestDriveWinner(roundId);
+  const [localValue, setLocalValue] = useState<number | null>(currentWinnerId);
+
+  useEffect(() => {
+    setLocalValue(currentWinnerId);
+  }, [currentWinnerId]);
+
+  function handleChange(value: string) {
+    const winnerPlayerId = value === '' ? null : Number(value);
+    setLocalValue(winnerPlayerId);
+    setWinner.mutate({ tournamentFlightId: flight.id, winnerPlayerId });
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-gray-200 px-3 py-2">
+      <span className="text-sm font-medium text-gray-700">Flight {flight.name}</span>
+      <select
+        value={localValue ?? ''}
+        onChange={(e) => handleChange(e.target.value)}
+        disabled={setWinner.isPending}
+        className="w-56 rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 disabled:opacity-50"
+      >
+        <option value="">— none —</option>
+        {flight.players.map((p) => (
+          <option key={p.playerId} value={p.playerId}>{p.playerName}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function ScoreEntrySection({
+  results,
+  roundId,
+  isFinalized,
+}: {
+  results: TournamentResults;
+  roundId: string;
+  isFinalized: boolean;
+}) {
+  const [scores, setScores] = useState<ScoreGrid>({});
+  const [dirtyPlayerIds, setDirtyPlayerIds] = useState<Set<number>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const submitScores = useSubmitHoleScores(roundId);
+  const cellRefs = useRef<Record<number, Array<HTMLInputElement | null>>>({});
+
+  // Seed the grid from server-side flight data. Only fills blank cells so it
+  // never clobbers an admin's in-progress, unsaved edits.
+  useEffect(() => {
+    setScores((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const flight of results.flights) {
+        for (const player of flight.players) {
+          const existing = next[player.playerId] ?? {};
+          const merged: Record<number, number | ''> = { ...existing };
+          for (const h of player.holeScores) {
+            if (merged[h.holeNumber] === undefined || merged[h.holeNumber] === '') {
+              if (h.grossStrokes !== null) {
+                merged[h.holeNumber] = h.grossStrokes;
+                changed = true;
+              }
+            }
+          }
+          next[player.playerId] = merged;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [results.flights]);
+
+  const handleScoreChange = useCallback((playerId: number, hole: number, value: number | '') => {
+    setScores((prev) => ({
+      ...prev,
+      [playerId]: { ...(prev[playerId] ?? {}), [hole]: value },
+    }));
+    setDirtyPlayerIds((prev) => new Set(prev).add(playerId));
+    setSaveSuccess(false);
+  }, []);
+
+  async function handleSaveAll() {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const submissions = Array.from(dirtyPlayerIds)
+        .map((playerId) => {
+          const playerScores = scores[playerId] ?? {};
+          const enteredHoles = results.holes.filter((h) => {
+            const v = playerScores[h.holeNumber];
+            return v !== '' && v !== undefined;
+          });
+          return { playerId, enteredHoles };
+        })
+        .filter(({ enteredHoles }) => enteredHoles.length > 0);
+
+      await Promise.all(
+        submissions.map(({ playerId, enteredHoles }) =>
+          submitScores.mutateAsync({
+            playerId,
+            scores: enteredHoles.map((h) => ({
+              holeNumber: h.holeNumber,
+              grossScore: scores[playerId][h.holeNumber] as number,
+            })),
+          }),
+        ),
+      );
+
+      setDirtyPlayerIds(new Set());
+      setSaveSuccess(true);
+    } catch {
+      setSaveError('Failed to save one or more scorecards. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (results.flights.length === 0) {
+    return <p className="text-sm text-gray-400 italic">No players in this round yet.</p>;
+  }
+
+  return (
+    <div className="space-y-6">
+      {isFinalized && (
+        <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
+          This round is finalized — scores are locked and shown read-only below.
+        </div>
+      )}
+      {results.flights.map((flight) => (
+        <div key={flight.id} className="space-y-2">
+          <h3 className="text-base font-semibold text-gray-700">
+            {flight.name === 'Substitutes' ? 'Substitutes' : `Flight ${flight.name}`}
+          </h3>
+          <FlightScoreEntryTable
+            flight={flight}
+            holes={results.holes}
+            scores={scores}
+            onScoreChange={handleScoreChange}
+            readonly={isFinalized}
+            cellRefs={cellRefs}
+          />
+        </div>
+      ))}
+
+      {!isFinalized && (
+        <div className="flex items-center justify-end gap-3">
+          {saveSuccess && !dirtyPlayerIds.size && (
+            <span className="text-sm text-green-700">Saved.</span>
+          )}
+          {saveError && <span className="text-sm text-red-600">{saveError}</span>}
+          <Button variant="primary" onClick={() => void handleSaveAll()} disabled={saving || dirtyPlayerIds.size === 0}>
+            <Save className="mr-1.5 h-4 w-4" />
+            {saving ? 'Saving…' : 'Save Scores'}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Prop Awards Editor ────────────────────────────────────────────────────────
 
 function PropAwardsEditor({
   results,
   roundId,
+  isFinalized,
 }: {
   results: TournamentResults;
   roundId: string;
+  isFinalized: boolean;
 }) {
   // All players who have scores — derived from ranking lists
   const playerSet = new Map<number, string>();
@@ -327,7 +727,8 @@ function PropAwardsEditor({
                           onChange={(e) =>
                             setCtpPlayer(h.holeNumber, e.target.value === '' ? null : Number(e.target.value))
                           }
-                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600"
+                          disabled={isFinalized}
+                          className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-600 disabled:opacity-50"
                         >
                           <option value="">— none —</option>
                           {players.map((p) => (
@@ -345,7 +746,7 @@ function PropAwardsEditor({
               <Button
                 variant="primary"
                 onClick={() => void saveCtp_()}
-                disabled={!ctpDirty || saveCtp.isPending}
+                disabled={!ctpDirty || saveCtp.isPending || isFinalized}
               >
                 <Save className="mr-1.5 h-4 w-4" />
                 {saveCtp.isPending ? 'Saving…' : 'Save CTP'}
@@ -359,8 +760,9 @@ function PropAwardsEditor({
         )}
       </div>
 
-      {/* Longest Drive — read-only here; players record it live from their
-          tee-time score entry page (per flight, on the configured hole). */}
+      {/* Longest Drive — players can also record this live from their
+          tee-time score entry page; the admin can review and correct any
+          flight's winner here before finalizing. */}
       <div className="space-y-3">
         <h3 className="flex items-center gap-1.5 text-sm font-semibold text-gray-700">
           <Zap className="h-4 w-4 text-amber-500" />
@@ -370,11 +772,9 @@ function PropAwardsEditor({
           <p className="text-sm text-gray-400 italic">
             No longest-drive hole configured for this round.
           </p>
-        ) : results.longestDriveWinners.length === 0 ? (
-          <p className="text-sm text-gray-400 italic">
-            No winners recorded yet — players record this from hole {results.longestDriveHoleNumber} during score entry.
-          </p>
-        ) : (
+        ) : results.flights.filter((f) => f.name !== 'Substitutes').length === 0 ? (
+          <p className="text-sm text-gray-400 italic">No flights to record longest drive for.</p>
+        ) : isFinalized ? (
           <ul className="space-y-1.5">
             {results.longestDriveWinners.map((w) => (
               <li
@@ -386,6 +786,21 @@ function PropAwardsEditor({
               </li>
             ))}
           </ul>
+        ) : (
+          <div className="space-y-2">
+            {results.flights
+              .filter((f) => f.name !== 'Substitutes')
+              .map((f) => (
+                <LongestDriveFlightSelector
+                  key={f.id}
+                  flight={f}
+                  currentWinnerId={
+                    results.longestDriveWinners.find((w) => w.tournamentFlightId === f.id)?.playerId ?? null
+                  }
+                  roundId={roundId}
+                />
+              ))}
+          </div>
         )}
       </div>
     </div>
@@ -398,6 +813,8 @@ export function TournamentScoreEntryPage() {
   const { id } = useParams<{ id: string }>();
   const prefix = useLeaguePrefix();
   const { data: results, isLoading, error } = useTournamentResults(id ?? '');
+  const { data: round } = useRound(id ?? '');
+  const isFinalized = isRoundFinalized(round?.status);
 
   if (isLoading) {
     return (
@@ -438,10 +855,17 @@ export function TournamentScoreEntryPage() {
         </div>
       </div>
 
-      {/* Prop Awards — editable, shown first */}
+      {/* Score Entry — admin review/edit of every player's scorecard,
+          shown first so scores exist before prop awards depend on them. */}
+      <section>
+        <SectionTitle icon={ClipboardList} label="Score Entry" />
+        <ScoreEntrySection results={results} roundId={id ?? ''} isFinalized={isFinalized} />
+      </section>
+
+      {/* Prop Awards — editable, until the round is finalized */}
       <section>
         <SectionTitle icon={Target} label="Prop Awards" />
-        <PropAwardsEditor results={results} roundId={id ?? ''} />
+        <PropAwardsEditor results={results} roundId={id ?? ''} isFinalized={isFinalized} />
       </section>
 
       {/* Matchups */}

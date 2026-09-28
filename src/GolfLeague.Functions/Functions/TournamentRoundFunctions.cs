@@ -200,6 +200,31 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("SetTournamentLongestDriveWinner")]
+    public async Task<IActionResult> SetTournamentLongestDriveWinner(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/flights/{flightId}/longest-drive")] HttpRequest req,
+        string id,
+        string flightId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+        if (!int.TryParse(flightId, out var tournamentFlightId))
+            return new BadRequestObjectResult(new { error = "Invalid flight ID." });
+
+        var body = await req.TryDeserializeAsync<SetLongestDriveWinnerRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SetTournamentLongestDriveWinnerCommand(roundId, tournamentFlightId, body.WinnerPlayerId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("SetTournamentSkinsPool")]
     public async Task<IActionResult> SetTournamentSkinsPool(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/skins-pool")] HttpRequest req,
@@ -249,5 +274,6 @@ public sealed class TournamentRoundFunctions
 
     private sealed record SaveExtrasRequest(List<HoleExtraInputDto> HoleExtras);
     private sealed record SetLongestDriveHoleRequest(int? HoleNumber);
+    private sealed record SetLongestDriveWinnerRequest(int? WinnerPlayerId);
     private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
 }

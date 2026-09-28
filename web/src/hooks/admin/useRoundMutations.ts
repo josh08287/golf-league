@@ -41,6 +41,7 @@ export function useSubmitHoleScores(roundId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
       qc.invalidateQueries({ queryKey: roundKeys.scorecards(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
     },
   });
 }
@@ -183,6 +184,19 @@ export function useSetTournamentLongestDriveHole(roundId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
+export function useSetTournamentLongestDriveWinner(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ tournamentFlightId, winnerPlayerId }: { tournamentFlightId: number; winnerPlayerId: number | null }) =>
+      apiClient
+        .put(`/tournament-rounds/${roundId}/flights/${tournamentFlightId}/longest-drive`, { winnerPlayerId })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
     },
   });
 }

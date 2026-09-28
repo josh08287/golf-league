@@ -393,10 +393,13 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task SetParticipantTournamentFlightAsync(int participantId, int? tournamentFlightId, CancellationToken cancellationToken = default)
     {
-        var participant = await _context.RoundParticipants.FindAsync([participantId], cancellationToken);
-        if (participant is null) return;
-        participant.TournamentFlightId = tournamentFlightId;
-        await _context.SaveChangesAsync(cancellationToken);
+        // ExecuteUpdateAsync (not FindAsync + mutate + SaveChangesAsync) —
+        // the context defaults to QueryTrackingBehavior.NoTracking, so an
+        // entity loaded via FindAsync isn't attached and mutating it is a
+        // silent no-op on SaveChangesAsync. This bypasses the tracker entirely.
+        await _context.RoundParticipants
+            .Where(p => p.Id == participantId)
+            .ExecuteUpdateAsync(s => s.SetProperty(p => p.TournamentFlightId, tournamentFlightId), cancellationToken);
     }
 
     public async Task<IReadOnlyList<TournamentMatchup>> GetTournamentMatchupsAsync(int roundId, CancellationToken cancellationToken = default)

@@ -234,4 +234,77 @@ public class TournamentCtpAndLongestDriveTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.WinnerPlayerId.Should().BeNull();
     }
+
+    // ── Admin longest-drive override (no tee-time membership restriction) ──
+
+    [Fact]
+    public async Task AdminLongestDrive_RejectsWhenRoundFinalized()
+    {
+        var round = MakeRound(RoundStatus.Finalized, ldHole: 7);
+        var rounds = new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+
+        var handler = new SetTournamentLongestDriveWinnerCommandHandler(rounds.Object);
+        var result = await handler.Handle(new SetTournamentLongestDriveWinnerCommand(1, 900, 1, "admin1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Finalized");
+    }
+
+    [Fact]
+    public async Task AdminLongestDrive_RejectsWinnerNotInTargetFlight()
+    {
+        var p1 = MakeParticipant(1, flightId: 800); // different flight than the target
+        var round = MakeRound(ldHole: 7);
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+        var rounds = new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        rounds.Setup(r => r.GetTournamentFlightsAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
+        rounds.Setup(r => r.GetParticipantsAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { p1 });
+
+        var handler = new SetTournamentLongestDriveWinnerCommandHandler(rounds.Object);
+        var result = await handler.Handle(new SetTournamentLongestDriveWinnerCommand(1, 900, 1, "admin1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("active participant in this flight");
+    }
+
+    [Fact]
+    public async Task AdminLongestDrive_SetsWinner_RegardlessOfTeeTimeGrouping()
+    {
+        // No tee-time setup at all — the admin path doesn't require the
+        // winner to share a tee time with anyone, unlike the player path.
+        var p1 = MakeParticipant(1, flightId: 900);
+        var round = MakeRound(ldHole: 7);
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+        var rounds = new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        rounds.Setup(r => r.GetTournamentFlightsAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
+        rounds.Setup(r => r.GetParticipantsAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { p1 });
+        rounds.Setup(r => r.SetLongestDriveWinnerAsync(round.Id, 900, 1, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var handler = new SetTournamentLongestDriveWinnerCommandHandler(rounds.Object);
+        var result = await handler.Handle(new SetTournamentLongestDriveWinnerCommand(1, 900, 1, "admin1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.WinnerPlayerId.Should().Be(1);
+        rounds.Verify(r => r.SetLongestDriveWinnerAsync(round.Id, 900, 1, It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task AdminLongestDrive_Clears_WhenWinnerIsNull()
+    {
+        var round = MakeRound(ldHole: 7);
+        var flight = new TournamentFlight { Id = 900, RoundId = 1, FlightNumber = 1, Name = "A" };
+        var rounds = new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        rounds.Setup(r => r.GetTournamentFlightsAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentFlight> { flight });
+        rounds.Setup(r => r.SetLongestDriveWinnerAsync(round.Id, 900, null, It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
+
+        var handler = new SetTournamentLongestDriveWinnerCommandHandler(rounds.Object);
+        var result = await handler.Handle(new SetTournamentLongestDriveWinnerCommand(1, 900, null, "admin1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.WinnerPlayerId.Should().BeNull();
+    }
 }
