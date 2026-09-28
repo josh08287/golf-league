@@ -1014,6 +1014,8 @@ export interface MatchPlayHole {
   isConceded: boolean;
 }
 
+// player2* fields are null for a "bye" matchup (an odd player out with no
+// opponent) — that matchup always resolves as a win for player1.
 export interface TournamentMatchupResult {
   matchupNumber: number;
   player1Id: number;
@@ -1022,10 +1024,10 @@ export interface TournamentMatchupResult {
   player1CourseHandicap: number;
   player1NetStrokes: number | null;
   player1NetPoints: number | null;
-  player2Id: number;
-  player2Name: string;
-  player2HandicapIndex: number;
-  player2CourseHandicap: number;
+  player2Id: number | null;
+  player2Name: string | null;
+  player2HandicapIndex: number | null;
+  player2CourseHandicap: number | null;
   player2NetStrokes: number | null;
   player2NetPoints: number | null;
   winnerPlayerId: number | null;

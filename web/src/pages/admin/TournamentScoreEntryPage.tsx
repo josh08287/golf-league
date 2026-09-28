@@ -127,10 +127,11 @@ function SkinsPanel({ skins }: { skins: TournamentSkinsResult }) {
 // ── Matchups (read-only) ──────────────────────────────────────────────────────
 
 function MatchupCard({ m }: { m: TournamentMatchupResult }) {
+  const isBye = m.player2Id === null;
   const halved = m.isHalved;
   const p1Wins = m.winnerPlayerId === m.player1Id;
-  const p2Wins = m.winnerPlayerId === m.player2Id;
-  const pending = m.winnerPlayerId === null && !halved;
+  const p2Wins = !isBye && m.winnerPlayerId === m.player2Id;
+  const pending = !isBye && m.winnerPlayerId === null && !halved;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -146,27 +147,35 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
           {m.player1NetStrokes !== null && (
             <p className="mt-1 text-lg font-bold text-gray-700">{m.player1NetStrokes}</p>
           )}
-          {p1Wins && (
+          {p1Wins && !isBye && (
             <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
               <Trophy className="h-3 w-3" /> Winner
             </span>
           )}
         </div>
-        <div className="text-sm font-bold text-gray-400">vs</div>
-        <div className={`flex-1 rounded-lg p-3 text-center ${p2Wins ? 'bg-green-50 ring-2 ring-green-400' : 'bg-gray-50'}`}>
-          <p className={`font-semibold ${p2Wins ? 'text-green-800' : 'text-gray-800'}`}>{m.player2Name}</p>
-          <p className="mt-0.5 text-xs text-gray-500">
-            HCP {m.player2HandicapIndex.toFixed(1)} / CH {m.player2CourseHandicap}
-          </p>
-          {m.player2NetStrokes !== null && (
-            <p className="mt-1 text-lg font-bold text-gray-700">{m.player2NetStrokes}</p>
-          )}
-          {p2Wins && (
-            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
-              <Trophy className="h-3 w-3" /> Winner
-            </span>
-          )}
-        </div>
+        {isBye ? (
+          <div className="flex-1 rounded-lg border border-dashed border-gray-200 p-3 text-center">
+            <p className="text-sm font-medium text-gray-400 italic">Bye — no opponent</p>
+          </div>
+        ) : (
+          <>
+            <div className="text-sm font-bold text-gray-400">vs</div>
+            <div className={`flex-1 rounded-lg p-3 text-center ${p2Wins ? 'bg-green-50 ring-2 ring-green-400' : 'bg-gray-50'}`}>
+              <p className={`font-semibold ${p2Wins ? 'text-green-800' : 'text-gray-800'}`}>{m.player2Name}</p>
+              <p className="mt-0.5 text-xs text-gray-500">
+                HCP {m.player2HandicapIndex?.toFixed(1)} / CH {m.player2CourseHandicap}
+              </p>
+              {m.player2NetStrokes !== null && (
+                <p className="mt-1 text-lg font-bold text-gray-700">{m.player2NetStrokes}</p>
+              )}
+              {p2Wins && (
+                <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
+                  <Trophy className="h-3 w-3" /> Winner
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </div>
       <div className="mt-2 text-center text-sm">
         {halved && <span className="text-blue-600 font-medium">Halved (Tie)</span>}

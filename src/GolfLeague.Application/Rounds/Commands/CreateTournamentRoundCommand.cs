@@ -33,16 +33,20 @@ public sealed record CreateTournamentRoundCommand(
 
 public sealed record MatchupInput(int Player1Id, int Player2Id);
 
+/// <summary>
+/// Player2* fields are null for a "bye" — an odd player out with no
+/// opponent when the default handicap-based pairing has an odd group count.
+/// </summary>
 public sealed record TournamentMatchupDto(
     int MatchupNumber,
     int Player1Id,
     string Player1Name,
     double Player1HandicapIndex,
     int Player1CourseHandicap,
-    int Player2Id,
-    string Player2Name,
-    double Player2HandicapIndex,
-    int Player2CourseHandicap,
+    int? Player2Id,
+    string? Player2Name,
+    double? Player2HandicapIndex,
+    int? Player2CourseHandicap,
     int? WinnerPlayerId);
 
 public sealed record TournamentRoundDto(
@@ -135,7 +139,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         await _roundRepository.AddAsync(round, cancellationToken);
 
         // Build participant records (use full 18-hole handicap; no flight grouping for tournament rounds)
-        var participantHandicaps = new List<(int PlayerId, double HcpIndex, int CourseHcp, string FullName)>();
+        var participantHandicaps = new List<(int PlayerId, double HcpIndex, int CourseHcp, string FullName, bool IsSubstitute)>();
 
         foreach (var playerId in request.PlayerIds.Distinct())
         {
@@ -160,7 +164,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
                 IsSubstitute = player.IsSubstitute,
             }, cancellationToken);
 
-            participantHandicaps.Add((playerId, index, courseHcp, player.FullName));
+            participantHandicaps.Add((playerId, index, courseHcp, player.FullName, player.IsSubstitute));
         }
 
         // Build matchups
@@ -191,24 +195,14 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         }
         else
         {
-            // Default: sort by handicap index ascending (lowest = best), pair 1v2, 3v4, etc.
-            var sorted = participantHandicaps.OrderBy(p => p.HcpIndex).ToList();
-            for (int i = 0; i + 1 < sorted.Count; i += 2)
-            {
-                var p1 = sorted[i];
-                var p2 = sorted[i + 1];
-                var matchupNum = i / 2 + 1;
-
-                matchupEntities.Add(new TournamentMatchup
-                {
-                    RoundId = round.Id,
-                    MatchupNumber = matchupNum,
-                    Player1Id = p1.PlayerId,
-                    Player2Id = p2.PlayerId,
-                });
-                matchupDtos.Add(new TournamentMatchupDto(matchupNum, p1.PlayerId, p1.FullName, p1.HcpIndex, p1.CourseHcp,
-                    p2.PlayerId, p2.FullName, p2.HcpIndex, p2.CourseHcp, null));
-            }
+            // Default pairing — see TournamentMatchupPairing, shared with
+            // RegenerateTournamentMatchupsCommand's "regenerate from handicaps".
+            var players = participantHandicaps
+                .Select(p => new PairablePlayer(p.PlayerId, p.FullName, p.HcpIndex, p.CourseHcp, p.IsSubstitute))
+                .ToList();
+            var (entities, dtos) = TournamentMatchupPairing.Build(round.Id, players);
+            matchupEntities.AddRange(entities);
+            matchupDtos.AddRange(dtos);
         }
 
         if (matchupEntities.Count > 0)

@@ -274,6 +274,29 @@ public class TournamentResultsHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ByeMatchup_AlwaysWinsForPlayer1_EvenWithoutScores()
+    {
+        // Odd player out from regeneration — no opponent, no scores yet.
+        var alice = MakeParticipant(1, "Alice", totalNet: null);
+        var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = null, Player1 = alice.Player };
+
+        var m = new Mocks();
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice });
+        m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var mr = result.Value!.MatchupResults.Single();
+        mr.Player2Id.Should().BeNull();
+        mr.Player2Name.Should().BeNull();
+        mr.WinnerPlayerId.Should().Be(1);
+        mr.WinnerPlayerName.Should().Be("Alice P");
+        mr.IsHalved.Should().BeFalse();
+        mr.HoleByHole.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Handle_MatchupsAreOrderedByMatchupNumber()
     {
         var alice = MakeParticipant(1, "Alice", totalNet: 70);

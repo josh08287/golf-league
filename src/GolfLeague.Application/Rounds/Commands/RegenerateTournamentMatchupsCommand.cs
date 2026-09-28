@@ -1,5 +1,5 @@
 using GolfLeague.Application.Common;
-using GolfLeague.Domain.Entities;
+using GolfLeague.Application.Rounds;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -7,14 +7,9 @@ using MediatR;
 namespace GolfLeague.Application.Rounds.Commands;
 
 /// <summary>
-/// Replaces a tournament round's matchups with a fresh default pairing:
-/// regular players are paired by ascending handicap index (1v2, 3v4, ...) —
-/// same algorithm as <see cref="CreateTournamentRoundCommand"/>'s default
-/// pairing. Substitutes are excluded from that handicap-based pairing (they're
-/// filling in ad hoc, often without a season-tracked handicap history, so a
-/// handicap-based match among them is not meaningful) and are instead paired
-/// randomly against other substitutes, numbered after every regular matchup.
-/// An odd player out in either group is left unmatched, same as creation.
+/// Replaces a tournament round's matchups with a fresh default pairing —
+/// see <see cref="TournamentMatchupPairing"/> for the algorithm, shared with
+/// <see cref="CreateTournamentRoundCommand"/>'s default pairing.
 /// </summary>
 public sealed record RegenerateTournamentMatchupsCommand(int RoundId, string UserId)
     : IRequest<Result<List<TournamentMatchupDto>>>, IAmAuditableCommand
@@ -58,38 +53,10 @@ public sealed class RegenerateTournamentMatchupsCommandHandler
             await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
         }
 
-        var regulars = round.Participants.Where(p => !p.IsSubstitute).OrderBy(p => p.HandicapIndex).ToList();
-        var subs = round.Participants.Where(p => p.IsSubstitute).OrderBy(_ => Random.Shared.Next()).ToList();
-
-        var matchupEntities = new List<TournamentMatchup>();
-        var matchupDtos = new List<TournamentMatchupDto>();
-        var matchupNum = 1;
-
-        void PairGroup(List<RoundParticipant> group)
-        {
-            for (int i = 0; i + 1 < group.Count; i += 2)
-            {
-                var p1 = group[i];
-                var p2 = group[i + 1];
-
-                matchupEntities.Add(new TournamentMatchup
-                {
-                    RoundId = round.Id,
-                    MatchupNumber = matchupNum,
-                    Player1Id = p1.PlayerId,
-                    Player2Id = p2.PlayerId,
-                });
-                matchupDtos.Add(new TournamentMatchupDto(
-                    matchupNum,
-                    p1.PlayerId, p1.Player.FullName, p1.HandicapIndex, p1.CourseHandicap,
-                    p2.PlayerId, p2.Player.FullName, p2.HandicapIndex, p2.CourseHandicap,
-                    null));
-                matchupNum++;
-            }
-        }
-
-        PairGroup(regulars);
-        PairGroup(subs);
+        var players = round.Participants
+            .Select(p => new PairablePlayer(p.PlayerId, p.Player.FullName, p.HandicapIndex, p.CourseHandicap, p.IsSubstitute))
+            .ToList();
+        var (matchupEntities, matchupDtos) = TournamentMatchupPairing.Build(round.Id, players);
 
         await _roundRepository.ReplaceTournamentMatchupsAsync(round.Id, matchupEntities, cancellationToken);
 

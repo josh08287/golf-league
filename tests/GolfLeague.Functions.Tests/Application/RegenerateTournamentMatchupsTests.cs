@@ -202,7 +202,7 @@ public class RegenerateTournamentMatchupsTests
     }
 
     [Fact]
-    public async Task Handle_OddPlayerOutInEitherGroup_IsLeftUnmatched()
+    public async Task Handle_OddPlayerOutInEitherGroup_GetsAByeMatchup()
     {
         var regular1 = MakeParticipant(1, 10.0);
         var regular2 = MakeParticipant(2, 5.0);
@@ -215,10 +215,45 @@ public class RegenerateTournamentMatchupsTests
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        // 3 regulars -> 1 pair, 1 leftover unmatched; 1 sub -> no pair possible.
-        result.Value.Should().HaveCount(1);
+        // 3 regulars -> 1 pair + 1 bye; 1 sub -> 1 bye (no other sub to pair against).
+        result.Value.Should().HaveCount(3);
         result.Value![0].Player1Id.Should().Be(2); // regular2 (5.0)
         result.Value[0].Player2Id.Should().Be(1); // regular1 (10.0)
+
+        // The odd regular (3, highest handicap of the trio) gets a bye,
+        // numbered right after the regular pairing.
+        result.Value[1].Player1Id.Should().Be(3);
+        result.Value[1].Player2Id.Should().BeNull();
+
+        // The lone substitute also gets a bye, appended after all regular
+        // matchups (including that regular bye).
+        result.Value[2].Player1Id.Should().Be(4);
+        result.Value[2].Player2Id.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Handle_ByeMatchup_IsNumberedAfterAllRegularPairsButBeforeSubPairs()
+    {
+        // 5 regulars (2 pairs + 1 bye), 2 subs (1 pair) -> matchup numbers:
+        // 1,2 = regular pairs, 3 = regular bye, 4 = sub pair.
+        var participants = new List<RoundParticipant>
+        {
+            MakeParticipant(1, 1.0), MakeParticipant(2, 2.0), MakeParticipant(3, 3.0),
+            MakeParticipant(4, 4.0), MakeParticipant(5, 5.0),
+            MakeParticipant(10, 1.0, isSubstitute: true), MakeParticipant(11, 2.0, isSubstitute: true),
+        };
+        var round = MakeTournamentRound(participants: participants.ToArray());
+        var rounds = MakeRounds(round);
+
+        var result = await BuildHandler(rounds)
+            .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value.Should().HaveCount(4);
+        result.Value![0].MatchupNumber.Should().Be(1);
+        result.Value.Select(m => m.MatchupNumber).Should().ContainInOrder(1, 2, 3, 4);
+        result.Value[2].Player2Id.Should().BeNull("regular bye comes after both regular pairs");
+        result.Value[3].Player2Id.Should().NotBeNull("sub pair comes after the regular bye");
     }
 
     [Fact]
@@ -247,15 +282,18 @@ public class RegenerateTournamentMatchupsTests
             .Handle(new RegenerateTournamentMatchupsCommand(1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeTrue();
-        // 3 regulars (1 pair + 1 leftover), 1 sub (unmatched) -> one matchup total.
-        result.Value.Should().HaveCount(1);
+        // 3 regulars (1 pair + 1 bye), 1 sub (1 bye) -> three matchups total.
+        result.Value.Should().HaveCount(3);
 
         // Regulars now: regular1(10), regular2(5), nowRegular(6) -> sorted 2,4,1
         result.Value![0].Player1Id.Should().Be(2);
         result.Value[0].Player2Id.Should().Be(4);
-        // regular1 is the odd one out; nowSub(3) is the lone sub and unmatched.
-        result.Value.Should().NotContain(m => m.Player1Id == 1 || m.Player2Id == 1);
-        result.Value.Should().NotContain(m => m.Player1Id == 3 || m.Player2Id == 3);
+        // regular1 is the odd one out among regulars -> bye.
+        result.Value[1].Player1Id.Should().Be(1);
+        result.Value[1].Player2Id.Should().BeNull();
+        // nowSub(3) is the lone sub -> bye, appended last.
+        result.Value[2].Player1Id.Should().Be(3);
+        result.Value[2].Player2Id.Should().BeNull();
 
         // Snapshots on the participants themselves must also be corrected.
         nowSub.IsSubstitute.Should().BeTrue();

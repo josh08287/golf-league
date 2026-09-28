@@ -80,8 +80,14 @@ export function ManageTournamentPage() {
   // an in-flight 30s poll refetch shouldn't clobber unsaved edits.
   useEffect(() => {
     if (matchupsDirty || !results) return;
+    // Bye matchups (an odd player out from "regenerate from handicaps") have
+    // no second player and aren't representable in this two-player-per-row
+    // editor — leave them out of the draft; saving here always writes
+    // two-player pairs only.
     setMatchupDraft(
-      results.matchupResults.map((m) => ({ player1Id: m.player1Id, player2Id: m.player2Id })),
+      results.matchupResults
+        .filter((m): m is typeof m & { player2Id: number } => m.player2Id !== null)
+        .map((m) => ({ player1Id: m.player1Id, player2Id: m.player2Id })),
     );
   }, [results, matchupsDirty]);
 

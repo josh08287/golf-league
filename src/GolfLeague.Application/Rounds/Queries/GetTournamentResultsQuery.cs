@@ -34,6 +34,10 @@ public sealed record TournamentSkinsResultDto(
     decimal? PoolAmount,
     decimal? PerSkinPayout);
 
+/// <summary>
+/// Player2* fields are null for a "bye" matchup (an odd player out with no
+/// opponent) — that matchup always resolves as a win for Player1.
+/// </summary>
 public sealed record TournamentMatchupResultDto(
     int MatchupNumber,
     int Player1Id,
@@ -42,10 +46,10 @@ public sealed record TournamentMatchupResultDto(
     int Player1CourseHandicap,
     int? Player1NetStrokes,
     int? Player1NetPoints,
-    int Player2Id,
-    string Player2Name,
-    double Player2HandicapIndex,
-    int Player2CourseHandicap,
+    int? Player2Id,
+    string? Player2Name,
+    double? Player2HandicapIndex,
+    int? Player2CourseHandicap,
     int? Player2NetStrokes,
     int? Player2NetPoints,
     int? WinnerPlayerId,
@@ -328,7 +332,29 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         foreach (var matchup in matchups.OrderBy(m => m.MatchupNumber))
         {
             participantLookup.TryGetValue(matchup.Player1Id, out var p1);
-            participantLookup.TryGetValue(matchup.Player2Id, out var p2);
+            RoundParticipant? p2 = null;
+            if (matchup.Player2Id is int player2Id)
+                participantLookup.TryGetValue(player2Id, out p2);
+
+            // Bye — no opponent. Always counts as a win for Player1, regardless
+            // of whether they've posted a score yet.
+            if (matchup.Player2Id is null)
+            {
+                results.Add(new TournamentMatchupResultDto(
+                    matchup.MatchupNumber,
+                    matchup.Player1Id,
+                    matchup.Player1.FullName,
+                    p1?.HandicapIndex ?? 0,
+                    p1?.CourseHandicap ?? 0,
+                    p1?.TotalNetStrokes,
+                    p1?.TotalNetStablefordPoints,
+                    null, null, null, null, null, null,
+                    matchup.Player1Id,
+                    matchup.Player1.FullName,
+                    false,
+                    []));
+                continue;
+            }
 
             var p1Net = p1?.TotalNetStrokes;
             var p2Net = p2?.TotalNetStrokes;
@@ -349,7 +375,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 else if (p2Net < p1Net)
                 {
                     winnerId = matchup.Player2Id;
-                    winnerName = matchup.Player2.FullName;
+                    winnerName = matchup.Player2?.FullName;
                 }
                 else
                 {
@@ -369,7 +395,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 p1Net,
                 p1Points,
                 matchup.Player2Id,
-                matchup.Player2.FullName,
+                matchup.Player2?.FullName,
                 p2?.HandicapIndex ?? 0,
                 p2?.CourseHandicap ?? 0,
                 p2Net,
