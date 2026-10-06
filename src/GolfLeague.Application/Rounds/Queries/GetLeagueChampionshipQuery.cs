@@ -1,4 +1,6 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.Interfaces;
+using GolfLeague.Application.Leagues;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -55,10 +57,17 @@ public sealed class GetLeagueChampionshipQueryHandler
     private const int MaxStrokeAdvantage = 10;
 
     private readonly IRoundRepository _roundRepository;
+    private readonly ILeagueSettingRepository _settings;
+    private readonly ILeagueContext _leagueContext;
 
-    public GetLeagueChampionshipQueryHandler(IRoundRepository roundRepository)
+    public GetLeagueChampionshipQueryHandler(
+        IRoundRepository roundRepository,
+        ILeagueSettingRepository settings,
+        ILeagueContext leagueContext)
     {
         _roundRepository = roundRepository;
+        _settings = settings;
+        _leagueContext = leagueContext;
     }
 
     public async Task<Result<LeagueChampionshipDto>> Handle(GetLeagueChampionshipQuery request, CancellationToken cancellationToken)
@@ -71,8 +80,22 @@ public sealed class GetLeagueChampionshipQueryHandler
 
         // Season-long standings: every finalized round in the active season,
         // both halves combined, same eligibility rules as every other
-        // season-standings view (not withdrawn, not a substitute).
+        // season-standings view (not withdrawn, not a substitute). Within
+        // each half, the worst N rounds (per the league's standings-drop-count
+        // setting) are dropped from a player's point total, same as the
+        // flight standings page — rounds with no half (e.g. tournament
+        // rounds themselves) are never dropped, since the setting is scoped
+        // "per half."
+        var dropCount = 1;
+        if (_leagueContext.LeagueId.HasValue)
+        {
+            var dropSetting = await _settings.GetAsync(_leagueContext.LeagueId.Value, KnownSettings.StandingsDropCount, cancellationToken);
+            if (dropSetting is not null && int.TryParse(dropSetting.Value, out var parsed) && parsed >= 0)
+                dropCount = parsed;
+        }
+
         var seasonRounds = await _roundRepository.GetBySeasonAsync(round.SeasonId, cancellationToken);
+        var roundHalfById = seasonRounds.ToDictionary(r => r.Id, r => r.HalfId);
         var finalizedRoundIds = seasonRounds
             .Where(r => r.Status == RoundStatus.Finalized)
             .Select(r => r.Id)
@@ -83,11 +106,37 @@ public sealed class GetLeagueChampionshipQueryHandler
             .Where(p => !p.IsWithdrawn && !p.IsSubstitute)
             .ToList();
 
+        int PointsOf(Domain.Entities.RoundParticipant p) =>
+            request.UseGrossPoints ? p.TotalGrossStablefordPoints ?? 0 : p.TotalNetStablefordPoints ?? 0;
+
         var seasonPointsByPlayer = eligibleSeasonParticipants
             .GroupBy(p => p.PlayerId)
-            .ToDictionary(
-                g => g.Key,
-                g => g.Sum(p => request.UseGrossPoints ? p.TotalGrossStablefordPoints ?? 0 : p.TotalNetStablefordPoints ?? 0));
+            .ToDictionary(g => g.Key, playerRounds =>
+            {
+                var byHalf = playerRounds.GroupBy(p => roundHalfById.GetValueOrDefault(p.RoundId));
+                var total = 0;
+                foreach (var halfGroup in byHalf)
+                {
+                    var roundsInHalf = halfGroup.ToList();
+
+                    // Rounds with no half (tournament rounds) are always
+                    // counted in full — the drop-count setting is per half.
+                    if (halfGroup.Key is null)
+                    {
+                        total += roundsInHalf.Sum(PointsOf);
+                        continue;
+                    }
+
+                    var effectiveDrop = Math.Min(dropCount, Math.Max(0, roundsInHalf.Count - 1));
+                    var droppedIds = roundsInHalf
+                        .OrderBy(PointsOf)
+                        .Take(effectiveDrop)
+                        .Select(p => p.Id)
+                        .ToHashSet();
+                    total += roundsInHalf.Where(p => !droppedIds.Contains(p.Id)).Sum(PointsOf);
+                }
+                return total;
+            });
 
         // This round's participants — only non-substitute players who are
         // actually in this tournament round are shown on the Championship
