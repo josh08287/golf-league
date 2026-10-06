@@ -1,5 +1,7 @@
+using GolfLeague.Application.Admin;
 using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Application.Rounds.Queries;
+using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -11,10 +13,12 @@ namespace GolfLeague.Functions.Functions;
 public sealed class TournamentRoundFunctions
 {
     private readonly IMediator _mediator;
+    private readonly IFeatureFlagRepository _featureFlags;
 
-    public TournamentRoundFunctions(IMediator mediator)
+    public TournamentRoundFunctions(IMediator mediator, IFeatureFlagRepository featureFlags)
     {
         _mediator = mediator;
+        _featureFlags = featureFlags;
     }
 
     [Function("CreateTournamentRound")]
@@ -58,6 +62,30 @@ public sealed class TournamentRoundFunctions
             return new BadRequestObjectResult(new { error = "Invalid round ID." });
 
         var result = await _mediator.Send(new GetTournamentResultsQuery(roundId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    /// <summary>
+    /// GET /v1/tournament-rounds/{id}/championship — season-long League
+    /// Championship seeding/leaderboard for this tournament round. Gated by
+    /// the league_championship_enabled feature flag.
+    /// </summary>
+    [Function("GetLeagueChampionship")]
+    public async Task<IActionResult> GetLeagueChampionship(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tournament-rounds/{id}/championship")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var flag = await _featureFlags.GetAsync(KnownFeatureFlags.LeagueChampionshipEnabled, cancellationToken);
+        var enabled = flag?.Enabled ?? KnownFeatureFlags.Defaults[KnownFeatureFlags.LeagueChampionshipEnabled];
+        if (!enabled)
+            return new NotFoundObjectResult(new { error = "League Championship is not enabled." });
+
+        var useGrossPoints = bool.TryParse(req.Query["useGrossPoints"], out var ug) && ug;
+        var result = await _mediator.Send(new GetLeagueChampionshipQuery(roundId, useGrossPoints), cancellationToken);
         return result.ToOkResult();
     }
 

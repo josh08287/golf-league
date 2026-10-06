@@ -66,6 +66,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Lets a tee-time group opt into optional side games (Nassau, 2v2 best ball) from the score entry screen, with live status shown per group. Every game is scored from each player\'s own hole scores. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.leagueChampionshipEnabled,
+    label: 'League Championship tab',
+    description:
+      'Adds a "League Championship" tab to the tournament results page: a season-long, Tour-Championship-style leaderboard that seeds eligible (non-substitute) players by season gross/net points and gives top seeds a starting stroke advantage. Applies to every league.',
+  },
 ];
 
 function Toggle({

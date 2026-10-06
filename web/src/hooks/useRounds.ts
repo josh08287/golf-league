@@ -8,6 +8,7 @@ import type {
   RoundSkins,
   TournamentResults,
   TournamentComment,
+  LeagueChampionship,
   PagedResponse,
   ActiveRoundLeaderboard,
 } from '@/types/api';
@@ -27,6 +28,8 @@ export const roundKeys = {
   skins: (roundId: string) => [...roundKeys.all, 'skins', roundId] as const,
   tournamentResults: (roundId: string) => [...roundKeys.all, 'tournament-results', roundId] as const,
   tournamentComments: (roundId: string) => [...roundKeys.all, 'tournament-comments', roundId] as const,
+  leagueChampionship: (roundId: string, useGrossPoints: boolean) =>
+    [...roundKeys.all, 'league-championship', roundId, useGrossPoints] as const,
   activeLeaderboard: () => [...roundKeys.all, 'active-leaderboard'] as const,
 };
 
@@ -145,6 +148,24 @@ export function useTournamentResults(roundId: string) {
     enabled: Boolean(roundId),
     // Live leaderboard — scores are being entered by groups on the course in
     // real time, so poll instead of requiring a manual refresh.
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: true,
+  });
+}
+
+export function useLeagueChampionship(roundId: string, useGrossPoints: boolean, enabled: boolean) {
+  return useQuery({
+    queryKey: roundKeys.leagueChampionship(roundId, useGrossPoints),
+    queryFn: async () => {
+      const response = await apiClient.get<LeagueChampionship>(
+        `/tournament-rounds/${roundId}/championship`,
+        { params: { useGrossPoints } },
+      );
+      return response.data;
+    },
+    enabled: Boolean(roundId) && enabled,
+    // Live leaderboard — re-ranks as this round's scores come in, same
+    // polling convention as the strokes leaderboard tab.
     refetchInterval: 30 * 1000,
     refetchOnWindowFocus: true,
   });

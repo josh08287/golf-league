@@ -1103,6 +1103,25 @@ export interface TournamentResults {
   netStablefordRanking: TournamentRankingEntry[];
 }
 
+export interface LeagueChampionshipEntry {
+  rank: number;
+  playerId: number;
+  playerName: string;
+  seed: number;
+  seasonPoints: number;
+  startingStrokeAdvantage: number;
+  roundScore: number | null;
+  adjustedScore: number | null;
+  isTied: boolean;
+}
+
+export interface LeagueChampionship {
+  roundId: number;
+  useGrossPoints: boolean;
+  maxStrokeAdvantage: number;
+  standings: LeagueChampionshipEntry[];
+}
+
 export interface TournamentComment {
   id: number;
   playerId: number;
@@ -1174,6 +1193,7 @@ export const FEATURE_FLAG_KEYS = {
   joesVsOthersEnabled: 'joes_vs_others_enabled',
   tournamentCommentsEnabled: 'tournament_comments_enabled',
   sideGamesEnabled: 'side_games_enabled',
+  leagueChampionshipEnabled: 'league_championship_enabled',
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────

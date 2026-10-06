@@ -180,6 +180,15 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string SideGamesEnabled = "side_games_enabled";
 
+    /// <summary>
+    /// Adds a "League Championship" tab to the tournament results page: a
+    /// season-long, Tour-Championship-style leaderboard that seeds eligible
+    /// (non-substitute) players by their season gross/net Stableford points
+    /// and gives higher seeds a starting stroke advantage in that round.
+    /// Applies to every league.
+    /// </summary>
+    public const string LeagueChampionshipEnabled = "league_championship_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -192,5 +201,6 @@ public static class KnownFeatureFlags
         [JoesVsOthersEnabled] = false,
         [TournamentCommentsEnabled] = false,
         [SideGamesEnabled] = false,
+        [LeagueChampionshipEnabled] = false,
     };
 }

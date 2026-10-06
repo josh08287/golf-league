@@ -13,8 +13,14 @@ import {
   Swords,
   MessageSquare,
   Send,
+  Crown,
 } from 'lucide-react';
-import { useTournamentResults, useTournamentComments, usePostTournamentComment } from '@/hooks/useRounds';
+import {
+  useTournamentResults,
+  useTournamentComments,
+  usePostTournamentComment,
+  useLeagueChampionship,
+} from '@/hooks/useRounds';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDate } from '@/lib/utils';
@@ -29,6 +35,7 @@ import type {
   TournamentFlight,
   TournamentCourseHole,
   TournamentResults,
+  LeagueChampionshipEntry,
 } from '@/types/api';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 
@@ -595,12 +602,23 @@ function CommentsPanel({ roundId }: { roundId: string }) {
 
 // ── View tabs ─────────────────────────────────────────────────────────────────
 
-type ResultsView = 'strokes' | 'matches';
+type ResultsView = 'strokes' | 'matches' | 'championship';
 
-function ViewTabs({ view, onChange }: { view: ResultsView; onChange: (v: ResultsView) => void }) {
+function ViewTabs({
+  view,
+  onChange,
+  showMatches,
+  showChampionship,
+}: {
+  view: ResultsView;
+  onChange: (v: ResultsView) => void;
+  showMatches: boolean;
+  showChampionship: boolean;
+}) {
   const tabs: { key: ResultsView; label: string; icon: React.ElementType }[] = [
     { key: 'strokes', label: 'Strokes Leaderboard', icon: ListOrdered },
-    { key: 'matches', label: 'Match Status', icon: Swords },
+    ...(showMatches ? [{ key: 'matches' as const, label: 'Match Status', icon: Swords }] : []),
+    ...(showChampionship ? [{ key: 'championship' as const, label: 'League Championship', icon: Crown }] : []),
   ];
 
   return (
@@ -632,7 +650,10 @@ function ViewTabs({ view, onChange }: { view: ResultsView; onChange: (v: Results
 
 export function TournamentResultsBody({ results }: { results: TournamentResults }) {
   const [view, setView] = useState<ResultsView>('strokes');
+  const { data: flagStates } = useFeatureFlagStates();
+  const championshipEnabled = flagStates?.[FEATURE_FLAG_KEYS.leagueChampionshipEnabled] ?? false;
   const hasMatchups = results.matchupResults.length > 0;
+  const showTabs = hasMatchups || championshipEnabled;
 
   return (
     <div className="space-y-8">
@@ -642,9 +663,27 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
         <HoleExtrasPanel extras={results.holeExtras} ldWinners={results.longestDriveWinners} />
       </section>
 
-      {hasMatchups && <ViewTabs view={view} onChange={setView} />}
+      {showTabs && (
+        <ViewTabs
+          view={view}
+          onChange={setView}
+          showMatches={hasMatchups}
+          showChampionship={championshipEnabled}
+        />
+      )}
 
-      {view === 'strokes' || !hasMatchups ? (
+      {view === 'championship' && championshipEnabled ? (
+        <LeagueChampionshipPanel roundId={results.roundId} />
+      ) : view === 'matches' && hasMatchups ? (
+        <section>
+          <SectionTitle icon={Users} label="Matchup Results" />
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {results.matchupResults.map((m) => (
+              <MatchupCard key={m.matchupNumber} m={m} />
+            ))}
+          </div>
+        </section>
+      ) : (
         <>
           {/* Skins — two columns */}
           <section>
@@ -694,17 +733,106 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
             </div>
           </section>
         </>
-      ) : (
-        <section>
-          <SectionTitle icon={Users} label="Matchup Results" />
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {results.matchupResults.map((m) => (
-              <MatchupCard key={m.matchupNumber} m={m} />
-            ))}
-          </div>
-        </section>
       )}
     </div>
+  );
+}
+
+// ── League Championship ───────────────────────────────────────────────────────
+
+function LeagueChampionshipPanel({ roundId }: { roundId: number }) {
+  const [useGrossPoints, setUseGrossPoints] = useState(false);
+  const { data, isLoading, error } = useLeagueChampionship(String(roundId), useGrossPoints, true);
+
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-2">
+        <div className="flex items-center gap-2">
+          <Crown className="h-5 w-5 text-green-700" />
+          <h2 className="text-lg font-semibold text-gray-800">League Championship</h2>
+        </div>
+        <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => setUseGrossPoints(false)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              !useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Net
+          </button>
+          <button
+            type="button"
+            onClick={() => setUseGrossPoints(true)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Gross
+          </button>
+        </div>
+      </div>
+
+      <p className="mb-3 text-xs text-gray-500">
+        Seeded by each player&rsquo;s season-long {useGrossPoints ? 'gross' : 'net'} Stableford points. Higher
+        seeds start this round with a bigger stroke advantage, Tour-Championship style — standings update live
+        as scores come in.
+      </p>
+
+      {isLoading ? (
+        <div className="flex h-32 items-center justify-center">
+          <Loader2 className="h-6 w-6 animate-spin text-green-600" />
+        </div>
+      ) : error || !data ? (
+        <p className="text-sm text-gray-500">Failed to load the League Championship leaderboard.</p>
+      ) : data.standings.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No eligible players in this round yet.</p>
+      ) : (
+        <div className="overflow-hidden rounded-lg border border-gray-200">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+              <tr>
+                <th className="px-3 py-2 text-center">#</th>
+                <th className="px-3 py-2 text-left">Player</th>
+                <th className="px-3 py-2 text-center">Seed</th>
+                <th className="px-3 py-2 text-center">Season Pts</th>
+                <th className="px-3 py-2 text-center">Advantage</th>
+                <th className="px-3 py-2 text-center">Round</th>
+                <th className="px-3 py-2 text-center">Adjusted</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {data.standings.map((entry: LeagueChampionshipEntry) => (
+                <tr key={entry.playerId} className={entry.rank === 1 ? 'bg-amber-50' : ''}>
+                  <td className="px-3 py-2 text-center">
+                    <span
+                      className={
+                        entry.rank === 1
+                          ? 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-white'
+                          : 'text-gray-500'
+                      }
+                    >
+                      {entry.rank}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-medium text-gray-800">
+                    {entry.playerName}
+                    {entry.isTied && <span className="ml-1 text-xs text-gray-400">(T)</span>}
+                  </td>
+                  <td className="px-3 py-2 text-center text-gray-500">{entry.seed}</td>
+                  <td className="px-3 py-2 text-center text-gray-500">{entry.seasonPoints}</td>
+                  <td className="px-3 py-2 text-center text-green-700">-{entry.startingStrokeAdvantage}</td>
+                  <td className="px-3 py-2 text-center">{entry.roundScore ?? '—'}</td>
+                  <td className="px-3 py-2 text-center font-semibold text-gray-800">
+                    {entry.adjustedScore ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
 
