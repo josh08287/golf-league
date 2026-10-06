@@ -33,7 +33,6 @@ import type {
   TournamentHoleExtra,
   LongestDriveWinner,
   TournamentFlight,
-  TournamentFlightPlayer,
   TournamentCourseHole,
   TournamentResults,
   LeagueChampionshipEntry,
@@ -802,136 +801,85 @@ function LeagueChampionshipPanel({
         <p className="text-sm text-gray-400 italic">No eligible players in this round yet.</p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-3 py-2 text-center">#</th>
-                <th className="px-3 py-2 text-left">Player</th>
-                <th className="px-3 py-2 text-center">Seed</th>
-                <th className="px-3 py-2 text-center">Season Pts</th>
-                <th className="px-3 py-2 text-center">Advantage</th>
-                <th className="px-3 py-2 text-center">Round</th>
-                <th className="px-3 py-2 text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {data.standings.map((entry: LeagueChampionshipEntry) => (
-                <tr key={entry.playerId} className={entry.rank === 1 ? 'bg-amber-50' : ''}>
-                  <td className="px-3 py-2 text-center">
-                    <span
-                      className={
-                        entry.rank === 1
-                          ? 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-white'
-                          : 'text-gray-500'
-                      }
-                    >
-                      {entry.rank}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-medium text-gray-800">
-                    {entry.playerName}
-                    {entry.isTied && <span className="ml-1 text-xs text-gray-400">(T)</span>}
-                  </td>
-                  <td className="px-3 py-2 text-center text-gray-500">{entry.seed}</td>
-                  <td className="px-3 py-2 text-center text-gray-500">{entry.seasonPoints}</td>
-                  <td className="px-3 py-2 text-center text-green-700">-{entry.startingStrokeAdvantage}</td>
-                  <td className="px-3 py-2 text-center">{entry.roundScore ?? '—'}</td>
-                  <td className="px-3 py-2 text-center font-semibold text-gray-800">
-                    {entry.adjustedScore ?? '—'}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-max text-sm">
+              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+                <tr>
+                  <th className="px-3 py-2 text-center">#</th>
+                  <th className="sticky left-0 bg-gray-50 px-3 py-2 text-left">Player</th>
+                  <th className="px-3 py-2 text-center">Seed</th>
+                  <th className="px-3 py-2 text-center">Season Pts</th>
+                  <th className="px-3 py-2 text-center">Advantage</th>
+                  {holes.map((h) => (
+                    <th key={h.holeNumber} className="px-1.5 py-2 text-center font-medium normal-case">
+                      {h.holeNumber}
+                    </th>
+                  ))}
+                  <th className="px-3 py-2 text-center">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {data && data.standings.length > 0 && (
-        <div className="mt-6">
-          <h3 className="mb-2 text-sm font-semibold text-gray-700">Scorecards</h3>
-          <LeagueChampionshipScorecardGrid
-            standings={data.standings}
-            playersById={playersById}
-            holes={holes}
-            useGrossPoints={useGrossPoints}
-          />
+                <tr className="text-gray-300">
+                  <th colSpan={5} />
+                  {holes.map((h) => (
+                    <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal normal-case">
+                      {h.par}
+                    </th>
+                  ))}
+                  <th />
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.standings.map((entry: LeagueChampionshipEntry) => {
+                  const player = playersById.get(entry.playerId);
+                  const scoresByHole = new Map((player?.holeScores ?? []).map((h) => [h.holeNumber, h]));
+                  return (
+                    <tr key={entry.playerId} className={entry.rank === 1 ? 'bg-amber-50' : ''}>
+                      <td className="px-3 py-2 text-center">
+                        <span
+                          className={
+                            entry.rank === 1
+                              ? 'inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-xs font-bold text-white'
+                              : 'text-gray-500'
+                          }
+                        >
+                          {entry.rank}
+                        </span>
+                      </td>
+                      <td
+                        className={`sticky left-0 whitespace-nowrap px-3 py-2 font-medium text-gray-800 ${entry.rank === 1 ? 'bg-amber-50' : 'bg-white'}`}
+                      >
+                        {entry.playerName}
+                        {entry.isTied && <span className="ml-1 text-xs text-gray-400">(T)</span>}
+                        {player && <span className="ml-1 font-normal text-gray-400">({player.courseHandicap})</span>}
+                      </td>
+                      <td className="px-3 py-2 text-center text-gray-500">{entry.seed}</td>
+                      <td className="px-3 py-2 text-center text-gray-500">{entry.seasonPoints}</td>
+                      <td className="px-3 py-2 text-center text-green-700">-{entry.startingStrokeAdvantage}</td>
+                      {holes.map((h) => {
+                        const score = scoresByHole.get(h.holeNumber);
+                        const value = useGrossPoints ? score?.grossStrokes : score?.netStrokes;
+                        return (
+                          <td key={h.holeNumber} className="relative px-1.5 py-2 text-center text-gray-700">
+                            {value ?? <span className="text-gray-300">—</span>}
+                            {!useGrossPoints && score && score.handicapStrokes > 0 && (
+                              <span className="absolute inset-x-0 -bottom-0.5">
+                                <HandicapDots strokes={score.handicapStrokes} />
+                              </span>
+                            )}
+                          </td>
+                        );
+                      })}
+                      <td className="px-3 py-2 text-center font-semibold text-gray-800">
+                        {entry.adjustedScore ?? '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>
-  );
-}
-
-function LeagueChampionshipScorecardGrid({
-  standings,
-  playersById,
-  holes,
-  useGrossPoints,
-}: {
-  standings: LeagueChampionshipEntry[];
-  playersById: Map<number, TournamentFlightPlayer>;
-  holes: TournamentCourseHole[];
-  useGrossPoints: boolean;
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-gray-200">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-max text-xs">
-          <thead className="bg-gray-50 text-gray-400">
-            <tr>
-              <th className="sticky left-0 bg-gray-50 px-2 py-1 text-left font-medium">Player</th>
-              {holes.map((h) => (
-                <th key={h.holeNumber} className="px-1.5 py-1 text-center font-medium">
-                  {h.holeNumber}
-                </th>
-              ))}
-              <th className="px-2 py-1 text-center font-semibold text-gray-600">
-                {useGrossPoints ? 'Gross' : 'Net'}
-              </th>
-            </tr>
-            <tr className="bg-gray-50 text-gray-300">
-              <th className="sticky left-0 bg-gray-50 px-2 py-0.5 text-left font-normal">Par</th>
-              {holes.map((h) => (
-                <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal">
-                  {h.par}
-                </th>
-              ))}
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {standings.map((entry) => {
-              const player = playersById.get(entry.playerId);
-              const scoresByHole = new Map((player?.holeScores ?? []).map((h) => [h.holeNumber, h]));
-              return (
-                <tr key={entry.playerId}>
-                  <td className="sticky left-0 whitespace-nowrap bg-white px-2 py-1.5 font-medium text-gray-800">
-                    {entry.playerName}
-                    {player && <span className="ml-1 font-normal text-gray-400">({player.courseHandicap})</span>}
-                  </td>
-                  {holes.map((h) => {
-                    const score = scoresByHole.get(h.holeNumber);
-                    const value = useGrossPoints ? score?.grossStrokes : score?.netStrokes;
-                    return (
-                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
-                        {value ?? <span className="text-gray-300">—</span>}
-                        {!useGrossPoints && score && score.handicapStrokes > 0 && (
-                          <span className="absolute inset-x-0 -bottom-0.5">
-                            <HandicapDots strokes={score.handicapStrokes} />
-                          </span>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
-                    {entry.roundScore ?? <span className="text-gray-300">—</span>}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
   );
 }
 
