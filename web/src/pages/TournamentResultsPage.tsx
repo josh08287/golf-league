@@ -33,6 +33,7 @@ import type {
   TournamentHoleExtra,
   LongestDriveWinner,
   TournamentFlight,
+  TournamentFlightPlayer,
   TournamentCourseHole,
   TournamentResults,
   LeagueChampionshipEntry,
@@ -673,7 +674,7 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
       )}
 
       {view === 'championship' && championshipEnabled ? (
-        <LeagueChampionshipPanel roundId={results.roundId} />
+        <LeagueChampionshipPanel roundId={results.roundId} flights={results.flights} holes={results.holes} />
       ) : view === 'matches' && hasMatchups ? (
         <section>
           <SectionTitle icon={Users} label="Matchup Results" />
@@ -740,9 +741,21 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
 
 // ── League Championship ───────────────────────────────────────────────────────
 
-function LeagueChampionshipPanel({ roundId }: { roundId: number }) {
+function LeagueChampionshipPanel({
+  roundId,
+  flights,
+  holes,
+}: {
+  roundId: number;
+  flights: TournamentFlight[];
+  holes: TournamentCourseHole[];
+}) {
   const [useGrossPoints, setUseGrossPoints] = useState(false);
   const { data, isLoading, error } = useLeagueChampionship(String(roundId), useGrossPoints, true);
+
+  const playersById = new Map(
+    flights.flatMap((f) => f.players).map((p) => [p.playerId, p]),
+  );
 
   return (
     <section>
@@ -798,7 +811,7 @@ function LeagueChampionshipPanel({ roundId }: { roundId: number }) {
                 <th className="px-3 py-2 text-center">Season Pts</th>
                 <th className="px-3 py-2 text-center">Advantage</th>
                 <th className="px-3 py-2 text-center">Round</th>
-                <th className="px-3 py-2 text-center">Adjusted</th>
+                <th className="px-3 py-2 text-center">Total</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -832,7 +845,93 @@ function LeagueChampionshipPanel({ roundId }: { roundId: number }) {
           </table>
         </div>
       )}
+
+      {data && data.standings.length > 0 && (
+        <div className="mt-6">
+          <h3 className="mb-2 text-sm font-semibold text-gray-700">Scorecards</h3>
+          <LeagueChampionshipScorecardGrid
+            standings={data.standings}
+            playersById={playersById}
+            holes={holes}
+            useGrossPoints={useGrossPoints}
+          />
+        </div>
+      )}
     </section>
+  );
+}
+
+function LeagueChampionshipScorecardGrid({
+  standings,
+  playersById,
+  holes,
+  useGrossPoints,
+}: {
+  standings: LeagueChampionshipEntry[];
+  playersById: Map<number, TournamentFlightPlayer>;
+  holes: TournamentCourseHole[];
+  useGrossPoints: boolean;
+}) {
+  return (
+    <div className="overflow-hidden rounded-lg border border-gray-200">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-max text-xs">
+          <thead className="bg-gray-50 text-gray-400">
+            <tr>
+              <th className="sticky left-0 bg-gray-50 px-2 py-1 text-left font-medium">Player</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-1 text-center font-medium">
+                  {h.holeNumber}
+                </th>
+              ))}
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">
+                {useGrossPoints ? 'Gross' : 'Net'}
+              </th>
+            </tr>
+            <tr className="bg-gray-50 text-gray-300">
+              <th className="sticky left-0 bg-gray-50 px-2 py-0.5 text-left font-normal">Par</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal">
+                  {h.par}
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {standings.map((entry) => {
+              const player = playersById.get(entry.playerId);
+              const scoresByHole = new Map((player?.holeScores ?? []).map((h) => [h.holeNumber, h]));
+              return (
+                <tr key={entry.playerId}>
+                  <td className="sticky left-0 whitespace-nowrap bg-white px-2 py-1.5 font-medium text-gray-800">
+                    {entry.playerName}
+                    {player && <span className="ml-1 font-normal text-gray-400">({player.courseHandicap})</span>}
+                  </td>
+                  {holes.map((h) => {
+                    const score = scoresByHole.get(h.holeNumber);
+                    const value = useGrossPoints ? score?.grossStrokes : score?.netStrokes;
+                    return (
+                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
+                        {value ?? <span className="text-gray-300">—</span>}
+                        {!useGrossPoints && score && score.handicapStrokes > 0 && (
+                          <span className="absolute inset-x-0 -bottom-0.5">
+                            <HandicapDots strokes={score.handicapStrokes} />
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
+                    {entry.roundScore ?? <span className="text-gray-300">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
