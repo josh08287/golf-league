@@ -33,6 +33,7 @@ import type {
   TournamentHoleExtra,
   LongestDriveWinner,
   TournamentFlight,
+  TournamentFlightPlayer,
   TournamentCourseHole,
   TournamentResults,
   LeagueChampionshipEntry,
@@ -40,6 +41,18 @@ import type {
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
+
+/**
+ * Handicap strokes a player receives on a hole, from course handicap + stroke
+ * index alone — the standard "dots" allocation. Tournament rounds are always
+ * full 18-hole, so this mirrors StablefordScoringService.StrokesOnHole's
+ * 18-hole overload. Computed client-side so dots show immediately once
+ * flights/tee times are set, rather than only after a score is posted (which
+ * is when the HoleScore row carrying the persisted handicapStrokes exists).
+ */
+function strokesOnHole(courseHandicap: number, strokeIndex: number): number {
+  return Math.floor(courseHandicap / 18) + (strokeIndex <= courseHandicap % 18 ? 1 : 0);
+}
 
 function SectionTitle({ icon: Icon, label }: { icon: React.ElementType; label: string }) {
   return (
@@ -220,8 +233,27 @@ function HoleExtrasPanel({
 
 // ── Flights ───────────────────────────────────────────────────────────────────
 
-function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: TournamentCourseHole[] }) {
-  const sortedPlayers = [...flight.players].sort((a, b) => a.courseHandicap - b.courseHandicap);
+function FlightScorecard({
+  flight,
+  holes,
+  useGrossPoints,
+}: {
+  flight: TournamentFlight;
+  holes: TournamentCourseHole[];
+  useGrossPoints: boolean;
+}) {
+  // Leaderboard order: lowest score at the top, same convention as a normal
+  // golf leaderboard. Players with no score yet (nothing posted) sort to the
+  // bottom rather than showing a meaningless 0.
+  const scoreOf = (p: TournamentFlightPlayer) => (useGrossPoints ? p.totalGrossStrokes : p.totalNetStrokes);
+  const sortedPlayers = [...flight.players].sort((a, b) => {
+    const scoreA = scoreOf(a);
+    const scoreB = scoreOf(b);
+    if (scoreA == null && scoreB == null) return a.courseHandicap - b.courseHandicap;
+    if (scoreA == null) return 1;
+    if (scoreB == null) return -1;
+    return scoreA - scoreB;
+  });
 
   if (holes.length === 0) {
     return (
@@ -243,15 +275,19 @@ function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: T
         <table className="w-full min-w-max text-xs">
           <thead className="text-gray-400">
             <tr>
+              <th className="px-1 py-1 text-center font-medium">#</th>
               <th className="sticky left-0 bg-white px-2 py-1 text-left font-medium">Player</th>
               {holes.map((h) => (
                 <th key={h.holeNumber} className="px-1.5 py-1 text-center font-medium">
                   {h.holeNumber}
                 </th>
               ))}
-              <th className="px-2 py-1 text-center font-semibold text-gray-600">Net</th>
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">
+                {useGrossPoints ? 'Gross' : 'Net'}
+              </th>
             </tr>
             <tr className="text-gray-300">
+              <th />
               <th className="sticky left-0 bg-white px-2 py-0.5 text-left font-normal">Par</th>
               {holes.map((h) => (
                 <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal">
@@ -262,29 +298,36 @@ function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: T
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {sortedPlayers.map((p) => {
+            {sortedPlayers.map((p, index) => {
               const scoresByHole = new Map(p.holeScores.map((h) => [h.holeNumber, h]));
+              const score = scoreOf(p);
+              const rank = score == null ? null : index + 1;
               return (
-                <tr key={p.playerId}>
-                  <td className="sticky left-0 whitespace-nowrap bg-white px-2 py-1.5 font-medium text-gray-800">
+                <tr key={p.playerId} className={rank === 1 ? 'bg-amber-50' : ''}>
+                  <td className="px-1 py-1.5 text-center text-gray-500">{rank ?? '—'}</td>
+                  <td
+                    className={`sticky left-0 whitespace-nowrap px-2 py-1.5 font-medium text-gray-800 ${rank === 1 ? 'bg-amber-50' : 'bg-white'}`}
+                  >
                     {p.playerName}
                     <span className="ml-1 font-normal text-gray-400">({p.courseHandicap})</span>
                   </td>
                   {holes.map((h) => {
-                    const score = scoresByHole.get(h.holeNumber);
+                    const holeScore = scoresByHole.get(h.holeNumber);
+                    const value = useGrossPoints ? holeScore?.grossStrokes : holeScore?.netStrokes;
+                    const dots = holeScore?.handicapStrokes ?? strokesOnHole(p.courseHandicap, h.strokeIndex);
                     return (
                       <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
-                        {score?.grossStrokes ?? <span className="text-gray-300">—</span>}
-                        {score && score.handicapStrokes > 0 && (
+                        {value ?? <span className="text-gray-300">—</span>}
+                        {!useGrossPoints && dots > 0 && (
                           <span className="absolute inset-x-0 -bottom-0.5">
-                            <HandicapDots strokes={score.handicapStrokes} />
+                            <HandicapDots strokes={dots} />
                           </span>
                         )}
                       </td>
                     );
                   })}
                   <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
-                    {p.totalNetStrokes ?? <span className="text-gray-300">—</span>}
+                    {score ?? <span className="text-gray-300">—</span>}
                   </td>
                 </tr>
               );
@@ -296,14 +339,48 @@ function FlightScorecard({ flight, holes }: { flight: TournamentFlight; holes: T
   );
 }
 
-function FlightsPanel({ flights, holes }: { flights: TournamentFlight[]; holes: TournamentCourseHole[] }) {
+function FlightsPanel({
+  flights,
+  holes,
+  useGrossPoints,
+  onToggleGrossPoints,
+}: {
+  flights: TournamentFlight[];
+  holes: TournamentCourseHole[];
+  useGrossPoints: boolean;
+  onToggleGrossPoints: (useGross: boolean) => void;
+}) {
   if (flights.length === 0) return null;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
-      {flights.map((f) => (
-        <FlightScorecard key={f.id} flight={f} holes={holes} />
-      ))}
+    <div>
+      <div className="mb-3 flex justify-end">
+        <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+          <button
+            type="button"
+            onClick={() => onToggleGrossPoints(false)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              !useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Net
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleGrossPoints(true)}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Gross
+          </button>
+        </div>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {flights.map((f) => (
+          <FlightScorecard key={f.id} flight={f} holes={holes} useGrossPoints={useGrossPoints} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -650,6 +727,7 @@ function ViewTabs({
 
 export function TournamentResultsBody({ results }: { results: TournamentResults }) {
   const [view, setView] = useState<ResultsView>('strokes');
+  const [strokesUseGrossPoints, setStrokesUseGrossPoints] = useState(false);
   const { data: flagStates } = useFeatureFlagStates();
   const championshipEnabled = flagStates?.[FEATURE_FLAG_KEYS.leagueChampionshipEnabled] ?? false;
   const hasMatchups = results.matchupResults.length > 0;
@@ -694,11 +772,16 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
             </div>
           </section>
 
-          {/* Flights (stroke-play scorecards) */}
+          {/* Flights (per-flight leaderboards) */}
           {results.flights.length > 0 && (
             <section>
               <SectionTitle icon={Users} label="Flights" />
-              <FlightsPanel flights={results.flights} holes={results.holes} />
+              <FlightsPanel
+                flights={results.flights}
+                holes={results.holes}
+                useGrossPoints={strokesUseGrossPoints}
+                onToggleGrossPoints={setStrokesUseGrossPoints}
+              />
             </section>
           )}
 
@@ -857,12 +940,13 @@ function LeagueChampionshipPanel({
                       {holes.map((h) => {
                         const score = scoresByHole.get(h.holeNumber);
                         const value = useGrossPoints ? score?.grossStrokes : score?.netStrokes;
+                        const dots = score?.handicapStrokes ?? strokesOnHole(player?.courseHandicap ?? 0, h.strokeIndex);
                         return (
                           <td key={h.holeNumber} className="relative px-1.5 py-2 text-center text-gray-700">
                             {value ?? <span className="text-gray-300">—</span>}
-                            {!useGrossPoints && score && score.handicapStrokes > 0 && (
+                            {!useGrossPoints && dots > 0 && (
                               <span className="absolute inset-x-0 -bottom-0.5">
-                                <HandicapDots strokes={score.handicapStrokes} />
+                                <HandicapDots strokes={dots} />
                               </span>
                             )}
                           </td>
