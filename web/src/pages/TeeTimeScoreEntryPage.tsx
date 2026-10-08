@@ -500,7 +500,9 @@ function GroupSetupStep({
             </Button>
           </div>
           {startingHoleConfirmed && !setStartingHole.isPending && (
-            <p className="mt-1.5 text-xs text-amber-700">Starting hole set to {startingHoleNumber}.</p>
+            <p className="mt-1.5 text-xs text-amber-700">
+              Starting hole saved. It will be the first hole shown once you start entering scores.
+            </p>
           )}
         </div>
       )}
@@ -1295,6 +1297,24 @@ export function TeeTimeScoreEntryPage() {
   const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
   const currentHole = holes[currentHoleIndex];
 
+  // The group's configured shotgun-start starting hole becomes the first hole
+  // shown once "Start Entering Scores" is pressed, rather than always hole 1.
+  const startingHoleIndex = (() => {
+    if (scorecard?.startingHoleNumber == null) return 0;
+    const idx = holes.findIndex((h) => h.holeNumber === scorecard.startingHoleNumber);
+    return idx >= 0 ? idx : 0;
+  })();
+
+  // Entry loops 18→1 (or back-9/front-9 equivalent) rather than stopping at
+  // the last hole in the array, since a shotgun group can start anywhere —
+  // it only stops once every active player has a score for every hole.
+  const isHoleComplete = useCallback(
+    (holeNumber: number) =>
+      players.every((p) => p.skippedWeek || scores[p.playerId]?.[holeNumber] !== undefined && scores[p.playerId]?.[holeNumber] !== ''),
+    [players, scores],
+  );
+  const allHolesComplete = holes.length > 0 && holes.every((h) => isHoleComplete(h.holeNumber));
+
   const seededOnceRef = useRef(false);
 
   const mergeHoleFromScorecard = useCallback((holeNumber: number, fresh: TeeTimeGroupScorecard) => {
@@ -1454,12 +1474,12 @@ export function TeeTimeScoreEntryPage() {
   }, [players, scores, holeDataMap, holes]);
 
   const advanceHole = useCallback(() => {
-    if (currentHoleIndex < holes.length - 1) {
-      setCurrentHoleIndex((prev) => prev + 1);
-    } else {
+    if (allHolesComplete) {
       setShowSummary(true);
+      return;
     }
-  }, [currentHoleIndex, holes.length]);
+    setCurrentHoleIndex((prev) => (prev + 1) % holes.length);
+  }, [allHolesComplete, holes.length]);
 
   // Returns null if any non-skipped player is missing a gross score for any
   // hole — callers must not submit a payload with fabricated placeholder
@@ -1524,8 +1544,8 @@ export function TeeTimeScoreEntryPage() {
   const handlePrev = () => {
     if (showSummary) {
       setShowSummary(false);
-    } else if (currentHoleIndex > 0) {
-      setCurrentHoleIndex((prev) => prev - 1);
+    } else {
+      setCurrentHoleIndex((prev) => (prev - 1 + holes.length) % holes.length);
     }
   };
 
@@ -1691,11 +1711,15 @@ export function TeeTimeScoreEntryPage() {
           onToggleSkipped={handleToggleSkipped}
           onToggleAdvancedStats={handleToggleAdvancedStats}
           pendingSkipIds={pendingSkipIds}
-          onContinue={() => setSetupComplete(true)}
+          onContinue={() => {
+            setCurrentHoleIndex(startingHoleIndex);
+            setSetupComplete(true);
+          }}
           scorecardOcrEnabled={scorecardOcrEnabled}
           sideGamesEnabled={sideGamesEnabled}
           holes={holes}
           onScanApplied={(scores) => {
+            setCurrentHoleIndex(startingHoleIndex);
             setSetupComplete(true);
             handleScanApplied(scores);
           }}
@@ -1709,7 +1733,6 @@ export function TeeTimeScoreEntryPage() {
             variant="outline"
             size="sm"
             onClick={handlePrev}
-            disabled={currentHoleIndex === 0}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Prev
@@ -1722,7 +1745,7 @@ export function TeeTimeScoreEntryPage() {
                 className={`h-2 w-2 rounded-full transition-colors ${
                   idx === currentHoleIndex
                     ? 'bg-[#1B5E20]'
-                    : idx < currentHoleIndex
+                    : isHoleComplete(hole.holeNumber)
                     ? 'bg-gray-400'
                     : 'bg-gray-200'
                 }`}
@@ -1739,8 +1762,8 @@ export function TeeTimeScoreEntryPage() {
               <Spinner className="h-4 w-4" />
             ) : (
               <>
-                {currentHoleIndex === holes.length - 1 ? 'Review' : 'Next'}
-                {currentHoleIndex < holes.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}
+                {allHolesComplete ? 'Review' : 'Next'}
+                {!allHolesComplete && <ChevronRight className="h-4 w-4 ml-1" />}
               </>
             )}
           </Button>
@@ -1748,9 +1771,9 @@ export function TeeTimeScoreEntryPage() {
       )}
 
       {/* Hole number indicator */}
-      {(setupComplete || !canEdit) && !showSummary && (
+      {(setupComplete || !canEdit) && !showSummary && currentHole && (
         <p className="text-center text-sm text-gray-500">
-          Hole {currentHoleIndex + 1} of {holes.length}
+          Hole {currentHole.holeNumber} · {holes.filter((h) => isHoleComplete(h.holeNumber)).length} of {holes.length} complete
           {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
         </p>
       )}
@@ -1823,19 +1846,18 @@ export function TeeTimeScoreEntryPage() {
           <Button
             variant="outline"
             onClick={handlePrev}
-            disabled={currentHoleIndex === 0}
           >
             <ChevronLeft className="h-4 w-4 mr-1" />
             Previous Hole
           </Button>
           <Button
-            variant={currentHoleIndex === holes.length - 1 ? 'primary' : 'outline'}
+            variant={allHolesComplete ? 'primary' : 'outline'}
             onClick={handleNext}
             disabled={saveHoleScores.isPending}
           >
             {saveHoleScores.isPending ? (
               <Spinner className="mr-2 h-4 w-4" />
-            ) : currentHoleIndex === holes.length - 1 ? (
+            ) : allHolesComplete ? (
               <>
                 Review & Submit
                 <Flag className="h-4 w-4 ml-1" />
