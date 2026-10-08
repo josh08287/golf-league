@@ -174,10 +174,27 @@ function SideGameStatusCard({ game, onOptOut, optOutPending }: {
  * opted into any games (or the flag is off / still loading), so it's safe
  * to drop in unconditionally.
  */
-export function SideGamesStatusBar({ teeTimeId, enabled }: { teeTimeId: number; enabled: boolean }) {
+export function SideGamesStatusBar({ teeTimeId, enabled, final = false }: { teeTimeId: number; enabled: boolean; final?: boolean }) {
   const { data } = useTeeTimeSideGames(teeTimeId, enabled);
 
   if (!enabled || !data || data.configuredGames.length === 0) return null;
+
+  if (final) {
+    return (
+      <section className="rounded-lg border-2 border-amber-300 bg-amber-50 p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Trophy className="h-5 w-5 text-amber-600" />
+          <h3 className="text-lg font-bold text-amber-900">Side Game Results</h3>
+        </div>
+        {/* Bump the cards' small print up a size — the round is over, so these are the results. */}
+        <div className="space-y-2 [&_.text-xs]:text-sm">
+          {data.configuredGames.map((game) => (
+            <SideGameStatusCard key={game.id} game={game} />
+          ))}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -253,8 +270,16 @@ export function SideGamesPanel({ teeTimeId, players }: SideGamesPanelProps) {
           gameType={openGameType}
           players={players}
           isPending={optIn.isPending}
-          error={optIn.isError ? 'Failed to opt in. Please try again.' : null}
-          onCancel={() => setOpenGameType(null)}
+          error={
+            optIn.isError
+              ? (optIn.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error
+                ?? 'Failed to opt in. Please try again.'
+              : null
+          }
+          onCancel={() => {
+            optIn.reset();
+            setOpenGameType(null);
+          }}
           onConfirm={(input) => {
             optIn.mutate(input, {
               onSuccess: () => setOpenGameType(null),

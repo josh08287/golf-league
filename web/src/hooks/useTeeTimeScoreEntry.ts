@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api';
+import { teeTimeSideGameKeys } from '@/hooks/useTeeTimeSideGames';
 import type {
   MyTodaysTeeTime,
   TeeTimeGroupScorecard,
@@ -139,6 +140,8 @@ export function useSaveTeeTimeHoleScores(teeTimeId: number | null) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: teeTimeId != null ? teeTimeScoreEntryKeys.groupScorecard(teeTimeId) : teeTimeScoreEntryKeys.all });
+      // Side game standings are computed from saved hole scores.
+      if (teeTimeId != null) qc.invalidateQueries({ queryKey: teeTimeSideGameKeys.teeTime(teeTimeId) });
     },
   });
 }
@@ -228,6 +231,7 @@ export function useSubmitTeeTimeGroupScores(teeTimeId: number | null) {
       // Invalidate related queries
       qc.invalidateQueries({ queryKey: teeTimeScoreEntryKeys.all });
       qc.invalidateQueries({ queryKey: ['rounds'] });
+      if (teeTimeId != null) qc.invalidateQueries({ queryKey: teeTimeSideGameKeys.teeTime(teeTimeId) });
     },
   });
 }
