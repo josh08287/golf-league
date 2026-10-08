@@ -5,6 +5,9 @@ import { ArrowUpDown, Trophy, X } from 'lucide-react';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useAllPlayers, useSubstitutes } from '../../hooks/usePlayers';
 import { useCreateTournamentRound } from '../../hooks/admin/useRoundMutations';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { FEATURE_FLAG_KEYS } from '../../types/api';
+import { DEFAULT_FIRST_TEE_TIME, formatTeeTime } from '../../lib/enumUtils';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { api } from '../../lib/api';
@@ -50,6 +53,9 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const [longestDriveHoleNumber, setLongestDriveHoleNumber] = useState('');
   const [grossSkinsPool, setGrossSkinsPool] = useState('');
   const [netSkinsPool, setNetSkinsPool] = useState('');
+  const [firstTeeTime, setFirstTeeTime] = useState('');
+  const { data: flagStates } = useFeatureFlagStates();
+  const startTimeEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentStartTimeEnabled] ?? false;
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -157,6 +163,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
         longestDriveHoleNumber: longestDriveHoleNumber ? Number(longestDriveHoleNumber) : undefined,
         grossSkinsPool: grossSkinsPool ? Number(grossSkinsPool) : undefined,
         netSkinsPool: netSkinsPool ? Number(netSkinsPool) : undefined,
+        firstTeeTime: startTimeEnabled && firstTeeTime ? firstTeeTime : undefined,
       });
       onSuccess(result.round?.id ?? 0);
     } catch {
@@ -238,6 +245,20 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
           Players record the longest-drive winner for their flight during score entry on this hole.
         </p>
       </FormField>
+
+      {startTimeEnabled && (
+        <FormField label="First Tee Time">
+          <input
+            type="time"
+            value={firstTeeTime}
+            onChange={(e) => setFirstTeeTime(e.target.value)}
+            className={inputClass}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Optional. Leave blank for the default {formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start; groups follow every 8 minutes.
+          </p>
+        </FormField>
+      )}
 
       {/* Skins Pools */}
       <div className="grid grid-cols-2 gap-3">

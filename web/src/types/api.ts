@@ -209,6 +209,8 @@ export interface Round {
   countsTowardHandicap: boolean;
   /** Tournament rounds only: whether substitutes can win skins. */
   substitutesCanWinSkins: boolean;
+  /** Tournament rounds only: first tee time ("HH:mm:ss", US/Eastern); null = default start. */
+  firstTeeTime: string | null;
 }
 
 export interface Participant {
@@ -1208,6 +1210,7 @@ export const FEATURE_FLAG_KEYS = {
   leagueChampionshipEnabled: 'league_championship_enabled',
   tournamentHandicapToggleEnabled: 'tournament_handicap_toggle_enabled',
   tournamentSubstituteSkinsToggleEnabled: 'tournament_substitute_skins_toggle_enabled',
+  tournamentStartTimeEnabled: 'tournament_start_time_enabled',
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────

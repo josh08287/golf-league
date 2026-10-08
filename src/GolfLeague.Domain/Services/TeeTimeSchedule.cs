@@ -16,12 +16,14 @@ public static class TeeTimeSchedule
     public const int CapacityPerTeeTime = 4;
 
     /// <summary>
-    /// Compute the scheduled time for the Nth slot (1-based). Slot 1 = 3:28pm.
+    /// Compute the scheduled time for the Nth slot (1-based), starting from
+    /// <paramref name="firstTeeTime"/> (a round's own start time) or the
+    /// default 3:28pm when null.
     /// </summary>
-    public static TimeOnly TimeForSlot(int teeTimeNumber)
+    public static TimeOnly TimeForSlot(int teeTimeNumber, TimeOnly? firstTeeTime = null)
     {
         if (teeTimeNumber < 1) throw new ArgumentOutOfRangeException(nameof(teeTimeNumber));
-        return FirstTeeTime.AddMinutes((teeTimeNumber - 1) * IntervalMinutes);
+        return (firstTeeTime ?? FirstTeeTime).AddMinutes((teeTimeNumber - 1) * IntervalMinutes);
     }
 
     /// <summary>
@@ -98,10 +100,10 @@ public static class TeeTimeSchedule
     /// week's tee times can open. With zero players we fall back to the first
     /// slot so the window still advances at the nominal start time.
     /// </summary>
-    public static DateTime LastTeeTimeUtc(DateOnly roundDate, int participantCount)
+    public static DateTime LastTeeTimeUtc(DateOnly roundDate, int participantCount, TimeOnly? firstTeeTime = null)
     {
         var slot = Math.Max(1, SlotsNeeded(participantCount));
-        var localTime = TimeForSlot(slot);
+        var localTime = TimeForSlot(slot, firstTeeTime);
         var local = new DateTime(
             roundDate.Year, roundDate.Month, roundDate.Day,
             localTime.Hour, localTime.Minute, 0, DateTimeKind.Unspecified);

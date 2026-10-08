@@ -18,4 +18,5 @@ public sealed record RoundDto(
     decimal? GrossSkinsPool,
     decimal? NetSkinsPool,
     bool CountsTowardHandicap,
-    bool SubstitutesCanWinSkins);
+    bool SubstitutesCanWinSkins,
+    TimeOnly? FirstTeeTime);

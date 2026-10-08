@@ -164,5 +164,6 @@ internal static class RoundDtoMapper
             round.GrossSkinsPool,
             round.NetSkinsPool,
             round.CountsTowardHandicap,
-            round.SubstitutesCanWinSkins);
+            round.SubstitutesCanWinSkins,
+            round.FirstTeeTime);
 }

@@ -33,6 +33,16 @@ public sealed class TournamentRoundFunctions
         if (body is null)
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
+        TimeOnly? firstTeeTime = null;
+        if (!string.IsNullOrWhiteSpace(body.FirstTeeTime))
+        {
+            if (!await StartTimeFeatureEnabledAsync(cancellationToken))
+                return new BadRequestObjectResult(new { error = "Setting a tournament start time is not enabled." });
+            if (!TryParseTeeTime(body.FirstTeeTime, out var parsed))
+                return new BadRequestObjectResult(new { error = "First tee time must be a time like 08:30." });
+            firstTeeTime = parsed;
+        }
+
         var userId = req.GetUserId() ?? "unknown";
         var matchups = body.Matchups?.Select(m => new MatchupInput(m.Player1Id, m.Player2Id)).ToList();
 
@@ -46,7 +56,8 @@ public sealed class TournamentRoundFunctions
             userId,
             body.LongestDriveHoleNumber,
             body.GrossSkinsPool,
-            body.NetSkinsPool);
+            body.NetSkinsPool,
+            firstTeeTime);
 
         var result = await _mediator.Send(command, cancellationToken);
         return result.ToCreatedResult($"/api/v1/tournament-rounds/{result.Value?.Round.Id}");
@@ -334,6 +345,53 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>
+    /// PUT /v1/tournament-rounds/{id}/first-tee-time — sets (or, with a null
+    /// time, resets to default) the tournament's first tee time and re-times
+    /// its tee times. Gated by the tournament_start_time_enabled feature flag.
+    /// </summary>
+    [Function("SetTournamentFirstTeeTime")]
+    public async Task<IActionResult> SetTournamentFirstTeeTime(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/first-tee-time")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        if (!await StartTimeFeatureEnabledAsync(cancellationToken))
+            return new NotFoundObjectResult(new { error = "Setting a tournament start time is not enabled." });
+
+        var body = await req.TryDeserializeAsync<SetFirstTeeTimeRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        TimeOnly? firstTeeTime = null;
+        if (!string.IsNullOrWhiteSpace(body.FirstTeeTime))
+        {
+            if (!TryParseTeeTime(body.FirstTeeTime, out var parsed))
+                return new BadRequestObjectResult(new { error = "First tee time must be a time like 08:30." });
+            firstTeeTime = parsed;
+        }
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetTournamentFirstTeeTimeCommand(roundId, firstTeeTime, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private async Task<bool> StartTimeFeatureEnabledAsync(CancellationToken cancellationToken)
+    {
+        var flag = await _featureFlags.GetAsync(KnownFeatureFlags.TournamentStartTimeEnabled, cancellationToken);
+        return flag?.Enabled ?? KnownFeatureFlags.Defaults[KnownFeatureFlags.TournamentStartTimeEnabled];
+    }
+
+    private static bool TryParseTeeTime(string value, out TimeOnly time) =>
+        TimeOnly.TryParseExact(value, ["HH:mm", "HH:mm:ss"], System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None, out time);
+
     [Function("GetTournamentComments")]
     public async Task<IActionResult> GetTournamentComments(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tournament-rounds/{id}/comments")] HttpRequest req,
@@ -386,7 +444,8 @@ public sealed class TournamentRoundFunctions
         string? Notes,
         int? LongestDriveHoleNumber,
         decimal? GrossSkinsPool,
-        decimal? NetSkinsPool)
+        decimal? NetSkinsPool,
+        string? FirstTeeTime = null)
     {
         public DateOnly ResolvedDate => RoundDate is not null
             ? DateOnly.ParseExact(RoundDate, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture)
@@ -405,5 +464,6 @@ public sealed class TournamentRoundFunctions
     private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
     private sealed record SetCountsTowardHandicapRequest(bool CountsTowardHandicap);
     private sealed record SetSubstituteSkinsRequest(bool SubstitutesCanWinSkins);
+    private sealed record SetFirstTeeTimeRequest(string? FirstTeeTime);
     private sealed record PostCommentRequest(string Message);
 }

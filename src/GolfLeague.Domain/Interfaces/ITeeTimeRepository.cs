@@ -31,6 +31,9 @@ public interface ITeeTimeRepository
     /// </summary>
     Task<IReadOnlyList<RoundTeeTime>> EnsureSlotsAsync(int roundId, int count, CancellationToken cancellationToken = default);
 
+    /// <summary>Re-times every existing slot in the round from <paramref name="firstTeeTime"/> (null = default start).</summary>
+    Task RetimeSlotsAsync(int roundId, TimeOnly? firstTeeTime, CancellationToken cancellationToken = default);
+
     /// <summary>
     /// Set a participant's TeeTimeId. Pass null to clear. Tracked save inside.
     /// </summary>

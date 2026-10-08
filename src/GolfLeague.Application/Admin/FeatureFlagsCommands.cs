@@ -202,6 +202,13 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string TournamentSubstituteSkinsToggleEnabled = "tournament_substitute_skins_toggle_enabled";
 
+    /// <summary>
+    /// Lets admins set a tournament round's first tee time (at creation and
+    /// on the tournament management page) instead of the default start.
+    /// Applies to every league.
+    /// </summary>
+    public const string TournamentStartTimeEnabled = "tournament_start_time_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -217,5 +224,6 @@ public static class KnownFeatureFlags
         [LeagueChampionshipEnabled] = false,
         [TournamentHandicapToggleEnabled] = false,
         [TournamentSubstituteSkinsToggleEnabled] = false,
+        [TournamentStartTimeEnabled] = false,
     };
 }

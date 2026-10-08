@@ -80,6 +80,17 @@ export function isBackNine(side: string | number | undefined): boolean {
   return normalizeNineHoleSide(side) === 'Back';
 }
 
+/** Default first tee time when a round has no start time of its own (mirrors TeeTimeSchedule.FirstTeeTime). */
+export const DEFAULT_FIRST_TEE_TIME = '15:28';
+
+/** "15:28" or "15:28:00" -> "3:28 PM". */
+export function formatTeeTime(time: string): string {
+  const [h, m] = time.split(':').map(Number);
+  const suffix = h >= 12 ? 'PM' : 'AM';
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, '0')} ${suffix}`;
+}
+
 /** "Front 9" / "Back 9" for a weekly side; "18 Holes" for a full round (side NotApplicable). */
 export function formatNineHoleSide(side: string | number | undefined): string {
   const normalized = normalizeNineHoleSide(side);

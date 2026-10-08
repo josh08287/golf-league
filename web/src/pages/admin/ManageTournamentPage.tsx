@@ -23,6 +23,7 @@ import {
   useSetTournamentSkinsPool,
   useSetTournamentCountsTowardHandicap,
   useSetTournamentSubstituteSkins,
+  useSetTournamentFirstTeeTime,
 } from '../../hooks/admin/useRoundMutations';
 import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
 import { FEATURE_FLAG_KEYS } from '../../types/api';
@@ -30,7 +31,7 @@ import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { formatDate } from '@/lib/utils';
-import { isRoundFinalized, isRoundScheduled } from '../../lib/enumUtils';
+import { isRoundFinalized, isRoundScheduled, DEFAULT_FIRST_TEE_TIME, formatTeeTime } from '../../lib/enumUtils';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
@@ -71,6 +72,9 @@ export function ManageTournamentPage() {
   const setCountsTowardHandicap = useSetTournamentCountsTowardHandicap(roundId);
   const substituteSkinsToggleEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentSubstituteSkinsToggleEnabled] ?? false;
   const setSubstituteSkins = useSetTournamentSubstituteSkins(roundId);
+  const startTimeEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentStartTimeEnabled] ?? false;
+  const setFirstTeeTime = useSetTournamentFirstTeeTime(roundId);
+  const [firstTeeTimeInput, setFirstTeeTimeInput] = useState<string | null>(null);
   const [grossSkinsPool, setGrossSkinsPoolInput] = useState('');
   const [netSkinsPool, setNetSkinsPoolInput] = useState('');
   const [skinsPoolInitialized, setSkinsPoolInitialized] = useState(false);
@@ -284,6 +288,48 @@ export function ManageTournamentPage() {
               ))}
             </select>
           </FormField>
+
+          {startTimeEnabled && (() => {
+            const savedTime = round.firstTeeTime?.slice(0, 5) ?? '';
+            const timeValue = firstTeeTimeInput ?? savedTime;
+            const timeDirty = timeValue !== savedTime;
+            return (
+              <FormField label="First Tee Time">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={timeValue}
+                    onChange={(e) => setFirstTeeTimeInput(e.target.value)}
+                    className={inputClass}
+                    disabled={skinsPoolLocked || setFirstTeeTime.isPending}
+                  />
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={skinsPoolLocked || !timeDirty || setFirstTeeTime.isPending}
+                    onClick={() =>
+                      setFirstTeeTime.mutate(timeValue || null, { onSuccess: () => setFirstTeeTimeInput(null) })
+                    }
+                  >
+                    {setFirstTeeTime.isPending ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  {savedTime
+                    ? `Groups tee off from ${formatTeeTime(savedTime)}, every 8 minutes.`
+                    : `Using the default ${formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start.`}{' '}
+                  Changing it re-times every group's tee time. Clear the field and save to go back to the default.
+                </p>
+                {setFirstTeeTime.isError && (
+                  <p className="mt-1 text-xs text-red-600">
+                    {(setFirstTeeTime.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error
+                      ?? 'Failed to save. Please try again.'}
+                  </p>
+                )}
+              </FormField>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-3">
             <FormField label="Gross Skins Pool ($)">

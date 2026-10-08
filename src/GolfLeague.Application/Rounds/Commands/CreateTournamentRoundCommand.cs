@@ -25,7 +25,8 @@ public sealed record CreateTournamentRoundCommand(
     string UserId,
     int? LongestDriveHoleNumber = null,
     decimal? GrossSkinsPool = null,
-    decimal? NetSkinsPool = null) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
+    decimal? NetSkinsPool = null,
+    TimeOnly? FirstTeeTime = null) : IRequest<Result<TournamentRoundDto>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Round";
     public string AuditEntityId => "0"; // assigned by the DB; resolved from the response
@@ -135,6 +136,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
             LongestDriveHoleNumber = request.LongestDriveHoleNumber,
             GrossSkinsPool = request.GrossSkinsPool,
             NetSkinsPool = request.NetSkinsPool,
+            FirstTeeTime = request.FirstTeeTime,
         };
 
         await _roundRepository.AddAsync(round, cancellationToken);

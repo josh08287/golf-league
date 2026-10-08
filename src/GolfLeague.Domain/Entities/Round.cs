@@ -54,6 +54,13 @@ public class Round
     public bool SubstitutesCanWinSkins { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: time of the first tee time (US/Eastern). Later
+    /// tee times follow at the usual interval. Null uses the default start
+    /// (<see cref="Services.TeeTimeSchedule.FirstTeeTime"/>).
+    /// </summary>
+    public TimeOnly? FirstTeeTime { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.

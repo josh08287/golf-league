@@ -125,6 +125,8 @@ export interface CreateTournamentRoundPayload {
   longestDriveHoleNumber?: number;
   grossSkinsPool?: number;
   netSkinsPool?: number;
+  /** "HH:mm", US/Eastern. Omit for the default start. */
+  firstTeeTime?: string;
 }
 
 export function useCreateTournamentRound() {
@@ -242,6 +244,20 @@ export function useSetTournamentSubstituteSkins(roundId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
       qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}
+
+export function useSetTournamentFirstTeeTime(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    /** "HH:mm", or null to reset to the default start. */
+    mutationFn: (firstTeeTime: string | null) =>
+      apiClient.put(`/tournament-rounds/${roundId}/first-tee-time`, { firstTeeTime }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+      // Tee times are re-timed server-side; refresh anything showing them.
+      qc.invalidateQueries();
     },
   });
 }
