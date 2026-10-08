@@ -1349,19 +1349,27 @@ export function TeeTimeScoreEntryPage() {
   }, []);
 
   // One-time bulk seed of all holes on first load only, so GroupSetupStep /
-  // ScoreSummary have data before any navigation happens.
+  // ScoreSummary have data before any navigation happens. Also resumes entry
+  // automatically if the group already has scores saved from a previous
+  // visit (e.g. they closed the page mid-round) — otherwise closing and
+  // reopening the page would always dump them back on the splash screen at
+  // the starting hole, discarding their progress through the round.
   useEffect(() => {
     if (!scorecard || seededOnceRef.current) return;
     seededOnceRef.current = true;
 
     const initialScores: Record<number, Record<number, number | ''>> = {};
     const initialHoleData: Record<number, Record<number, HoleData>> = {};
+    const activePlayers = scorecard.players.filter((p) => !p.skippedWeek);
+    let anyScoreSaved = false;
+
     scorecard.players.forEach((player) => {
       initialScores[player.playerId] = {};
       initialHoleData[player.playerId] = {};
       player.holeScores.forEach((holeScore) => {
         if (holeScore.grossStrokes != null) {
           initialScores[player.playerId][holeScore.holeNumber] = holeScore.grossStrokes;
+          if (!player.skippedWeek) anyScoreSaved = true;
         }
         initialHoleData[player.playerId][holeScore.holeNumber] = {
           putts: holeScore.putts ?? '',
@@ -1372,6 +1380,30 @@ export function TeeTimeScoreEntryPage() {
     });
     setScores(initialScores);
     setHoleDataMap(initialHoleData);
+
+    if (anyScoreSaved && scorecard.holes.length > 0) {
+      const startIdx = (() => {
+        if (scorecard.startingHoleNumber == null) return 0;
+        const idx = scorecard.holes.findIndex((h) => h.holeNumber === scorecard.startingHoleNumber);
+        return idx >= 0 ? idx : 0;
+      })();
+      const isComplete = (holeNumber: number) =>
+        activePlayers.every((p) => initialScores[p.playerId]?.[holeNumber] !== undefined);
+      const firstIncompleteOffset = scorecard.holes.findIndex((_, i) => {
+        const hole = scorecard.holes[(startIdx + i) % scorecard.holes.length];
+        return !isComplete(hole.holeNumber);
+      });
+
+      if (firstIncompleteOffset < 0) {
+        // Every hole already has a score from a previous visit but the
+        // group never submitted — resume straight on the review screen
+        // rather than back inside hole entry with nothing left to fill in.
+        setShowSummary(true);
+      } else {
+        setCurrentHoleIndex((startIdx + firstIncompleteOffset) % scorecard.holes.length);
+      }
+      setSetupComplete(true);
+    }
   }, [scorecard]);
 
   // Refetch fresh scores for the current hole whenever the user navigates to
@@ -1784,7 +1816,7 @@ export function TeeTimeScoreEntryPage() {
       )}
 
       {/* Main content */}
-      {(setupComplete || !canEdit) && showSummary ? (
+      {!(setupComplete || !canEdit) ? null : showSummary ? (
         <>
           {/* Closest to the pin — scorer/admin only, feature-flagged */}
           {showClosestToPin && (
