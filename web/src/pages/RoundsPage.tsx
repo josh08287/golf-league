@@ -8,7 +8,7 @@ import { FullPageSpinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatShortDate } from '@/lib/utils';
-import { normalizeRoundStatus, normalizeRoundType } from '@/lib/enumUtils';
+import { normalizeRoundStatus, normalizeRoundType, formatNineHoleSide } from '@/lib/enumUtils';
 import type { Round, RoundStatus } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
@@ -34,7 +34,7 @@ function RoundRow({ round }: { round: Round }) {
           {round.courseName}
         </p>
         <p className="text-sm text-gray-500">
-          {isTournament ? 'Tournament' : `${round.nineHoleSide} 9`} &middot; Week {round.weekNumber} &middot;{' '}
+          {isTournament ? 'Tournament' : formatNineHoleSide(round.nineHoleSide)} &middot; Week {round.weekNumber} &middot;{' '}
           {formatShortDate(round.scheduledDate)}
         </p>
       </div>

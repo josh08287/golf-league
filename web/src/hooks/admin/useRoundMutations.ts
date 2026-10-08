@@ -219,6 +219,19 @@ export function useSetTournamentSkinsPool(roundId: string) {
   });
 }
 
+export function useSetTournamentCountsTowardHandicap(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (countsTowardHandicap: boolean) =>
+      apiClient
+        .put(`/tournament-rounds/${roundId}/counts-toward-handicap`, { countsTowardHandicap })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+    },
+  });
+}
+
 export function useAddTournamentParticipants(roundId: string) {
   const qc = useQueryClient();
   return useMutation({

@@ -63,13 +63,25 @@ public sealed class HandicapRecalculationService
     }
 
     /// <summary>Computes a single round's differential per the league's configured mode — used for display (e.g. player round history).</summary>
+    /// <remarks>
+    /// League differentials are on a 9-hole scale (the index is the doubled
+    /// 9-hole average), so an 18-hole round's differential is halved — the
+    /// same as playing two nines at that average.
+    /// </remarks>
     public double ComputeDifferential(HandicapRoundInput round, HandicapCalcSettings settings) => settings.Mode switch
     {
-        HandicapDifferentialMode.StraightStrokes =>
-            StablefordScoringService.NineHoleStraightStrokesDifferential(round.GrossStrokes, round.Par),
+        HandicapDifferentialMode.StraightStrokes => round.IsEighteenHoles
+            ? StablefordScoringService.StraightStrokesDifferential(round.GrossStrokes, round.Par) / 2
+            : StablefordScoringService.NineHoleStraightStrokesDifferential(round.GrossStrokes, round.Par),
+        // A custom formula is written against a nine's gross score, so feed it
+        // half of an 18-hole round's gross.
         HandicapDifferentialMode.Custom when !string.IsNullOrWhiteSpace(settings.CustomFormula) =>
-            _formulaEvaluator.Evaluate(settings.CustomFormula, new HandicapFormulaInput(round.GrossStrokes, round.CourseRating, round.SlopeRating, round.Par)),
-        _ => StablefordScoringService.NineHoleScoreDifferential(round.GrossStrokes, round.CourseRating, round.SlopeRating),
+            _formulaEvaluator.Evaluate(settings.CustomFormula, new HandicapFormulaInput(
+                round.IsEighteenHoles ? (int)Math.Round(round.GrossStrokes / 2.0, MidpointRounding.AwayFromZero) : round.GrossStrokes,
+                round.CourseRating, round.SlopeRating, round.Par)),
+        _ => round.IsEighteenHoles
+            ? StablefordScoringService.ScoreDifferential(round.GrossStrokes, round.CourseRating, round.SlopeRating) / 2
+            : StablefordScoringService.NineHoleScoreDifferential(round.GrossStrokes, round.CourseRating, round.SlopeRating),
     };
 }
 

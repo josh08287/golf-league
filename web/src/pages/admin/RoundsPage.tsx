@@ -27,6 +27,7 @@ import {
   isRoundFinalized,
   isRoundInProgress,
   isRoundScheduled,
+  formatNineHoleSide,
 } from '../../lib/enumUtils';
 import type { Round, RoundStatus } from '../../types/api';
 
@@ -129,7 +130,7 @@ export function RoundsPage() {
           <Badge variant="warning">Tournament</Badge>
         ) : (
           <Badge variant={r.nineHoleSide === 'Front' ? 'info' : 'success'}>
-            {r.nineHoleSide === 'NotApplicable' ? '18-Hole' : r.nineHoleSide}
+            {formatNineHoleSide(r.nineHoleSide)}
           </Badge>
         ),
     },

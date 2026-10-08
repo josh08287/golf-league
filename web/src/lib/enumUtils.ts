@@ -79,3 +79,9 @@ export function isNineHole(type: string | number | undefined): boolean {
 export function isBackNine(side: string | number | undefined): boolean {
   return normalizeNineHoleSide(side) === 'Back';
 }
+
+/** "Front 9" / "Back 9" for a weekly side; "18 Holes" for a full round (side NotApplicable). */
+export function formatNineHoleSide(side: string | number | undefined): string {
+  const normalized = normalizeNineHoleSide(side);
+  return normalized === 'NotApplicable' ? '18 Holes' : `${normalized} 9`;
+}

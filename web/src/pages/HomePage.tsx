@@ -29,7 +29,7 @@ import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { formatShortDate } from '@/lib/utils';
-import { normalizeRoundStatus } from '@/lib/enumUtils';
+import { normalizeRoundStatus, formatNineHoleSide } from '@/lib/enumUtils';
 import type { Flight, Round, RoundScorecard, RoundStatus } from '@/types/api';
 
 function statusVariant(status: RoundStatus) {
@@ -71,7 +71,7 @@ function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
           </Badge>
         </div>
         <CardDescription className="text-amber-700">
-          {teeTime.courseName} · {teeTime.nineHoleSide} 9 · Tee Time: {teeTime.scheduledTimeFormatted}
+          {teeTime.courseName} · {formatNineHoleSide(teeTime.nineHoleSide)} · Tee Time: {teeTime.scheduledTimeFormatted}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -396,7 +396,7 @@ function FeaturedRound({ round }: FeaturedRoundProps) {
         <div>
           <p className="font-semibold text-gray-900">{round.courseName}</p>
           <p className="text-sm text-gray-500">
-            Week {round.weekNumber} &middot; {round.nineHoleSide} 9 &middot;{' '}
+            Week {round.weekNumber} &middot; {formatNineHoleSide(round.nineHoleSide)} &middot;{' '}
             {formatShortDate(round.scheduledDate)}
           </p>
         </div>

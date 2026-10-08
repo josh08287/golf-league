@@ -152,7 +152,7 @@ class _ScoreEntryViewState extends State<_ScoreEntryView> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${scorecard.nineHoleSide} 9 · Tee Time: ${scorecard.scheduledTimeFormatted}',
+                '${nineHoleSideLabel(scorecard.nineHoleSide)} · Tee Time: ${scorecard.scheduledTimeFormatted}',
                 style: const TextStyle(fontSize: 14, color: Color(0xFF6B7280)),
               ),
             ],

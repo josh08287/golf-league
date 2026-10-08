@@ -51,8 +51,8 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized &&
-                // Tournament rounds don't count toward handicaps.
-                rp.Round.RoundType != RoundType.Tournament);
+                // Tournament rounds count only when the admin opted that round in.
+                (rp.Round.RoundType != RoundType.Tournament || rp.Round.CountsTowardHandicap));
 
         if (asOfDate.HasValue)
             query = query.Where(rp => rp.Round.RoundDate <= asOfDate.Value);
@@ -69,7 +69,8 @@ public sealed class HandicapRepository : IHandicapRepository
                 rp.TotalGrossStrokes!.Value,
                 rp.Round.Course.CourseRating,
                 rp.Round.Course.SlopeRating,
-                rp.Round.Course.Holes.Sum(h => h.Par)))
+                rp.Round.Course.Holes.Sum(h => h.Par),
+                IsEighteenHoles: rp.Round.NineHoleSide == NineHoleSide.NotApplicable))
             .ToList();
     }
 
@@ -120,8 +121,8 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized &&
-                // Tournament rounds don't count toward handicaps.
-                rp.Round.RoundType != RoundType.Tournament)
+                // Tournament rounds count only when the admin opted that round in.
+                (rp.Round.RoundType != RoundType.Tournament || rp.Round.CountsTowardHandicap))
             .Select(rp => rp.PlayerId)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -135,8 +136,8 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
                 rp.Round.Status == RoundStatus.Finalized &&
-                // Tournament rounds don't count toward handicaps.
-                rp.Round.RoundType != RoundType.Tournament)
+                // Tournament rounds count only when the admin opted that round in.
+                (rp.Round.RoundType != RoundType.Tournament || rp.Round.CountsTowardHandicap))
             .Select(rp => rp.Round.RoundDate)
             .Distinct()
             .OrderBy(d => d)

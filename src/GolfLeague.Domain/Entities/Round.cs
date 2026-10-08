@@ -38,6 +38,14 @@ public class Round
     public decimal? NetSkinsPool { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: whether this round's 18-hole score feeds
+    /// players' handicaps once finalized. Off by default — league handicaps
+    /// are otherwise built from weekly 9-hole rounds. Weekly rounds always
+    /// count regardless of this value.
+    /// </summary>
+    public bool CountsTowardHandicap { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.

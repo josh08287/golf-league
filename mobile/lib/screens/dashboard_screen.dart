@@ -415,7 +415,7 @@ class _TodaysTeeTimeSection extends ConsumerWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    '${teeTime.courseName} · ${teeTime.nineHoleSide} 9 · Tee Time: ${teeTime.scheduledTimeFormatted}',
+                    '${teeTime.courseName} · ${nineHoleSideLabel(teeTime.nineHoleSide)} · Tee Time: ${teeTime.scheduledTimeFormatted}',
                     style: const TextStyle(
                       fontSize: 14,
                       color: Color(0xFF374151),

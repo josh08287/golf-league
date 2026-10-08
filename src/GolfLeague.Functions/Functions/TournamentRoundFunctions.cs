@@ -274,6 +274,36 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>
+    /// PUT /v1/tournament-rounds/{id}/counts-toward-handicap — opts the
+    /// tournament's 18-hole scores into players' handicaps. Gated by the
+    /// tournament_handicap_toggle_enabled feature flag.
+    /// </summary>
+    [Function("SetTournamentCountsTowardHandicap")]
+    public async Task<IActionResult> SetTournamentCountsTowardHandicap(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/counts-toward-handicap")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var flag = await _featureFlags.GetAsync(KnownFeatureFlags.TournamentHandicapToggleEnabled, cancellationToken);
+        if (!(flag?.Enabled ?? KnownFeatureFlags.Defaults[KnownFeatureFlags.TournamentHandicapToggleEnabled]))
+            return new NotFoundObjectResult(new { error = "Tournament handicap toggle is not enabled." });
+
+        var body = await req.TryDeserializeAsync<SetCountsTowardHandicapRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetTournamentCountsTowardHandicapCommand(roundId, body.CountsTowardHandicap, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("GetTournamentComments")]
     public async Task<IActionResult> GetTournamentComments(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tournament-rounds/{id}/comments")] HttpRequest req,
@@ -343,5 +373,6 @@ public sealed class TournamentRoundFunctions
     private sealed record SetLongestDriveHoleRequest(int? HoleNumber);
     private sealed record SetLongestDriveWinnerRequest(int? WinnerPlayerId);
     private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
+    private sealed record SetCountsTowardHandicapRequest(bool CountsTowardHandicap);
     private sealed record PostCommentRequest(string Message);
 }

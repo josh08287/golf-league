@@ -108,9 +108,8 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.Finalized, cancellationToken);
         round.Status = RoundStatus.Finalized;
 
-        // Tournament rounds don't count toward handicaps — league handicaps are
-        // built from weekly 9-hole rounds only.
-        if (round.RoundType != RoundType.Tournament)
+        // Tournament rounds feed handicaps only when the admin opted the round in.
+        if (round.RoundType != RoundType.Tournament || round.CountsTowardHandicap)
         {
             // Recalculate each finalized participant's handicap index using the
             // league's configured mode and best-X-of-Y window (see

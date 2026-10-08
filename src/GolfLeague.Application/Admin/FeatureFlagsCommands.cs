@@ -189,6 +189,13 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string LeagueChampionshipEnabled = "league_championship_enabled";
 
+    /// <summary>
+    /// Shows a per-tournament toggle on the tournament management page that
+    /// opts the round's 18-hole scores into players' handicaps. Applies to
+    /// every league.
+    /// </summary>
+    public const string TournamentHandicapToggleEnabled = "tournament_handicap_toggle_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -202,5 +209,6 @@ public static class KnownFeatureFlags
         [TournamentCommentsEnabled] = false,
         [SideGamesEnabled] = false,
         [LeagueChampionshipEnabled] = false,
+        [TournamentHandicapToggleEnabled] = false,
     };
 }

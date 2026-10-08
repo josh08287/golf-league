@@ -205,6 +205,8 @@ export interface Round {
   longestDriveHoleNumber: number | null;
   grossSkinsPool: number | null;
   netSkinsPool: number | null;
+  /** Tournament rounds only: whether the round's 18-hole scores feed handicaps once finalized. */
+  countsTowardHandicap: boolean;
 }
 
 export interface Participant {
@@ -1202,6 +1204,7 @@ export const FEATURE_FLAG_KEYS = {
   tournamentCommentsEnabled: 'tournament_comments_enabled',
   sideGamesEnabled: 'side_games_enabled',
   leagueChampionshipEnabled: 'league_championship_enabled',
+  tournamentHandicapToggleEnabled: 'tournament_handicap_toggle_enabled',
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────

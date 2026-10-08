@@ -36,6 +36,7 @@ import type {
   ScorecardOcrResult,
   RoundType,
 } from '@/types/api';
+import { formatNineHoleSide } from '@/lib/enumUtils';
 
 // Helper to calculate stableford points
 function calculateStablefordPoints(par: number, netStrokes: number): number {
@@ -1716,7 +1717,7 @@ export function TeeTimeScoreEntryPage() {
 
       <PageHeader
         title="Enter Group Scores"
-        subtitle={`${scorecard.courseName} · ${scorecard.nineHoleSide} 9 · Tee Time ${scorecard.scheduledTimeFormatted}`}
+        subtitle={`${scorecard.courseName} · ${formatNineHoleSide(scorecard.nineHoleSide)} · Tee Time ${scorecard.scheduledTimeFormatted}`}
       >
         <Badge variant={canEdit ? 'amber' : 'green'}>
           {scorecard.roundStatus}

@@ -16,4 +16,5 @@ public sealed record RoundDto(
     int ParticipantCount,
     int? LongestDriveHoleNumber,
     decimal? GrossSkinsPool,
-    decimal? NetSkinsPool);
+    decimal? NetSkinsPool,
+    bool CountsTowardHandicap);

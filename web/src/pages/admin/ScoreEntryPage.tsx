@@ -14,7 +14,7 @@ import { ErrorMessage } from '../../components/ui/ErrorMessage';
 import { Card, CardHeader, CardTitle, CardContent } from '../../components/ui/Card';
 import { ArrowLeft, Save, Target } from 'lucide-react';
 import { api } from '../../lib/api';
-import { normalizeNineHoleSide, isRoundFinalized } from '../../lib/enumUtils';
+import { normalizeNineHoleSide, isRoundFinalized, formatNineHoleSide } from '../../lib/enumUtils';
 import type { CourseDetail, Participant } from '../../types/api';
 import { FEATURE_FLAG_KEYS } from '../../types/api';
 
@@ -458,7 +458,7 @@ export function ScoreEntryPage() {
         </button>
         <PageHeader
           title="Score Entry"
-          subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()} — ${round.nineHoleSide} 9 (Week ${round.weekNumber})`}
+          subtitle={`${round.courseName} — ${new Date(round.scheduledDate).toLocaleDateString()} — ${formatNineHoleSide(round.nineHoleSide)} (Week ${round.weekNumber})`}
         />
       </div>
 

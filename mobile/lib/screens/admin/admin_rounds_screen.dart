@@ -171,7 +171,7 @@ class _AdminRoundCardState extends ConsumerState<_AdminRoundCard> {
             ),
             const SizedBox(height: 4),
             Text(
-              '$dateStr · ${round.isTournament ? 'Tournament' : '${round.nineHoleSide} 9'}',
+              '$dateStr · ${round.isTournament ? 'Tournament' : nineHoleSideLabel(round.nineHoleSide)}',
               style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
             ),
             const SizedBox(height: 8),

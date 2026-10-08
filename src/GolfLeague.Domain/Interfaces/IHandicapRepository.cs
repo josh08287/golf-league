@@ -7,7 +7,12 @@ namespace GolfLeague.Domain.Interfaces;
 /// differential, before any mode (USGA / straight strokes / custom formula)
 /// is applied. See <see cref="GolfLeague.Domain.Services.HandicapFormulaInput"/>.
 /// </summary>
-public readonly record struct HandicapRoundInput(int GrossStrokes, double CourseRating, int SlopeRating, int Par);
+/// <summary>
+/// One round's inputs to a handicap differential. CourseRating and Par are the
+/// full course's values. IsEighteenHoles marks an 18-hole round (a tournament
+/// that counts toward handicaps) whose GrossStrokes covers all 18 holes.
+/// </summary>
+public readonly record struct HandicapRoundInput(int GrossStrokes, double CourseRating, int SlopeRating, int Par, bool IsEighteenHoles = false);
 
 public interface IHandicapRepository
 {

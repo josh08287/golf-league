@@ -945,7 +945,7 @@ class _RoundRow extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${DateFormat('MMM d, y').format(round.roundDate)} · Week ${round.weekNumber} · ${round.nineHoleSide} 9',
+                          '${DateFormat('MMM d, y').format(round.roundDate)} · Week ${round.weekNumber} · ${nineHoleSideLabel(round.nineHoleSide)}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF6B7280),

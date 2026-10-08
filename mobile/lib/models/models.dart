@@ -1775,3 +1775,6 @@ class CourseDetail {
         .toList(),
   );
 }
+
+/// "Front 9" / "Back 9" for a weekly side; "18 Holes" for a full round (side NotApplicable).
+String nineHoleSideLabel(String side) => side == 'NotApplicable' ? '18 Holes' : '$side 9';

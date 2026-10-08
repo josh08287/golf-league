@@ -97,4 +97,30 @@ public class HandicapRecalculationServiceTests
 
         sut.CalculateNewIndex(new List<HandicapRoundInput>(), settings).Should().BeNull();
     }
+
+    [Fact]
+    public void ComputeDifferential_EighteenHoleRound_IsHalfTheEighteenHoleDifferential_Usga()
+    {
+        var sut = BuildSut(new List<LeagueSetting>());
+        var settings = new HandicapCalcSettings(HandicapDifferentialMode.Usga, 5, 5, string.Empty);
+
+        // 18-hole: (82 - 71) * 113 / 113 = 11, on the league's 9-hole scale = 5.5.
+        var eighteen = sut.ComputeDifferential(new HandicapRoundInput(82, 71, 113, 72, IsEighteenHoles: true), settings);
+        // Same as a nine shot at exactly half the score: (41 - 35.5) = 5.5.
+        var nine = sut.ComputeDifferential(new HandicapRoundInput(41, 71, 113, 72), settings);
+
+        eighteen.Should().BeApproximately(5.5, 0.0001);
+        eighteen.Should().BeApproximately(nine, 0.0001);
+    }
+
+    [Fact]
+    public void ComputeDifferential_EighteenHoleRound_IsHalfTheOverPar_StraightStrokes()
+    {
+        var sut = BuildSut(new List<LeagueSetting>());
+        var settings = new HandicapCalcSettings(HandicapDifferentialMode.StraightStrokes, 5, 5, string.Empty);
+
+        var differential = sut.ComputeDifferential(new HandicapRoundInput(84, 71, 113, 72, IsEighteenHoles: true), settings);
+
+        differential.Should().Be(6); // (84 - 72) / 2
+    }
 }

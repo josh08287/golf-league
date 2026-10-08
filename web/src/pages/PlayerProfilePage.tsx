@@ -34,7 +34,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { PlayerCompareModal } from '@/components/PlayerCompareModal';
 import { HandicapChart } from '@/components/HandicapChart';
 import { formatShortDate } from '@/lib/utils';
-import { normalizeRoundStatus } from '@/lib/enumUtils';
+import { normalizeRoundStatus, formatNineHoleSide } from '@/lib/enumUtils';
 
 function TeeTimePreferenceSelector({ playerId, currentMask }: { playerId: number; currentMask: number }) {
   const setPreference = useSetTeeTimePreference();
@@ -842,7 +842,7 @@ export function PlayerProfilePage() {
                       </TableCell>
                       <TableCell className="text-gray-700">
                         {r.courseName}{' '}
-                        <span className="text-gray-400 text-xs">({r.nineHoleSide})</span>
+                        <span className="text-gray-400 text-xs">({formatNineHoleSide(r.nineHoleSide)})</span>
                       </TableCell>
                       <TableCell className="text-center text-gray-500">{r.weekNumber}</TableCell>
                       <TableCell className="text-center">

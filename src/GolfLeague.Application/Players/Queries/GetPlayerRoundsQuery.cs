@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Handicaps;
 using GolfLeague.Application.Interfaces;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -71,7 +72,8 @@ public sealed class GetPlayerRoundsQueryHandler
                         rp.TotalGrossStrokes.Value,
                         rp.Round.Course.CourseRating,
                         rp.Round.Course.SlopeRating,
-                        rp.Round.Course.Holes.Sum(h => h.Par));
+                        rp.Round.Course.Holes.Sum(h => h.Par),
+                        IsEighteenHoles: rp.Round.NineHoleSide == NineHoleSide.NotApplicable);
 
                     scoreDifferential = Math.Round(
                         _handicapCalc.ComputeDifferential(roundInput, settings),

@@ -72,6 +72,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       'Adds a "League Championship" tab to the tournament results page: a season-long, Tour-Championship-style leaderboard that seeds eligible (non-substitute) players by season gross/net points and gives top seeds a starting stroke advantage. Applies to every league.',
   },
+  {
+    key: FEATURE_FLAG_KEYS.tournamentHandicapToggleEnabled,
+    label: 'Tournament handicap toggle',
+    description:
+      "Adds a setting to the tournament management page that lets admins choose whether a tournament's 18-hole scores count toward players' handicaps when the round is finalized. Tournaments never count unless an admin turns this on for that round. Applies to every league.",
+  },
 ];
 
 function Toggle({

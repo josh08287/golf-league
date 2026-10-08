@@ -144,7 +144,7 @@ class _AdminScoreEntryScreenState
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${round.courseName} · ${DateFormat('MMM d, y').format(round.scheduledDate)} · ${round.nineHoleSide} 9'
+                        '${round.courseName} · ${DateFormat('MMM d, y').format(round.scheduledDate)} · ${nineHoleSideLabel(round.nineHoleSide)}'
                         '${round.weekNumber != null ? ' (Week ${round.weekNumber})' : ''}',
                         style: const TextStyle(
                           fontSize: 13,

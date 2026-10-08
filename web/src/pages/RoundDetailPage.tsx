@@ -19,7 +19,7 @@ import { ErrorMessage } from '@/components/ui/ErrorMessage';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { normalizeRoundStatus } from '@/lib/enumUtils';
+import { normalizeRoundStatus, formatNineHoleSide } from '@/lib/enumUtils';
 import { GrossPar3SkinsDisplay } from '@/components/GrossPar3SkinsDisplay';
 import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import type { RoundScorecard, RoundScorecardHole, RoundStatus, FlightSkins, HoleSkin } from '@/types/api';
@@ -416,7 +416,7 @@ export function RoundDetailPage() {
       {round.data && (
         <PageHeader
           title={round.data.courseName}
-          description={`${formatDate(round.data.scheduledDate)} — Week ${round.data.weekNumber} — ${round.data.nineHoleSide} 9`}
+          description={`${formatDate(round.data.scheduledDate)} — Week ${round.data.weekNumber} — ${formatNineHoleSide(round.data.nineHoleSide)}`}
         >
           <div className="flex items-center gap-2">
             <Badge variant={statusVariant(round.data.status)}>{round.data.status}</Badge>

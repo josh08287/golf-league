@@ -21,7 +21,10 @@ import {
   useSetTournamentLongestDriveHole,
   useSetTournamentMatchups,
   useSetTournamentSkinsPool,
+  useSetTournamentCountsTowardHandicap,
 } from '../../hooks/admin/useRoundMutations';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { FEATURE_FLAG_KEYS } from '../../types/api';
 import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
@@ -62,6 +65,9 @@ export function ManageTournamentPage() {
   const setSkinsPool = useSetTournamentSkinsPool(roundId);
 
   const skinsPoolLocked = isRoundFinalized(round?.status);
+  const { data: flagStates } = useFeatureFlagStates();
+  const handicapToggleEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentHandicapToggleEnabled] ?? false;
+  const setCountsTowardHandicap = useSetTournamentCountsTowardHandicap(roundId);
   const [grossSkinsPool, setGrossSkinsPoolInput] = useState('');
   const [netSkinsPool, setNetSkinsPoolInput] = useState('');
   const [skinsPoolInitialized, setSkinsPoolInitialized] = useState(false);
@@ -316,6 +322,36 @@ export function ManageTournamentPage() {
               >
                 {setSkinsPool.isPending ? 'Saving…' : 'Save Skins Pool'}
               </Button>
+            </div>
+          )}
+
+          {handicapToggleEnabled && (
+            <div className="rounded-md border border-gray-200 px-3 py-2.5">
+              <label className="flex items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+                  checked={round.countsTowardHandicap}
+                  disabled={skinsPoolLocked || setCountsTowardHandicap.isPending}
+                  onChange={(e) => setCountsTowardHandicap.mutate(e.target.checked)}
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-800">Count toward handicaps</span>
+                  <span className="block text-xs text-gray-500">
+                    When the round is finalized, each player's 18-hole score is added to their handicap history
+                    alongside weekly rounds. Off by default.
+                  </span>
+                </span>
+              </label>
+              {skinsPoolLocked && (
+                <p className="mt-1.5 text-xs text-gray-400">Locked once the round is finalized — re-open the round to change it.</p>
+              )}
+              {setCountsTowardHandicap.isError && (
+                <p className="mt-1.5 text-xs text-red-600">
+                  {(setCountsTowardHandicap.error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error
+                    ?? 'Failed to save. Please try again.'}
+                </p>
+              )}
             </div>
           )}
         </section>

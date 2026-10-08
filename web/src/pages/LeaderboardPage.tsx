@@ -20,6 +20,7 @@ import { cn } from '@/lib/utils';
 import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import type { ActiveRoundLeaderboardFlight, ActiveRoundLeaderboardEntry } from '@/types/api';
+import { formatNineHoleSide } from '@/lib/enumUtils';
 
 function holeNumbers(flight: ActiveRoundLeaderboardFlight): number[] {
   const numbers = new Set<number>();
@@ -162,7 +163,7 @@ export function LeaderboardPage() {
           description={
             isTournament
               ? formatDate(data.scheduledDate)
-              : `${formatDate(data.scheduledDate)} — ${data.nineHoleSide} 9`
+              : `${formatDate(data.scheduledDate)} — ${formatNineHoleSide(data.nineHoleSide)}`
           }
         >
           <Badge variant="amber">Live</Badge>

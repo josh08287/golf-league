@@ -326,4 +326,20 @@ public class FinalizeRoundHandlerTests
         m.Rounds.Verify(r => r.UpdateParticipantAsync(
             It.Is<RoundParticipant>(p => p.Id == 1 && p.TotalGrossStrokes == 45), It.IsAny<CancellationToken>()), Times.Once);
     }
+
+    [Fact]
+    public async Task Handle_TournamentOptedIntoHandicaps_RecalculatesHandicaps()
+    {
+        var m = new Mocks();
+        var round = MakeRound();
+        round.RoundType = RoundType.Tournament;
+        round.CountsTowardHandicap = true;
+        round.Participants = [MakeParticipant(1)];
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+
+        var result = await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        m.Handicaps.Verify(h => h.GetLastNRoundInputsAsync(1, It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()), Times.Once);
+    }
 }
