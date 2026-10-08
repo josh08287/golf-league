@@ -196,6 +196,12 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string TournamentHandicapToggleEnabled = "tournament_handicap_toggle_enabled";
 
+    /// <summary>
+    /// Shows a per-tournament toggle on the tournament management page that
+    /// lets substitutes win skins. Applies to every league.
+    /// </summary>
+    public const string TournamentSubstituteSkinsToggleEnabled = "tournament_substitute_skins_toggle_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -210,5 +216,6 @@ public static class KnownFeatureFlags
         [SideGamesEnabled] = false,
         [LeagueChampionshipEnabled] = false,
         [TournamentHandicapToggleEnabled] = false,
+        [TournamentSubstituteSkinsToggleEnabled] = false,
     };
 }

@@ -17,4 +17,5 @@ public sealed record RoundDto(
     int? LongestDriveHoleNumber,
     decimal? GrossSkinsPool,
     decimal? NetSkinsPool,
-    bool CountsTowardHandicap);
+    bool CountsTowardHandicap,
+    bool SubstitutesCanWinSkins);

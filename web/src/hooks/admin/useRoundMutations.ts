@@ -232,6 +232,20 @@ export function useSetTournamentCountsTowardHandicap(roundId: string) {
   });
 }
 
+export function useSetTournamentSubstituteSkins(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (substitutesCanWinSkins: boolean) =>
+      apiClient
+        .put(`/tournament-rounds/${roundId}/substitute-skins`, { substitutesCanWinSkins })
+        .then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentResults(roundId) });
+    },
+  });
+}
+
 export function useAddTournamentParticipants(roundId: string) {
   const qc = useQueryClient();
   return useMutation({

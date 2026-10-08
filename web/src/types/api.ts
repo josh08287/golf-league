@@ -207,6 +207,8 @@ export interface Round {
   netSkinsPool: number | null;
   /** Tournament rounds only: whether the round's 18-hole scores feed handicaps once finalized. */
   countsTowardHandicap: boolean;
+  /** Tournament rounds only: whether substitutes can win skins. */
+  substitutesCanWinSkins: boolean;
 }
 
 export interface Participant {
@@ -1205,6 +1207,7 @@ export const FEATURE_FLAG_KEYS = {
   sideGamesEnabled: 'side_games_enabled',
   leagueChampionshipEnabled: 'league_championship_enabled',
   tournamentHandicapToggleEnabled: 'tournament_handicap_toggle_enabled',
+  tournamentSubstituteSkinsToggleEnabled: 'tournament_substitute_skins_toggle_enabled',
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────

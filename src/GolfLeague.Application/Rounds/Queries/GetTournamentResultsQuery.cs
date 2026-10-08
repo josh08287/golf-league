@@ -173,8 +173,13 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.HoleScores.Any())
             .ToList();
 
-        var grossSkins = CalculateSkins(active, useNet: false, round.GrossSkinsPool);
-        var netSkins = CalculateSkins(active, useNet: true, round.NetSkinsPool);
+        // Substitutes are left out of skins unless the admin made them eligible
+        // for this tournament; they never count toward rankings either way.
+        var skinsField = round.SubstitutesCanWinSkins
+            ? participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any()).ToList()
+            : active;
+        var grossSkins = CalculateSkins(skinsField, useNet: false, round.GrossSkinsPool);
+        var netSkins = CalculateSkins(skinsField, useNet: true, round.NetSkinsPool);
         // Course Handicap is known at tee-off regardless of scoring, so look matchup
         // players up in the full roster (not `active`, which requires a submitted
         // score) — otherwise CH shows as 0 for every matchup until scores start.

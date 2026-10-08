@@ -163,5 +163,6 @@ internal static class RoundDtoMapper
             round.LongestDriveHoleNumber,
             round.GrossSkinsPool,
             round.NetSkinsPool,
-            round.CountsTowardHandicap);
+            round.CountsTowardHandicap,
+            round.SubstitutesCanWinSkins);
 }

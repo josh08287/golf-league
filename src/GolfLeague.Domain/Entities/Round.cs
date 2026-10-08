@@ -46,6 +46,14 @@ public class Round
     public bool CountsTowardHandicap { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: whether substitutes are eligible to win gross
+    /// and net skins. Off by default — substitutes are left out of the skins
+    /// calculation entirely, so a hole they'd have won goes to the best
+    /// non-substitute score instead.
+    /// </summary>
+    public bool SubstitutesCanWinSkins { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.

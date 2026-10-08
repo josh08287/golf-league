@@ -304,6 +304,36 @@ public sealed class TournamentRoundFunctions
         return result.ToOkResult();
     }
 
+    /// <summary>
+    /// PUT /v1/tournament-rounds/{id}/substitute-skins — whether substitutes
+    /// can win skins in this tournament. Gated by the
+    /// tournament_substitute_skins_toggle_enabled feature flag.
+    /// </summary>
+    [Function("SetTournamentSubstituteSkins")]
+    public async Task<IActionResult> SetTournamentSubstituteSkins(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tournament-rounds/{id}/substitute-skins")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId))
+            return new BadRequestObjectResult(new { error = "Invalid round ID." });
+
+        var flag = await _featureFlags.GetAsync(KnownFeatureFlags.TournamentSubstituteSkinsToggleEnabled, cancellationToken);
+        if (!(flag?.Enabled ?? KnownFeatureFlags.Defaults[KnownFeatureFlags.TournamentSubstituteSkinsToggleEnabled]))
+            return new NotFoundObjectResult(new { error = "Substitute skins toggle is not enabled." });
+
+        var body = await req.TryDeserializeAsync<SetSubstituteSkinsRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetTournamentSubstituteSkinsCommand(roundId, body.SubstitutesCanWinSkins, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
     [Function("GetTournamentComments")]
     public async Task<IActionResult> GetTournamentComments(
         [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/tournament-rounds/{id}/comments")] HttpRequest req,
@@ -374,5 +404,6 @@ public sealed class TournamentRoundFunctions
     private sealed record SetLongestDriveWinnerRequest(int? WinnerPlayerId);
     private sealed record SetSkinsPoolRequest(decimal? GrossSkinsPool, decimal? NetSkinsPool);
     private sealed record SetCountsTowardHandicapRequest(bool CountsTowardHandicap);
+    private sealed record SetSubstituteSkinsRequest(bool SubstitutesCanWinSkins);
     private sealed record PostCommentRequest(string Message);
 }
