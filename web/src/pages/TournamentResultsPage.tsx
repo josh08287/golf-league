@@ -14,6 +14,7 @@ import {
   MessageSquare,
   Send,
   Crown,
+  Award,
 } from 'lucide-react';
 import {
   useTournamentResults,
@@ -29,6 +30,7 @@ import type {
   TournamentSkinsResult,
   TournamentSkinHole,
   TournamentMatchupResult,
+  MatchPlayHole,
   TournamentRankingEntry,
   TournamentHoleExtra,
   LongestDriveWinner,
@@ -385,14 +387,223 @@ function FlightsPanel({
   );
 }
 
+// ── Stableford leaderboard ────────────────────────────────────────────────────
+
+function NetGrossToggle({
+  useGrossPoints,
+  onChange,
+}: {
+  useGrossPoints: boolean;
+  onChange: (useGross: boolean) => void;
+}) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+      <button
+        type="button"
+        onClick={() => onChange(false)}
+        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          !useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        Net
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange(true)}
+        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          useGrossPoints ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        Gross
+      </button>
+    </div>
+  );
+}
+
+function StablefordFlightLeaderboard({
+  flight,
+  holes,
+  useGrossPoints,
+}: {
+  flight: TournamentFlight;
+  holes: TournamentCourseHole[];
+  useGrossPoints: boolean;
+}) {
+  // Higher Stableford points is better — leader at the top, same as a
+  // normal golf leaderboard. Players with no points yet sort to the bottom.
+  const pointsOf = (p: TournamentFlightPlayer) =>
+    useGrossPoints ? p.totalGrossStablefordPoints : p.totalNetStablefordPoints;
+  const sortedPlayers = [...flight.players].sort((a, b) => {
+    const pointsA = pointsOf(a);
+    const pointsB = pointsOf(b);
+    if (pointsA == null && pointsB == null) return a.courseHandicap - b.courseHandicap;
+    if (pointsA == null) return 1;
+    if (pointsB == null) return -1;
+    return pointsB - pointsA;
+  });
+
+  if (holes.length === 0) {
+    return (
+      <div className="rounded-lg border border-gray-200 p-3">
+        <h4 className="mb-1.5 text-sm font-semibold text-gray-700">Flight {flight.name}</h4>
+        <ul className="space-y-0.5 text-sm text-gray-600">
+          {sortedPlayers.map((p) => (
+            <li key={p.playerId}>{p.playerName}</li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 p-3">
+      <h4 className="mb-2 text-sm font-semibold text-gray-700">Flight {flight.name}</h4>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-max text-xs">
+          <thead className="text-gray-400">
+            <tr>
+              <th className="px-1 py-1 text-center font-medium">#</th>
+              <th className="sticky left-0 bg-white px-2 py-1 text-left font-medium">Player</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-1 text-center font-medium">
+                  {h.holeNumber}
+                </th>
+              ))}
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">
+                {useGrossPoints ? 'Gross Pts' : 'Net Pts'}
+              </th>
+            </tr>
+            <tr className="text-gray-300">
+              <th />
+              <th className="sticky left-0 bg-white px-2 py-0.5 text-left font-normal">Par</th>
+              {holes.map((h) => (
+                <th key={h.holeNumber} className="px-1.5 py-0.5 text-center font-normal">
+                  {h.par}
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {sortedPlayers.map((p, index) => {
+              const scoresByHole = new Map(p.holeScores.map((h) => [h.holeNumber, h]));
+              const points = pointsOf(p);
+              const rank = points == null ? null : index + 1;
+              return (
+                <tr key={p.playerId} className={rank === 1 ? 'bg-amber-50' : ''}>
+                  <td className="px-1 py-1.5 text-center text-gray-500">{rank ?? '—'}</td>
+                  <td
+                    className={`sticky left-0 whitespace-nowrap px-2 py-1.5 font-medium text-gray-800 ${rank === 1 ? 'bg-amber-50' : 'bg-white'}`}
+                  >
+                    {p.playerName}
+                    <span className="ml-1 font-normal text-gray-400">({p.courseHandicap})</span>
+                  </td>
+                  {holes.map((h) => {
+                    const holeScore = scoresByHole.get(h.holeNumber);
+                    const value = useGrossPoints ? holeScore?.grossStablefordPoints : holeScore?.netStablefordPoints;
+                    const dots = holeScore?.handicapStrokes ?? strokesOnHole(p.courseHandicap, h.strokeIndex);
+                    return (
+                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
+                        {value ?? <span className="text-gray-300">—</span>}
+                        {!useGrossPoints && dots > 0 && (
+                          <span className="absolute inset-x-0 -bottom-0.5">
+                            <HandicapDots strokes={dots} />
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
+                    {points ?? <span className="text-gray-300">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function StablefordLeaderboardPanel({
+  flights,
+  holes,
+}: {
+  flights: TournamentFlight[];
+  holes: TournamentCourseHole[];
+}) {
+  const [useGrossPoints, setUseGrossPoints] = useState(false);
+
+  return (
+    <section>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-2">
+        <div className="flex items-center gap-2">
+          <Award className="h-5 w-5 text-green-700" />
+          <h2 className="text-lg font-semibold text-gray-800">Stableford Leaderboard</h2>
+        </div>
+        <NetGrossToggle useGrossPoints={useGrossPoints} onChange={setUseGrossPoints} />
+      </div>
+
+      {flights.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No flights for this round yet.</p>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {flights.map((f) => (
+            <StablefordFlightLeaderboard key={f.id} flight={f} holes={holes} useGrossPoints={useGrossPoints} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 // ── Matchups ──────────────────────────────────────────────────────────────────
 
-function MatchupCard({ m }: { m: TournamentMatchupResult }) {
+type MatchPlayMode = 'strokes' | 'points';
+
+function MatchPlayModeToggle({
+  mode,
+  onChange,
+}: {
+  mode: MatchPlayMode;
+  onChange: (mode: MatchPlayMode) => void;
+}) {
+  return (
+    <div className="flex gap-1 rounded-lg border border-gray-200 bg-gray-50 p-1">
+      <button
+        type="button"
+        onClick={() => onChange('strokes')}
+        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          mode === 'strokes' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        Match Play (Net)
+      </button>
+      <button
+        type="button"
+        onClick={() => onChange('points')}
+        className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+          mode === 'points' ? 'bg-white text-green-800 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+        }`}
+      >
+        Stableford Points (Net)
+      </button>
+    </div>
+  );
+}
+
+function MatchupCard({ m, mode }: { m: TournamentMatchupResult; mode: MatchPlayMode }) {
+  const byPoints = mode === 'points';
   const isBye = m.player2Id === null;
-  const halved = m.isHalved;
-  const p1Wins = m.winnerPlayerId === m.player1Id;
-  const p2Wins = !isBye && m.winnerPlayerId === m.player2Id;
-  const pending = !isBye && m.winnerPlayerId === null && !halved;
+  const winnerPlayerId = byPoints ? m.winnerPlayerIdByPoints : m.winnerPlayerId;
+  const halved = byPoints ? m.isHalvedByPoints : m.isHalved;
+  const holeByHole = byPoints ? m.holeByHolePoints : m.holeByHole;
+  const p1Score = byPoints ? m.player1NetPoints : m.player1NetStrokes;
+  const p2Score = byPoints ? m.player2NetPoints : m.player2NetStrokes;
+  const p1Wins = winnerPlayerId === m.player1Id;
+  const p2Wins = !isBye && winnerPlayerId === m.player2Id;
+  const pending = !isBye && winnerPlayerId === null && !halved;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -408,8 +619,11 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
           <p className="mt-0.5 text-xs text-gray-500">
             CH {m.player1CourseHandicap}
           </p>
-          {m.player1NetStrokes !== null && (
-            <p className="mt-1 text-lg font-bold text-gray-700">{m.player1NetStrokes}</p>
+          {p1Score !== null && (
+            <p className="mt-1 text-lg font-bold text-gray-700">
+              {p1Score}
+              {byPoints && <span className="ml-0.5 text-xs font-normal text-gray-400">pts</span>}
+            </p>
           )}
           {p1Wins && !isBye && (
             <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
@@ -434,8 +648,11 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
               <p className="mt-0.5 text-xs text-gray-500">
                 CH {m.player2CourseHandicap}
               </p>
-              {m.player2NetStrokes !== null && (
-                <p className="mt-1 text-lg font-bold text-gray-700">{m.player2NetStrokes}</p>
+              {p2Score !== null && (
+                <p className="mt-1 text-lg font-bold text-gray-700">
+                  {p2Score}
+                  {byPoints && <span className="ml-0.5 text-xs font-normal text-gray-400">pts</span>}
+                </p>
               )}
               {p2Wins && (
                 <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-green-700">
@@ -449,26 +666,29 @@ function MatchupCard({ m }: { m: TournamentMatchupResult }) {
 
       <div className="mt-2 text-center text-sm">
         {halved && <span className="text-blue-600 font-medium">Halved (Tie)</span>}
-        {pending && m.holeByHole.length === 0 && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
+        {pending && holeByHole.length === 0 && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
       </div>
 
-      {m.holeByHole.length > 0 && <MatchPlayScorecard m={m} />}
+      {holeByHole.length > 0 && <MatchPlayScorecard holeByHole={holeByHole} byPoints={byPoints} />}
     </div>
   );
 }
 
 /// Classic 1-up-style strip: one column per hole showing who won it and the
 /// running match status from Player1's perspective (e.g. "2 UP", "AS", "3&2").
-function MatchPlayScorecard({ m }: { m: TournamentMatchupResult }) {
+/// In points mode, "winning" a hole means more net Stableford points rather
+/// than fewer net strokes, but the up/down tally and closeout convention are
+/// otherwise identical.
+function MatchPlayScorecard({ holeByHole, byPoints }: { holeByHole: MatchPlayHole[]; byPoints: boolean }) {
   const formatStatus = (status: number | null) => {
     if (status === null) return '—';
     if (status === 0) return 'AS';
     return status > 0 ? `${status}↑` : `${Math.abs(status)}↓`;
   };
 
-  const decidedIndex = m.holeByHole.findIndex((h) => h.isConceded);
-  const closingHole = decidedIndex > 0 ? m.holeByHole[decidedIndex - 1] : null;
-  const holesRemaining = closingHole ? m.holeByHole.length - decidedIndex : 0;
+  const decidedIndex = holeByHole.findIndex((h) => h.isConceded);
+  const closingHole = decidedIndex > 0 ? holeByHole[decidedIndex - 1] : null;
+  const holesRemaining = closingHole ? holeByHole.length - decidedIndex : 0;
   const closeoutLabel =
     closingHole && closingHole.statusAfterHole !== null && closingHole.statusAfterHole !== 0
       ? `${Math.abs(closingHole.statusAfterHole)}&${holesRemaining}`
@@ -480,7 +700,7 @@ function MatchPlayScorecard({ m }: { m: TournamentMatchupResult }) {
         <thead className="text-gray-400">
           <tr>
             <th className="px-1 py-0.5 text-left font-medium">Hole</th>
-            {m.holeByHole.map((h) => (
+            {holeByHole.map((h) => (
               <th key={h.holeNumber} className="px-1 py-0.5 text-center font-medium">
                 {h.holeNumber}
               </th>
@@ -490,14 +710,20 @@ function MatchPlayScorecard({ m }: { m: TournamentMatchupResult }) {
         <tbody>
           <tr>
             <td className="px-1 py-0.5 text-left text-gray-500">Status</td>
-            {m.holeByHole.map((h) => {
+            {holeByHole.map((h) => {
               const holeWinner =
                 h.player1NetStrokes !== null && h.player2NetStrokes !== null
-                  ? h.player1NetStrokes < h.player2NetStrokes
-                    ? 'p1'
-                    : h.player2NetStrokes < h.player1NetStrokes
-                      ? 'p2'
-                      : 'halve'
+                  ? byPoints
+                    ? h.player1NetStrokes > h.player2NetStrokes
+                      ? 'p1'
+                      : h.player2NetStrokes > h.player1NetStrokes
+                        ? 'p2'
+                        : 'halve'
+                    : h.player1NetStrokes < h.player2NetStrokes
+                      ? 'p1'
+                      : h.player2NetStrokes < h.player1NetStrokes
+                        ? 'p2'
+                        : 'halve'
                   : null;
               return (
                 <td
@@ -679,7 +905,7 @@ function CommentsPanel({ roundId }: { roundId: string }) {
 
 // ── View tabs ─────────────────────────────────────────────────────────────────
 
-type ResultsView = 'strokes' | 'matches' | 'championship';
+type ResultsView = 'strokes' | 'matches' | 'championship' | 'stableford';
 
 function ViewTabs({
   view,
@@ -696,6 +922,7 @@ function ViewTabs({
     { key: 'strokes', label: 'Strokes Leaderboard', icon: ListOrdered },
     ...(showMatches ? [{ key: 'matches' as const, label: 'Match Status', icon: Swords }] : []),
     ...(showChampionship ? [{ key: 'championship' as const, label: 'League Championship', icon: Crown }] : []),
+    { key: 'stableford', label: 'Stableford Leaderboard', icon: Award },
   ];
 
   return (
@@ -728,10 +955,10 @@ function ViewTabs({
 export function TournamentResultsBody({ results }: { results: TournamentResults }) {
   const [view, setView] = useState<ResultsView>('strokes');
   const [strokesUseGrossPoints, setStrokesUseGrossPoints] = useState(false);
+  const [matchPlayMode, setMatchPlayMode] = useState<MatchPlayMode>('strokes');
   const { data: flagStates } = useFeatureFlagStates();
   const championshipEnabled = flagStates?.[FEATURE_FLAG_KEYS.leagueChampionshipEnabled] ?? false;
   const hasMatchups = results.matchupResults.length > 0;
-  const showTabs = hasMatchups || championshipEnabled;
 
   return (
     <div className="space-y-8">
@@ -741,23 +968,29 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
         <HoleExtrasPanel extras={results.holeExtras} ldWinners={results.longestDriveWinners} />
       </section>
 
-      {showTabs && (
-        <ViewTabs
-          view={view}
-          onChange={setView}
-          showMatches={hasMatchups}
-          showChampionship={championshipEnabled}
-        />
-      )}
+      <ViewTabs
+        view={view}
+        onChange={setView}
+        showMatches={hasMatchups}
+        showChampionship={championshipEnabled}
+      />
 
       {view === 'championship' && championshipEnabled ? (
         <LeagueChampionshipPanel roundId={results.roundId} flights={results.flights} holes={results.holes} />
+      ) : view === 'stableford' ? (
+        <StablefordLeaderboardPanel flights={results.flights} holes={results.holes} />
       ) : view === 'matches' && hasMatchups ? (
         <section>
-          <SectionTitle icon={Users} label="Matchup Results" />
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-2">
+            <div className="flex items-center gap-2">
+              <Users className="h-5 w-5 text-green-700" />
+              <h2 className="text-lg font-semibold text-gray-800">Matchup Results</h2>
+            </div>
+            <MatchPlayModeToggle mode={matchPlayMode} onChange={setMatchPlayMode} />
+          </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {results.matchupResults.map((m) => (
-              <MatchupCard key={m.matchupNumber} m={m} />
+              <MatchupCard key={m.matchupNumber} m={m} mode={matchPlayMode} />
             ))}
           </div>
         </section>

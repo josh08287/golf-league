@@ -1034,6 +1034,10 @@ export interface TournamentMatchupResult {
   winnerPlayerName: string | null;
   isHalved: boolean;
   holeByHole: MatchPlayHole[];
+  winnerPlayerIdByPoints: number | null;
+  winnerPlayerNameByPoints: string | null;
+  isHalvedByPoints: boolean;
+  holeByHolePoints: MatchPlayHole[];
 }
 
 export interface TournamentRankingEntry {
@@ -1059,6 +1063,8 @@ export interface TournamentFlightHoleScore {
   netStrokes: number | null;
   /** Standard "dots" notation — strokes this player receives on this hole for net purposes. */
   handicapStrokes: number;
+  grossStablefordPoints: number | null;
+  netStablefordPoints: number | null;
 }
 
 export interface TournamentFlightPlayer {
@@ -1068,6 +1074,8 @@ export interface TournamentFlightPlayer {
   holeScores: TournamentFlightHoleScore[];
   totalGrossStrokes: number | null;
   totalNetStrokes: number | null;
+  totalGrossStablefordPoints: number | null;
+  totalNetStablefordPoints: number | null;
 }
 
 export interface TournamentFlight {

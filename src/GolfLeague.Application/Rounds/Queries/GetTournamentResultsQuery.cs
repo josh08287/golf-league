@@ -55,13 +55,20 @@ public sealed record TournamentMatchupResultDto(
     int? WinnerPlayerId,
     string? WinnerPlayerName,
     bool IsHalved,
-    List<MatchPlayHoleDto> HoleByHole);
+    List<MatchPlayHoleDto> HoleByHole,
+    int? WinnerPlayerIdByPoints,
+    string? WinnerPlayerNameByPoints,
+    bool IsHalvedByPoints,
+    List<MatchPlayHoleDto> HoleByHolePoints);
 
 /// <summary>
 /// Match-play status after one hole is complete for both players in a matchup.
 /// StatusAfterHole is from Player1's perspective: positive = Player1 up N, negative =
 /// Player2 up N, 0 = all square. Null once the match is already decided (closed out
-/// before hole 18) or the hole hasn't been played by both players yet.
+/// before hole 18) or the hole hasn't been played by both players yet. Used for both
+/// the strokes-based match (hole winner = fewer net strokes) and the Stableford
+/// points match (hole winner = more net Stableford points) — Player1/2NetStrokes
+/// hold net strokes in the former and net Stableford points in the latter.
 /// </summary>
 public sealed record MatchPlayHoleDto(
     int HoleNumber,
@@ -82,12 +89,16 @@ public sealed record TournamentRankingEntryDto(
 public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
 
 /// <summary>One player's score on one hole, for the flight scorecard grid. HandicapStrokes is the
-/// standard "dots" notation — the number of strokes this player receives on this hole for net purposes.</summary>
+/// standard "dots" notation — the number of strokes this player receives on this hole for net purposes.
+/// Gross/NetStablefordPoints are null until a score is posted for the hole (0 points still displays
+/// as a real value — these are null only when there's no HoleScore row yet).</summary>
 public sealed record TournamentFlightHoleScoreDto(
     int HoleNumber,
     int? GrossStrokes,
     int? NetStrokes,
-    int HandicapStrokes);
+    int HandicapStrokes,
+    int? GrossStablefordPoints,
+    int? NetStablefordPoints);
 
 public sealed record TournamentFlightPlayerDto(
     int PlayerId,
@@ -95,7 +106,9 @@ public sealed record TournamentFlightPlayerDto(
     int CourseHandicap,
     List<TournamentFlightHoleScoreDto> HoleScores,
     int? TotalGrossStrokes,
-    int? TotalNetStrokes);
+    int? TotalNetStrokes,
+    int? TotalGrossStablefordPoints,
+    int? TotalNetStablefordPoints);
 
 public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds, List<TournamentFlightPlayerDto> Players);
 
@@ -184,10 +197,13 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             p.CourseHandicap,
             p.HoleScores
                 .OrderBy(h => h.HoleNumber)
-                .Select(h => new TournamentFlightHoleScoreDto(h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes))
+                .Select(h => new TournamentFlightHoleScoreDto(
+                    h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes, h.GrossStablefordPoints, h.NetStablefordPoints))
                 .ToList(),
             p.TotalGrossStrokes,
-            p.TotalNetStrokes);
+            p.TotalNetStrokes,
+            p.TotalGrossStablefordPoints,
+            p.TotalNetStablefordPoints);
 
         var flightDtos = flights
             .Select(f =>
@@ -352,6 +368,10 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                     matchup.Player1Id,
                     matchup.Player1.FullName,
                     false,
+                    [],
+                    matchup.Player1Id,
+                    matchup.Player1.FullName,
+                    false,
                     []));
                 continue;
             }
@@ -384,7 +404,34 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 }
             }
 
-            var holeByHole = BuildMatchPlayHoles(p1, p2);
+            // Stableford points match: same matchup, but each hole (and the overall
+            // result) is decided by who scores MORE net Stableford points rather than
+            // who takes FEWER net strokes.
+            int? winnerIdByPoints = null;
+            string? winnerNameByPoints = null;
+            bool halvedByPoints = false;
+
+            if (p1Points.HasValue && p2Points.HasValue)
+            {
+                if (p1Points > p2Points)
+                {
+                    winnerIdByPoints = matchup.Player1Id;
+                    winnerNameByPoints = matchup.Player1.FullName;
+                }
+                else if (p2Points > p1Points)
+                {
+                    winnerIdByPoints = matchup.Player2Id;
+                    winnerNameByPoints = matchup.Player2?.FullName;
+                }
+                else
+                {
+                    halvedByPoints = true;
+                    winnerIdByPoints = 0;
+                }
+            }
+
+            var holeByHole = BuildMatchPlayHoles(p1, p2, byPoints: false);
+            var holeByHolePoints = BuildMatchPlayHoles(p1, p2, byPoints: true);
 
             results.Add(new TournamentMatchupResultDto(
                 matchup.MatchupNumber,
@@ -403,7 +450,11 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 winnerId,
                 winnerName,
                 halved,
-                holeByHole));
+                holeByHole,
+                winnerIdByPoints,
+                winnerNameByPoints,
+                halvedByPoints,
+                holeByHolePoints));
         }
 
         return results;
@@ -415,8 +466,10 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
     /// perspective. Once a player is mathematically closed out (up by more holes than
     /// remain), later holes stop updating status (IsConceded = true) even if both
     /// players later post scores for them, matching the "3&2"-style stop convention.
+    /// Strokes mode (byPoints: false) awards the hole to whoever has fewer net strokes;
+    /// Stableford points mode (byPoints: true) awards it to whoever has more net points.
     /// </summary>
-    private static List<MatchPlayHoleDto> BuildMatchPlayHoles(RoundParticipant? p1, RoundParticipant? p2)
+    private static List<MatchPlayHoleDto> BuildMatchPlayHoles(RoundParticipant? p1, RoundParticipant? p2, bool byPoints)
     {
         if (p1 is null || p2 is null) return [];
 
@@ -435,17 +488,21 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             var holeNumber = holeNumbers[i];
             var h1 = p1.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
             var h2 = p2.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
+            var h1Value = byPoints ? h1?.NetStablefordPoints : h1?.NetStrokes;
+            var h2Value = byPoints ? h2?.NetStablefordPoints : h2?.NetStrokes;
 
             if (closedOut)
             {
-                result.Add(new MatchPlayHoleDto(holeNumber, h1?.NetStrokes, h2?.NetStrokes, null, true));
+                result.Add(new MatchPlayHoleDto(holeNumber, h1Value, h2Value, null, true));
                 continue;
             }
 
-            if (h1 is not null && h2 is not null)
+            if (h1Value is not null && h2Value is not null)
             {
-                if (h1.NetStrokes < h2.NetStrokes) status += 1;
-                else if (h2.NetStrokes < h1.NetStrokes) status -= 1;
+                var p1WinsHole = byPoints ? h1Value > h2Value : h1Value < h2Value;
+                var p2WinsHole = byPoints ? h2Value > h1Value : h2Value < h1Value;
+                if (p1WinsHole) status += 1;
+                else if (p2WinsHole) status -= 1;
 
                 var holesRemaining = totalHoles - (i + 1);
                 if (Math.Abs(status) > holesRemaining)
@@ -454,9 +511,9 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
 
             result.Add(new MatchPlayHoleDto(
                 holeNumber,
-                h1?.NetStrokes,
-                h2?.NetStrokes,
-                h1 is not null && h2 is not null ? status : null,
+                h1Value,
+                h2Value,
+                h1Value is not null && h2Value is not null ? status : null,
                 false));
         }
 
