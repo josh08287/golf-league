@@ -19,18 +19,20 @@ public static class StablefordScoringService
     }
 
     /// <summary>
-    /// Calculates strokes on a hole for 9-hole rounds, normalizing stroke index by ranking within the nine.
+    /// Calculates strokes on a hole, normalizing stroke index by ranking within the holes being
+    /// played. Works for a 9-hole side (9 indices) and a full 18-hole round (18 indices) alike —
+    /// the course handicap is spread over however many holes are in the round.
     /// </summary>
-    /// <param name="courseHandicap">The 9-hole course handicap</param>
+    /// <param name="courseHandicap">The course handicap for the holes being played</param>
     /// <param name="strokeIndex">The hole's 18-hole stroke index</param>
-    /// <param name="allStrokeIndicesInNine">All stroke indices for the 9-hole side being played</param>
+    /// <param name="allStrokeIndicesInRound">Stroke indices of every hole being played</param>
     /// <returns>Number of handicap strokes to apply on this hole</returns>
-    public static int StrokesOnHole(int courseHandicap, int strokeIndex, IReadOnlyList<int> allStrokeIndicesInNine)
+    public static int StrokesOnHole(int courseHandicap, int strokeIndex, IReadOnlyList<int> allStrokeIndicesInRound)
     {
-        // Normalize: rank this hole's stroke index among all holes in this nine (1 = hardest, 9 = easiest)
-        var sortedIndices = allStrokeIndicesInNine.OrderBy(si => si).ToList();
-        var normalizedIndex = sortedIndices.IndexOf(strokeIndex) + 1; // Convert to 1-based rank
-        return (int)Math.Floor(courseHandicap / 9.0) + (normalizedIndex <= courseHandicap % 9 ? 1 : 0);
+        var holeCount = allStrokeIndicesInRound.Count;
+        var sortedIndices = allStrokeIndicesInRound.OrderBy(si => si).ToList();
+        var normalizedIndex = sortedIndices.IndexOf(strokeIndex) + 1; // 1 = hardest hole in the round
+        return (int)Math.Floor(courseHandicap / (double)holeCount) + (normalizedIndex <= courseHandicap % holeCount ? 1 : 0);
     }
 
     public static int NetStrokes(int grossStrokes, int strokesOnHole)

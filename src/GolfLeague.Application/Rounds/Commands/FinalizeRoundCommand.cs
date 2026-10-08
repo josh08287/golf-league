@@ -59,20 +59,68 @@ public sealed class FinalizeRoundCommandHandler : IRequestHandler<FinalizeRoundC
         if (course is null)
             return Result<RoundDto>.Fail($"Course with ID {round.CourseId} not found.");
 
+        var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
+        var roundHoles = round.NineHoleSide switch
+        {
+            NineHoleSide.Back => courseHoles.Where(h => h.HoleNumber >= 10),
+            NineHoleSide.Front => courseHoles.Where(h => h.HoleNumber <= 9),
+            _ => courseHoles,
+        };
+        var expectedHoleNumbers = roundHoles.Select(h => h.HoleNumber).ToHashSet();
+
+        var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
+        var playing = participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek).ToList();
+
+        // A tournament can't be finalized until every player in the field has a
+        // score on every hole — otherwise results, rankings, and skins would be
+        // locked in with holes missing. Withdraw or skip anyone who didn't finish.
+        if (round.RoundType == RoundType.Tournament)
+        {
+            var incomplete = playing
+                .Select(p => (Player: p, Missing: expectedHoleNumbers.Except(p.HoleScores.Select(h => h.HoleNumber)).OrderBy(h => h).ToList()))
+                .Where(x => x.Missing.Count > 0)
+                .OrderBy(x => x.Player.Player.FullName)
+                .ToList();
+
+            if (incomplete.Count > 0)
+            {
+                var details = string.Join("; ", incomplete.Select(x =>
+                    x.Missing.Count == expectedHoleNumbers.Count
+                        ? $"{x.Player.Player.FullName} (no scores)"
+                        : $"{x.Player.Player.FullName} (hole{(x.Missing.Count == 1 ? "" : "s")} {string.Join(", ", x.Missing)})"));
+                return Result<RoundDto>.Fail(
+                    $"Can't finalize yet — {incomplete.Count} player{(incomplete.Count == 1 ? " is" : "s are")} missing scores: {details}. " +
+                    "Enter the missing scores, or withdraw players who didn't finish.");
+            }
+        }
+
+        // Rebuild totals from the saved hole scores, so groups that entered every
+        // hole but never pressed Submit are still counted.
+        foreach (var participant in playing)
+        {
+            RoundTotals.Apply(participant, participant.HoleScores.ToList(), expectedHoleNumbers.Count);
+            await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+        }
+
         // Set-based status update first — avoids reattaching the Round graph
         // (Participants + their HoleScores) which can confuse EF tracking
         // across the subsequent Handicap inserts.
         await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.Finalized, cancellationToken);
         round.Status = RoundStatus.Finalized;
 
-        // Recalculate each finalized participant's handicap index using the
-        // league's configured mode and best-X-of-Y window (see
-        // HandicapRecalculationService) — not full WHS cap rules.
-        var settings = await _handicapCalc.LoadSettingsAsync(_leagueContext.LeagueId ?? 0, cancellationToken);
-
-        foreach (var participant in round.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && p.TotalGrossStrokes.HasValue))
+        // Tournament rounds don't count toward handicaps — league handicaps are
+        // built from weekly 9-hole rounds only.
+        if (round.RoundType != RoundType.Tournament)
         {
-            await RecalculateAndPersistAsync(participant.PlayerId, round.RoundDate, settings, cancellationToken);
+            // Recalculate each finalized participant's handicap index using the
+            // league's configured mode and best-X-of-Y window (see
+            // HandicapRecalculationService) — not full WHS cap rules.
+            var settings = await _handicapCalc.LoadSettingsAsync(_leagueContext.LeagueId ?? 0, cancellationToken);
+
+            foreach (var participant in playing.Where(p => !p.IsSubstitute && p.TotalGrossStrokes.HasValue))
+            {
+                await RecalculateAndPersistAsync(participant.PlayerId, round.RoundDate, settings, cancellationToken);
+            }
         }
 
         return Result<RoundDto>.Ok(RoundDtoMapper.Map(round, course.Name, round.Participants.Count));

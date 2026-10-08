@@ -33,13 +33,32 @@ public class FinalizeRoundHandlerTests
         Participants = [],
     };
 
-    private static RoundParticipant MakeParticipant(int playerId, bool withdrawn = false, bool skipped = false, int? totalGross = 40) => new()
+    private const int HoleCount = 9;
+
+    /// <summary>
+    /// Totals are rebuilt from hole scores at finalize, so a participant with a
+    /// gross total gets a full set of hole scores summing to it; null means no
+    /// scores at all.
+    /// </summary>
+    private static RoundParticipant MakeParticipant(int playerId, bool withdrawn = false, bool skipped = false, int? totalGross = 40, int holesScored = HoleCount) => new()
     {
         Id = playerId,
         PlayerId = playerId,
         IsWithdrawn = withdrawn,
         SkippedWeek = skipped,
         TotalGrossStrokes = totalGross,
+        Player = new Player { Id = playerId, FirstName = $"Player{playerId}", LastName = "P" },
+        HoleScores = totalGross is int gross
+            ? Enumerable.Range(1, holesScored)
+                .Select(h => new HoleScore
+                {
+                    ParticipantId = playerId,
+                    HoleNumber = h,
+                    GrossStrokes = gross / HoleCount + (h == 1 ? gross % HoleCount : 0),
+                    NetStrokes = gross / HoleCount,
+                })
+                .ToList()
+            : [],
     };
 
     private sealed class Mocks
@@ -54,6 +73,13 @@ public class FinalizeRoundHandlerTests
         {
             Courses.Setup(c => c.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new Course { Id = 1, Name = "Test Course" });
+            Courses.Setup(c => c.GetHolesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IReadOnlyList<CourseHole>)Enumerable.Range(1, HoleCount).Select(h => new CourseHole { HoleNumber = h, Par = 4, StrokeIndex = h }).ToList());
+            // The handler loads participants (with hole scores) separately from
+            // the round; serve whatever the test attached to the round.
+            Rounds.Setup(r => r.GetParticipantsAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .Returns((int id, CancellationToken ct) => Task.FromResult<IReadOnlyList<RoundParticipant>>(
+                    Rounds.Object.GetByIdAsync(id, ct).Result?.Participants.ToList() ?? []));
             Handicaps.Setup(h => h.GetLastNRoundInputsAsync(
                     It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<HandicapRoundInput>());
@@ -244,5 +270,60 @@ public class FinalizeRoundHandlerTests
         m.Handicaps.Verify(h => h.AddAsync(It.Is<Handicap>(x => x.PlayerId == 1), It.IsAny<CancellationToken>()), Times.Once);
         m.Handicaps.Verify(h => h.AddAsync(It.Is<Handicap>(x => x.PlayerId == 2), It.IsAny<CancellationToken>()), Times.Once);
         m.Handicaps.Verify(h => h.AddAsync(It.Is<Handicap>(x => x.PlayerId == 3), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_TournamentWithMissingScores_FailsAndListsWhoIsMissingWhat()
+    {
+        var m = new Mocks();
+        var round = MakeRound();
+        round.RoundType = RoundType.Tournament;
+        round.Participants =
+        [
+            MakeParticipant(1),
+            MakeParticipant(2, holesScored: 7),
+            MakeParticipant(3, totalGross: null),
+            MakeParticipant(4, withdrawn: true, totalGross: null),
+        ];
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+
+        var result = await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeFalse();
+        result.Error.Should().Contain("Player2 P (holes 8, 9)").And.Contain("Player3 P (no scores)").And.NotContain("Player4");
+        m.Rounds.Verify(r => r.UpdateStatusAsync(It.IsAny<int>(), RoundStatus.Finalized, It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_CompleteTournament_FinalizesWithoutTouchingHandicaps()
+    {
+        var m = new Mocks();
+        var round = MakeRound();
+        round.RoundType = RoundType.Tournament;
+        round.Participants = [MakeParticipant(1), MakeParticipant(2)];
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+
+        var result = await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        m.Rounds.Verify(r => r.UpdateStatusAsync(1, RoundStatus.Finalized, It.IsAny<CancellationToken>()), Times.Once);
+        m.Handicaps.Verify(h => h.GetLastNRoundInputsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateOnly?>(), It.IsAny<CancellationToken>()), Times.Never);
+        m.Handicaps.Verify(h => h.AddAsync(It.IsAny<Handicap>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task Handle_RebuildsTotalsFromHoleScores_WhenGroupNeverPressedSubmit()
+    {
+        var m = new Mocks();
+        var round = MakeRound();
+        var participant = MakeParticipant(1, totalGross: 45);
+        participant.TotalGrossStrokes = null; // hole scores saved, but totals never set
+        round.Participants = [participant];
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+
+        await m.BuildSut().Handle(new FinalizeRoundCommand(1, "admin-1"), CancellationToken.None);
+
+        m.Rounds.Verify(r => r.UpdateParticipantAsync(
+            It.Is<RoundParticipant>(p => p.Id == 1 && p.TotalGrossStrokes == 45), It.IsAny<CancellationToken>()), Times.Once);
     }
 }

@@ -42,6 +42,11 @@ function RoundStatusBadge({ status }: { status: Round['status'] }) {
   return <Badge variant={variantMap[normalizedStatus]}>{normalizedStatus}</Badge>;
 }
 
+function finalizeErrorMessage(error: unknown): string {
+  const message = (error as { response?: { data?: { error?: string } } } | null)?.response?.data?.error;
+  return message ?? 'Failed to finalize the round. Please try again.';
+}
+
 export function RoundsPage() {
   const navigate = useNavigate();
   const prefix = useLeaguePrefix();
@@ -64,8 +69,12 @@ export function RoundsPage() {
 
   async function handleFinalize() {
     if (!finalizeTarget) return;
-    await finalize.mutateAsync();
-    setFinalizeTarget(null);
+    try {
+      await finalize.mutateAsync();
+      setFinalizeTarget(null);
+    } catch {
+      // Error (e.g. players still missing scores) is shown in the dialog.
+    }
   }
 
   async function handleCancel() {
@@ -267,8 +276,13 @@ export function RoundsPage() {
         title="Finalize Round"
         description={`Finalize the round on ${finalizeTarget ? new Date(finalizeTarget.scheduledDate).toLocaleDateString(undefined, { timeZone: 'UTC' }) : ''}? This will lock scores and recalculate standings.`}
         confirmLabel="Finalize"
+        isLoading={finalize.isPending}
+        error={finalize.isError ? finalizeErrorMessage(finalize.error) : undefined}
         onConfirm={handleFinalize}
-        onCancel={() => setFinalizeTarget(null)}
+        onCancel={() => {
+          finalize.reset();
+          setFinalizeTarget(null);
+        }}
       />
 
       <ConfirmDialog

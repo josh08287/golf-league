@@ -50,7 +50,9 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.SkippedWeek &&
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
-                rp.Round.Status == RoundStatus.Finalized);
+                rp.Round.Status == RoundStatus.Finalized &&
+                // Tournament rounds don't count toward handicaps.
+                rp.Round.RoundType != RoundType.Tournament);
 
         if (asOfDate.HasValue)
             query = query.Where(rp => rp.Round.RoundDate <= asOfDate.Value);
@@ -117,7 +119,9 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.SkippedWeek &&
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
-                rp.Round.Status == RoundStatus.Finalized)
+                rp.Round.Status == RoundStatus.Finalized &&
+                // Tournament rounds don't count toward handicaps.
+                rp.Round.RoundType != RoundType.Tournament)
             .Select(rp => rp.PlayerId)
             .Distinct()
             .ToListAsync(cancellationToken);
@@ -130,7 +134,9 @@ public sealed class HandicapRepository : IHandicapRepository
                 !rp.SkippedWeek &&
                 !rp.IsSubstitute &&
                 rp.TotalGrossStrokes.HasValue &&
-                rp.Round.Status == RoundStatus.Finalized)
+                rp.Round.Status == RoundStatus.Finalized &&
+                // Tournament rounds don't count toward handicaps.
+                rp.Round.RoundType != RoundType.Tournament)
             .Select(rp => rp.Round.RoundDate)
             .Distinct()
             .OrderBy(d => d)

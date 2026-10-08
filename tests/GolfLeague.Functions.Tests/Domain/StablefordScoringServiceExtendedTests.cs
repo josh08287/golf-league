@@ -94,4 +94,29 @@ public class StablefordScoringServiceTests
         var result = StablefordScoringService.NineHoleScoreDifferential(grossStrokes, courseRating, slopeRating);
         result.Should().BeApproximately(expected, 0.01);
     }
+
+    [Theory]
+    [InlineData(14, 18)]
+    [InlineData(7, 18)]
+    [InlineData(22, 18)]
+    [InlineData(14, 9)]
+    [InlineData(5, 9)]
+    public void StrokesOnHole_OverRoundsHoles_TotalsCourseHandicap(int courseHandicap, int holeCount)
+    {
+        var strokeIndices = Enumerable.Range(1, holeCount).ToList();
+
+        var totalStrokes = strokeIndices.Sum(si => StablefordScoringService.StrokesOnHole(courseHandicap, si, strokeIndices));
+
+        totalStrokes.Should().Be(courseHandicap);
+    }
+
+    [Fact]
+    public void StrokesOnHole_EighteenHoles_SpreadsAcrossAllEighteen()
+    {
+        var strokeIndices = Enumerable.Range(1, 18).ToList();
+
+        // CH 14 over 18 holes: one stroke on stroke indices 1-14, none on 15-18.
+        StablefordScoringService.StrokesOnHole(14, 14, strokeIndices).Should().Be(1);
+        StablefordScoringService.StrokesOnHole(14, 15, strokeIndices).Should().Be(0);
+    }
 }

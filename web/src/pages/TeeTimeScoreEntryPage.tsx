@@ -42,10 +42,11 @@ function calculateStablefordPoints(par: number, netStrokes: number): number {
   return Math.max(0, Math.min(6, par + 2 - netStrokes));
 }
 
-// Helper to calculate handicap strokes on a hole.
-// strokeIndex is the normalized 1–9 rank within the nine (sent by the scorecard API).
-function calculateHandicapStrokes(courseHandicap: number, strokeIndex: number): number {
-  return Math.floor(courseHandicap / 9) + (strokeIndex <= courseHandicap % 9 ? 1 : 0);
+// Helper to calculate handicap strokes on a hole. strokeIndex is the normalized
+// rank within the holes being played (sent by the scorecard API), and the course
+// handicap is spread over that many holes — 9 for a weekly side, 18 for a tournament.
+function calculateHandicapStrokes(courseHandicap: number, strokeIndex: number, holeCount: number): number {
+  return Math.floor(courseHandicap / holeCount) + (strokeIndex <= courseHandicap % holeCount ? 1 : 0);
 }
 
 // Helper to calculate net strokes and cap at max
@@ -642,6 +643,7 @@ interface HoleViewProps {
   onHoleDataChange: (playerId: number, field: keyof HoleData, value: number | '' | boolean | null) => void;
   canEdit: boolean;
   advancedStatsMap: Record<number, boolean>;
+  holeCount: number;
 }
 
 function PuttInput({ label, value, onChange, disabled, min, max, step, placeholder }: {
@@ -677,7 +679,7 @@ function PuttInput({ label, value, onChange, disabled, min, max, step, placehold
   );
 }
 
-function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDataChange, canEdit, advancedStatsMap }: HoleViewProps) {
+function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDataChange, canEdit, advancedStatsMap, holeCount }: HoleViewProps) {
   // Fairway is relevant for par 4 and 5 holes only
   const showFairway = hole.par >= 4;
 
@@ -713,7 +715,7 @@ function HoleView({ hole, players, scores, holeDataMap, onScoreChange, onHoleDat
             ? ((playerScore as number) - (putts as number)) <= hole.par - 2
             : null;
 
-          const handicapStrokes = calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
+          const handicapStrokes = calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex, holeCount);
 
           return (
             <Card key={player.playerId} className={isSkipped ? 'opacity-50' : ''}>
@@ -826,7 +828,7 @@ function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit 
             holesEntered++;
             totalGross += gross;
 
-            const hcpStrokes = calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex);
+            const hcpStrokes = calculateHandicapStrokes(player.courseHandicap, hole.strokeIndex, holes.length);
             const { netStrokes } = calculateNetStrokes(gross, hole.par, hcpStrokes);
 
             totalNet += netStrokes;
@@ -1846,6 +1848,7 @@ export function TeeTimeScoreEntryPage() {
             }
             canEdit={canEdit}
             advancedStatsMap={advancedStatsMap}
+            holeCount={holes.length}
           />
           {scorecard?.roundType === 'Tournament' && (
             <TournamentHoleExtrasSection

@@ -171,6 +171,21 @@ public sealed class SaveTeeTimeHoleScoresCommandHandler
 
         await _roundRepository.UpsertHoleScoresAsync(request.HoleNumber, holeScoreEntities, cancellationToken);
 
+        // Keep round totals in step with hole-by-hole saves. Totals mean a
+        // complete round everywhere they're read (standings, rankings,
+        // handicaps), so they're set only once every hole has a score and
+        // cleared otherwise — a group that enters all holes via Next but never
+        // presses Submit still ends up with correct totals.
+        var savedParticipantIds = holeScoreEntities.Select(h => h.ParticipantId).Distinct().ToList();
+        var allSavedScores = await _roundRepository.GetHoleScoresForParticipantsAsync(savedParticipantIds, cancellationToken);
+        foreach (var participantId in savedParticipantIds)
+        {
+            var participant = teeTime.Participants.First(p => p.Id == participantId);
+            var scores = allSavedScores.Where(h => h.ParticipantId == participantId).ToList();
+            RoundTotals.Apply(participant, scores, relevantHoles.Count);
+            await _roundRepository.UpdateParticipantAsync(participant, cancellationToken);
+        }
+
         // Transition round to InProgress on first score save
         if (round.Status == RoundStatus.Scheduled)
             await _roundRepository.UpdateStatusAsync(round.Id, RoundStatus.InProgress, cancellationToken);

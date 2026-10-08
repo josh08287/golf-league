@@ -145,7 +145,7 @@ public sealed class RecalculateAllRoundsCommandHandler
                             course.SlopeRating,
                             course.CourseRating,
                             coursePar.Value,
-                            RoundType.NineHole);
+                            round.RoundType);
 
                         if (participant.CourseHandicap != recalculatedCourseHandicap)
                         {
@@ -179,9 +179,13 @@ public sealed class RecalculateAllRoundsCommandHandler
                     }
 
                     var courseHoles = await _courseRepository.GetHolesAsync(round.CourseId, cancellationToken);
-                    var relevantHoles = round.NineHoleSide == NineHoleSide.Back
-                        ? courseHoles.Where(h => h.HoleNumber >= 10).ToList()
-                        : courseHoles.Where(h => h.HoleNumber <= 9).ToList();
+                    var relevantHoles = round.NineHoleSide switch
+                    {
+                        NineHoleSide.Back => courseHoles.Where(h => h.HoleNumber >= 10).ToList(),
+                        NineHoleSide.Front => courseHoles.Where(h => h.HoleNumber <= 9).ToList(),
+                        // NotApplicable (18-hole rounds, e.g. tournaments) plays every hole.
+                        _ => courseHoles.ToList(),
+                    };
                     var allStrokeIndicesInNine = relevantHoles.Select(h => h.StrokeIndex).ToList();
 
                     var participants = await _roundRepository.GetParticipantsAsync(round.Id, cancellationToken);
@@ -215,7 +219,7 @@ public sealed class RecalculateAllRoundsCommandHandler
                                 course.SlopeRating,
                                 course.CourseRating,
                                 courseHoles.Sum(h => h.Par),
-                                RoundType.NineHole);
+                                round.RoundType);
 
                             // Update the course handicap if it changed
                             if (participant.CourseHandicap != recalculatedCourseHandicap)

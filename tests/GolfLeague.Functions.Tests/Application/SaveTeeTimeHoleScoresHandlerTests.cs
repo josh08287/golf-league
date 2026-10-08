@@ -66,6 +66,8 @@ public class SaveTeeTimeHoleScoresHandlerTests
             Courses.Setup(c => c.GetHolesAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeHoles());
             Rounds.Setup(r => r.GetHoleScoresForParticipantsAsync(It.IsAny<int>(), It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<HoleScore>());
+            Rounds.Setup(r => r.GetHoleScoresForParticipantsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<HoleScore>());
         }
 
         public SaveTeeTimeHoleScoresCommandHandler BuildSut() => new(Rounds.Object, TeeTimes.Object, Courses.Object);
@@ -193,5 +195,49 @@ public class SaveTeeTimeHoleScoresHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Saved.Should().BeTrue();
         result.Value.Conflicts.Should().BeEmpty();
+    }
+
+    private static List<HoleScore> SavedHoles(int participantId, int holeCount, int gross = 5) =>
+        Enumerable.Range(1, holeCount)
+            .Select(h => new HoleScore { ParticipantId = participantId, HoleNumber = h, GrossStrokes = gross, NetStrokes = gross - 1, GrossStablefordPoints = 1, NetStablefordPoints = 2 })
+            .ToList();
+
+    [Fact]
+    public async Task Handle_LastHoleSaved_SetsRoundTotals()
+    {
+        var m = new Mocks();
+        var participant = MakeParticipant(10, 1, "Josh");
+        m.TeeTimes.Setup(t => t.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeTeeTime(1, participant));
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetHoleScoresForParticipantsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SavedHoles(10, 9));
+
+        var result = await m.BuildSut().Handle(
+            new SaveTeeTimeHoleScoresCommand(1, 1, 9, [new PlayerHoleScoresInput(1, [new HoleScoreInput(9, 5, null, null, null)])], "user-1"),
+            CancellationToken.None);
+
+        result.Value!.Saved.Should().BeTrue();
+        m.Rounds.Verify(r => r.UpdateParticipantAsync(
+            It.Is<RoundParticipant>(p => p.Id == 10 && p.TotalGrossStrokes == 45 && p.TotalNetStrokes == 36 && p.TotalNetStablefordPoints == 18),
+            It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task Handle_RoundNotYetComplete_LeavesTotalsEmpty()
+    {
+        var m = new Mocks();
+        var participant = MakeParticipant(10, 1, "Josh");
+        m.TeeTimes.Setup(t => t.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeTeeTime(1, participant));
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetHoleScoresForParticipantsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(SavedHoles(10, 4));
+
+        await m.BuildSut().Handle(
+            new SaveTeeTimeHoleScoresCommand(1, 1, 4, [new PlayerHoleScoresInput(1, [new HoleScoreInput(4, 5, null, null, null)])], "user-1"),
+            CancellationToken.None);
+
+        m.Rounds.Verify(r => r.UpdateParticipantAsync(
+            It.Is<RoundParticipant>(p => p.Id == 10 && p.TotalGrossStrokes == null && p.TotalNetStablefordPoints == null),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 }
