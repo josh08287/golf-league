@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Rounds.Commands;
@@ -42,13 +43,16 @@ public sealed class SetWolfHolePickCommandHandler
     : IRequestHandler<SetWolfHolePickCommand, Result<WolfHolePickResultDto>>
 {
     private readonly ITeeTimeRepository _teeTimeRepository;
+    private readonly IRoundRepository _roundRepository;
     private readonly ITeeTimeSideGameRepository _sideGameRepository;
 
     public SetWolfHolePickCommandHandler(
         ITeeTimeRepository teeTimeRepository,
+        IRoundRepository roundRepository,
         ITeeTimeSideGameRepository sideGameRepository)
     {
         _teeTimeRepository = teeTimeRepository;
+        _roundRepository = roundRepository;
         _sideGameRepository = sideGameRepository;
     }
 
@@ -72,7 +76,14 @@ public sealed class SetWolfHolePickCommandHandler
         if (rotation.Count == 0)
             return Result<WolfHolePickResultDto>.Fail("This Wolf game has no rotation order configured.");
 
-        var expectedWolfParticipantId = rotation[(request.HoleNumber - 1) % rotation.Count];
+        var round = await _roundRepository.GetByIdAsync(teeTime.RoundId, cancellationToken);
+        if (round is null)
+            return Result<WolfHolePickResultDto>.Fail($"Round for tee time {request.TeeTimeId} not found.");
+
+        var playOrder = WolfRotation.PlayOrder(round.NineHoleSide, teeTime.StartingHoleNumber);
+        var expectedWolfParticipantId = WolfRotation.WolfForHole(request.HoleNumber, playOrder, rotation);
+        if (expectedWolfParticipantId is null)
+            return Result<WolfHolePickResultDto>.Fail($"Hole {request.HoleNumber} isn't part of this round.");
         if (expectedWolfParticipantId != request.WolfParticipantId)
             return Result<WolfHolePickResultDto>.Fail("It isn't this player's turn to be the Wolf on this hole.");
 

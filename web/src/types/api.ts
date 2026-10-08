@@ -1282,8 +1282,11 @@ export interface WolfHolePickStatus {
 export interface WolfStatus {
   rotationParticipantIds: number[];
   rotationPlayerNames: string[];
+  /** Holes in the order the group plays them; the Wolf at index i is rotationParticipantIds[i % length]. */
+  playOrderHoleNumbers: number[];
   nextWolfParticipantId: number;
   nextWolfPlayerName: string;
+  /** 0 once every hole has a Wolf call. */
   nextHoleNumber: number;
   standings: WolfPlayerTally[];
   picks: WolfHolePickStatus[];

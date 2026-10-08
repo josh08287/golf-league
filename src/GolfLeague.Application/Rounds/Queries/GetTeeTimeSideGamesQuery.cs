@@ -45,9 +45,13 @@ public sealed record WolfHolePickStatusDto(
     string? PartnerPlayerName,
     string? Outcome);
 
+/// <summary>PlayOrderHoleNumbers is the order the group plays its holes (starting
+/// from a shotgun group's starting hole); the Wolf for the hole at position i in
+/// that list is RotationParticipantIds[i % rotation count].</summary>
 public sealed record WolfStatusDto(
     List<int> RotationParticipantIds,
     List<string> RotationPlayerNames,
+    List<int> PlayOrderHoleNumbers,
     int NextWolfParticipantId,
     string NextWolfPlayerName,
     int NextHoleNumber,
@@ -115,8 +119,10 @@ public sealed class GetTeeTimeSideGamesQueryHandler
         var activeParticipants = teeTime.Participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek).ToList();
         var participantsById = activeParticipants.ToDictionary(p => p.Id);
 
+        var playOrder = WolfRotation.PlayOrder(round.NineHoleSide, teeTime.StartingHoleNumber);
+
         var dtos = configured
-            .Select(g => BuildDto(g, activeParticipants, participantsById, holeCount))
+            .Select(g => BuildDto(g, activeParticipants, participantsById, holeCount, playOrder))
             .ToList();
 
         return Result<TeeTimeSideGamesDto>.Ok(new TeeTimeSideGamesDto(request.TeeTimeId, eligible, dtos));
@@ -126,7 +132,8 @@ public sealed class GetTeeTimeSideGamesQueryHandler
         TeeTimeSideGame game,
         List<RoundParticipant> activeParticipants,
         Dictionary<int, RoundParticipant> participantsById,
-        int holeCount)
+        int holeCount,
+        IReadOnlyList<int> playOrder)
     {
         var teamDtos = game.Teams
             .GroupBy(t => t.TeamNumber)
@@ -228,7 +235,7 @@ public sealed class GetTeeTimeSideGamesQueryHandler
         }
         else if (game.GameType == SideGameType.Wolf)
         {
-            wolfStatus = BuildWolfStatus(game, activeParticipants, participantsById, holeCount);
+            wolfStatus = BuildWolfStatus(game, activeParticipants, participantsById, playOrder);
         }
 
         return new TeeTimeSideGameDto(
@@ -278,7 +285,7 @@ public sealed class GetTeeTimeSideGamesQueryHandler
         TeeTimeSideGame game,
         List<RoundParticipant> activeParticipants,
         Dictionary<int, RoundParticipant> participantsById,
-        int holeCount)
+        IReadOnlyList<int> playOrder)
     {
         var rotation = game.Teams.OrderBy(t => t.TeamNumber).Select(t => t.ParticipantId).ToList();
         var rotationNames = rotation.Select(id => participantsById.TryGetValue(id, out var p) ? p.Player.FullName : "Unknown").ToList();
@@ -289,7 +296,7 @@ public sealed class GetTeeTimeSideGamesQueryHandler
         var pickDtos = new List<WolfHolePickStatusDto>();
         var activeParticipantIds = activeParticipants.Select(p => p.Id).ToList();
 
-        for (int holeNumber = 1; holeNumber <= holeCount; holeNumber++)
+        foreach (var holeNumber in playOrder)
         {
             if (!picksByHole.TryGetValue(holeNumber, out var pick))
                 continue;
@@ -331,11 +338,12 @@ public sealed class GetTeeTimeSideGamesQueryHandler
             .OrderByDescending(s => s.Points)
             .ToList();
 
-        var nextHoleNumber = Enumerable.Range(1, holeCount).FirstOrDefault(h => !picksByHole.ContainsKey(h), holeCount + 1);
-        var nextWolfParticipantId = rotation.Count > 0 && nextHoleNumber <= holeCount ? rotation[(nextHoleNumber - 1) % rotation.Count] : 0;
+        // 0 when every hole has a call — there's no next Wolf.
+        var nextHoleNumber = playOrder.FirstOrDefault(h => !picksByHole.ContainsKey(h));
+        var nextWolfParticipantId = nextHoleNumber == 0 ? 0 : WolfRotation.WolfForHole(nextHoleNumber, playOrder, rotation) ?? 0;
         var nextWolfName = participantsById.TryGetValue(nextWolfParticipantId, out var nextWolf) ? nextWolf.Player.FullName : "Unknown";
 
-        return new WolfStatusDto(rotation, rotationNames, nextWolfParticipantId, nextWolfName, nextHoleNumber, standings, pickDtos);
+        return new WolfStatusDto(rotation, rotationNames, playOrder.ToList(), nextWolfParticipantId, nextWolfName, nextHoleNumber, standings, pickDtos);
     }
 
     private static NassauMatchDto BuildNassauMatch(

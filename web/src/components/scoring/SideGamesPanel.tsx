@@ -146,9 +146,11 @@ function SideGameStatusCard({ game, onOptOut, optOutPending }: {
 
         {game.wolf && (
           <div className="mt-2 rounded bg-gray-50 px-2 py-1.5 text-xs space-y-1">
-            <p className="text-gray-700">
-              Next up: <span className="font-medium">{game.wolf.nextWolfPlayerName}</span> on hole {game.wolf.nextHoleNumber}
-            </p>
+            {game.wolf.nextHoleNumber > 0 && (
+              <p className="text-gray-700">
+                Next up: <span className="font-medium">{game.wolf.nextWolfPlayerName}</span> on hole {game.wolf.nextHoleNumber}
+              </p>
+            )}
             {game.wolf.standings.length > 0 && (
               <ul className="space-y-0.5">
                 {game.wolf.standings.map((s) => (
@@ -532,6 +534,9 @@ export function SideGamesHolePickersSection({ teeTimeId, holeNumber, players, en
 
         {wolfGame?.wolf && (
           <WolfHolePicker
+            // Remount per hole and whenever the saved call changes, so the
+            // picker never shows the previous hole's call or a stale one.
+            key={`${holeNumber}:${wolfPickSignature(wolfGame, holeNumber)}`}
             game={wolfGame}
             holeNumber={holeNumber}
             players={players}
@@ -546,6 +551,12 @@ export function SideGamesHolePickersSection({ teeTimeId, holeNumber, players, en
 }
 
 type WolfCallMode = 'partner' | 'lone' | 'blind';
+
+function wolfPickSignature(game: TeeTimeSideGame, holeNumber: number): string {
+  const pick = game.wolf?.picks.find((p) => p.holeNumber === holeNumber);
+  if (!pick) return 'none';
+  return `${pick.isBlindWolf ? 'blind' : pick.isLoneWolf ? 'lone' : 'partner'}:${pick.partnerParticipantId ?? ''}`;
+}
 
 function WolfHolePicker({
   game,
@@ -564,15 +575,28 @@ function WolfHolePicker({
 }) {
   const wolf = game.wolf!;
   const existingPick = wolf.picks.find((p) => p.holeNumber === holeNumber);
-  const wolfParticipantId = existingPick?.wolfParticipantId ?? wolf.rotationParticipantIds[(holeNumber - 1) % wolf.rotationParticipantIds.length];
+  const playPosition = wolf.playOrderHoleNumbers.indexOf(holeNumber);
+  const wolfParticipantId =
+    existingPick?.wolfParticipantId ??
+    (playPosition >= 0 ? wolf.rotationParticipantIds[playPosition % wolf.rotationParticipantIds.length] : undefined);
   const wolfName = players.find((p) => p.participantId === wolfParticipantId)?.playerName ?? 'Unknown';
 
   const initialMode: WolfCallMode = existingPick?.isBlindWolf ? 'blind' : existingPick?.isLoneWolf ? 'lone' : 'partner';
+  // Only needed for the in-between state of "Pick a partner" chosen but no
+  // partner selected yet; every complete call is saved immediately.
   const [mode, setMode] = useState<WolfCallMode>(initialMode);
-  const [partnerParticipantId, setPartnerParticipantId] = useState<number | ''>(existingPick?.partnerParticipantId ?? '');
+
+  if (wolfParticipantId == null) return null;
 
   const partnerOptions = players.filter((p) => p.participantId !== wolfParticipantId);
-  const canSave = mode !== 'partner' || partnerParticipantId !== '';
+
+  const saveLoneCall = (blind: boolean) => {
+    setMode(blind ? 'blind' : 'lone');
+    onSave({ wolfParticipantId, isLoneWolf: true, isBlindWolf: blind, partnerParticipantId: null });
+  };
+
+  const savePartner = (partnerId: number) =>
+    onSave({ wolfParticipantId, isLoneWolf: false, isBlindWolf: false, partnerParticipantId: partnerId });
 
   return (
     <div className="space-y-2">
@@ -594,8 +618,8 @@ function WolfHolePicker({
         </button>
         <button
           type="button"
-          disabled={!canEdit}
-          onClick={() => setMode('lone')}
+          disabled={!canEdit || isPending}
+          onClick={() => saveLoneCall(false)}
           className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
             mode === 'lone' ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
           }`}
@@ -604,8 +628,8 @@ function WolfHolePicker({
         </button>
         <button
           type="button"
-          disabled={!canEdit}
-          onClick={() => setMode('blind')}
+          disabled={!canEdit || isPending}
+          onClick={() => saveLoneCall(true)}
           className={`rounded-full px-3 py-1 text-xs font-medium disabled:opacity-50 ${
             mode === 'blind' ? 'bg-primary-900 text-white' : 'bg-gray-100 text-gray-600'
           }`}
@@ -622,9 +646,11 @@ function WolfHolePicker({
 
       {mode === 'partner' && (
         <select
-          value={partnerParticipantId}
-          onChange={(e) => setPartnerParticipantId(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-          disabled={!canEdit}
+          value={existingPick && !existingPick.isLoneWolf ? existingPick.partnerParticipantId ?? '' : ''}
+          onChange={(e) => {
+            if (e.target.value !== '') savePartner(parseInt(e.target.value, 10));
+          }}
+          disabled={!canEdit || isPending}
           className="ml-1 w-48 rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20] disabled:opacity-50 disabled:bg-gray-50"
         >
           <option value="">Select partner…</option>
@@ -634,30 +660,16 @@ function WolfHolePicker({
         </select>
       )}
 
-      <div className="pl-1">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          disabled={!canEdit || !canSave || isPending}
-          onClick={() =>
-            onSave({
-              wolfParticipantId,
-              isLoneWolf: mode !== 'partner',
-              isBlindWolf: mode === 'blind',
-              partnerParticipantId: mode === 'partner' ? (partnerParticipantId as number) : null,
-            })
-          }
-        >
-          {isPending ? 'Saving…' : existingPick ? 'Update' : 'Confirm'}
-        </Button>
-        {existingPick && (
-          <span className="ml-2 text-xs text-gray-500">
-            {existingPick.isBlindWolf ? 'Blind wolf' : existingPick.isLoneWolf ? 'Lone wolf' : `Partnered with ${existingPick.partnerPlayerName}`}
-            {existingPick.outcome && ` — ${existingPick.outcome}`}
-          </span>
-        )}
-      </div>
+      <p className="pl-1 text-xs text-gray-500">
+        {isPending
+          ? 'Saving…'
+          : existingPick
+            ? <>
+                Saved: {existingPick.isBlindWolf ? 'Blind wolf' : existingPick.isLoneWolf ? 'Lone wolf' : `Partnered with ${existingPick.partnerPlayerName}`}
+                {existingPick.outcome && ` — ${existingPick.outcome}`}
+              </>
+            : 'No call recorded yet for this hole.'}
+      </p>
     </div>
   );
 }
