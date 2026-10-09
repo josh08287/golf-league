@@ -17,6 +17,7 @@ public readonly record struct HandicapRoundInput(int GrossStrokes, double Course
 public interface IHandicapRepository
 {
     Task<Handicap?> GetCurrentAsync(int playerId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyDictionary<int, Handicap>> GetCurrentForPlayersAsync(IEnumerable<int> playerIds, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Handicap>> GetHistoryAsync(int playerId, CancellationToken cancellationToken = default);
 
     /// <summary>

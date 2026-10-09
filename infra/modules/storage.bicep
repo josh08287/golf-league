@@ -77,40 +77,6 @@ resource playerPhotosContainer 'Microsoft.Storage/storageAccounts/blobServices/c
   }
 }
 
-// Lifecycle management: tier blobs to Archive after 90 days to minimize storage cost
-resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2023-01-01' = {
-  parent: storageAccount
-  name: 'default'
-  properties: {
-    policy: {
-      rules: [
-        {
-          name: 'ArchivePlayerPhotosAfter90Days'
-          enabled: true
-          type: 'Lifecycle'
-          definition: {
-            filters: {
-              blobTypes: [
-                'blockBlob'
-              ]
-              prefixMatch: [
-                'player-photos/'
-              ]
-            }
-            actions: {
-              baseBlob: {
-                tierToArchive: {
-                  daysAfterModificationGreaterThan: 90
-                }
-              }
-            }
-          }
-        }
-      ]
-    }
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Outputs
 // ---------------------------------------------------------------------------

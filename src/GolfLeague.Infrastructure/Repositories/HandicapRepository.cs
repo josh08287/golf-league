@@ -22,6 +22,23 @@ public sealed class HandicapRepository : IHandicapRepository
             .ThenByDescending(h => h.Id)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyDictionary<int, Handicap>> GetCurrentForPlayersAsync(IEnumerable<int> playerIds, CancellationToken cancellationToken = default)
+    {
+        var ids = playerIds.Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<int, Handicap>();
+
+        var rows = await _context.Handicaps
+            .Where(h => ids.Contains(h.PlayerId))
+            .OrderBy(h => h.PlayerId)
+            .ThenByDescending(h => h.EffectiveDate)
+            .ThenByDescending(h => h.Id)
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(h => h.PlayerId)
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
     public async Task<IReadOnlyList<Handicap>> GetHistoryAsync(int playerId, CancellationToken cancellationToken = default)
         => await _context.Handicaps
             .Where(h => h.PlayerId == playerId)

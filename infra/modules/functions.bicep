@@ -1,9 +1,9 @@
 // modules/functions.bicep
-// Deploys a Consumption-plan Azure Functions app running .NET 9 Isolated Worker.
+// Deploys a Consumption-plan Azure Functions app running .NET 10 Isolated Worker.
 // The Function App uses a system-assigned Managed Identity for all Azure service
-// auth (Key Vault secrets, host storage, blob storage). No connection strings
-// are stored in plain text in app settings — Key Vault references are added
-// after this module deploys (see main.bicep functionAppSettings resource).
+// auth (Key Vault secrets, host storage). No connection strings are stored in
+// plain text in app settings — Key Vault references are added after this
+// module deploys (see main.bicep functionAppSettings resource).
 
 // ---------------------------------------------------------------------------
 // Parameters
@@ -23,9 +23,6 @@ param uniqueSuffix string
 
 @description('Application Insights connection string to wire up telemetry.')
 param appInsightsConnectionString string
-
-@description('Name of the storage account that holds player photos (for BLOB_STORAGE_ACCOUNT app setting).')
-param storageAccountNameForPhotos string
 
 @description('Array of allowed CORS origins (e.g., ["https://app1.com", "https://app2.com"]).')
 param allowedOrigins array = []
@@ -94,10 +91,14 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
     serverFarmId: hostingPlan.id
     httpsOnly: true
     siteConfig: {
-      netFrameworkVersion: 'v8.0'
+      netFrameworkVersion: 'v10.0'
+      ftpsState: 'FtpsOnly'
+      minTlsVersion: '1.2'
+      http20Enabled: false
+      use32BitWorkerProcess: false
       cors: {
         allowedOrigins: allowedOrigins
-        supportCredentials: true
+        supportCredentials: false
       }
       appSettings: [
         {
@@ -118,15 +119,7 @@ resource functionApp 'Microsoft.Web/sites@2023-01-01' = {
           value: functionsHostStorage.name
         }
         {
-          name: 'BLOB_STORAGE_ACCOUNT'
-          value: storageAccountNameForPhotos
-        }
-        {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
-          value: '1'
-        }
-        {
-          name: 'SCALE_CONTROLLER_LOGGING_ENABLED'
           value: '1'
         }
       ]

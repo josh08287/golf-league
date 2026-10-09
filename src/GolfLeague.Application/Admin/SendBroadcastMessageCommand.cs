@@ -57,14 +57,11 @@ public sealed class SendBroadcastMessageCommandHandler
         IReadOnlyList<(string Email, string Name)> playerRecipients;
         if (request.PlayerIds is { Count: > 0 })
         {
-            var resolved = new List<(string, string)>();
-            foreach (var id in request.PlayerIds)
-            {
-                var p = await _players.GetByIdAsync(id, cancellationToken);
-                if (p?.Email is not null)
-                    resolved.Add((p.Email, p.FullName));
-            }
-            playerRecipients = resolved;
+            var players = await _players.GetByIdsAsync(request.PlayerIds, cancellationToken);
+            playerRecipients = players
+                .Where(p => p.Email is not null)
+                .Select(p => (p.Email!, p.FullName))
+                .ToList();
         }
         else
         {
@@ -93,27 +90,33 @@ public sealed class SendBroadcastMessageCommandHandler
         }
 
         var sent = 0;
-        var skippedNames = new List<string>();
+        var skippedNames = new System.Collections.Concurrent.ConcurrentBag<string>();
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 8,
+            CancellationToken = cancellationToken
+        };
 
-        foreach (var (email, name) in allRecipients)
+        await Parallel.ForEachAsync(allRecipients, parallelOptions, async (recipient, ct) =>
         {
             try
             {
                 await _email.SendBroadcastMessageAsync(
-                    email,
+                    recipient.Email,
                     leagueName,
                     request.Subject,
                     request.Body,
-                    cancellationToken);
-                sent++;
+                    ct);
+                Interlocked.Increment(ref sent);
             }
             catch
             {
-                skippedNames.Add(name);
+                skippedNames.Add(recipient.Name);
             }
-        }
+        });
 
+        var skippedList = skippedNames.ToList();
         return Result<BroadcastMessageResultDto>.Ok(
-            new BroadcastMessageResultDto(sent, skippedNames.Count, skippedNames));
+            new BroadcastMessageResultDto(sent, skippedList.Count, skippedList));
     }
 }

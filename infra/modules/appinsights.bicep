@@ -29,6 +29,9 @@ resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2022-10
       name: 'PerGB2018'
     }
     retentionInDays: 30
+    workspaceCapping: {
+      dailyQuotaGb: 1
+    }
     features: {
       enableLogAccessUsingOnlyResourcePermissions: true
     }

@@ -32,6 +32,14 @@ public sealed class RoundRepository : IRoundRepository
             .AsSplitQuery()
             .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
 
+    public Task<Round?> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Half)
+            .Include(r => r.Participants)
+            .AsSplitQuery()
+            .FirstOrDefaultAsync(r => r.RoundDate == date && r.Status != RoundStatus.Cancelled, cancellationToken);
+
     public Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default)
         => _context.Rounds
             .Include(r => r.Course)

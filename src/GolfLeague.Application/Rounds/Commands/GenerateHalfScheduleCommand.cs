@@ -86,9 +86,9 @@ public sealed class GenerateHalfScheduleCommandHandler : IRequestHandler<Generat
         var activePlayerIds = (await _playerRepository.GetAllActiveAsync(cancellationToken))
             .Select(p => p.Id)
             .ToHashSet();
-        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
-            .GroupBy(h => h.PlayerId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+        var currentHandicapByPlayerId = await _handicapRepository.GetCurrentForPlayersAsync(
+            allMemberships.Select(m => m.PlayerId),
+            cancellationToken) ?? new Dictionary<int, Handicap>();
 
         for (var weekIndex = 0; weekIndex < orderedDates.Count; weekIndex++)
         {

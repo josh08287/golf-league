@@ -2,11 +2,15 @@
   "version": "2.0",
   "functionTimeout": "00:10:00",
   "logging": {
+    "logLevel": {
+      "default": "Warning",
+      "Host.Results": "Information",
+      "Function": "Information"
+    },
     "applicationInsights": {
       "samplingSettings": {
         "isEnabled": true,
-        "maxTelemetryItemsPerSecond": 20,
-        "excludedTypes": "Request"
+        "maxTelemetryItemsPerSecond": 20
       },
       "enableLiveMetricsFilters": true
     }

@@ -2,6 +2,11 @@
 // Deploys an Azure Key Vault and grants the Function App Managed Identity
 // the Key Vault Secrets User role via RBAC so it can read secrets at runtime.
 // RBAC authorization is used (not legacy access policies) — enableRbacAuthorization: true.
+//
+// Secrets referenced by main.bicep's app settings must be populated manually
+// after first deploy: JwtSigningKey, AdminBootstrapEmail, GoogleClientId,
+// GoogleClientSecret, FacebookAppId, FacebookAppSecret, DocumentIntelligenceKey,
+// AcsConnectionString.
 
 // ---------------------------------------------------------------------------
 // Parameters

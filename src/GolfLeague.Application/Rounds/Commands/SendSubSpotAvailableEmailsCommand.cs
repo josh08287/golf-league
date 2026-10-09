@@ -78,29 +78,40 @@ public sealed class SendSubSpotAvailableEmailsCommandHandler
         var league = await _leagueRepository.GetByIdAsync(round.LeagueId, cancellationToken);
         var leagueName = league?.Name ?? "Golf League";
         var baseUrl = request.WebBaseUrl.TrimEnd('/');
-        var sent = 0;
-
+        var recipientData = new List<(Domain.Entities.Player Player, string LoginLink)>(recipients.Count);
         foreach (var player in recipients)
+        {
+            var loginLink = await ResolveLoginLinkAsync(player, baseUrl, cancellationToken);
+            recipientData.Add((player, loginLink));
+        }
+
+        var sent = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 8,
+            CancellationToken = cancellationToken
+        };
+
+        await Parallel.ForEachAsync(recipientData, parallelOptions, async (item, ct) =>
         {
             try
             {
-                var loginLink = await ResolveLoginLinkAsync(player, baseUrl, cancellationToken);
                 await _emailService.SendSubSpotAvailableAsync(
-                    player.Email!,
-                    player.FullName,
+                    item.Player.Email!,
+                    item.Player.FullName,
                     leagueName,
                     roundDate,
                     openSpots,
                     roundCostDisplay,
-                    loginLink,
-                    cancellationToken);
-                sent++;
+                    item.LoginLink,
+                    ct);
+                Interlocked.Increment(ref sent);
             }
             catch
             {
                 // One failed send should not block the rest
             }
-        }
+        });
 
         return Result<int>.Ok(sent);
     }

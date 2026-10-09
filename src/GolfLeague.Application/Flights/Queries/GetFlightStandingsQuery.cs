@@ -2,6 +2,7 @@ using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Leagues;
+using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -81,14 +82,11 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
 
         // Batch-load players and current handicaps once instead of per-group
         // lookups — avoids 2 SQL round trips per player in the flight.
-        var playerIds = grouped.Select(g => g.Key).ToHashSet();
-        var playersById = (await _playerRepository.GetAllAsync(cancellationToken))
-            .Where(p => playerIds.Contains(p.Id))
-            .ToDictionary(p => p.Id);
-        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
-            .Where(h => playerIds.Contains(h.PlayerId))
-            .GroupBy(h => h.PlayerId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+        var playerIds = grouped.Select(g => g.Key).ToList();
+        var players = await _playerRepository.GetByIdsAsync(playerIds, cancellationToken) ?? Array.Empty<Player>();
+        var playersById = players.ToDictionary(p => p.Id);
+        var currentHandicapByPlayerId = await _handicapRepository.GetCurrentForPlayersAsync(playerIds, cancellationToken)
+            ?? new Dictionary<int, Handicap>();
 
         var dtos = new List<StandingDto>(grouped.Count);
 

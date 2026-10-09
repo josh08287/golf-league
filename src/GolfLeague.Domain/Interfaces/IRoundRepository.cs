@@ -6,6 +6,7 @@ namespace GolfLeague.Domain.Interfaces;
 public interface IRoundRepository
 {
     Task<Round?> GetByIdAsync(int id, CancellationToken cancellationToken = default);
+    Task<Round?> GetByDateAsync(DateOnly date, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default);
 

@@ -45,8 +45,13 @@ public class GetMatchPlayStandingsQueryHandlerTests
         {
             FlightRepo.Setup(f => f.GetByIdAsync(It.IsAny<int>(), It.IsAny<CancellationToken>())).ReturnsAsync(MakeFlight());
             HandicapRepo.Setup(h => h.GetAllAsync(It.IsAny<CancellationToken>())).ReturnsAsync(new List<Handicap>());
+            HandicapRepo.Setup(h => h.GetCurrentForPlayersAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new Dictionary<int, Handicap>());
             PlayerRepo.Setup(p => p.GetAllAsync(It.IsAny<CancellationToken>()))
                 .ReturnsAsync((IReadOnlyList<Player>)new[] { 100, 200, 300, 400 }.Select(id => MakePlayer(id, $"Player{id}")).ToList());
+            PlayerRepo.Setup(p => p.GetByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((IEnumerable<int> ids, CancellationToken _) =>
+                    (IReadOnlyList<Player>)ids.Select(id => MakePlayer(id, $"Player{id}")).ToList());
         }
 
         public GetMatchPlayStandingsQueryHandler BuildSut() =>

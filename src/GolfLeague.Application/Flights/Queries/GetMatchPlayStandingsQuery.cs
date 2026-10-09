@@ -63,13 +63,10 @@ public sealed class GetMatchPlayStandingsQueryHandler : IRequestHandler<GetMatch
         if (playerIds.Count == 0)
             return Result<List<MatchPlayStandingDto>>.Ok([]);
 
-        var playersById = (await _playerRepository.GetAllAsync(cancellationToken))
-            .Where(p => playerIds.Contains(p.Id))
-            .ToDictionary(p => p.Id);
-        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
-            .Where(h => playerIds.Contains(h.PlayerId))
-            .GroupBy(h => h.PlayerId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+        var players = await _playerRepository.GetByIdsAsync(playerIds, cancellationToken) ?? Array.Empty<Player>();
+        var playersById = players.ToDictionary(p => p.Id);
+        var currentHandicapByPlayerId = await _handicapRepository.GetCurrentForPlayersAsync(playerIds, cancellationToken)
+            ?? new Dictionary<int, Handicap>();
 
         var matchResultsByPlayer = new Dictionary<int, List<MatchPlayMatchResultDto>>();
 

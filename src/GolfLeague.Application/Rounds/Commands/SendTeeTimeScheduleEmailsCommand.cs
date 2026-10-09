@@ -81,8 +81,13 @@ public sealed class SendTeeTimeScheduleEmailsCommandHandler
         var league = await _leagueRepository.GetByIdAsync(round.LeagueId, cancellationToken);
         var leagueName = league?.Name ?? "Golf League";
         var sent = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 8,
+            CancellationToken = cancellationToken
+        };
 
-        foreach (var participant in recipients)
+        await Parallel.ForEachAsync(recipients, parallelOptions, async (participant, ct) =>
         {
             playerSlotMap.TryGetValue(participant.PlayerId, out var slotTime);
             try
@@ -94,14 +99,14 @@ public sealed class SendTeeTimeScheduleEmailsCommandHandler
                     roundDate,
                     slotTime,
                     emailSlots,
-                    cancellationToken);
-                sent++;
+                    ct);
+                Interlocked.Increment(ref sent);
             }
             catch
             {
                 // One failed send should not block the rest
             }
-        }
+        });
 
         return Result<int>.Ok(sent);
     }

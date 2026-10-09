@@ -42,12 +42,8 @@ public sealed class GetMyTodaysTeeTimeQueryHandler
         GetMyTodaysTeeTimeQuery request,
         CancellationToken cancellationToken)
     {
-        // Find the round scheduled for today
-        var rounds = await _roundRepository.GetAllAsync(cancellationToken);
-        var todaysRound = rounds
-            .FirstOrDefault(r => r.RoundDate == request.Today &&
-                                  r.Status != RoundStatus.Cancelled);
-
+        // Find the round scheduled for today via targeted date query
+        var todaysRound = await _roundRepository.GetByDateAsync(request.Today, cancellationToken);
         if (todaysRound is null)
             return Result<MyTodaysTeeTimeDto?>.Ok(null);
 

@@ -12,6 +12,7 @@ public interface IPlayerRepository
     /// below the active ones instead of hiding them.
     /// </summary>
     Task<IReadOnlyList<Player>> GetAllAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Player>> GetByIdsAsync(IEnumerable<int> playerIds, CancellationToken cancellationToken = default);
     /// <summary>
     /// Looks up the Player profile for this user within a specific league.
     /// A user may hold one Player row per league, so league scoping is

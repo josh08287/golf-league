@@ -1,5 +1,6 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
+using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
 
@@ -44,11 +45,9 @@ public sealed class GetSubstitutesQueryHandler : IRequestHandler<GetSubstitutesQ
             .ToList();
         var rolesByUserId = await _appUserRepository.GetRolesAsync(appUserIds, cancellationToken);
 
-        var playerIds = players.Select(p => p.Id).ToHashSet();
-        var currentHandicapByPlayerId = (await _handicapRepository.GetAllAsync(cancellationToken))
-            .Where(h => playerIds.Contains(h.PlayerId))
-            .GroupBy(h => h.PlayerId)
-            .ToDictionary(g => g.Key, g => g.OrderByDescending(h => h.EffectiveDate).ThenByDescending(h => h.Id).First());
+        var playerIds = players.Select(p => p.Id).ToList();
+        var currentHandicapByPlayerId = await _handicapRepository.GetCurrentForPlayersAsync(playerIds, cancellationToken)
+            ?? new Dictionary<int, Handicap>();
 
         var dtos = new List<PlayerDto>(players.Count);
         foreach (var player in players)

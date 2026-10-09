@@ -5,31 +5,60 @@
     "location": {
       "value": "eastus2"
     },
+    "sqlLocation": {
+      "value": "canadaeast"
+    },
     "environmentName": {
       "value": "prod"
     },
     "appName": {
       "value": "golf-league"
     },
-    "sqlConnectionString": {
-      "value": "Server=tcp:capgolfleague-eca.database.windows.net,1433;Initial Catalog=capgolfleague;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=\"Active Directory Default\";"
-    },
     "webOrigin": {
-      "value": "https://app.golfleague.com"
+      "value": "https://capitalgolfleague.com"
     },
     "fido2RpId": {
-      "value": "app.golfleague.com"
+      "value": "capitalgolfleague.com"
     },
     "allowedOrigins": {
       "value": [
-        "https://app.golfleague.com",
-        "https://admin.golfleague.com",
-        "http://localhost:5173",
-        "http://localhost:3000"
+        "https://capitalgolfleague.com",
+        "https://www.capitalgolfleague.com",
+        "http://localhost:5173"
       ]
     },
-    "documentIntelligenceEndpoint": {
-      "value": "https://golfleague-card-reader.cognitiveservices.azure.com/"
+    "sqlAadAdminLogin": {
+      "value": "josh@blainesrepair.com"
+    },
+    "sqlAadAdminObjectId": {
+      "value": "698771e4-ed2f-415e-94b7-78daa36e2433"
+    },
+    "sqlAadAdminPrincipalType": {
+      "value": "User"
+    },
+    "webRepositoryUrl": {
+      "value": "https://github.com/josh08287/golf-league"
+    },
+    "webBranch": {
+      "value": "master"
+    },
+    "webCustomDomains": {
+      "value": [
+        "capitalgolfleague.com",
+        "www.capitalgolfleague.com"
+      ]
+    },
+    "emailCustomDomainName": {
+      "value": "capitalgolfleague.com"
+    },
+    "acsSenderAddress": {
+      "value": "DoNotReply@capitalgolfleague.com"
+    },
+    "defaultLeagueName": {
+      "value": "Capital Golf League"
+    },
+    "defaultLeagueSlug": {
+      "value": "capital"
     }
   }
 }

@@ -77,8 +77,13 @@ public sealed class SendSignUpReminderEmailsCommandHandler
         var league = await _leagueRepository.GetByIdAsync(round.LeagueId, cancellationToken);
         var leagueName = league?.Name ?? "Golf League";
         var sent = 0;
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = 8,
+            CancellationToken = cancellationToken
+        };
 
-        foreach (var player in recipients)
+        await Parallel.ForEachAsync(recipients, parallelOptions, async (player, ct) =>
         {
             try
             {
@@ -88,14 +93,14 @@ public sealed class SendSignUpReminderEmailsCommandHandler
                     leagueName,
                     roundDate,
                     cutoffDisplay,
-                    cancellationToken);
-                sent++;
+                    ct);
+                Interlocked.Increment(ref sent);
             }
             catch
             {
                 // One failed send should not block the rest
             }
-        }
+        });
 
         return Result<int>.Ok(sent);
     }
