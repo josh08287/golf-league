@@ -5,12 +5,12 @@ import { LeagueContext } from '@/context/LeagueContext';
 import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import { useMyLeagues } from '@/hooks/useMyLeagues';
 import { useAuth } from '@/hooks/useAuth';
-import { getTokenLeagueId, refresh, getCurrentUser } from '@/lib/auth';
+import { getTokenLeagueId, refresh, getCurrentUser, hasStoredSession, clearAuth } from '@/lib/auth';
 import { useAuthStore } from '@/store/authStore';
 import { Spinner } from '@/components/ui/Spinner';
 
 export function AppRoute() {
-  const { user, bootstrapping } = useAuth();
+  const { user, bootstrapping, retry } = useAuth();
   const navigate = useNavigate();
   const activeLeague = useActiveLeagueStore((s) => s.activeLeague);
   const setActiveLeague = useActiveLeagueStore((s) => s.setActiveLeague);
@@ -74,7 +74,7 @@ export function AppRoute() {
   }, [activeLeague?.leagueId]);
 
   useEffect(() => {
-    if (!bootstrapping && !user) {
+    if (!bootstrapping && !user && !hasStoredSession()) {
       navigate('/login', { replace: true });
     }
   }, [bootstrapping, user, navigate]);
@@ -90,7 +90,37 @@ export function AppRoute() {
     );
   }
 
-  if (!user) return null;
+  if (!user) {
+    if (hasStoredSession()) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50 px-4 text-center">
+          <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
+          <h1 className="text-xl font-bold text-gray-900">Connecting to server…</h1>
+          <p className="max-w-md text-sm text-gray-500">
+            The application is resuming from standby. This can take a moment on cold start.
+          </p>
+          <div className="mt-2 flex gap-3">
+            <button
+              onClick={retry}
+              className="rounded-lg bg-[#1B5E20] px-4 py-2 text-sm font-medium text-white hover:bg-[#154a19] focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:ring-offset-2"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={() => {
+                clearAuth();
+                navigate('/login', { replace: true });
+              }}
+              className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-[#1B5E20] focus:ring-offset-2"
+            >
+              Sign In Again
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  }
 
   if (hasNoLeagues) {
     return (

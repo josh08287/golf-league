@@ -4,8 +4,9 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Spinner';
 import { useAuth } from '@/hooks/useAuth';
-import { startExternalLogin } from '@/lib/auth';
+import { startExternalLogin, hasStoredSession } from '@/lib/auth';
 
 const schema = z.object({
   email: z.string().email('Valid email required'),
@@ -15,7 +16,7 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>;
 
 export function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, bootstrapping } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get('next') ?? '/';
@@ -23,6 +24,14 @@ export function LoginPage() {
 
   if (isAuthenticated) {
     navigate(next, { replace: true });
+  }
+
+  if (bootstrapping && hasStoredSession()) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <Spinner />
+      </div>
+    );
   }
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormValues>({

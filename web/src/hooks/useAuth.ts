@@ -7,6 +7,7 @@ import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import {
   clearAuth,
   getCurrentUser,
+  hasStoredSession,
   isAuthenticated as isAuthed,
   login as loginApi,
   logout as logoutApi,
@@ -14,10 +15,10 @@ import {
 } from '@/lib/auth';
 
 /** Delay between bootstrap retries after a transient (non-401) failure, e.g.
- * a cold Function App / SQL instance not yet warm — not exponential, since
- * this only needs to bridge a single cold-start window, not survive a real
- * outage. */
-const BOOTSTRAP_RETRY_DELAYS_MS = [1500, 3000, 5000];
+ * a cold Function App / SQL instance not yet warm. Covers ~32s of delay
+ * across 6 attempts, which alongside request timeouts comfortably bridges
+ * Azure SQL Serverless auto-pause resumes (typically 30-50s). */
+const BOOTSTRAP_RETRY_DELAYS_MS = [1500, 2500, 4000, 6000, 8000, 10000];
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -30,10 +31,18 @@ export function useAuth() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  const [bootstrapping, setBootstrapping] = useState(() => isAuthed() && !user);
+  const [bootstrapping, setBootstrapping] = useState(() => (isAuthed() || hasStoredSession()) && !user);
+  const [connectionError, setConnectionError] = useState(false);
+  const [retryTrigger, setRetryTrigger] = useState(0);
+
+  const retry = useCallback(() => {
+    setConnectionError(false);
+    setBootstrapping(true);
+    setRetryTrigger((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
-    if (!isAuthed()) {
+    if (!isAuthed() && !hasStoredSession()) {
       setBootstrapping(false);
       return;
     }
@@ -58,22 +67,25 @@ export function useAuth() {
             playerId: me.playerId != null ? String(me.playerId) : null,
             isSuperAdmin: me.isSuperAdmin ?? false,
           });
+          setConnectionError(false);
           break;
         } catch (err) {
           if (cancelled) return;
 
-          if (axios.isAxiosError(err) && err.response?.status === 401) {
-            // The server actually rejected the access token — genuinely
-            // logged out, not a transient cold-start failure.
+          // getCurrentUser() attempts a token refresh if the access token was
+          // rejected with 401. If it STILL threw 401 and hasStoredSession() is false,
+          // the server actually rejected the refresh token — genuinely logged out.
+          if (axios.isAxiosError(err) && err.response?.status === 401 && !hasStoredSession()) {
             clearAuth();
             clearUser();
             break;
           }
 
           if (attempt >= BOOTSTRAP_RETRY_DELAYS_MS.length) {
-            // Exhausted retries. Leave stored tokens in place (this wasn't a
-            // rejection) so a manual refresh can still recover once the
-            // backend is warm, but stop blocking the UI on it.
+            // Exhausted retries due to cold start or network error. Leave stored
+            // tokens in place so the session isn't wiped, but stop blocking
+            // the UI and indicate a connection error.
+            setConnectionError(true);
             break;
           }
 
@@ -83,7 +95,7 @@ export function useAuth() {
       if (!cancelled) setBootstrapping(false);
     })();
     return () => { cancelled = true; };
-  }, [user, setUser]);
+  }, [user, setUser, retryTrigger]);
 
   const handleLoginSuccess = useCallback(async (resp: AuthResponse) => {
     if (resp.mfaRequired) {
@@ -124,6 +136,8 @@ export function useAuth() {
     user,
     isAuthenticated: !!user,
     bootstrapping,
+    connectionError,
+    retry,
     login,
     logout,
     onLoginSuccess: handleLoginSuccess,

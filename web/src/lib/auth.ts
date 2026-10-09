@@ -158,28 +158,38 @@ export async function register(input: {
   return data;
 }
 
+let pendingRefresh: Promise<string | null> | null = null;
+
 export async function refresh(leagueId?: number): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
-  try {
-    const res = await authClient.post('/auth/refresh', { refreshToken, leagueId });
-    const data = unwrap<AuthResponse>(res.data);
-    storeAuthResponse(data);
-    return data.accessToken;
-  } catch (err) {
-    // Only clear the stored session when the server actually rejected the
-    // refresh token (401 — invalid, expired, or already used). Anything else
-    // — a network error, a timeout, or a 5xx — means the backend or SQL
-    // hasn't finished waking up from cold, not that the session is bad. The
-    // refresh token itself is still valid and single-use-not-yet-consumed,
-    // so wiping it here would force a real login for no reason; leave it in
-    // place so the next natural retry (or the request interceptor's own
-    // retry) can succeed once the backend is warm.
-    if (axios.isAxiosError(err) && err.response?.status === 401) {
-      clearAuth();
+  if (pendingRefresh) return pendingRefresh;
+
+  pendingRefresh = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
+    try {
+      const res = await authClient.post('/auth/refresh', { refreshToken, leagueId });
+      const data = unwrap<AuthResponse>(res.data);
+      storeAuthResponse(data);
+      return data.accessToken;
+    } catch (err) {
+      // Only clear the stored session when the server actually rejected the
+      // refresh token (401 — invalid, expired, or already used). Anything else
+      // — a network error, a timeout, or a 5xx — means the backend or SQL
+      // hasn't finished waking up from cold, not that the session is bad. The
+      // refresh token itself is still valid and single-use-not-yet-consumed,
+      // so wiping it here would force a real login for no reason; leave it in
+      // place so the next natural retry (or the request interceptor's own
+      // retry) can succeed once the backend is warm.
+      if (axios.isAxiosError(err) && err.response?.status === 401) {
+        clearAuth();
+      }
+      return null;
     }
-    return null;
-  }
+  })().finally(() => {
+    pendingRefresh = null;
+  });
+
+  return pendingRefresh;
 }
 
 export async function logout(): Promise<void> {
@@ -195,10 +205,31 @@ export async function logout(): Promise<void> {
 }
 
 export async function getCurrentUser(): Promise<CurrentUser> {
-  const res = await authClient.get('/auth/current', {
-    headers: { Authorization: `Bearer ${getAccessToken() ?? ''}` },
-  });
-  return unwrap<CurrentUser>(res.data);
+  let token = getAccessToken();
+  // If the access token is missing or expired, but we still have a stored session, refresh first.
+  if ((!token || isTokenExpired()) && hasStoredSession()) {
+    token = await refresh();
+  }
+
+  try {
+    const res = await authClient.get('/auth/current', {
+      headers: { Authorization: `Bearer ${token ?? getAccessToken() ?? ''}` },
+    });
+    return unwrap<CurrentUser>(res.data);
+  } catch (err) {
+    // If /auth/current rejected our access token with 401, but we still have a stored session,
+    // attempt one refresh and retry before failing.
+    if (axios.isAxiosError(err) && err.response?.status === 401 && hasStoredSession()) {
+      const refreshedToken = await refresh();
+      if (refreshedToken) {
+        const retryRes = await authClient.get('/auth/current', {
+          headers: { Authorization: `Bearer ${refreshedToken}` },
+        });
+        return unwrap<CurrentUser>(retryRes.data);
+      }
+    }
+    throw err;
+  }
 }
 
 // ── Social login (Google / Facebook) ─────────────────────────────────────────

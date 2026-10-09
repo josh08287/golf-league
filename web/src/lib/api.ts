@@ -29,21 +29,12 @@ export const apiClient = axios.create({
 export const api = apiClient;
 
 // ── Shared refresh lock ──────────────────────────────────────────────────────
-// Refresh tokens are single-use (rotated server-side on every call), so if
-// two requests each call refresh() around the same moment, the second one
-// gets rejected — since the first already burned the stored refresh token —
-// and that failure wipes the session, even though the first refresh
-// succeeded. Both the proactive (request interceptor) and reactive (401
-// response interceptor) refresh paths must share one in-flight promise so
-// concurrent callers all await the same refresh instead of racing.
-let pendingRefresh: Promise<string | null> | null = null;
+// Refresh tokens are single-use (rotated server-side on every call). The in-flight
+// lock is managed centrally inside refresh() in auth.ts so all callers (request
+// interceptor, response interceptor, useAuth bootstrap, and AppRoute) share one
+// promise instead of racing.
 function refreshOnce(): Promise<string | null> {
-  if (!pendingRefresh) {
-    pendingRefresh = refresh().finally(() => {
-      pendingRefresh = null;
-    });
-  }
-  return pendingRefresh;
+  return refresh();
 }
 
 // ── Request interceptor ────────────────────────────────────────────────────────
