@@ -11,6 +11,14 @@ public interface IRoundRepository
     Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The latest non-cancelled round dated on or before <paramref name="today"/> in which
+    /// <paramref name="playerId"/> is an active participant with a tee time, where the round is
+    /// either dated today or not yet finalized. Lets players keep entering scores for a past
+    /// round until an admin finalizes it.
+    /// </summary>
+    Task<Round?> GetLatestScoreEntryRoundForPlayerAsync(int playerId, DateOnly today, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// The latest non-cancelled round dated on or before <paramref name="onOrBefore"/> that has
     /// started (InProgress, PendingFinalization or Finalized). Used by the leaderboard page.
     /// </summary>

@@ -1213,7 +1213,8 @@ export function TeeTimeScoreEntryPage() {
     p.playerId in skippedOverrides ? { ...p, skippedWeek: skippedOverrides[p.playerId] } : p
   );
   const holes = scorecard?.holes ?? [];
-  const canEdit = scorecard?.roundStatus === 'Scheduled' || scorecard?.roundStatus === 'InProgress';
+  // Players can enter/edit scores until an admin finalizes the round.
+  const canEdit = scorecard != null && scorecard.roundStatus !== 'Finalized' && scorecard.roundStatus !== 'Cancelled';
   const currentHole = holes[currentHoleIndex];
 
   // The group's configured shotgun-start starting hole becomes the first hole

@@ -391,7 +391,12 @@ class _TodaysTeeTimeSection extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Today\'s Round: Enter Scores',
+                              DateUtils.isSameDay(
+                                    teeTime.roundDate,
+                                    DateTime.now(),
+                                  )
+                                  ? 'Today\'s Round: Enter Scores'
+                                  : 'Previous Round: Enter Scores',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w600,
@@ -445,7 +450,7 @@ class _TodaysTeeTimeSection extends ConsumerWidget {
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Text(
-                        'Scores have already been submitted for this round.',
+                        'This round has been finalized.',
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.amber.shade800,

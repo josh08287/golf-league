@@ -6,7 +6,8 @@ using MediatR;
 namespace GolfLeague.Application.Rounds.Queries;
 
 /// <summary>
-/// Information about a tee time slot for today (if the player is in a round).
+/// Information about the player's tee time for today's round, or for their most
+/// recent round that hasn't been finalized yet.
 /// </summary>
 public sealed record MyTodaysTeeTimeDto(
     int RoundId,
@@ -19,7 +20,7 @@ public sealed record MyTodaysTeeTimeDto(
     TimeOnly ScheduledTime,
     string ScheduledTimeFormatted, // "15:28"
     int TeeTimeNumber,
-    bool CanEnterScores); // true if round is Scheduled or InProgress
+    bool CanEnterScores); // true until the round is finalized (or cancelled)
 
 public sealed record GetMyTodaysTeeTimeQuery(int PlayerId, DateOnly Today)
     : IRequest<Result<MyTodaysTeeTimeDto?>>;
@@ -42,13 +43,14 @@ public sealed class GetMyTodaysTeeTimeQueryHandler
         GetMyTodaysTeeTimeQuery request,
         CancellationToken cancellationToken)
     {
-        // Find the round scheduled for today via targeted date query
-        var todaysRound = await _roundRepository.GetByDateAsync(request.Today, cancellationToken);
-        if (todaysRound is null)
+        // Today's round, or else the player's most recent round that an admin
+        // hasn't finalized yet — players can keep entering scores until then.
+        var round = await _roundRepository.GetLatestScoreEntryRoundForPlayerAsync(
+            request.PlayerId, request.Today, cancellationToken);
+        if (round is null)
             return Result<MyTodaysTeeTimeDto?>.Ok(null);
 
-        // Check if player is a participant in this round
-        var participant = todaysRound.Participants
+        var participant = round.Participants
             .FirstOrDefault(p => p.PlayerId == request.PlayerId &&
                                 !p.IsWithdrawn &&
                                 !p.SkippedWeek);
@@ -61,22 +63,21 @@ public sealed class GetMyTodaysTeeTimeQueryHandler
             return Result<MyTodaysTeeTimeDto?>.Ok(null);
 
         // Get tee time details
-        var teeTimes = await _teeTimeRepository.GetByRoundAsync(todaysRound.Id, cancellationToken);
+        var teeTimes = await _teeTimeRepository.GetByRoundAsync(round.Id, cancellationToken);
         var myTeeTime = teeTimes.FirstOrDefault(t => t.Id == participant.TeeTimeId);
 
         if (myTeeTime is null)
             return Result<MyTodaysTeeTimeDto?>.Ok(null);
 
-        var canEnterScores = todaysRound.Status == RoundStatus.Scheduled ||
-                            todaysRound.Status == RoundStatus.InProgress;
+        var canEnterScores = round.Status is not (RoundStatus.Finalized or RoundStatus.Cancelled);
 
         var dto = new MyTodaysTeeTimeDto(
-            todaysRound.Id,
-            todaysRound.RoundDate,
-            todaysRound.Course.Name,
-            todaysRound.CourseId,
-            todaysRound.NineHoleSide,
-            todaysRound.Status,
+            round.Id,
+            round.RoundDate,
+            round.Course.Name,
+            round.CourseId,
+            round.NineHoleSide,
+            round.Status,
             myTeeTime.Id,
             myTeeTime.ScheduledTime,
             myTeeTime.ScheduledTime.ToString("HH:mm"),

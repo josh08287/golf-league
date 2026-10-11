@@ -305,9 +305,10 @@ public sealed class TeeTimeFunctions
     }
 
     /// <summary>
-    /// GET /v1/me/todays-tee-time — Returns today's tee time info for
-    /// the authenticated player (if they have a round today with a tee time assignment).
-    /// Returns 404 if no round today or player not assigned to a tee time.
+    /// GET /v1/me/todays-tee-time — Returns the authenticated player's tee time for
+    /// today's round, or for their most recent round an admin hasn't finalized yet
+    /// (so scores can still be entered after the round date). Returns 404 if there
+    /// is no such round or the player isn't assigned to a tee time.
     /// </summary>
     [Function("GetMyTodaysTeeTime")]
     public async Task<IActionResult> GetMyTodaysTeeTime(

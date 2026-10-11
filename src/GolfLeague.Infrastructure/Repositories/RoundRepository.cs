@@ -40,6 +40,22 @@ public sealed class RoundRepository : IRoundRepository
             .AsSplitQuery()
             .FirstOrDefaultAsync(r => r.RoundDate == date && r.Status != RoundStatus.Cancelled, cancellationToken);
 
+    public Task<Round?> GetLatestScoreEntryRoundForPlayerAsync(int playerId, DateOnly today, CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Participants)
+            .AsSplitQuery()
+            .Where(r => r.RoundDate <= today
+                     && r.Status != RoundStatus.Cancelled
+                     && (r.RoundDate == today || r.Status != RoundStatus.Finalized)
+                     && r.Participants.Any(p => p.PlayerId == playerId
+                                             && !p.IsWithdrawn
+                                             && !p.SkippedWeek
+                                             && p.TeeTimeId != null))
+            .OrderByDescending(r => r.RoundDate)
+            .ThenBy(r => r.Status == RoundStatus.Finalized)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default)
         => _context.Rounds
             .Include(r => r.Course)

@@ -55,6 +55,9 @@ function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
     day: 'numeric',
     timeZone: 'UTC',
   });
+  // The card also surfaces a past round that hasn't been finalized yet, so
+  // players can finish entering scores after the round date.
+  const isToday = teeTime.roundDate.slice(0, 10) === new Date().toLocaleDateString('en-CA');
 
   return (
     <Card className="border-amber-200 bg-amber-50">
@@ -63,7 +66,7 @@ function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
           <div className="flex items-center gap-2">
             <Edit3 className="h-5 w-5 text-amber-600" />
             <CardTitle className="text-base text-amber-900">
-              Today's Round: Enter Scores
+              {isToday ? "Today's Round" : 'Previous Round'}: Enter Scores
             </CardTitle>
           </div>
           <Badge variant="amber">
@@ -83,7 +86,7 @@ function TodaysTeeTimeCard({ teeTime }: TodaysTeeTimeCardProps) {
           </Button>
         ) : (
           <div className="rounded-md bg-amber-100 px-3 py-2 text-sm text-amber-800">
-            Scores have already been submitted for this round. An admin will finalize shortly.
+            This round has been finalized. Scores can no longer be edited.
           </div>
         )}
       </CardContent>
