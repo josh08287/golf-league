@@ -32,7 +32,7 @@ tests/GolfLeague.Functions.Tests/
 
 ## 3. Backend runtime
 
-- **.NET 9** isolated worker Functions (`GolfLeague.Functions.csproj`).
+- **.NET 10** isolated worker Functions (`GolfLeague.Functions.csproj`).
 - **MediatR** registers handlers from `GolfLeague.Application`; **`AuditBehavior`** wraps auditable commands.
 - **Identity**: ASP.NET Core Identity backs the `AppUser` entity (Guid PK). `AppDbContext` extends `IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>`. Roles: `admin` / `scorer` / `player`, stored on `AppUser.Role` (single role per user).
 - **JWT**: self-issued HS256 tokens. `Program.cs` validates with `JWT_SIGNING_KEY`. Issuer/audience = `golf-league-api`. Access tokens: 1h. MFA-challenge tokens: 5min. Refresh tokens: 14d, hashed at rest in `RefreshTokens`, rotated on every refresh.
@@ -117,7 +117,7 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 
 ## 7. Infrastructure & CI
 
-- **Bicep** (`infra/main.bicep`): Application Insights, storage (photos + **database** container), Function App app settings including blob SQLite keys, Key Vault.
+- **Bicep** (`infra/main.bicep`): Azure SQL Serverless, Function App (.NET 10 isolated worker), Key Vault, Static Web App, Azure Communication Services (transactional email), Azure AI Document Intelligence (scorecard OCR), Storage (player photos), Application Insights.
 - **Deploy API**: `.github/workflows/deploy-api.yml` — `dotnet test`, `dotnet publish` `GolfLeague.Functions`, deploy with `Azure/functions-action` (app name in workflow).
 - **Deploy Web**: `.github/workflows/deploy-web.yml` — `npm ci` / `npm run build` in `web/`, deploy with `Azure/static-web-apps-deploy`, `skip_app_build: true`, output `web/dist`.
 

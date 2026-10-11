@@ -76,7 +76,7 @@ resource hostingPlan 'Microsoft.Web/serverfarms@2023-01-01' = {
   }
 }
 
-// Function App — .NET 9 Isolated Worker with system-assigned Managed Identity.
+// Function App — .NET 10 Isolated Worker with system-assigned Managed Identity.
 // Only minimal bootstrap settings are set here; the full set (including Key
 // Vault references) is patched in by main.bicep after Key Vault deploys.
 resource functionApp 'Microsoft.Web/sites@2023-01-01' = {

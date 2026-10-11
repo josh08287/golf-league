@@ -50,8 +50,8 @@ A golf league management platform supporting:
 ┌─────────▼──────────────────▼─────────────────────▼─────────────┐
 │                     Azure Cloud                                  │
 │  ┌───────────────────────────────────────────────────────────┐  │
-│  │   Azure Functions (Consumption) — HTTP-triggered API      │  │
-│  │   REST API at /api/v1/ + background jobs (same host)      │  │
+│  │   Azure Functions (.NET 10 Isolated) — REST API at        │  │
+│  │   /api/v1/ + background jobs / scheduled timers           │  │
 │  └────────────────────────┬──────────────────────────────────┘  │
 │                  ┌────────┴──────────┐                          │
 │  ┌───────────────▼───┐  ┌───────────▼──────────────────────┐   │
@@ -59,8 +59,12 @@ A golf league management platform supporting:
 │  │ (Serverless)       │  │ (hosts web frontend + routes API) │   │
 │  └────────────────────┘  └───────────────────────────────────┘  │
 │  ┌─────────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │ Entra External  │  │ Azure Key    │  │ Application      │   │
-│  │ ID (Identity)   │  │ Vault        │  │ Insights         │   │
+│  │ ASP.NET Identity│  │ Azure Key    │  │ Application      │   │
+│  │ & Passkey/OAuth │  │ Vault        │  │ Insights         │   │
+│  └─────────────────┘  └──────────────┘  └──────────────────┘   │
+│  ┌─────────────────┐  ┌──────────────┐  ┌──────────────────┐   │
+│  │ Communication   │  │ AI Document  │  │ Blob Storage     │   │
+│  │ Services (Email)│  │ Intelligence │  │ (Player photos)  │   │
 │  └─────────────────┘  └──────────────┘  └──────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -187,13 +191,15 @@ Cross-flight competitions (e.g., "low gross of the day") are tracked as separate
 
 | Concern | Choice | Reason |
 |---|---|---|
-| Runtime | .NET 8 Isolated Worker | Azure Functions native runtime; same EF Core and strong typing as App Service |
+| Runtime | .NET 10 Isolated Worker | Azure Functions native runtime; same EF Core and strong typing as ASP.NET Core |
 | Hosting | Azure Functions (Consumption plan) | Pay-per-execution; a golf league is bursty — zero cost when idle, ~$0 at this scale |
-| Database | Azure SQL Database (Serverless) | Relational domain; auto-pauses when idle; no minimum DTU cost |
+| Database | Azure SQL Database (Serverless) | Relational domain; auto-pauses when idle; no minimum DTU cost (Canada East) |
 | Caching | None (eliminated) | At 20-100 players, SQL Serverless query time is negligible; Redis ($17/mo) is not justified |
-| Identity | Entra External ID | Consumer identity, free tier (<50K MAU), OAuth 2.0 + PKCE on all platforms |
+| Identity | ASP.NET Core Identity & Self-Issued JWT | Local accounts, WebAuthn/FIDO2 passkeys, TOTP MFA, Google & Facebook OAuth |
 | Secrets | Azure Key Vault + Managed Identity | No secrets in code or config files |
 | File storage | Azure Blob Storage (Cool LRS) | Player photos; negligible cost at this scale |
+| Email | Azure Communication Services | Custom transactional email delivery (`capitalgolfleague.com`) |
+| Scorecard OCR | Azure AI Document Intelligence | Computer vision scorecard digitizing |
 | Observability | Application Insights (free tier, 10% sampling) | Stays under 5 GB/month free threshold |
 | IaC | Bicep | Azure-native; checked into `/infra` |
 
@@ -206,19 +212,16 @@ Cross-flight competitions (e.g., "low gross of the day") are tracked as separate
 ```
 /
 ├── src/
-│   ├── GolfLeague.Functions/      # Azure Functions host (HTTP API + background triggers)
+│   ├── GolfLeague.Functions/      # Azure Functions host (.NET 10 HTTP API + background triggers)
 │   ├── GolfLeague.Domain/         # Entities, interfaces, scoring logic (pure .NET)
 │   ├── GolfLeague.Application/    # Use cases, CQRS commands/queries (MediatR)
-│   └── GolfLeague.Infrastructure/ # EF Core, Azure SQL, Blob Storage
+│   └── GolfLeague.Infrastructure/ # EF Core, Azure SQL, Auth, ACS, Document Intelligence
 ├── tests/
-│   ├── GolfLeague.UnitTests/
-│   └── GolfLeague.IntegrationTests/
-├── infra/                         # Bicep IaC
-│   ├── main.bicep
-│   ├── modules/
-│   ├── dev.parameters.json
-│   └── prod.parameters.json
-└── entra-config/                  # Entra External ID app registration notes
+│   └── GolfLeague.Functions.Tests/# API, application, domain, and integration tests
+├── web/                           # React 18 + Vite + TypeScript frontend
+├── mobile/                        # Flutter cross-platform mobile application
+├── infra/                         # Bicep IaC (main.bicep, modules, prod.parameters.json)
+└── scripts/                       # Local dev management (Start-Local.ps1, Stop-Local.ps1)
 ```
 
 ### 3.3 Key Backend Patterns
@@ -257,7 +260,8 @@ Public (no auth required):
   /rounds                    -> Round history list
   /rounds/:roundId           -> Round detail (all scorecards, hole-by-hole)
   /players/:playerId         -> Player profile + season stats
-  /login                     -> Admin login (redirects to Entra External ID)
+  /login                     -> Login (email/password, passkeys, Google/Facebook OAuth)
+  /register                  -> Player account registration / invite claim
 
 Admin (RequireAuth wrapper, admin role required):
   /admin                     -> Admin dashboard
@@ -318,7 +322,7 @@ Admin (RequireAuth wrapper, admin role required):
 | Local DB | Drift (type-safe SQLite ORM) | Offline score viewing + offline score entry queue |
 | Ephemeral cache | Hive | Auth tokens, user preferences |
 | Secure storage | flutter_secure_storage | Refresh tokens in OS Keychain / Android Keystore |
-| Authentication | flutter_appauth (AppAuth + PKCE) | Entra External ID; no client secret on device |
+| Authentication | AppAuth / flutter_web_auth_2 | Self-issued JWT with Google & Facebook OAuth, TOTP, and refresh tokens |
 | Push notifications | Firebase Cloud Messaging | Handles both APNs (iOS) and FCM (Android); free at league scale |
 | Code generation | freezed + json_serializable | Immutable models, exhaustive pattern matching, fromJson/toJson |
 | Charts | fl_chart | Handicap sparklines, standings bar charts |
@@ -516,7 +520,11 @@ Azure SQL Database with Entity Framework Core code-first migrations. All tables 
 
 **`Flights`** — Flights within a season: name, handicap range, display order.
 
-**`Players`** — Player registry. `B2CObjectId` links to Azure AD B2C. `IsActive` for soft-delete.
+**`Players`** — Player registry. `AppUserId` optionally links to `AppUser` for authentication. `IsActive` for soft-delete. Tracks substitute status and tee time preferences.
+
+**`AppUsers`** — Local accounts managed by ASP.NET Core Identity. Holds credentials, roles (`admin` | `scorer` | `player`), and MFA status.
+
+**`RefreshTokens`** & **`UserPasskeys`** — Stored token rotation hashes and registered WebAuthn credentials.
 
 **`FlightMemberships`** — Assigns a player to a flight for a season. Unique constraint: one active membership per player per season.
 
@@ -671,18 +679,18 @@ Single production environment only. All testing happens locally and in CI before
 ### CI/CD (GitHub Actions)
 
 ```
-feature/* -> PR -> main (runs full test suite on PR)
-main      -> deploy to Production (one-admin approval gate)
+feature/* -> PR -> master (runs full test suite on PR)
+master    -> deploy to Production (GitHub Actions workflows)
 ```
 
 **Pipeline stages:**
-1. Build: `dotnet build`, unit tests, TypeScript/lint checks, Flutter tests
-2. Integration tests against a local SQLite in-memory database
-3. Publish artifact
-4. Deploy to production via `func azure functionapp publish`; EF Core migrations run as a pre-deploy step
+1. Build & Test: `dotnet test` (all unit & integration tests), `npm run build` (TypeScript/Vite checks)
+2. Deploy API: GitHub Action `deploy-api.yml` publishes Azure Functions using `azure/functions-action`
+3. Deploy Web: GitHub Action `deploy-web.yml` deploys Static Web App using `Azure/static-web-apps-deploy`
+4. Post-deploy migration: EF Core migrations run at Function startup (`MigrateAsync()`) or on-demand via `POST /api/db-migrate`
 5. Smoke test against `/api/health`
 
-Local development uses `func start` (Azure Functions Core Tools) with a local `local.settings.json` pointing at a local SQL Server Express or SQLite database. No cloud resources are consumed during development.
+Local development uses SQL Server LocalDB (`(localdb)\MSSQLLocalDB`) and Azure Functions Core Tools via helper scripts `scripts/Start-Local.ps1` and `scripts/Stop-Local.ps1`. No cloud resources are consumed during development.
 
 ### Infrastructure as Code (Bicep)
 
@@ -690,11 +698,14 @@ Local development uses `func start` (Azure Functions Core Tools) with a local `l
 /infra/
 ├── main.bicep
 ├── modules/
+│   ├── appinsights.bicep
+│   ├── communication.bicep
+│   ├── documentintelligence.bicep
 │   ├── functions.bicep
-│   ├── sql.bicep
-│   ├── storage.bicep
 │   ├── keyvault.bicep
-│   └── appinsights.bicep
+│   ├── sql.bicep
+│   ├── staticwebapp.bicep
+│   └── storage.bicep
 └── prod.parameters.json
 ```
 
@@ -713,17 +724,19 @@ Local development uses `func start` (Azure Functions Core Tools) with a local `l
 | Service | Tier | Est. Monthly Cost | vs. v1.0 |
 |---|---|---|---|
 | ~~App Service S1~~ | ~~Standard S1~~ | ~~$69~~ | eliminated |
-| Azure Functions | Consumption (< 1M executions) | ~$0-$2 | **-$67** |
+| Azure Functions | Consumption (.NET 10, < 1M executions) | ~$0-$2 | **-$67** |
 | Azure SQL Database | General Purpose Serverless, 1 vCore, auto-pause | ~$10-$20 | -$5 (smaller vCore) |
 | ~~Azure Cache for Redis~~ | ~~Basic C0~~ | ~~$17~~ | **eliminated** |
-| Azure Blob Storage | Cool LRS, < 1 GB | ~$0.01 | unchanged |
-| Entra External ID | Free (< 50K MAU) | $0 | unchanged |
+| Azure Blob Storage | Cool LRS, < 1 GB (player photos) | ~$0.01 | unchanged |
+| ASP.NET Core Identity | In-database accounts + social OAuth | $0 | eliminated Entra fee |
+| Communication Services | Pay-as-you-go (~few hundred emails/mo) | ~$0.10 | transactional emails |
+| Document Intelligence | Free F0 tier (< 500 pages/month) | $0 | scorecard OCR |
 | Azure Key Vault | Standard | ~$1 | unchanged |
 | Application Insights | Free tier, 10% sampling | $0 | -$3 (sampling) |
 | Azure Static Web Apps | Free tier | $0 | unchanged |
-| **Total (Production)** | | **~$11-$23/month** | **-$79-$97/month** |
+| **Total (Production)** | | **~$11-$24/month** | **-$78-$96/month** |
 
-**Estimated total: ~$11-$23/month** (production only).
+**Estimated total: ~$11-$24/month** (production only).
 
 That is a reduction of approximately **$125-$140/month** (85%+) compared to v1.0 with no change to functionality.
 
@@ -734,7 +747,7 @@ That is a reduction of approximately **$125-$140/month** (85%+) compared to v1.0
 | App Service S1 → Functions Consumption | ~$67/month | Traffic is bursty (one round/week, light reads). Fixed compute is wasteful. |
 | Redis eliminated | ~$17/month | With no persistent server process, in-process caching has no benefit. SQL Serverless is fast enough. |
 | Staging environment eliminated | ~$15-20/month | A golf league has one admin and < 100 users. Not justified. |
-| Dev environment eliminated | ~$5-10/month | Developers run `func start` locally with SQL Server Express or SQLite. Zero cloud cost. |
+| Dev environment eliminated | ~$5-10/month | Developers run LocalDB (`(localdb)\MSSQLLocalDB`) and `scripts/Start-Local.ps1`. Zero cloud cost. |
 | Application Insights sampling 10% | ~$3/month | Stays under the 5 GB/month free threshold. |
 
 ### Growth Path
@@ -752,16 +765,18 @@ These upgrades can be applied independently as actual usage data justifies them.
 
 | Layer | Technology |
 |---|---|
-| Backend API + jobs | .NET 8 Isolated Worker, Azure Functions (Consumption), MediatR, EF Core 8 |
-| Database | Azure SQL Database (Serverless, auto-pause) |
-| Identity | Entra External ID, MSAL / flutter_appauth, OAuth 2.0 + PKCE |
+| Backend API + jobs | .NET 10 Isolated Worker, Azure Functions (Consumption), MediatR, EF Core 10 |
+| Database | Azure SQL Database (Serverless, auto-pause, Canada East) |
+| Identity | ASP.NET Core Identity, Self-Issued HS256 JWT, WebAuthn/FIDO2 passkeys, TOTP MFA, Google & Facebook OAuth |
 | Secrets | Azure Key Vault + Managed Identity |
+| Transactional Email | Azure Communication Services |
+| Scorecard OCR | Azure AI Document Intelligence |
 | Web frontend | React 18, TypeScript, Vite, TanStack Query, Zustand, Shadcn/ui, Tailwind CSS |
 | Web hosting | Azure Static Web Apps (Free tier) |
 | Mobile | Flutter 3.x (Dart), Riverpod 2.x, GoRouter, Drift, Hive, Dio |
-| Mobile auth | flutter_appauth (AppAuth SDK + PKCE), Entra External ID |
+| Mobile auth | AppAuth / flutter_web_auth_2 (Google & Facebook OAuth) + flutter_secure_storage |
 | Push notifications | Firebase Cloud Messaging + APNs |
 | Mobile CI/CD | Codemagic (free tier) + Fastlane |
-| Backend CI/CD | GitHub Actions |
+| Backend CI/CD | GitHub Actions (`master` branch) |
 | Infrastructure | Azure Bicep (IaC) |
 | Observability | Azure Application Insights (free tier, 10% adaptive sampling) |
