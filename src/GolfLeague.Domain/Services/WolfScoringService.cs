@@ -8,8 +8,8 @@ namespace GolfLeague.Domain.Services;
 /// BestBallScoringService's best-ball primitive for the hole comparison,
 /// then applies whichever point rule matches the call:
 ///   - Partnered: win = 1 point per player on the winning side.
-///   - Lone wolf: win = 2 points to the Wolf alone; loss = the other 3
-///     split 2 points (points are pooled per side, same shape as partnered).
+///   - Lone wolf: win = 2 points to the Wolf alone; loss = 1 point to each
+///     of the other 3 players.
 ///   - Blind wolf: win = 4 points to the Wolf alone; loss = 1 point EACH to
 ///     the other 3 (3 total, not pooled — this is the asymmetric case that
 ///     makes blind wolf a bigger gamble than a plain lone wolf).
@@ -70,16 +70,17 @@ public static class WolfScoringService
         if (pick.IsBlindWolf)
             pointsAwarded = wolfWon ? BlindWolfWinPoints : BlindWolfLossPointsPerOpponent * otherSide.Count;
         else
-            pointsAwarded = isAlone ? LoneWolfHolePoints : NormalHolePoints;
+            pointsAwarded = (isAlone && wolfWon) ? LoneWolfHolePoints : NormalHolePoints;
 
         return new HoleOutcome(pick.HoleNumber, holeResult.Winner, wolfSide, otherSide, pointsAwarded, pick.IsBlindWolf);
     }
 
     /// <summary>
     /// Tallies running points per participant across every scored hole.
-    /// Normal/lone-wolf wins pool the hole's points evenly across the
-    /// winning side (the lone wolf keeps all of it alone). Blind wolf is the
-    /// one asymmetric case: a Wolf win awards all 4 points to the Wolf only,
+    /// Partnered wins award 1 point to each player on the winning side.
+    /// Lone-wolf wins award 2 points to the Wolf, while a lone-wolf loss
+    /// awards 1 point to each of the other 3 players. Blind wolf is the
+    /// asymmetric case: a Wolf win awards all 4 points to the Wolf only,
     /// while a Wolf loss awards 1 point to each of the 3 opponents (not
     /// pooled/split).
     /// </summary>
