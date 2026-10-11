@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -15,7 +15,14 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass } from '../../components/admin/FormField';
 import { CourseHolesEditor } from '../../components/admin/CourseHolesEditor';
 import { TeeBoxesEditor } from '../../components/admin/TeeBoxesEditor';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { FEATURE_FLAG_KEYS } from '../../types/api';
 import type { Course, CourseDetail } from '../../types/api';
+
+// Pulls in the map library; only load it when a course is expanded with the flag on.
+const CourseHoleMapEditor = lazy(() =>
+  import('../../components/admin/CourseHoleMapEditor').then((m) => ({ default: m.CourseHoleMapEditor })),
+);
 
 // ── Schema ─────────────────────────────────────────────────────────────────
 
@@ -97,6 +104,8 @@ interface CourseRowProps {
 
 function CourseRow({ course, onDelete }: CourseRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const featureFlags = useFeatureFlagStates();
+  const holeMapEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.holeMapEnabled] ?? false;
 
   const { data: detail, isLoading } = useQuery<CourseDetail>({
     queryKey: courseKeys.detail(String(course.id)),
@@ -159,9 +168,21 @@ function CourseRow({ course, onDelete }: CourseRowProps) {
                 <TeeBoxesEditor 
                   courseId={String(course.id)} 
                   courseHoles={detail?.holeDetails ?? []} 
-                  teeBoxes={detail?.teeBoxes ?? []} 
+                  teeBoxes={detail?.teeBoxes ?? []}
                 />
               </div>
+
+              {holeMapEnabled && (
+                <div className="border-t border-gray-100 pt-6">
+                  <Suspense fallback={<Spinner />}>
+                    <CourseHoleMapEditor
+                      courseId={course.id}
+                      courseName={course.name}
+                      courseHoles={detail?.holeDetails ?? []}
+                    />
+                  </Suspense>
+                </div>
+              )}
             </>
           )}
         </div>

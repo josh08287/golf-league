@@ -30,6 +30,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<Handicap> Handicaps => Set<Handicap>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<CourseHole> CourseHoles => Set<CourseHole>();
+    public DbSet<CourseHoleGeo> CourseHoleGeos => Set<CourseHoleGeo>();
     public DbSet<TeeBox> TeeBoxes => Set<TeeBox>();
     public DbSet<HoleTeeBox> HoleTeeBoxes => Set<HoleTeeBox>();
     public DbSet<Round> Rounds => Set<Round>();
@@ -72,6 +73,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureHandicaps(modelBuilder);
         ConfigureCourses(modelBuilder);
         ConfigureCourseHoles(modelBuilder);
+        ConfigureCourseHoleGeos(modelBuilder);
         ConfigureTeeBoxes(modelBuilder);
         ConfigureHoleTeeBoxes(modelBuilder);
         ConfigureRounds(modelBuilder);
@@ -334,6 +336,20 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.CourseId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.ToTable(tb => tb.HasCheckConstraint("CK_CourseHole_Par", "Par BETWEEN 3 AND 5"));
+        });
+    }
+
+    private static void ConfigureCourseHoleGeos(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CourseHoleGeo>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Source).IsRequired().HasMaxLength(20);
+            entity.HasIndex(e => new { e.CourseId, e.HoleNumber }).IsUnique();
+            entity.HasOne(e => e.Course)
+                  .WithMany(c => c.HoleGeos)
+                  .HasForeignKey(e => e.CourseId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 

@@ -90,6 +90,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       "Lets admins set a tournament's first tee time when creating it and on the tournament management page, instead of the default 3:28 PM start. Later tee times follow at the usual 8-minute interval. Applies to every league.",
   },
+  {
+    key: FEATURE_FLAG_KEYS.holeMapEnabled,
+    label: 'Hole map & GPS yardage on score entry',
+    description:
+      "Adds a \"Hole map\" button to the group score entry screen: a satellite view of the current hole, turned so the tee is at the bottom, centred on the player's phone GPS, with yardages to the front, centre and back of the green and to any spot they tap. Admins import each course's holes from OpenStreetMap on the Courses page. Applies to every league.",
+  },
 ];
 
 function Toggle({

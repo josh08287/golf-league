@@ -209,6 +209,15 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string TournamentStartTimeEnabled = "tournament_start_time_enabled";
 
+    /// <summary>
+    /// Adds a "Hole map" button to the tee-time group score entry screen: a
+    /// satellite view of the current hole, rotated tee-to-green, centred on
+    /// the player's GPS position, with yardages to the green and to any
+    /// point the player taps. Hole coordinates are imported per course from
+    /// OpenStreetMap by an admin on the Courses page. Applies to every league.
+    /// </summary>
+    public const string HoleMapEnabled = "hole_map_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -225,5 +234,6 @@ public static class KnownFeatureFlags
         [TournamentHandicapToggleEnabled] = false,
         [TournamentSubstituteSkinsToggleEnabled] = false,
         [TournamentStartTimeEnabled] = false,
+        [HoleMapEnabled] = false,
     };
 }

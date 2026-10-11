@@ -1225,7 +1225,41 @@ export const FEATURE_FLAG_KEYS = {
   tournamentHandicapToggleEnabled: 'tournament_handicap_toggle_enabled',
   tournamentSubstituteSkinsToggleEnabled: 'tournament_substitute_skins_toggle_enabled',
   tournamentStartTimeEnabled: 'tournament_start_time_enabled',
+  holeMapEnabled: 'hole_map_enabled',
 } as const;
+
+// ── Course hole map ─────────────────────────────────────────────────────────
+// Tee/green coordinates per hole, imported from OpenStreetMap (or placed by
+// an admin) and shown on the score entry hole map.
+
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
+export type CourseHoleGeoSource = 'osm' | 'manual';
+
+export interface CourseHoleGeoHole {
+  holeNumber: number;
+  tee: GeoPoint;
+  green: GeoPoint;
+  greenFront: GeoPoint | null;
+  greenBack: GeoPoint | null;
+  source: CourseHoleGeoSource;
+  osmWayId?: number | null;
+}
+
+export interface CourseHoleGeo {
+  courseId: number;
+  latitude: number | null;
+  longitude: number | null;
+  holes: CourseHoleGeoHole[];
+}
+
+export interface OsmHoleGeoPreview {
+  holes: CourseHoleGeoHole[];
+  warnings: string[];
+}
 
 // ── Side Games ──────────────────────────────────────────────────────────────
 // Optional per-foursome games (Nassau, 2v2 best ball, Bingo Bango Bongo,

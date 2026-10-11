@@ -1,6 +1,6 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef, lazy, Suspense } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle, Repeat, Camera } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Flag, Save, CheckCircle, BarChart2, Target, AlertTriangle, Repeat, Camera, Map as MapIcon } from 'lucide-react';
 import {
   useTeeTimeGroupScorecard,
   useSubmitTeeTimeGroupScores,
@@ -13,6 +13,7 @@ import {
 } from '@/hooks/useTeeTimeScoreEntry';
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useCourseHoleGeo } from '@/hooks/useCourseHoleGeo';
 import { SideGamesPanel, SideGamesStatusBar, SideGamesHolePickersSection } from '@/components/scoring/SideGamesPanel';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -34,6 +35,9 @@ import type {
   ScorecardOcrResult,
   RoundType,
 } from '@/types/api';
+
+// The map library is large; only download it when a player opens the hole map.
+const HoleMapSheet = lazy(() => import('@/components/scoring/HoleMapSheet').then((m) => ({ default: m.HoleMapSheet })));
 import { formatNineHoleSide } from '@/lib/enumUtils';
 
 // Helper to calculate stableford points
@@ -1178,6 +1182,12 @@ export function TeeTimeScoreEntryPage() {
   const featureFlags = useFeatureFlagStates();
   const scorecardOcrEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.scorecardOcrEnabled] ?? false;
   const sideGamesEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.sideGamesEnabled] ?? false;
+  const holeMapEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.holeMapEnabled] ?? false;
+  const holeGeo = useCourseHoleGeo(scorecard?.courseId, holeMapEnabled);
+  // Index of the hole shown on the map — separate from currentHoleIndex so
+  // browsing holes on the map never moves score entry (which refetches and
+  // overwrites the destination hole's unsaved scores). null = map closed.
+  const [mapHoleIndex, setMapHoleIndex] = useState<number | null>(null);
 
   // setup step state
   const [setupComplete, setSetupComplete] = useState(false);
@@ -1714,10 +1724,42 @@ export function TeeTimeScoreEntryPage() {
 
       {/* Hole number indicator */}
       {(setupComplete || !canEdit) && !showSummary && currentHole && (
-        <p className="text-center text-sm text-gray-500">
-          Hole {currentHole.holeNumber} · {holes.filter((h) => isHoleComplete(h.holeNumber)).length} of {holes.length} complete
-          {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
-        </p>
+        <div className="flex items-center justify-center gap-3">
+          <p className="text-center text-sm text-gray-500">
+            Hole {currentHole.holeNumber} · {holes.filter((h) => isHoleComplete(h.holeNumber)).length} of {holes.length} complete
+            {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
+          </p>
+          {holeMapEnabled && (
+            <Button variant="outline" size="sm" onClick={() => setMapHoleIndex(currentHoleIndex)}>
+              <MapIcon className="h-4 w-4 mr-1" />
+              Hole map
+            </Button>
+          )}
+        </div>
+      )}
+
+      {mapHoleIndex !== null && holes[mapHoleIndex] && (
+        <Suspense
+          fallback={
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black">
+              <Spinner className="h-8 w-8 text-white" />
+            </div>
+          }
+        >
+          <HoleMapSheet
+            holeNumber={holes[mapHoleIndex].holeNumber}
+            par={holes[mapHoleIndex].par}
+            geo={holeGeo.data?.holes.find((h) => h.holeNumber === holes[mapHoleIndex].holeNumber)}
+            courseCentre={
+              holeGeo.data?.latitude != null && holeGeo.data?.longitude != null
+                ? { lat: holeGeo.data.latitude, lng: holeGeo.data.longitude }
+                : null
+            }
+            onPrevHole={() => setMapHoleIndex((i) => ((i ?? 0) - 1 + holes.length) % holes.length)}
+            onNextHole={() => setMapHoleIndex((i) => ((i ?? 0) + 1) % holes.length)}
+            onClose={() => setMapHoleIndex(null)}
+          />
+        </Suspense>
       )}
 
       {/* Live side games status while entering holes; the review screen shows final results instead */}

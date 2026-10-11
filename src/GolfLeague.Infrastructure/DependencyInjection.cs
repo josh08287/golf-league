@@ -11,6 +11,7 @@ using GolfLeague.Infrastructure.Auth;
 using GolfLeague.Infrastructure.Caching;
 using GolfLeague.Infrastructure.Data;
 using GolfLeague.Infrastructure.Email;
+using GolfLeague.Infrastructure.Geo;
 using GolfLeague.Infrastructure.Handicaps;
 using GolfLeague.Infrastructure.MatchPlay;
 using GolfLeague.Infrastructure.Repositories;
@@ -93,6 +94,7 @@ public static class DependencyInjection
         services.AddScoped<ITeeTimeSideGameRepository, TeeTimeSideGameRepository>();
         services.AddScoped<CourseRepository>();
         services.AddScoped<ICourseRepository>(sp => new CachedCourseRepository(sp.GetRequiredService<CourseRepository>(), sp.GetRequiredService<IMemoryCache>()));
+        services.AddScoped<ICourseHoleGeoRepository, CourseHoleGeoRepository>();
         services.AddScoped<IHandicapRepository, HandicapRepository>();
         services.AddSingleton<IHandicapFormulaEvaluator, HandicapFormulaEvaluator>();
         services.AddScoped<IFlightMatchRepository, FlightMatchRepository>();
@@ -119,6 +121,13 @@ public static class DependencyInjection
         services.AddMemoryCache();
         services.AddHttpClient("google");
         services.AddHttpClient("facebook");
+        // Overpass usage policy asks for an identifying User-Agent.
+        services.AddHttpClient(OsmGolfImportService.HttpClientName, c =>
+        {
+            c.Timeout = TimeSpan.FromSeconds(40);
+            c.DefaultRequestHeaders.UserAgent.ParseAdd("GolfLeagueApp/1.0 (course hole map import)");
+        });
+        services.AddScoped<IOsmGolfImportService, OsmGolfImportService>();
 
         services.AddFido2(options =>
         {
