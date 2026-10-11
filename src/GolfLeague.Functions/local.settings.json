@@ -1,16 +1,21 @@
 {
   "IsEncrypted": false,
   "Values": {
-    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "AzureWebJobsStorage": "",
     "FUNCTIONS_WORKER_RUNTIME": "dotnet-isolated",
     "RUN_MIGRATIONS_ON_STARTUP": "true",
+    "SEED_LOCAL_DEV_DATA": "true",
     "JWT_SIGNING_KEY": "golf-league-dev-jwt-signing-key-minimum-32-chars-long",
-    "SQL_CONNECTION_STRING": "Server=tcp:capgolfleague-eca.database.windows.net,1433;Initial Catalog=capgolfleague;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;Authentication=\"Active Directory Default\";",
+    "SQL_CONNECTION_STRING": "Server=(localdb)\\MSSQLLocalDB;Database=GolfLeague;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;",
     "BLOB_STORAGE_ACCOUNT": "",
     "WEB_BASE_URL": "http://localhost:5173",
     "ACS_CONNECTION_STRING": "",
     "ACS_SENDER_ADDRESS": "",
-    "DOCUMENT_INTELLIGENCE_ENDPOINT": "https://golfleague-card-reader.cognitiveservices.azure.com/",
-    "DOCUMENT_INTELLIGENCE_KEY": ""
+    "DOCUMENT_INTELLIGENCE_ENDPOINT": "",
+    "DOCUMENT_INTELLIGENCE_KEY": "",
+    "ADMIN_BOOTSTRAP_EMAIL": "admin@golfleague.local",
+    "AzureWebJobs.SignUpReminderTimer.Disabled": "true",
+    "AzureWebJobs.SubSpotEmailTimer.Disabled": "true",
+    "AzureWebJobs.TeeTimeAutofillTimer.Disabled": "true"
   }
 }

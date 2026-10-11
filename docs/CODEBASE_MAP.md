@@ -21,7 +21,7 @@ src/
   GolfLeague.Functions/     HTTP triggers, Program.cs, AuthMiddleware
   GolfLeague.Domain/        Entities, enums, repository interfaces
   GolfLeague.Application/   MediatR commands/queries, DTOs, AuditBehavior
-  GolfLeague.Infrastructure/ DependencyInjection, EF AppDbContext, BlobSyncedDbContext, repositories
+  GolfLeague.Infrastructure/ DependencyInjection, EF AppDbContext, repositories
 web/                        Vite React app (src/pages, hooks, lib/api.ts)
 mobile/lib/                 Flutter app by feature + core/
 infra/                      main.bicep, modules (storage, functions, keyvault, …)

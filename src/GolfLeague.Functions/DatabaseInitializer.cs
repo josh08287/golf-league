@@ -1,4 +1,5 @@
 using GolfLeague.Domain.Entities;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Infrastructure.Auth;
 using GolfLeague.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
@@ -29,10 +30,29 @@ public static class DatabaseInitializer
 
         logger.LogInformation("DbInit: migrations applied. Seeding roles + default league + active season if missing.");
         await SeedRolesAsync(scope.ServiceProvider, logger);
-        var defaultLeague = await SeedDefaultLeagueAsync(dbContext, scope.ServiceProvider.GetRequiredService<IConfiguration>());
+        var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var defaultLeague = await SeedDefaultLeagueAsync(dbContext, config);
         await SeedActiveSeasonAsync(dbContext, defaultLeague.Id);
         await BootstrapAdminAsync(scope.ServiceProvider, logger);
         await BootstrapSuperAdminAsync(scope.ServiceProvider, logger);
+
+        if (config.GetValue<bool>("SEED_LOCAL_DEV_DATA"))
+        {
+            var connectionString = config["SQL_CONNECTION_STRING"] ?? string.Empty;
+            var isLocalDatabase = connectionString.Contains("(localdb)", StringComparison.OrdinalIgnoreCase)
+                || connectionString.Contains("localhost", StringComparison.OrdinalIgnoreCase)
+                || connectionString.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase);
+
+            if (isLocalDatabase)
+            {
+                await SeedLocalDevelopmentDataAsync(scope.ServiceProvider, dbContext, defaultLeague.Id, logger);
+            }
+            else
+            {
+                logger.LogWarning("DbInit: SEED_LOCAL_DEV_DATA was configured, but connection string does not target a local database. Skipping local data seed for safety.");
+            }
+        }
+
         logger.LogInformation("DbInit: seed complete.");
     }
 
@@ -227,5 +247,261 @@ public static class DatabaseInitializer
             logger.LogError(
                 "DbInit: failed to set IsSuperAdmin on {Email}: {Errors}",
                 superAdminEmail, string.Join("; ", result.Errors.Select(e => e.Description)));
+    }
+
+    private static async Task SeedLocalDevelopmentDataAsync(
+        IServiceProvider services,
+        AppDbContext dbContext,
+        int defaultLeagueId,
+        ILogger logger)
+    {
+        logger.LogInformation("DbInit: seeding local development test data.");
+        var userManager = services.GetRequiredService<UserManager<AppUser>>();
+
+        var testAccounts = new[]
+        {
+            (Email: "admin@golfleague.local", RoleName: "admin", LeagueRole: PlayerRole.Admin, First: "Alex", Last: "Admin"),
+            (Email: "scorer@golfleague.local", RoleName: "scorer", LeagueRole: PlayerRole.Scorer, First: "Sam", Last: "Scorer"),
+            (Email: "player@golfleague.local", RoleName: "player", LeagueRole: PlayerRole.Player, First: "Pat", Last: "Player"),
+        };
+
+        const string defaultPassword = "Password123!";
+        var userMap = new Dictionary<string, AppUser>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var account in testAccounts)
+        {
+            var user = await userManager.FindByEmailAsync(account.Email);
+            if (user is null)
+            {
+                user = new AppUser
+                {
+                    UserName = account.Email,
+                    Email = account.Email,
+                    EmailConfirmed = true,
+                    CreatedAt = DateTime.UtcNow,
+                };
+                var createResult = await userManager.CreateAsync(user, defaultPassword);
+                if (!createResult.Succeeded)
+                {
+                    logger.LogError("DbInit: failed creating test user {Email}: {Errors}",
+                        account.Email, string.Join("; ", createResult.Errors.Select(e => e.Description)));
+                    continue;
+                }
+            }
+            else
+            {
+                if (string.IsNullOrEmpty(user.PasswordHash))
+                {
+                    var token = await userManager.GeneratePasswordResetTokenAsync(user);
+                    await userManager.ResetPasswordAsync(user, token, defaultPassword);
+                }
+            }
+
+            if (!await userManager.IsInRoleAsync(user, account.RoleName))
+            {
+                await userManager.AddToRoleAsync(user, account.RoleName);
+            }
+
+            var hasMembership = await dbContext.LeagueMemberships
+                .AnyAsync(m => m.LeagueId == defaultLeagueId && m.UserId == user.Id);
+            if (!hasMembership)
+            {
+                dbContext.LeagueMemberships.Add(new LeagueMembership
+                {
+                    LeagueId = defaultLeagueId,
+                    UserId = user.Id,
+                    Role = account.LeagueRole,
+                    JoinedAt = DateTime.UtcNow,
+                });
+                await dbContext.SaveChangesAsync();
+            }
+
+            userMap[account.Email] = user;
+        }
+
+        // Check if roster players are already seeded
+        var alreadySeeded = await dbContext.Players.AnyAsync(p => p.LeagueId == defaultLeagueId && p.Email == "player@golfleague.local");
+        if (alreadySeeded)
+        {
+            logger.LogInformation("DbInit: test players and rounds already seeded.");
+            return;
+        }
+
+        // Seed Players
+        var playersToCreate = new List<(string First, string Last, string? Email, double Handicap, Guid? UserId)>
+        {
+            ("Alex", "Admin", "admin@golfleague.local", 6.4, userMap.GetValueOrDefault("admin@golfleague.local")?.Id),
+            ("Sam", "Scorer", "scorer@golfleague.local", 11.2, userMap.GetValueOrDefault("scorer@golfleague.local")?.Id),
+            ("Pat", "Player", "player@golfleague.local", 14.8, userMap.GetValueOrDefault("player@golfleague.local")?.Id),
+            ("Jordan", "Spieth", null, 2.1, null),
+            ("Rory", "McIlroy", null, 1.5, null),
+            ("Scottie", "Scheffler", null, 0.4, null),
+            ("Tiger", "Woods", null, 4.0, null),
+            ("Viktor", "Hovland", null, 3.2, null),
+        };
+
+        var playerEntities = new List<Player>();
+        foreach (var p in playersToCreate)
+        {
+            var player = new Player
+            {
+                LeagueId = defaultLeagueId,
+                FirstName = p.First,
+                LastName = p.Last,
+                Email = p.Email,
+                AppUserId = p.UserId,
+                IsActive = true,
+            };
+            dbContext.Players.Add(player);
+            playerEntities.Add(player);
+        }
+        await dbContext.SaveChangesAsync();
+
+        // Seed Handicaps
+        for (int i = 0; i < playerEntities.Count; i++)
+        {
+            dbContext.Handicaps.Add(new Handicap
+            {
+                PlayerId = playerEntities[i].Id,
+                HandicapIndex = playersToCreate[i].Handicap,
+                EffectiveDate = DateOnly.FromDateTime(DateTime.UtcNow.AddMonths(-1)),
+                Source = HandicapSource.Manual,
+                Notes = "Initial local dev seed handicap",
+            });
+        }
+        await dbContext.SaveChangesAsync();
+
+        // Seed Flights & Memberships under Active Season / Half 1
+        var season = await dbContext.Seasons
+            .Include(s => s.Halves)
+            .FirstOrDefaultAsync(s => s.LeagueId == defaultLeagueId && s.IsActive);
+
+        if (season is not null && season.Halves.Count > 0)
+        {
+            var half1 = season.Halves.OrderBy(h => h.HalfNumber).First();
+            var flightA = new Flight
+            {
+                LeagueId = defaultLeagueId,
+                SeasonId = season.Id,
+                HalfId = half1.Id,
+                Name = "Championship Flight",
+                DisplayOrder = 1,
+            };
+            var flightB = new Flight
+            {
+                LeagueId = defaultLeagueId,
+                SeasonId = season.Id,
+                HalfId = half1.Id,
+                Name = "First Flight",
+                DisplayOrder = 2,
+            };
+            dbContext.Flights.AddRange(flightA, flightB);
+            await dbContext.SaveChangesAsync();
+
+            // Assign first 4 players to Flight A, rest to Flight B
+            for (int i = 0; i < playerEntities.Count; i++)
+            {
+                var targetFlight = i < 4 ? flightA : flightB;
+                dbContext.FlightMemberships.Add(new FlightMembership
+                {
+                    PlayerId = playerEntities[i].Id,
+                    FlightId = targetFlight.Id,
+                    SeasonId = season.Id,
+                    HalfId = half1.Id,
+                    JoinedAt = DateTime.UtcNow,
+                });
+            }
+            await dbContext.SaveChangesAsync();
+
+            // Seed Course Rounds
+            var course = await dbContext.Courses.FirstOrDefaultAsync();
+            if (course is not null)
+            {
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+                // Past Round (Week 1) - Finalized
+                var pastRound = new Round
+                {
+                    LeagueId = defaultLeagueId,
+                    SeasonId = season.Id,
+                    HalfId = half1.Id,
+                    CourseId = course.Id,
+                    WeekNumber = 1,
+                    RoundDate = today.AddDays(-7),
+                    Status = RoundStatus.Finalized,
+                    NineHoleSide = NineHoleSide.Front,
+                    RoundType = RoundType.NineHole,
+                    Notes = "Week 1 - Season Opener (Local Dev Seed)",
+                };
+                dbContext.Rounds.Add(pastRound);
+                await dbContext.SaveChangesAsync();
+
+                foreach (var player in playerEntities.Take(6))
+                {
+                    dbContext.RoundParticipants.Add(new RoundParticipant
+                    {
+                        RoundId = pastRound.Id,
+                        PlayerId = player.Id,
+                        HandicapIndex = 10.0,
+                        CourseHandicap = 5,
+                        TotalGrossStrokes = 42,
+                        TotalNetStrokes = 37,
+                        TotalGrossStablefordPoints = 14,
+                        TotalNetStablefordPoints = 19,
+                    });
+                }
+
+                // Upcoming Round (Week 2) - Scheduled with Tee Times
+                var upcomingRound = new Round
+                {
+                    LeagueId = defaultLeagueId,
+                    SeasonId = season.Id,
+                    HalfId = half1.Id,
+                    CourseId = course.Id,
+                    WeekNumber = 2,
+                    RoundDate = today.AddDays(2),
+                    Status = RoundStatus.Scheduled,
+                    NineHoleSide = NineHoleSide.Back,
+                    RoundType = RoundType.NineHole,
+                    Notes = "Week 2 - Upcoming Match (Local Dev Seed)",
+                };
+                dbContext.Rounds.Add(upcomingRound);
+                await dbContext.SaveChangesAsync();
+
+                var teeTime1 = new RoundTeeTime
+                {
+                    RoundId = upcomingRound.Id,
+                    TeeTimeNumber = 1,
+                    ScheduledTime = new TimeOnly(15, 28),
+                };
+                var teeTime2 = new RoundTeeTime
+                {
+                    RoundId = upcomingRound.Id,
+                    TeeTimeNumber = 2,
+                    ScheduledTime = new TimeOnly(15, 36),
+                };
+                dbContext.RoundTeeTimes.AddRange(teeTime1, teeTime2);
+                await dbContext.SaveChangesAsync();
+
+                // Put first 2 players in tee time 1, leave others unassigned
+                for (int i = 0; i < playerEntities.Count; i++)
+                {
+                    dbContext.RoundParticipants.Add(new RoundParticipant
+                    {
+                        RoundId = upcomingRound.Id,
+                        PlayerId = playerEntities[i].Id,
+                        HandicapIndex = 10.0,
+                        CourseHandicap = 5,
+                        TeeTimeId = i < 2 ? teeTime1.Id : null,
+                    });
+                }
+                await dbContext.SaveChangesAsync();
+            }
+        }
+
+        logger.LogInformation(
+            "DbInit: Local development test data seeded successfully. " +
+            "Test credentials: admin@golfleague.local / {Password}, scorer@golfleague.local / {Password}, player@golfleague.local / {Password}",
+            defaultPassword, defaultPassword, defaultPassword);
     }
 }

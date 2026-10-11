@@ -2,8 +2,8 @@
 
 This monorepo contains:
 
-- **Backend**: Azure Functions (.NET 9) in `src/GolfLeague.Functions`, with domain and CQRS in `GolfLeague.Domain` / `GolfLeague.Application`, and EF Core + SQLite in `GolfLeague.Infrastructure`.
-- **Database**: The authoritative store is a **SQLite file** synchronized with **Azure Blob Storage** (not Azure SQL). See `Program.cs`, `BlobSyncedDbContext`, and `Infrastructure/DependencyInjection.cs`.
+- **Backend**: Azure Functions (.NET 10) in `src/GolfLeague.Functions`, with domain and CQRS in `GolfLeague.Domain` / `GolfLeague.Application`, and EF Core + SQL Server in `GolfLeague.Infrastructure`.
+- **Database**: Azure SQL Database in production; SQL Server LocalDB (`(localdb)\MSSQLLocalDB`) in local development. See `src/GolfLeague.Infrastructure/DependencyInjection.cs` and `local.settings.json`.
 - **Web**: React + Vite in `web/`; API base defaults to `/api/v1` via `web/src/lib/api.ts`.
 - **Mobile**: Flutter in `mobile/lib/`; API and Entra settings in `mobile/lib/core/config.dart`.
 

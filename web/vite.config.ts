@@ -13,9 +13,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api/v1': {
-        target: 'https://golf-league-fn-g5vkqe.azurewebsites.net',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:7071',
         changeOrigin: true,
-        secure: true,
+        secure: false,
       },
     },
   },
