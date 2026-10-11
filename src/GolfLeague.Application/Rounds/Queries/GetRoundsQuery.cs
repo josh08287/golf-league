@@ -1,7 +1,9 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Rounds.Commands;
+using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 
 namespace GolfLeague.Application.Rounds.Queries;
@@ -33,6 +35,25 @@ public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Resu
         .Add("participants", r => r.ParticipantCount)
         .Add("participantCount", r => r.ParticipantCount);
 
+    /// <summary>sortBy value for the schedule ordering (see <see cref="ScheduleOrder"/>); direction is ignored.</summary>
+    public const string ScheduleSortColumn = "schedule";
+
+    /// <summary>
+    /// The next round first, then past rounds newest to oldest, then the
+    /// remaining upcoming rounds soonest first. A round is upcoming when it's
+    /// dated today or later and not finalized or cancelled.
+    /// </summary>
+    public static List<RoundDto> ScheduleOrder(IEnumerable<RoundDto> rounds, DateOnly today)
+    {
+        var all = rounds.ToList();
+        bool IsUpcoming(RoundDto r) => r.ScheduledDate >= today && r.Status is not (RoundStatus.Finalized or RoundStatus.Cancelled);
+
+        var upcoming = all.Where(IsUpcoming).OrderBy(r => r.ScheduledDate).ThenBy(r => r.WeekNumber).ThenBy(r => r.Id).ToList();
+        var past = all.Where(r => !IsUpcoming(r)).OrderByDescending(r => r.ScheduledDate).ThenByDescending(r => r.WeekNumber).ThenByDescending(r => r.Id);
+
+        return upcoming.Take(1).Concat(past).Concat(upcoming.Skip(1)).ToList();
+    }
+
     public GetRoundsQueryHandler(IRoundRepository roundRepository)
     {
         _roundRepository = roundRepository;
@@ -52,7 +73,9 @@ public sealed class GetRoundsQueryHandler : IRequestHandler<GetRoundsQuery, Resu
             .Select(r => RoundDtoMapper.Map(r, r.Course?.Name ?? string.Empty, r.Participants.Count))
             .ToList();
 
-        var sorted = SortMap.Apply(dtos, request.Sort);
+        var sorted = string.Equals(request.Sort?.Column, ScheduleSortColumn, StringComparison.OrdinalIgnoreCase)
+            ? (IReadOnlyList<RoundDto>)ScheduleOrder(dtos, DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TeeTimeSchedule.EasternTimeZone)))
+            : SortMap.Apply(dtos, request.Sort);
         var totalCount = sorted.Count;
         var paged = sorted
             .Skip((request.Page - 1) * request.PageSize)
