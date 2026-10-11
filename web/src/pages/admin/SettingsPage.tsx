@@ -96,6 +96,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       "Adds a \"Hole map\" button to the group score entry screen: a satellite view of the current hole, turned so the tee is at the bottom, centred on the player's phone GPS, with yardages to the front, centre and back of the green and to any spot they tap. Admins import each course's holes from OpenStreetMap on the Courses page. Applies to every league.",
   },
+  {
+    key: FEATURE_FLAG_KEYS.messageHalfAndTournamentRecipientsEnabled,
+    label: 'Message a half or tournament field',
+    description:
+      'Adds "Half" and "Tournament" recipient groups to the admin Messages page, so admins can email every player in a season half\'s flights or every player currently signed up for a tournament round. Applies to every league.',
+  },
 ];
 
 function Toggle({

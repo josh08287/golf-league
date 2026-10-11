@@ -9,11 +9,17 @@ import { useAllPlayers } from '../../hooks/usePlayers';
 import { useSeasons } from '../../hooks/useSeasons';
 import { useFlights } from '../../hooks/useFlights';
 import { useSendBroadcast } from '../../hooks/admin/useSendBroadcast';
+import { useRounds } from '../../hooks/useRounds';
+import { useAdminRoundParticipants } from '../../hooks/admin/useTeeTimeMutations';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { formatShortDate } from '../../lib/utils';
+import { normalizeRoundStatus } from '../../lib/enumUtils';
+import { FEATURE_FLAG_KEYS } from '../../types/api';
 import type { Player } from '../../types/api';
 
 // ── Recipient group selector ──────────────────────────────────────────────────
 
-type RecipientGroup = 'all' | 'flight' | 'custom';
+type RecipientGroup = 'all' | 'half' | 'flight' | 'tournament' | 'custom';
 
 // ── Ad-hoc email tag input ────────────────────────────────────────────────────
 
@@ -159,6 +165,21 @@ export function MessagesPage() {
   const flights = flightsPage?.data ?? [];
 
   const allPlayers = useMemo(() => playersPage?.data ?? [], [playersPage]);
+  const activePlayers = useMemo(() => allPlayers.filter((p) => p.isActive), [allPlayers]);
+
+  const featureFlags = useFeatureFlagStates();
+  const halfAndTournamentEnabled =
+    featureFlags.data?.[FEATURE_FLAG_KEYS.messageHalfAndTournamentRecipientsEnabled] ?? false;
+
+  // Tournament rounds an admin can message the field of, newest first.
+  const { data: roundsPage } = useRounds(1, { sortBy: 'date', sortDir: 'desc' }, 500);
+  const tournaments = useMemo(
+    () =>
+      (roundsPage?.data ?? []).filter(
+        (r) => r.roundType === 'Tournament' && normalizeRoundStatus(r.status) !== 'Cancelled',
+      ),
+    [roundsPage],
+  );
 
   // Players in the current half (have a flight membership for this half).
   const halfPlayers = useMemo(() => {
@@ -170,6 +191,7 @@ export function MessagesPage() {
 
   const [group, setGroup] = useState<RecipientGroup>('all');
   const [selectedFlightId, setSelectedFlightId] = useState<number | undefined>(undefined);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<number | undefined>(undefined);
   const [customSelected, setCustomSelected] = useState<Set<number>>(() => new Set());
   const [adHocEmails, setAdHocEmails] = useState<string[]>([]);
 
@@ -189,18 +211,41 @@ export function MessagesPage() {
     );
   }, [halfPlayers, selectedFlightId, halfId]);
 
-  // Resolved player IDs to send to (null = send to all active half players).
+  // Players currently signed up for the selected tournament (withdrawn and
+  // skipped participants are already excluded by the endpoint).
+  const tournamentParticipants = useAdminRoundParticipants(
+    group === 'tournament' ? selectedTournamentId ?? null : null,
+  );
+  const tournamentPlayers = useMemo(() => {
+    const ids = new Set((tournamentParticipants.data ?? []).map((p) => p.playerId));
+    return allPlayers.filter((p) => ids.has(p.id));
+  }, [tournamentParticipants.data, allPlayers]);
+
+  // Resolved player IDs to send to (null = send to all active players).
   const resolvedPlayerIds = useMemo((): number[] | null => {
     if (group === 'all') return null;
+    if (group === 'half') return halfPlayers.map((p) => p.id);
     if (group === 'flight') return flightPlayers.map((p) => p.id);
+    if (group === 'tournament') return tournamentPlayers.map((p) => p.id);
     return Array.from(customSelected);
-  }, [group, flightPlayers, customSelected]);
+  }, [group, halfPlayers, flightPlayers, tournamentPlayers, customSelected]);
 
   // Recipient preview label.
   const recipientLabel = useMemo(() => {
     if (group === 'all') {
+      const withEmail = activePlayers.filter((p) => p.email).length;
+      return `All active players (${withEmail} with email)`;
+    }
+    if (group === 'half') {
+      const halfName = activeSeason?.halves.find((h) => h.id === halfId)?.name ?? 'Current half';
       const withEmail = halfPlayers.filter((p) => p.email).length;
-      return `All active players in current half (${withEmail} with email)`;
+      return `${halfName} — ${halfPlayers.length} players (${withEmail} with email)`;
+    }
+    if (group === 'tournament') {
+      if (!selectedTournamentId) return 'Select a tournament';
+      if (tournamentParticipants.isLoading) return 'Loading signed-up players…';
+      const withEmail = tournamentPlayers.filter((p) => p.email).length;
+      return `${tournamentPlayers.length} players signed up (${withEmail} with email)`;
     }
     if (group === 'flight') {
       if (!selectedFlightId) return 'Select a flight';
@@ -212,11 +257,12 @@ export function MessagesPage() {
       return p?.email != null;
     }).length;
     return `${customSelected.size} selected (${withEmail} with email)`;
-  }, [group, halfPlayers, flightPlayers, selectedFlightId, flights, customSelected, allPlayers]);
+  }, [group, activePlayers, activeSeason, halfId, halfPlayers, selectedTournamentId, tournamentParticipants.isLoading,
+    tournamentPlayers, flightPlayers, selectedFlightId, flights, customSelected, allPlayers]);
 
   const totalRecipientCount =
     (resolvedPlayerIds === null
-      ? halfPlayers.filter((p) => p.email).length
+      ? activePlayers.filter((p) => p.email).length
       : resolvedPlayerIds.filter((id) => allPlayers.find((p) => p.id === id)?.email).length) +
     adHocEmails.length;
 
@@ -277,7 +323,9 @@ export function MessagesPage() {
                   <div className="flex rounded-md border border-gray-200 overflow-hidden">
                     {([
                       ['all', 'All active'],
+                      ...(halfAndTournamentEnabled ? [['half', 'Half']] : []),
                       ['flight', 'By flight'],
+                      ...(halfAndTournamentEnabled ? [['tournament', 'Tournament']] : []),
                       ['custom', 'Custom'],
                     ] as [RecipientGroup, string][]).map(([val, label]) => (
                       <button
@@ -314,6 +362,33 @@ export function MessagesPage() {
                           <option key={f.id} value={f.id}>{f.name}</option>
                         ))}
                       </select>
+                    )}
+                  </div>
+                )}
+
+                {/* Tournament selector */}
+                {group === 'tournament' && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Tournament</label>
+                    {tournaments.length === 0 ? (
+                      <p className="text-sm text-gray-400">No tournament rounds.</p>
+                    ) : (
+                      <select
+                        value={selectedTournamentId ?? ''}
+                        onChange={(e) => setSelectedTournamentId(Number(e.target.value) || undefined)}
+                        className="w-full rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]"
+                      >
+                        <option value="">Select a tournament...</option>
+                        {tournaments.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {formatShortDate(r.scheduledDate)} — {r.courseName}
+                            {normalizeRoundStatus(r.status) === 'Finalized' ? ' (finalized)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    {tournamentParticipants.isError && (
+                      <ErrorMessage message="Failed to load signed-up players." />
                     )}
                   </div>
                 )}

@@ -1226,6 +1226,7 @@ export const FEATURE_FLAG_KEYS = {
   tournamentSubstituteSkinsToggleEnabled: 'tournament_substitute_skins_toggle_enabled',
   tournamentStartTimeEnabled: 'tournament_start_time_enabled',
   holeMapEnabled: 'hole_map_enabled',
+  messageHalfAndTournamentRecipientsEnabled: 'message_half_and_tournament_recipients_enabled',
 } as const;
 
 // ── Course hole map ─────────────────────────────────────────────────────────

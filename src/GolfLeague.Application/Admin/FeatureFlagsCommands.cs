@@ -218,6 +218,13 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string HoleMapEnabled = "hole_map_enabled";
 
+    /// <summary>
+    /// Adds "Half" and "Tournament" recipient groups to the admin Messages
+    /// page: email every player in a season half's flights, or every player
+    /// currently signed up for a tournament round. Applies to every league.
+    /// </summary>
+    public const string MessageHalfAndTournamentRecipientsEnabled = "message_half_and_tournament_recipients_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -235,5 +242,6 @@ public static class KnownFeatureFlags
         [TournamentSubstituteSkinsToggleEnabled] = false,
         [TournamentStartTimeEnabled] = false,
         [HoleMapEnabled] = false,
+        [MessageHalfAndTournamentRecipientsEnabled] = false,
     };
 }
