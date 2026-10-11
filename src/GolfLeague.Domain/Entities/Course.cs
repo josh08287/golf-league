@@ -7,7 +7,12 @@ public class Course
     public double CourseRating { get; set; }
     public int SlopeRating { get; set; }
 
+    /// <summary>Course centre point, used to seed the OpenStreetMap hole import.</summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     public ICollection<CourseHole> Holes { get; set; } = [];
     public ICollection<TeeBox> TeeBoxes { get; set; } = [];
     public ICollection<Round> Rounds { get; set; } = [];
+    public ICollection<CourseHoleGeo> HoleGeos { get; set; } = [];
 }

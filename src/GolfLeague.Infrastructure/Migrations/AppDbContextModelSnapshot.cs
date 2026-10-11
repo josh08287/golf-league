@@ -196,6 +196,12 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<double>("CourseRating")
                         .HasColumnType("float");
 
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("float");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -239,6 +245,60 @@ namespace GolfLeague.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_CourseHole_Par", "Par BETWEEN 3 AND 5");
                         });
+                });
+
+            modelBuilder.Entity("GolfLeague.Domain.Entities.CourseHoleGeo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("GreenBackLat")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("GreenBackLng")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("GreenFrontLat")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("GreenFrontLng")
+                        .HasColumnType("float");
+
+                    b.Property<double>("GreenLat")
+                        .HasColumnType("float");
+
+                    b.Property<double>("GreenLng")
+                        .HasColumnType("float");
+
+                    b.Property<int>("HoleNumber")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("OsmWayId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<double>("TeeLat")
+                        .HasColumnType("float");
+
+                    b.Property<double>("TeeLng")
+                        .HasColumnType("float");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId", "HoleNumber")
+                        .IsUnique();
+
+                    b.ToTable("CourseHoleGeos");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.FeatureFlag", b =>
@@ -1709,6 +1769,17 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Course");
                 });
 
+            modelBuilder.Entity("GolfLeague.Domain.Entities.CourseHoleGeo", b =>
+                {
+                    b.HasOne("GolfLeague.Domain.Entities.Course", "Course")
+                        .WithMany("HoleGeos")
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+                });
+
             modelBuilder.Entity("GolfLeague.Domain.Entities.Flight", b =>
                 {
                     b.HasOne("GolfLeague.Domain.Entities.SeasonHalf", "Half")
@@ -2367,6 +2438,8 @@ namespace GolfLeague.Infrastructure.Migrations
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.Course", b =>
                 {
+                    b.Navigation("HoleGeos");
+
                     b.Navigation("Holes");
 
                     b.Navigation("Rounds");
