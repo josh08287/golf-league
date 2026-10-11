@@ -70,8 +70,8 @@ public sealed class GetPlayerRoundsQueryHandler
                 {
                     var roundInput = new HandicapRoundInput(
                         rp.TotalGrossStrokes.Value,
-                        rp.Round.Course.CourseRating,
-                        rp.Round.Course.SlopeRating,
+                        rp.CourseRating,
+                        rp.SlopeRating,
                         rp.Round.Course.Holes.Sum(h => h.Par),
                         IsEighteenHoles: rp.Round.NineHoleSide == NineHoleSide.NotApplicable);
 
@@ -93,7 +93,10 @@ public sealed class GetPlayerRoundsQueryHandler
                     rp.TotalNetStablefordPoints,
                     rp.IsWithdrawn,
                     rp.SkippedWeek,
-                    scoreDifferential);
+                    scoreDifferential,
+                    rp.TeeBox?.Name,
+                    rp.CourseRating,
+                    rp.SlopeRating);
             })
             .ToList();
 

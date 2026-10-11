@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../api/api_service.dart';
 import '../api/providers.dart';
 import '../models/models.dart';
+import '../widgets/tee_box_dropdown.dart';
 
 class ScoreEntryScreen extends ConsumerWidget {
   const ScoreEntryScreen({super.key, required this.teeTimeId});
@@ -73,6 +74,27 @@ class _ScoreEntryView extends StatefulWidget {
 class _ScoreEntryViewState extends State<_ScoreEntryView> {
   late Map<int, Map<int, int>> _scores; // playerId -> holeNumber -> strokes
   bool _isSubmitting = false;
+  bool _isChangingTee = false;
+
+  Future<void> _changeTee(int playerId, int? teeBoxId) async {
+    setState(() => _isChangingTee = true);
+    final container = ProviderScope.containerOf(context);
+    try {
+      await container
+          .read(apiServiceProvider)
+          .setTeeTimeParticipantTeeBox(widget.teeTimeId, playerId, teeBoxId);
+      // Refetch so the new course handicap (and rescored holes) show up.
+      container.invalidate(teeTimeGroupScorecardProvider(widget.teeTimeId));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to change tee: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isChangingTee = false);
+    }
+  }
 
   @override
   void initState() {
@@ -159,6 +181,8 @@ class _ScoreEntryViewState extends State<_ScoreEntryView> {
           ),
         ),
 
+        if (scorecard.teeBoxes.isNotEmpty) _buildTeeCard(),
+
         // Score entry table
         Expanded(
           child: SingleChildScrollView(
@@ -205,6 +229,49 @@ class _ScoreEntryViewState extends State<_ScoreEntryView> {
           ),
         ),
       ],
+    );
+  }
+
+  /// Which tees each player is hitting from — set before entering scores.
+  Widget _buildTeeCard() {
+    final scorecard = widget.scorecard;
+    final players = scorecard.players.where(
+      (p) => !p.isWithdrawn && !p.skippedWeek,
+    );
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Tees',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+          ),
+          ...players.map(
+            (player) => Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${player.playerName} · CH ${player.courseHandicap.toStringAsFixed(0)}',
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                TeeBoxDropdown(
+                  teeBoxes: scorecard.teeBoxes,
+                  value: player.teeBoxId,
+                  overridden: player.teeBoxOverridden,
+                  enabled: !_isChangingTee,
+                  onChanged: (teeBoxId) =>
+                      _changeTee(player.playerId, teeBoxId),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

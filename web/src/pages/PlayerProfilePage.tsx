@@ -843,6 +843,14 @@ export function PlayerProfilePage() {
                       <TableCell className="text-gray-700">
                         {r.courseName}{' '}
                         <span className="text-gray-400 text-xs">({formatNineHoleSide(r.nineHoleSide)})</span>
+                        {r.teeBoxName && (
+                          <div
+                            className="text-gray-400 text-xs"
+                            title={r.courseRating != null ? `Rating ${r.courseRating} / Slope ${r.slopeRating}` : undefined}
+                          >
+                            {r.teeBoxName} tees
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell className="text-center text-gray-500">{r.weekNumber}</TableCell>
                       <TableCell className="text-center">

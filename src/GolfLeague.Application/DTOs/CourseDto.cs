@@ -18,7 +18,8 @@ public sealed record TeeBoxDto(
     double SlopeRating,
     int TotalYardage,
     int Par,
-    List<HoleTeeBoxDto> Holes);
+    List<HoleTeeBoxDto> Holes,
+    bool IsDefault = false);
 
 public sealed record CourseDto(
     int Id,

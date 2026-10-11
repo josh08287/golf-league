@@ -8,6 +8,28 @@ public class RoundParticipant
     public int? FlightId { get; set; } // Null for tournament rounds (no flight grouping)
     public double HandicapIndex { get; set; }
     public int CourseHandicap { get; set; }
+
+    /// <summary>
+    /// The tee box this participant played (or will play) the round from.
+    /// Starts at the player's per-half default for the course, falling back
+    /// to the course's default tee.
+    /// </summary>
+    public int TeeBoxId { get; set; }
+    public TeeBox TeeBox { get; set; } = null!;
+
+    /// <summary>
+    /// Snapshot of the tee's rating and slope this round was played at. Every
+    /// course-handicap and differential calculation reads these rather than
+    /// the live tee/course values, so a later tee edit never rewrites history.
+    /// </summary>
+    public double CourseRating { get; set; }
+    public int SlopeRating { get; set; }
+
+    /// <summary>
+    /// True when the tee was explicitly changed on a score-entry page, so a
+    /// later change to the player's per-half default doesn't overwrite it.
+    /// </summary>
+    public bool TeeBoxOverridden { get; set; }
     public int? TotalGrossStrokes { get; set; }
     public int? TotalNetStrokes { get; set; }
     public int? TotalGrossStablefordPoints { get; set; }

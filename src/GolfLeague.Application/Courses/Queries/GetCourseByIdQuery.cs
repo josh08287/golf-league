@@ -28,7 +28,8 @@ public sealed class GetCourseByIdQueryHandler : IRequestHandler<GetCourseByIdQue
             .ToList();
 
         var teeBoxDtos = course.TeeBoxes
-            .OrderBy(t => t.TotalYardage) // Longest/Shortest doesn't matter much, let's just sort
+            .OrderByDescending(t => t.IsDefault)
+            .ThenBy(t => t.TotalYardage)
             .Select(t => new TeeBoxDto(
                 t.Id,
                 t.Name,
@@ -36,7 +37,8 @@ public sealed class GetCourseByIdQueryHandler : IRequestHandler<GetCourseByIdQue
                 t.SlopeRating,
                 t.TotalYardage,
                 t.Par,
-                t.HoleTeeBoxes.Select(ht => new HoleTeeBoxDto(ht.CourseHoleId, ht.Yardage, ht.Par)).ToList()
+                t.HoleTeeBoxes.Select(ht => new HoleTeeBoxDto(ht.CourseHoleId, ht.Yardage, ht.Par)).ToList(),
+                t.IsDefault
             )).ToList();
 
         var dto = new CourseDto(course.Id, course.Name, course.CourseRating, course.SlopeRating, holeDtos.Count, holeDtos, teeBoxDtos);

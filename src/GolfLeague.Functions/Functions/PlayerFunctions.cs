@@ -3,6 +3,7 @@ using GolfLeague.Application.DTOs;
 using GolfLeague.Application.Interfaces;
 using GolfLeague.Application.Players.Commands;
 using GolfLeague.Application.Players.Queries;
+using GolfLeague.Application.Rounds.Commands;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Functions.Helpers;
@@ -204,6 +205,48 @@ public sealed class PlayerFunctions
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
             new SetPar3GrossSkinsOptInCommand(playerId, parsedHalfId, body.OptIn, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("GetPlayerTeeBoxes")]
+    public async Task<IActionResult> GetPlayerTeeBoxes(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "v1/players/{id}/tee-boxes")] HttpRequest req,
+        string id,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+
+        var result = await _mediator.Send(new GetPlayerTeeBoxSettingsQuery(playerId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("SetPlayerHalfTeeBox")]
+    public async Task<IActionResult> SetPlayerHalfTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/players/{id}/half-settings/{halfId}/tee-box")] HttpRequest req,
+        string id,
+        string halfId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var playerId))
+            return new BadRequestObjectResult(new { error = "Invalid player ID." });
+        if (!int.TryParse(halfId, out var parsedHalfId))
+            return new BadRequestObjectResult(new { error = "Invalid half ID." });
+
+        var body = await req.TryDeserializeAsync<SetPlayerHalfTeeBoxRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(
+            new SetPlayerHalfTeeBoxCommand(playerId, parsedHalfId, body.CourseId, body.TeeBoxId, userId),
             cancellationToken);
         return result.ToOkResult();
     }
@@ -546,6 +589,7 @@ public sealed class PlayerFunctions
     private sealed record PatchPlayerRequest(string? Name, string? Email, string? FlightId, IReadOnlyList<string>? Roles);
     private sealed record SetHalfMembershipRequest(int HalfId, int? FlightId);
     private sealed record SetPar3GrossSkinsOptInRequest(bool OptIn);
+    private sealed record SetPlayerHalfTeeBoxRequest(int CourseId, int? TeeBoxId);
     private sealed record SetHandicapRequest(double? NewIndex, double? HandicapIndex, string? Notes)
     {
         public double ResolvedIndex => NewIndex ?? HandicapIndex ?? 0;

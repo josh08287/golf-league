@@ -6,6 +6,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using Microsoft.Extensions.Logging;
+using GolfLeague.Tests.Helpers;
 using Moq;
 using Xunit;
 
@@ -78,7 +79,7 @@ public class TeeTimeServiceTests
         var handicaps = new Mock<IHandicapRepository>();
 
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object, TeeResolverFactory.Create(round.Course));
         return (sut, teeTimes);
     }
 
@@ -107,7 +108,7 @@ public class TeeTimeServiceTests
         var handicaps = new Mock<IHandicapRepository>();
 
         var auditWriter = new AuditWriter(auditRepository.Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object, TeeResolverFactory.Create(round.Course));
         return (sut, teeTimes, auditRepository);
     }
 
@@ -511,7 +512,7 @@ public class JoinAsSubstituteTests
 
         var handicaps = new Mock<IHandicapRepository>();
         var auditWriter = new AuditWriter(new Mock<IAuditRepository>().Object, new Mock<ILogger<AuditWriter>>().Object);
-        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object);
+        var sut = new TeeTimeService(rounds.Object, teeTimes.Object, leagueSettings.Object, players.Object, handicaps.Object, auditWriter, new Mock<ILogger<TeeTimeService>>().Object, TeeResolverFactory.Create(round.Course));
         return (sut, rounds);
     }
 

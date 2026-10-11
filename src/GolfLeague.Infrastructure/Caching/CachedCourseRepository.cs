@@ -93,6 +93,21 @@ public sealed class CachedCourseRepository : ICourseRepository
         InvalidateAll();
     }
 
+    public async Task UpdateTeeBoxAsync(TeeBox teeBox, CancellationToken cancellationToken = default)
+    {
+        await _inner.UpdateTeeBoxAsync(teeBox, cancellationToken);
+        InvalidateAll();
+    }
+
+    public Task<bool> IsTeeBoxInUseAsync(int teeBoxId, CancellationToken cancellationToken = default)
+        => _inner.IsTeeBoxInUseAsync(teeBoxId, cancellationToken);
+
+    public async Task DeleteTeeBoxAsync(int teeBoxId, CancellationToken cancellationToken = default)
+    {
+        await _inner.DeleteTeeBoxAsync(teeBoxId, cancellationToken);
+        InvalidateAll();
+    }
+
     public async Task UpdateHoleTeeBoxesAsync(int teeBoxId, IEnumerable<HoleTeeBox> holeTeeBoxes, CancellationToken cancellationToken = default)
     {
         await _inner.UpdateHoleTeeBoxesAsync(teeBoxId, holeTeeBoxes, cancellationToken);

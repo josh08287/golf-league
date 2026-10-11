@@ -29,8 +29,18 @@ import { ConfirmDialog } from '../../components/admin/ConfirmDialog';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
 import { LinkUserForm } from '../../components/admin/LinkUserForm';
 import { useSetTeeTimePreference } from '../../hooks/useTeeTimes';
-import type { Flight, HandicapHistoryEntry, PlayerAccountInfo, SeasonHalf, TeeTimeSlotName } from '../../types/api';
-import { TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '../../types/api';
+import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { teeBoxLabel, usePlayerTeeBoxSettings, useSetPlayerHalfTeeBox } from '../../hooks/useTeeBoxes';
+import type {
+  CourseTeeOptions,
+  Flight,
+  HandicapHistoryEntry,
+  PlayerAccountInfo,
+  PlayerTeeBoxSettings,
+  SeasonHalf,
+  TeeTimeSlotName,
+} from '../../types/api';
+import { FEATURE_FLAG_KEYS, TEE_TIME_SLOTS, TEE_TIME_SLOT_FLAG } from '../../types/api';
 
 function TeeTimePreferenceCard({ playerId, currentMask }: { playerId: string; currentMask: number }) {
   const setPreference = useSetTeeTimePreference();
@@ -252,16 +262,64 @@ function EditPlayerForm({ playerId, defaultValues }: EditFormProps) {
   );
 }
 
+/**
+ * The player's default tee for one course in one half. Saves on change and
+ * moves the player's not-yet-started rounds there onto the new tee.
+ */
+function HalfTeeDefaultSelect({
+  playerId,
+  halfId,
+  course,
+  assignedTeeBoxId,
+}: {
+  playerId: string;
+  halfId: number;
+  course: CourseTeeOptions;
+  assignedTeeBoxId: number | null;
+}) {
+  const setTee = useSetPlayerHalfTeeBox(playerId);
+  const courseDefault = course.teeBoxes.find((t) => t.isDefault);
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-sm">
+      <span className="min-w-[10rem] text-gray-600">{course.courseName}</span>
+      <select
+        value={assignedTeeBoxId ?? ''}
+        disabled={setTee.isPending}
+        onChange={(e) =>
+          setTee.mutate({ halfId, courseId: course.courseId, teeBoxId: e.target.value === '' ? null : Number(e.target.value) })
+        }
+        className={selectClass}
+      >
+        <option value="">Course default{courseDefault ? ` — ${teeBoxLabel(courseDefault)}` : ''}</option>
+        {course.teeBoxes.map((t) => (
+          <option key={t.id} value={t.id}>
+            {teeBoxLabel(t)}
+          </option>
+        ))}
+      </select>
+      {setTee.isSuccess && <span className="text-xs text-green-700">Saved!</span>}
+      {setTee.isError && (
+        <span className="text-xs text-red-600">
+          {(setTee.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Failed to update.'}
+        </span>
+      )}
+    </div>
+  );
+}
+
 interface HalfMembershipRowProps {
   playerId: string;
   half: SeasonHalf;
   currentFlightId: number | null;
   flights: Flight[];
   par3GrossSkinsOptIn: boolean;
+  /** Present only when tee box selection is enabled. */
+  teeSettings?: PlayerTeeBoxSettings;
 }
 
 /** One half's flight assignment: a dropdown, or read-only when the half is locked. */
-function HalfMembershipRow({ playerId, half, currentFlightId, flights, par3GrossSkinsOptIn }: HalfMembershipRowProps) {
+function HalfMembershipRow({ playerId, half, currentFlightId, flights, par3GrossSkinsOptIn, teeSettings }: HalfMembershipRowProps) {
   const setMembership = useSetHalfMembership(playerId);
   const setPar3OptIn = useSetPar3GrossSkinsOptIn(playerId);
   const serverValue = currentFlightId != null ? String(currentFlightId) : '';
@@ -343,6 +401,26 @@ function HalfMembershipRow({ playerId, half, currentFlightId, flights, par3Gross
       {setPar3OptIn.isError && (
         <p className="col-span-2 text-sm text-red-600">Failed to update opt-in. Try again.</p>
       )}
+      {teeSettings && teeSettings.courses.length > 0 && (
+        <div className="col-span-2 space-y-2 rounded-md bg-gray-50 p-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-gray-500">Default tees this half</div>
+          {teeSettings.courses.map((course) => (
+            <HalfTeeDefaultSelect
+              key={course.courseId}
+              playerId={playerId}
+              halfId={half.id}
+              course={course}
+              assignedTeeBoxId={
+                teeSettings.defaults.find((d) => d.halfId === half.id && d.courseId === course.courseId)?.teeBoxId ?? null
+              }
+            />
+          ))}
+          <p className="text-xs text-gray-500">
+            Applies to rounds in this half that haven&apos;t started. A tee can still be changed per round on the score
+            entry page.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -356,6 +434,10 @@ interface HalfMembershipsCardProps {
 }
 
 function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf, par3OptInByHalf }: HalfMembershipsCardProps) {
+  const featureFlags = useFeatureFlagStates();
+  const teeSelectionEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.teeBoxSelectionEnabled] ?? false;
+  const { data: teeSettings } = usePlayerTeeBoxSettings(playerId, teeSelectionEnabled);
+
   const ordered = useMemo(
     () => [...halves].sort((a, b) => a.halfNumber - b.halfNumber),
     [halves],
@@ -371,6 +453,7 @@ function HalfMembershipsBody({ playerId, halves, flights, membershipFlightByHalf
           currentFlightId={membershipFlightByHalf.get(half.id) ?? null}
           flights={flights}
           par3GrossSkinsOptIn={par3OptInByHalf.get(half.id) ?? true}
+          teeSettings={teeSelectionEnabled ? teeSettings : undefined}
         />
       ))}
     </div>

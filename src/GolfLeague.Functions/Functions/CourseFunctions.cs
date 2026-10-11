@@ -116,8 +116,50 @@ public sealed class CourseFunctions
             return new BadRequestObjectResult(new { error = "Request body is required." });
 
         var userId = req.GetUserId() ?? "unknown";
-        var result = await _mediator.Send(new AddTeeBoxCommand(courseId, body.Name, body.CourseRating, body.SlopeRating, body.TotalYardage, body.Par, userId), cancellationToken);
+        var result = await _mediator.Send(new AddTeeBoxCommand(courseId, body.Name, body.CourseRating, body.SlopeRating, body.TotalYardage, body.Par, userId, body.IsDefault), cancellationToken);
         return result.ToCreatedResult($"/api/v1/courses/{courseId}");
+    }
+
+    [Function("UpdateTeeBox")]
+    public async Task<IActionResult> UpdateTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/courses/{id}/teeboxes/{teeBoxId}")] HttpRequest req,
+        string id,
+        string teeBoxId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var courseId) || !int.TryParse(teeBoxId, out var parsedTeeBoxId))
+            return new BadRequestObjectResult(new { error = "Invalid course ID or teebox ID." });
+
+        var body = await req.TryDeserializeAsync<UpdateTeeBoxRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new UpdateTeeBoxCommand(
+            courseId, parsedTeeBoxId, body.Name, body.CourseRating, body.SlopeRating, body.TotalYardage, body.Par, body.IsDefault, userId),
+            cancellationToken);
+        return result.ToOkResult();
+    }
+
+    [Function("DeleteTeeBox")]
+    public async Task<IActionResult> DeleteTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "delete", Route = "v1/courses/{id}/teeboxes/{teeBoxId}")] HttpRequest req,
+        string id,
+        string teeBoxId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var courseId) || !int.TryParse(teeBoxId, out var parsedTeeBoxId))
+            return new BadRequestObjectResult(new { error = "Invalid course ID or teebox ID." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new DeleteTeeBoxCommand(courseId, parsedTeeBoxId, userId), cancellationToken);
+        return result.ToOkResult();
     }
 
     [Function("UpdateHoleTeeBoxes")]
@@ -148,7 +190,8 @@ public sealed class CourseFunctions
     private sealed record HoleDto(int HoleNumber, int Par, int StrokeIndex);
     private sealed record UpdateHolesRequest(List<HoleDto> Holes);
 
-    private sealed record AddTeeBoxRequest(string Name, double CourseRating, int SlopeRating, int TotalYardage, int Par);
+    private sealed record AddTeeBoxRequest(string Name, double CourseRating, int SlopeRating, int TotalYardage, int Par, bool IsDefault = false);
+    private sealed record UpdateTeeBoxRequest(string Name, double CourseRating, int SlopeRating, int TotalYardage, int Par, bool IsDefault);
     private sealed record HoleTeeBoxDto(int CourseHoleId, int Yardage, int Par);
     private sealed record UpdateHoleTeeBoxesRequest(List<HoleTeeBoxDto> Holes);
 }

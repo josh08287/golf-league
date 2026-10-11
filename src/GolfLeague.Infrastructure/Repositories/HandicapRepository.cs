@@ -84,8 +84,8 @@ public sealed class HandicapRepository : IHandicapRepository
             .Where(rp => rp.Round.Course is not null)
             .Select(rp => new HandicapRoundInput(
                 rp.TotalGrossStrokes!.Value,
-                rp.Round.Course.CourseRating,
-                rp.Round.Course.SlopeRating,
+                rp.CourseRating,
+                rp.SlopeRating,
                 rp.Round.Course.Holes.Sum(h => h.Par),
                 IsEighteenHoles: rp.Round.NineHoleSide == NineHoleSide.NotApplicable))
             .ToList();

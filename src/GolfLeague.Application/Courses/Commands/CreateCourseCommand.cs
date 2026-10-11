@@ -34,6 +34,16 @@ public sealed class CreateCourseCommandHandler : IRequestHandler<CreateCourseCom
             SlopeRating = request.Slope,
         };
 
+        // Every course has a default tee; players with no assigned tee play
+        // from it. Seeded from the rating/slope entered for the course.
+        course.TeeBoxes.Add(new TeeBox
+        {
+            Name = "Default",
+            CourseRating = request.Rating,
+            SlopeRating = request.Slope,
+            IsDefault = true,
+        });
+
         await _courseRepository.AddAsync(course, cancellationToken);
 
         var dto = new CourseDto(course.Id, course.Name, course.CourseRating, course.SlopeRating, 0, []);

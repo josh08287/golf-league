@@ -13,6 +13,8 @@ import {
 } from '@/hooks/useTeeTimeScoreEntry';
 import { useRoundTeeTimes, useSwitchTeeTimeParticipant } from '@/hooks/useTeeTimes';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useSetTeeTimeParticipantTeeBox } from '@/hooks/useTeeBoxes';
+import { TeeBoxSelect } from '@/components/scoring/TeeBoxSelect';
 import { SideGamesPanel, SideGamesStatusBar, SideGamesHolePickersSection } from '@/components/scoring/SideGamesPanel';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -33,6 +35,7 @@ import type {
   TeeTimeParticipant,
   ScorecardOcrResult,
   RoundType,
+  TeeBoxOption,
 } from '@/types/api';
 import { formatNineHoleSide } from '@/lib/enumUtils';
 
@@ -441,6 +444,8 @@ interface GroupSetupStepProps {
   sideGamesEnabled: boolean;
   holes: TeeTimeHoleInfo[];
   onScanApplied: (scores: Record<number, Record<number, number | ''>>) => void;
+  /** The course's tees when tee box selection is enabled; omitted otherwise. */
+  teeBoxes?: TeeBoxOption[];
 }
 
 function GroupSetupStep({
@@ -460,8 +465,11 @@ function GroupSetupStep({
   sideGamesEnabled,
   holes,
   onScanApplied,
+  teeBoxes,
 }: GroupSetupStepProps) {
   const activePlayers = players.filter((p) => !p.isWithdrawn);
+  const setTeeBox = useSetTeeTimeParticipantTeeBox(teeTimeId);
+  const [teeError, setTeeError] = useState<string | null>(null);
   const [switchingPlayerId, setSwitchingPlayerId] = useState<number | null>(null);
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
@@ -511,9 +519,15 @@ function GroupSetupStep({
 
       <div className="rounded-lg bg-primary-50 px-4 py-3">
         <p className="text-sm text-primary-700">
-          Before entering scores, confirm who is playing and choose which players to track advanced statistics for.
+          {teeBoxes && teeBoxes.length > 1
+            ? 'Before entering scores, confirm who is playing, which tees each player is hitting from, and which players to track advanced statistics for.'
+            : 'Before entering scores, confirm who is playing and choose which players to track advanced statistics for.'}
         </p>
       </div>
+
+      {teeError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{teeError}</div>
+      )}
 
       {switchNotice && (
         <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
@@ -543,6 +557,25 @@ function GroupSetupStep({
                     <p className="text-xs text-gray-500">
                       HCP {formatHandicapPair(player.handicapIndex)} · CH {player.courseHandicap}
                     </p>
+                    {teeBoxes && !isSkipped && (
+                      <TeeBoxSelect
+                        className="mt-1.5"
+                        teeBoxes={teeBoxes}
+                        value={player.teeBoxId}
+                        overridden={player.teeBoxOverridden}
+                        disabled={setTeeBox.isPending}
+                        onChange={(teeBoxId) => {
+                          setTeeError(null);
+                          setTeeBox.mutateAsync({ playerId: player.playerId, teeBoxId }).catch((err: unknown) =>
+                            setTeeError(
+                              (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                                'Failed to change tee. Please try again.',
+                            ),
+                          );
+                        }}
+                        aria-label={`Tees for ${player.playerName}`}
+                      />
+                    )}
                   </div>
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     {/* Skip toggle */}
@@ -1178,6 +1211,7 @@ export function TeeTimeScoreEntryPage() {
   const featureFlags = useFeatureFlagStates();
   const scorecardOcrEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.scorecardOcrEnabled] ?? false;
   const sideGamesEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.sideGamesEnabled] ?? false;
+  const teeSelectionEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.teeBoxSelectionEnabled] ?? false;
 
   // setup step state
   const [setupComplete, setSetupComplete] = useState(false);
@@ -1665,6 +1699,7 @@ export function TeeTimeScoreEntryPage() {
             setSetupComplete(true);
             handleScanApplied(scores);
           }}
+          teeBoxes={teeSelectionEnabled ? scorecard.teeBoxes : undefined}
         />
       )}
 

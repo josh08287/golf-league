@@ -209,6 +209,14 @@ public static class KnownFeatureFlags
     /// </summary>
     public const string TournamentStartTimeEnabled = "tournament_start_time_enabled";
 
+    /// <summary>
+    /// Lets admins assign each player a default tee box per half and course,
+    /// and lets score entry change a player's tee for a round. While
+    /// disabled, every player plays from the course's default tee (unchanged
+    /// legacy behavior). Tee box editing on the courses page is always on.
+    /// </summary>
+    public const string TeeBoxSelectionEnabled = "tee_box_selection_enabled";
+
     public static readonly Dictionary<string, bool> Defaults = new()
     {
         [SelfSkipRoundsEnabled] = false,
@@ -225,5 +233,6 @@ public static class KnownFeatureFlags
         [TournamentHandicapToggleEnabled] = false,
         [TournamentSubstituteSkinsToggleEnabled] = false,
         [TournamentStartTimeEnabled] = false,
+        [TeeBoxSelectionEnabled] = false,
     };
 }

@@ -20,6 +20,7 @@ public sealed class TeeTimeService : ITeeTimeService
     private readonly IHandicapRepository _handicaps;
     private readonly AuditWriter _auditWriter;
     private readonly ILogger<TeeTimeService> _logger;
+    private readonly ParticipantTeeResolver _teeResolver;
 
     public TeeTimeService(
         IRoundRepository rounds,
@@ -28,8 +29,10 @@ public sealed class TeeTimeService : ITeeTimeService
         IPlayerRepository players,
         IHandicapRepository handicaps,
         AuditWriter auditWriter,
-        ILogger<TeeTimeService> logger)
+        ILogger<TeeTimeService> logger,
+        ParticipantTeeResolver teeResolver)
     {
+        _teeResolver = teeResolver;
         _rounds = rounds;
         _teeTimes = teeTimes;
         _leagueSettings = leagueSettings;
@@ -381,8 +384,7 @@ public sealed class TeeTimeService : ITeeTimeService
     {
         var current = await _handicaps.GetCurrentAsync(substitutePlayerId, cancellationToken);
         var index = current?.HandicapIndex ?? 0.0;
-        var courseHandicap = StablefordScoringService.CourseHandicap(
-            index, round.Course.SlopeRating, round.Course.CourseRating, round.Course.Holes.Sum(h => h.Par), round.RoundType);
+        var tee = await _teeResolver.ResolveDefaultAsync(round, substitutePlayerId, cancellationToken);
 
         // Bookkeeping link to a skipped participant not yet claimed by another sub this round.
         var claimedSkipIds = round.Participants
@@ -401,11 +403,11 @@ public sealed class TeeTimeService : ITeeTimeService
             FlightId = flightId ?? unclaimedSkip?.FlightId,
             TeeTimeId = teeTimeId,
             HandicapIndex = index,
-            CourseHandicap = courseHandicap,
             IsWithdrawn = false,
             IsSubstitute = true,
             SubstituteForParticipantId = unclaimedSkip?.Id,
         };
+        ParticipantTeeResolver.Apply(newParticipant, tee, round.Course.Holes.Sum(h => h.Par), round.RoundType);
         await _rounds.AddParticipantAsync(newParticipant, cancellationToken);
     }
 

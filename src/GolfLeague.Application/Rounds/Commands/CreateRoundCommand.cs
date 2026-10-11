@@ -5,7 +5,6 @@ using GolfLeague.Domain.Entities;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
-using static GolfLeague.Domain.Services.StablefordScoringService;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
@@ -34,6 +33,7 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
     private readonly IHandicapRepository _handicapRepository;
     private readonly IFlightRepository _flightRepository;
     private readonly ILeagueContext _leagueContext;
+    private readonly ParticipantTeeResolver _teeResolver;
 
     public CreateRoundCommandHandler(
         IRoundRepository roundRepository,
@@ -41,8 +41,10 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
         IFlightRepository flightRepository,
-        ILeagueContext leagueContext)
+        ILeagueContext leagueContext,
+        ParticipantTeeResolver teeResolver)
     {
+        _teeResolver = teeResolver;
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
@@ -100,6 +102,10 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
             allMemberships.Select(m => m.PlayerId),
             cancellationToken) ?? new Dictionary<int, Handicap>();
 
+        var teeByPlayerId = await _teeResolver.ResolveDefaultsAsync(
+            round, allMemberships.Select(m => m.PlayerId), cancellationToken);
+        var coursePar = course.Holes.Sum(h => h.Par);
+
         var totalParticipants = 0;
         foreach (var flight in flights)
         {
@@ -112,15 +118,16 @@ public sealed class CreateRoundCommandHandler : IRequestHandler<CreateRoundComma
                     ? current.HandicapIndex
                     : 0.0;
 
-                await _roundRepository.AddParticipantAsync(new RoundParticipant
+                var participant = new RoundParticipant
                 {
                     RoundId = round.Id,
                     PlayerId = membership.PlayerId,
                     FlightId = flight.Id,
                     HandicapIndex = index,
-                    CourseHandicap = CourseHandicap(index, course.SlopeRating, course.CourseRating, course.Holes.Sum(h => h.Par), RoundType.NineHole),
                     IsWithdrawn = false,
-                }, cancellationToken);
+                };
+                ParticipantTeeResolver.Apply(participant, teeByPlayerId[membership.PlayerId], coursePar, RoundType.NineHole);
+                await _roundRepository.AddParticipantAsync(participant, cancellationToken);
                 totalParticipants++;
             }
         }

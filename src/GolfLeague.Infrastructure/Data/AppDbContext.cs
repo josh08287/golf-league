@@ -32,6 +32,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<CourseHole> CourseHoles => Set<CourseHole>();
     public DbSet<TeeBox> TeeBoxes => Set<TeeBox>();
     public DbSet<HoleTeeBox> HoleTeeBoxes => Set<HoleTeeBox>();
+    public DbSet<PlayerHalfTeeBox> PlayerHalfTeeBoxes => Set<PlayerHalfTeeBox>();
     public DbSet<Round> Rounds => Set<Round>();
     public DbSet<RoundParticipant> RoundParticipants => Set<RoundParticipant>();
     public DbSet<RoundTeeTime> RoundTeeTimes => Set<RoundTeeTime>();
@@ -69,6 +70,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigurePlayers(modelBuilder);
         ConfigureFlightMemberships(modelBuilder);
         ConfigurePlayerHalfSettings(modelBuilder);
+        ConfigurePlayerHalfTeeBoxes(modelBuilder);
         ConfigureHandicaps(modelBuilder);
         ConfigureCourses(modelBuilder);
         ConfigureCourseHoles(modelBuilder);
@@ -287,6 +289,34 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         });
     }
 
+    private static void ConfigurePlayerHalfTeeBoxes(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<PlayerHalfTeeBox>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasOne(e => e.Player)
+                  .WithMany(p => p.HalfTeeBoxes)
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.Half)
+                  .WithMany()
+                  .HasForeignKey(e => e.HalfId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            // Course and TeeBox are NoAction: TeeBox already cascades from
+            // Course, so cascading both would give SQL Server multiple cascade
+            // paths. Rows are cleared in code before a tee box is deleted.
+            entity.HasOne(e => e.Course)
+                  .WithMany()
+                  .HasForeignKey(e => e.CourseId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.HasOne(e => e.TeeBox)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeeBoxId)
+                  .OnDelete(DeleteBehavior.NoAction);
+            entity.HasIndex(e => new { e.PlayerId, e.HalfId, e.CourseId }).IsUnique();
+        });
+    }
+
     private static void ConfigureHandicaps(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Handicap>(entity =>
@@ -352,6 +382,10 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .HasForeignKey(e => e.CourseId)
                   .OnDelete(DeleteBehavior.Cascade);
             entity.HasIndex(e => new { e.CourseId, e.Name });
+            entity.HasIndex(e => e.CourseId)
+                  .IsUnique()
+                  .HasFilter("[IsDefault] = 1")
+                  .HasDatabaseName("IX_TeeBoxes_CourseId_Default");
         });
     }
 
@@ -433,6 +467,11 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany()
                   .HasForeignKey(e => e.FlightId)
                   .IsRequired(false)
+                  .OnDelete(DeleteBehavior.Restrict);
+            // A tee box a round was played from can't be deleted (Restrict).
+            entity.HasOne(e => e.TeeBox)
+                  .WithMany()
+                  .HasForeignKey(e => e.TeeBoxId)
                   .OnDelete(DeleteBehavior.Restrict);
             // Tournament flight: nullable, NoAction (not SetNull) to avoid SQL
             // Server's multiple-cascade-path error, since TournamentFlight

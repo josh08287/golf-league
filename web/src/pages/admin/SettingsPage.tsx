@@ -90,6 +90,12 @@ const FEATURE_FLAG_DEFS: { key: string; label: string; description: string }[] =
     description:
       "Lets admins set a tournament's first tee time when creating it and on the tournament management page, instead of the default 3:28 PM start. Later tee times follow at the usual 8-minute interval. Applies to every league.",
   },
+  {
+    key: FEATURE_FLAG_KEYS.teeBoxSelectionEnabled,
+    label: 'Tee box selection',
+    description:
+      "Lets admins give each player a default tee box per half and course (on the player page), and lets score entry change a player's tee for a round. Each round's course handicap and differential use the rating and slope of the tee played. While off, everyone plays from the course's default tee. Applies to every league.",
+  },
 ];
 
 function Toggle({

@@ -516,6 +516,27 @@ final adminRoundParticipantsProvider =
       return _extractList(data, AdminTeeTimeParticipant.fromJson);
     });
 
+/// Feature flag key → enabled, for gating flagged UI (any signed-in user).
+final featureFlagStatesProvider = FutureProvider<Map<String, bool>>((
+  ref,
+) async {
+  final dio = ref.watch(apiClientProvider);
+  final auth = ref.watch(authServiceProvider);
+  final token = await auth.getAccessToken();
+  final response = await dio.get<dynamic>(
+    '/feature-flags',
+    options: Options(
+      headers: token != null ? {'Authorization': 'Bearer $token'} : null,
+    ),
+  );
+  final data = response.data;
+  final map = data is Map && data['data'] is Map ? data['data'] as Map : data;
+  if (map is! Map) return {};
+  return map.map((k, v) => MapEntry(k as String, v == true));
+});
+
+const teeBoxSelectionFlag = 'tee_box_selection_enabled';
+
 final courseDetailProvider = FutureProvider.family<CourseDetail?, int>((
   ref,
   courseId,

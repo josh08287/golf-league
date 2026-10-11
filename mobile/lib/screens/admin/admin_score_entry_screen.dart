@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import '../../api/api_service.dart';
 import '../../api/providers.dart';
 import '../../models/models.dart';
+import '../../widgets/tee_box_dropdown.dart';
 
 /// Admin score entry for a standard (nine-hole) round: one expandable card per
 /// participant with a stepper per hole, a skip-week toggle, and a single
@@ -29,9 +30,28 @@ class _AdminScoreEntryScreenState
   final Map<int, bool> _localSkips = {};
 
   bool _submitting = false;
+  bool _changingTee = false;
   bool _seeded = false;
   String? _error;
   String? _success;
+
+  Future<void> _changeTee(int playerId, int? teeBoxId) async {
+    setState(() {
+      _changingTee = true;
+      _error = null;
+    });
+    try {
+      await ref
+          .read(apiServiceProvider)
+          .setRoundParticipantTeeBox(widget.roundId, playerId, teeBoxId);
+      // Refetch so the new course handicap shows up.
+      ref.invalidate(roundParticipantsProvider(widget.roundId));
+    } catch (e) {
+      if (mounted) setState(() => _error = 'Failed to change tee: $e');
+    } finally {
+      if (mounted) setState(() => _changingTee = false);
+    }
+  }
 
   List<int> _holesForSide(String side) => side == 'Back'
       ? List.generate(9, (i) => i + 10)
@@ -124,6 +144,13 @@ class _AdminScoreEntryScreenState
           final isFinalized = round.status == RoundStatus.finalized;
           final holes = _holesForSide(round.nineHoleSide);
           final courseAsync = ref.watch(courseDetailProvider(round.courseId));
+          final teeSelectionEnabled =
+              ref.watch(featureFlagStatesProvider).valueOrNull?[
+                  teeBoxSelectionFlag] ??
+              false;
+          final teeBoxes = teeSelectionEnabled
+              ? courseAsync.valueOrNull?.teeBoxes ?? const <TeeBoxOption>[]
+              : const <TeeBoxOption>[];
           final pars = <int, int>{};
           for (final h
               in courseAsync.valueOrNull?.holeDetails ?? const <CourseHole>[]) {
@@ -201,6 +228,10 @@ class _AdminScoreEntryScreenState
                         scores: _scores.putIfAbsent(p.playerId, () => {}),
                         skipped: skipped,
                         readonly: isFinalized || _submitting,
+                        teeBoxes: teeBoxes,
+                        onTeeChanged: isFinalized || _changingTee
+                            ? null
+                            : (teeBoxId) => _changeTee(p.playerId, teeBoxId),
                         onSkipChanged: isFinalized
                             ? null
                             : (v) => setState(() {
@@ -266,6 +297,8 @@ class _ParticipantScoreCard extends StatefulWidget {
     required this.readonly,
     required this.onSkipChanged,
     required this.onScoreChanged,
+    this.teeBoxes = const [],
+    this.onTeeChanged,
   });
 
   final RoundParticipant participant;
@@ -276,6 +309,12 @@ class _ParticipantScoreCard extends StatefulWidget {
   final bool readonly;
   final ValueChanged<bool>? onSkipChanged;
   final void Function(int hole, int? value) onScoreChanged;
+
+  /// The course's tees when tee box selection is enabled; empty otherwise.
+  final List<TeeBoxOption> teeBoxes;
+
+  /// Null while the tee can't be changed (finalized round or a change in flight).
+  final ValueChanged<int?>? onTeeChanged;
 
   @override
   State<_ParticipantScoreCard> createState() => _ParticipantScoreCardState();
@@ -347,6 +386,26 @@ class _ParticipantScoreCardState extends State<_ParticipantScoreCard> {
               ],
             ),
           ),
+          if (widget.teeBoxes.isNotEmpty && !widget.skipped)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  const Text(
+                    'Tees ',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF6B7280)),
+                  ),
+                  TeeBoxDropdown(
+                    teeBoxes: widget.teeBoxes,
+                    value: p.teeBoxId,
+                    overridden: p.teeBoxOverridden,
+                    enabled: widget.onTeeChanged != null,
+                    onChanged: (teeBoxId) =>
+                        widget.onTeeChanged?.call(teeBoxId),
+                  ),
+                ],
+              ),
+            ),
           if (_expanded && !widget.skipped)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

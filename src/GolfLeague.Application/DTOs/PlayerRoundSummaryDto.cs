@@ -20,4 +20,7 @@ public sealed record PlayerRoundSummaryDto(
     int? TotalNetStablefordPoints,
     bool IsWithdrawn,
     bool SkippedWeek,
-    double? ScoreDifferential = null);
+    double? ScoreDifferential = null,
+    string? TeeBoxName = null,
+    double? CourseRating = null,
+    int? SlopeRating = null);

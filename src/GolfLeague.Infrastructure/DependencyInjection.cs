@@ -105,6 +105,7 @@ public static class DependencyInjection
         services.AddScoped<LeagueSettingRepository>();
         services.AddScoped<ILeagueSettingRepository>(sp => new CachedLeagueSettingRepository(sp.GetRequiredService<LeagueSettingRepository>(), sp.GetRequiredService<IMemoryCache>()));
         services.AddScoped<IPlayerHalfSettingRepository, PlayerHalfSettingRepository>();
+        services.AddScoped<IPlayerHalfTeeBoxRepository, PlayerHalfTeeBoxRepository>();
         services.AddScoped<FeatureFlagRepository>();
         services.AddScoped<IFeatureFlagRepository>(sp => new CachedFeatureFlagRepository(sp.GetRequiredService<FeatureFlagRepository>(), sp.GetRequiredService<IMemoryCache>()));
         services.AddScoped<ITeeTimeService, TeeTimeService>();
@@ -112,6 +113,8 @@ public static class DependencyInjection
         services.AddScoped<TournamentFoursomeService>();
         services.AddScoped<GolfLeague.Application.Handicaps.HandicapRecalculationService>();
         services.AddScoped<GolfLeague.Application.Flights.Services.MatchPlayResultCalculator>();
+        services.AddScoped<GolfLeague.Application.Rounds.ParticipantTeeResolver>();
+        services.AddScoped<GolfLeague.Application.Rounds.ParticipantTeeUpdater>();
 
         services.AddScoped<LeagueContext>();
         services.AddScoped<ILeagueContext>(sp => sp.GetRequiredService<LeagueContext>());

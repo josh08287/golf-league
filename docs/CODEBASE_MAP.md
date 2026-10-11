@@ -81,9 +81,15 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 | DELETE | `v1/rounds/{id}` | admin |
 | POST | `v1/rounds/{id}/finalize` | admin |
 | PUT | `v1/rounds/{id}/scores/{playerId}/holes` | scorer or admin |
+| PUT | `v1/rounds/{id}/participants/{playerId}/tee-box` | scorer or admin; `{ teeBoxId }` (null = revert to default) |
+| PUT | `v1/tee-times/{id}/participants/{playerId}/tee-box` | caller must be in the group |
+| GET | `v1/players/{id}/tee-boxes` | admin; per-half, per-course default tees |
+| PUT | `v1/players/{id}/half-settings/{halfId}/tee-box` | admin; `{ courseId, teeBoxId }` |
 | GET | `v1/courses`, `v1/courses/{id}` | |
-| POST | `v1/courses` | admin |
+| POST | `v1/courses` | admin (also creates the course's default tee) |
 | PUT | `v1/courses/{id}/holes` | admin |
+| POST | `v1/courses/{id}/teeboxes` | admin |
+| PUT/DELETE | `v1/courses/{id}/teeboxes/{teeBoxId}` | admin; default or used tees can't be deleted |
 | DELETE | `v1/courses/{id}` | admin |
 | GET | `v1/admin/audit-log` | admin |
 | GET | `health` | **`/api/health`** |
@@ -123,7 +129,16 @@ All prefixed with **`/api`**. Public reads use `AuthorizationLevel.Anonymous`; w
 
 ---
 
-## 8. Quick file index for common tasks
+## 8. Tee boxes and round ratings
+
+- Every course has exactly one default tee (`TeeBox.IsDefault`, filtered unique index). `Course.CourseRating/SlopeRating` mirror the default tee for display only.
+- Every `RoundParticipant` has a required `TeeBoxId` plus a **snapshot** of `CourseRating`/`SlopeRating`. Course handicaps, differentials (`HandicapRepository.GetLastNRoundInputsAsync`), match play formulas and scorecards read the snapshot, never the live course/tee — so editing a tee never rewrites finalized history. Migration `AddParticipantTeeBoxes` backfilled every existing row from the course-level values.
+- `Application/Rounds/ParticipantTeeResolver.cs` picks a participant's starting tee (per-half default from `PlayerHalfTeeBox` when the `tee_box_selection_enabled` flag is on, else the course default) and stamps it; every participant-creation path uses it.
+- `Application/Rounds/ParticipantTeeUpdater.cs` moves an existing participant to another tee and rescores entered holes (score-entry override, tee edits, default changes).
+
+---
+
+## 9. Quick file index for common tasks
 
 | Task | Start here |
 |------|------------|

@@ -217,8 +217,8 @@ public sealed class MatchPlayResultCalculator
             Par: self.Par,
             StrokeIndex: self.StrokeIndex,
             HoleNumber: self.HoleNumber,
-            CourseRating: selfParticipant.Round.Course.CourseRating,
-            SlopeRating: selfParticipant.Round.Course.SlopeRating,
+            CourseRating: selfParticipant.CourseRating,
+            SlopeRating: selfParticipant.SlopeRating,
             HandicapIndex: selfParticipant.HandicapIndex,
             OpponentHandicapIndex: opponentParticipant.HandicapIndex,
             IsAgainstCard: isAgainstCard);
@@ -232,8 +232,8 @@ public sealed class MatchPlayResultCalculator
             Par: self.Par,
             StrokeIndex: self.StrokeIndex,
             HoleNumber: self.HoleNumber,
-            CourseRating: selfParticipant.Round.Course.CourseRating,
-            SlopeRating: selfParticipant.Round.Course.SlopeRating,
+            CourseRating: selfParticipant.CourseRating,
+            SlopeRating: selfParticipant.SlopeRating,
             HandicapIndex: selfParticipant.HandicapIndex,
             OpponentHandicapIndex: selfParticipant.HandicapIndex,
             IsAgainstCard: true);

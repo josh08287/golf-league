@@ -412,6 +412,9 @@ public class RecalculateAllRoundsCommandHandlerTests
             FlightId = 1,
             HandicapIndex = 18.0,
             CourseHandicap = 10,
+            // Tee rating/slope snapshotted when the round was created.
+            CourseRating = 70.1,
+            SlopeRating = 123,
             IsWithdrawn = false,
             SkippedWeek = false,
             HoleScores = new List<HoleScore>()
@@ -515,6 +518,9 @@ public class RecalculateAllRoundsCommandHandlerTests
             FlightId = 1,
             HandicapIndex = 18.0,
             CourseHandicap = 10,
+            // Tee rating/slope snapshotted when the round was created.
+            CourseRating = 70.1,
+            SlopeRating = 123,
             IsWithdrawn = false,
             SkippedWeek = false,
             HoleScores = new List<HoleScore>()

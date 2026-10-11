@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import type { ReactNode } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   Trophy,
   Target,
@@ -19,6 +21,10 @@ import {
   useSetTournamentLongestDriveWinner,
 } from '@/hooks/admin/useRoundMutations';
 import { useCourseDetail } from '@/hooks/admin/useCourseMutations';
+import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
+import { useSetRoundParticipantTeeBox } from '@/hooks/useTeeBoxes';
+import { TeeBoxSelect } from '@/components/scoring/TeeBoxSelect';
+import { apiClient } from '@/lib/api';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { formatDate } from '@/lib/utils';
 import { isRoundFinalized } from '@/lib/enumUtils';
@@ -31,7 +37,9 @@ import type {
   TournamentResults,
   TournamentFlight,
   TournamentCourseHole,
+  Participant,
 } from '@/types/api';
+import { FEATURE_FLAG_KEYS } from '@/types/api';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -311,6 +319,7 @@ function FlightScoreEntryTable({
   onScoreChange,
   readonly,
   cellRefs,
+  renderTee,
 }: {
   flight: TournamentFlight;
   holes: TournamentCourseHole[];
@@ -318,6 +327,8 @@ function FlightScoreEntryTable({
   onScoreChange: (playerId: number, hole: number, value: number | '') => void;
   readonly: boolean;
   cellRefs: React.MutableRefObject<Record<number, Array<HTMLInputElement | null>>>;
+  /** Optional per-player tee picker, shown under the course handicap. */
+  renderTee?: (playerId: number) => ReactNode;
 }) {
   const pars: Record<number, number> = {};
   const strokeIndexes: Record<number, number> = {};
@@ -379,6 +390,7 @@ function FlightScoreEntryTable({
                   <td className="sticky left-0 z-10 bg-white px-3 py-2">
                     <div className="font-medium text-gray-900">{player.playerName}</div>
                     <div className="text-xs text-gray-400">CH {player.courseHandicap}</div>
+                    {renderTee?.(player.playerId)}
                   </td>
                   {holes.map((h, hi) => (
                     <td key={h.holeNumber} className="px-1 py-2">
@@ -520,6 +532,43 @@ function ScoreEntrySection({
   const submitScores = useSubmitHoleScores(roundId);
   const cellRefs = useRef<Record<number, Array<HTMLInputElement | null>>>({});
 
+  // Per-player tee picker (tee box selection feature). The tournament results
+  // payload doesn't carry tees, so read them from the participants list.
+  const featureFlags = useFeatureFlagStates();
+  const teeSelectionEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.teeBoxSelectionEnabled] ?? false;
+  const { data: participants } = useQuery<Participant[]>({
+    queryKey: ['rounds', roundId, 'participants'],
+    queryFn: () => apiClient.get(`/rounds/${roundId}/participants`).then((r) => r.data),
+    enabled: Boolean(roundId) && teeSelectionEnabled,
+  });
+  const { data: course } = useCourseDetail(teeSelectionEnabled ? results.courseId : undefined);
+  const setTeeBox = useSetRoundParticipantTeeBox(roundId);
+  const [teeError, setTeeError] = useState<string | null>(null);
+
+  function renderTee(playerId: number) {
+    const participant = participants?.find((p) => p.playerId === playerId);
+    if (!teeSelectionEnabled || !participant || !course) return null;
+    return (
+      <TeeBoxSelect
+        className="mt-1"
+        teeBoxes={course.teeBoxes}
+        value={participant.teeBoxId}
+        overridden={participant.teeBoxOverridden}
+        disabled={isFinalized || setTeeBox.isPending}
+        onChange={(teeBoxId) => {
+          setTeeError(null);
+          setTeeBox.mutateAsync({ playerId, teeBoxId }).catch((err: unknown) =>
+            setTeeError(
+              (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+                'Failed to change tee. Please try again.',
+            ),
+          );
+        }}
+        aria-label={`Tee box for ${participant.playerName}`}
+      />
+    );
+  }
+
   // Seed the grid from server-side flight data. Only fills blank cells so it
   // never clobbers an admin's in-progress, unsaved edits.
   useEffect(() => {
@@ -601,6 +650,9 @@ function ScoreEntrySection({
           This round is finalized — scores are locked and shown read-only below.
         </div>
       )}
+      {teeError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{teeError}</div>
+      )}
       {results.flights.map((flight) => (
         <div key={flight.id} className="space-y-2">
           <h3 className="text-base font-semibold text-gray-700">
@@ -613,6 +665,7 @@ function ScoreEntrySection({
             onScoreChange={handleScoreChange}
             readonly={isFinalized}
             cellRefs={cellRefs}
+            renderTee={renderTee}
           />
         </div>
       ))}

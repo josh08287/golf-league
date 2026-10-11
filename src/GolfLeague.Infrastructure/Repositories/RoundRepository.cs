@@ -255,9 +255,39 @@ public sealed class RoundRepository : IRoundRepository
                 .SetProperty(rp => rp.HandicapIndex, participant.HandicapIndex)
                 .SetProperty(rp => rp.CourseHandicap, participant.CourseHandicap)
                 .SetProperty(rp => rp.FlightId, participant.FlightId)
-                .SetProperty(rp => rp.IsSubstitute, participant.IsSubstitute),
+                .SetProperty(rp => rp.IsSubstitute, participant.IsSubstitute)
+                .SetProperty(rp => rp.TeeBoxId, participant.TeeBoxId)
+                .SetProperty(rp => rp.CourseRating, participant.CourseRating)
+                .SetProperty(rp => rp.SlopeRating, participant.SlopeRating)
+                .SetProperty(rp => rp.TeeBoxOverridden, participant.TeeBoxOverridden),
             cancellationToken);
     }
+
+    public async Task<IReadOnlyList<RoundParticipant>> GetOpenParticipantsByTeeBoxAsync(int teeBoxId, CancellationToken cancellationToken = default)
+        => await OpenParticipantsQuery()
+            .Where(rp => rp.TeeBoxId == teeBoxId)
+            .ToListAsync(cancellationToken);
+
+    public async Task<IReadOnlyList<RoundParticipant>> GetOpenParticipantsForPlayerAsync(
+        int playerId, SeasonHalf half, int courseId, CancellationToken cancellationToken = default)
+        => await OpenParticipantsQuery()
+            .Where(rp => rp.PlayerId == playerId
+                && rp.Round.CourseId == courseId
+                && (rp.Round.HalfId == half.Id
+                    || (rp.Round.HalfId == null
+                        && rp.Round.SeasonId == half.SeasonId
+                        && rp.Round.RoundDate >= half.StartDate
+                        && rp.Round.RoundDate <= half.EndDate)))
+            .ToListAsync(cancellationToken);
+
+    /// <summary>Participants in rounds that are neither finalized nor cancelled, with what rescoring needs loaded.</summary>
+    private IQueryable<RoundParticipant> OpenParticipantsQuery()
+        => _context.RoundParticipants
+            .Include(rp => rp.Round).ThenInclude(r => r.Course).ThenInclude(c => c.Holes)
+            .Include(rp => rp.Round).ThenInclude(r => r.Half)
+            .Include(rp => rp.HoleScores)
+            .Where(rp => rp.Round.Status != RoundStatus.Finalized && rp.Round.Status != RoundStatus.Cancelled)
+            .AsSplitQuery();
 
     public async Task DeleteParticipantAsync(int participantId, CancellationToken cancellationToken = default)
     {
@@ -341,6 +371,7 @@ public sealed class RoundRepository : IRoundRepository
         => await _context.RoundParticipants
             .Include(rp => rp.Round).ThenInclude(r => r.Course).ThenInclude(c => c.Holes)
             .Include(rp => rp.HoleScores)
+            .Include(rp => rp.TeeBox)
             // Round.Course.Holes and HoleScores are two independent collections
             // on this query — see GetByIdAsync's comment on the same shape.
             .AsSplitQuery()

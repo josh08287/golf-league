@@ -6,6 +6,7 @@ using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using GolfLeague.Domain.Services;
 using Microsoft.Extensions.Logging;
+using GolfLeague.Tests.Helpers;
 using Moq;
 using Xunit;
 
@@ -82,7 +83,7 @@ public class TournamentParticipantManagementTests
         var handicaps = new Mock<IHandicapRepository>();
         var teeTimes = new Mock<ITeeTimeRepository>();
 
-        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds));
+        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds), TeeResolverFactory.Create(round.Course));
 
         var result = await handler.Handle(new AddTournamentParticipantsCommand(round.Id, new List<int> { 2 }, "user1"), CancellationToken.None);
 
@@ -116,7 +117,7 @@ public class TournamentParticipantManagementTests
         teeTimes.Setup(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds));
+        var handler = new AddTournamentParticipantsCommandHandler(rounds.Object, players.Object, handicaps.Object, MakeFoursomeService(teeTimes, round, rounds), TeeResolverFactory.Create(round.Course));
 
         var result = await handler.Handle(new AddTournamentParticipantsCommand(round.Id, new List<int> { 2 }, "user1"), CancellationToken.None);
 

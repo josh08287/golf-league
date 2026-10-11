@@ -66,6 +66,22 @@ public interface IRoundRepository
     Task UpdateParticipantAsync(RoundParticipant participant, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Participants playing from <paramref name="teeBoxId"/> in rounds that
+    /// aren't finalized or cancelled, with Round/Course/Holes/Half and
+    /// HoleScores loaded. Used to re-apply an edited tee's rating and slope.
+    /// </summary>
+    Task<IReadOnlyList<RoundParticipant>> GetOpenParticipantsByTeeBoxAsync(int teeBoxId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// One player's participants on one course in rounds belonging to
+    /// <paramref name="half"/> — weekly rounds in the half plus half-less
+    /// (tournament) rounds dated within it — that aren't finalized or
+    /// cancelled, loaded the same way as <see cref="GetOpenParticipantsByTeeBoxAsync"/>.
+    /// </summary>
+    Task<IReadOnlyList<RoundParticipant>> GetOpenParticipantsForPlayerAsync(
+        int playerId, SeasonHalf half, int courseId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Deletes a RoundParticipant row outright (not a withdraw/skip toggle).
     /// Used to remove a substitute who was added by mistake before the round
     /// is played — a sub who never played shouldn't linger as a phantom row.

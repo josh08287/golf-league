@@ -439,6 +439,46 @@ public sealed class TeeTimeFunctions
     private sealed record SetSkippedRequest(bool Skipped);
 
     /// <summary>
+    /// PUT /v1/tee-times/{id}/participants/{playerId}/tee-box — Change the tee a
+    /// player in the group plays this round from (null reverts to their
+    /// default). Any player in the group can call this, for anyone in the group.
+    /// </summary>
+    [Function("SetTeeTimeParticipantTeeBox")]
+    public async Task<IActionResult> SetTeeTimeParticipantTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/tee-times/{id:int}/participants/{playerId:int}/tee-box")] HttpRequest req,
+        int id,
+        int playerId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        var callingPlayerId = req.GetPlayerId();
+        if (callingPlayerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<SetTeeBoxRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var teeTime = await _teeTimes.GetByIdAsync(id, cancellationToken);
+        if (teeTime is null)
+            return new NotFoundObjectResult(new { error = "Tee time not found." });
+
+        var callerInGroup = teeTime.Participants.Any(p => p.PlayerId == callingPlayerId.Value && !p.IsWithdrawn);
+        if (!callerInGroup)
+            return new ForbidResult();
+        if (teeTime.Participants.All(p => p.PlayerId != playerId))
+            return new BadRequestObjectResult(new { error = "That player isn't in this tee time group." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetParticipantTeeBoxCommand(teeTime.RoundId, playerId, body.TeeBoxId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private sealed record SetTeeBoxRequest(int? TeeBoxId);
+
+    /// <summary>
     /// POST /v1/tee-times/{id}/starting-hole — Shotgun-start tournaments only:
     /// the group sets which hole (1-18) they're teeing off on, from the
     /// score-entry setup step. Any authenticated player in the group can call

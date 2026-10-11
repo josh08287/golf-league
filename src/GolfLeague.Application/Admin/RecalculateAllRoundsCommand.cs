@@ -140,10 +140,21 @@ public sealed class RecalculateAllRoundsCommandHandler
                             needsUpdate = true;
                         }
 
+                        // Not yet finalized: pick up any edit to the participant's
+                        // tee since the snapshot was taken.
+                        var tee = course.TeeBoxes.FirstOrDefault(t => t.Id == participant.TeeBoxId);
+                        if (tee is not null
+                            && (participant.CourseRating != tee.CourseRating || participant.SlopeRating != tee.SlopeRating))
+                        {
+                            participant.CourseRating = tee.CourseRating;
+                            participant.SlopeRating = tee.SlopeRating;
+                            needsUpdate = true;
+                        }
+
                         var recalculatedCourseHandicap = StablefordScoringService.CourseHandicap(
                             participant.HandicapIndex,
-                            course.SlopeRating,
-                            course.CourseRating,
+                            participant.SlopeRating,
+                            participant.CourseRating,
                             coursePar.Value,
                             round.RoundType);
 
@@ -213,11 +224,13 @@ public sealed class RecalculateAllRoundsCommandHandler
                                 }
                             }
 
-                            // Recalculate course handicap based on the (possibly refreshed) HandicapIndex and course slope
+                            // Recalculate course handicap from the (possibly refreshed) HandicapIndex and
+                            // the tee rating/slope snapshotted for this round — never the live course/tee
+                            // values, which may have been edited since the round was played.
                             var recalculatedCourseHandicap = StablefordScoringService.CourseHandicap(
                                 participant.HandicapIndex,
-                                course.SlopeRating,
-                                course.CourseRating,
+                                participant.SlopeRating,
+                                participant.CourseRating,
                                 courseHoles.Sum(h => h.Par),
                                 round.RoundType);
 

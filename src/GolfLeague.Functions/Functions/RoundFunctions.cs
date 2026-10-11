@@ -176,6 +176,30 @@ public sealed class RoundFunctions
         return result.ToOkResult();
     }
 
+    [Function("SetRoundParticipantTeeBox")]
+    public async Task<IActionResult> SetRoundParticipantTeeBox(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/rounds/{id}/participants/{playerId}/tee-box")] HttpRequest req,
+        string id,
+        string playerId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireRole("scorer", "admin");
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(id, out var roundId) || !int.TryParse(playerId, out var playerIdInt))
+            return new BadRequestObjectResult(new { error = "Invalid ID." });
+
+        var body = await req.TryDeserializeAsync<SetTeeBoxRequest>(cancellationToken);
+        if (body is null)
+            return new BadRequestObjectResult(new { error = "Request body is required." });
+
+        var userId = req.GetUserId() ?? "unknown";
+        var result = await _mediator.Send(new SetParticipantTeeBoxCommand(roundId, playerIdInt, body.TeeBoxId, userId), cancellationToken);
+        return result.ToOkResult();
+    }
+
+    private sealed record SetTeeBoxRequest(int? TeeBoxId);
+
     [Function("SubmitHoleScores")]
     public async Task<IActionResult> SubmitHoleScores(
         [HttpTrigger(AuthorizationLevel.Anonymous, "put", Route = "v1/rounds/{id}/scores/{playerId}/holes")] HttpRequest req,

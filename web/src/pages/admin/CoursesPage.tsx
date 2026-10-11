@@ -71,6 +71,9 @@ function AddCourseForm({ onSuccess, onCancel }: AddCourseFormProps) {
           />
         </FormField>
       </div>
+      <p className="text-xs text-gray-500">
+        These become the course&apos;s default tee box. Add more tees after creating the course.
+      </p>
 
       {createCourse.isError && (
         <p className="text-sm text-red-600">Failed to create course. Try again.</p>

@@ -188,6 +188,11 @@ export interface PlayerRoundSummary {
   isWithdrawn: boolean;
   skippedWeek: boolean;
   scoreDifferential: number | null;
+  /** Name of the tee the round was played from. */
+  teeBoxName: string | null;
+  /** Rating/slope the round was played at (snapshot, used for the differential). */
+  courseRating: number | null;
+  slopeRating: number | null;
 }
 
 export interface Round {
@@ -225,6 +230,11 @@ export interface Participant {
   courseHandicap: number;
   isWithdrawn: boolean;
   skippedWeek: boolean;
+  teeBoxId: number;
+  courseRating: number;
+  slopeRating: number;
+  /** True when the tee was changed for this round on a score-entry page. */
+  teeBoxOverridden: boolean;
 }
 
 export interface HoleScore {
@@ -430,6 +440,45 @@ export interface TeeBox {
   totalYardage: number;
   par: number;
   holes: HoleTeeBox[];
+  /** The course's default tee; players with no assigned tee play from it. */
+  isDefault: boolean;
+}
+
+/** A tee box as offered in a tee picker. */
+export interface TeeBoxOption {
+  id: number;
+  name: string;
+  courseRating: number;
+  slopeRating: number;
+  isDefault: boolean;
+}
+
+/** A participant's tee for one round, as returned after changing it. */
+export interface ParticipantTee {
+  playerId: number;
+  teeBoxId: number;
+  teeBoxName: string;
+  courseRating: number;
+  slopeRating: number;
+  courseHandicap: number;
+  teeBoxOverridden: boolean;
+}
+
+export interface PlayerHalfTeeBox {
+  halfId: number;
+  courseId: number;
+  teeBoxId: number;
+}
+
+export interface CourseTeeOptions {
+  courseId: number;
+  courseName: string;
+  teeBoxes: TeeBoxOption[];
+}
+
+export interface PlayerTeeBoxSettings {
+  courses: CourseTeeOptions[];
+  defaults: PlayerHalfTeeBox[];
 }
 
 export interface CourseDetail extends Course {
@@ -591,6 +640,10 @@ export interface TeeTimePlayerScore {
   totalNetStablefordPoints: number | null;
   tournamentFlightId: number | null;
   tournamentFlightName: string | null;
+  teeBoxId: number;
+  courseRating: number;
+  slopeRating: number;
+  teeBoxOverridden: boolean;
 }
 
 export interface TeeTimeCtpHole {
@@ -624,6 +677,8 @@ export interface TeeTimeGroupScorecard {
   tournamentLongestDrive: TeeTimeLongestDriveFlight[];
   /** Tournament rounds only: whether this round is a shotgun start. */
   isShotgun?: boolean;
+  /** The course's tee boxes, default first. */
+  teeBoxes?: TeeBoxOption[];
 }
 
 export interface TeeTimeGroupScoresResult {
@@ -1225,6 +1280,7 @@ export const FEATURE_FLAG_KEYS = {
   tournamentHandicapToggleEnabled: 'tournament_handicap_toggle_enabled',
   tournamentSubstituteSkinsToggleEnabled: 'tournament_substitute_skins_toggle_enabled',
   tournamentStartTimeEnabled: 'tournament_start_time_enabled',
+  teeBoxSelectionEnabled: 'tee_box_selection_enabled',
 } as const;
 
 // ── Side Games ──────────────────────────────────────────────────────────────

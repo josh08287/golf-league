@@ -29,13 +29,16 @@ public sealed class AddTournamentParticipantsCommandHandler : IRequestHandler<Ad
     private readonly IPlayerRepository _playerRepository;
     private readonly IHandicapRepository _handicapRepository;
     private readonly TournamentFoursomeService _foursomeService;
+    private readonly ParticipantTeeResolver _teeResolver;
 
     public AddTournamentParticipantsCommandHandler(
         IRoundRepository roundRepository,
         IPlayerRepository playerRepository,
         IHandicapRepository handicapRepository,
-        TournamentFoursomeService foursomeService)
+        TournamentFoursomeService foursomeService,
+        ParticipantTeeResolver teeResolver)
     {
+        _teeResolver = teeResolver;
         _roundRepository = roundRepository;
         _playerRepository = playerRepository;
         _handicapRepository = handicapRepository;
@@ -57,6 +60,7 @@ public sealed class AddTournamentParticipantsCommandHandler : IRequestHandler<Ad
 
         var existingPlayerIds = round.Participants.Select(p => p.PlayerId).ToHashSet();
         var coursePar = round.Course.Holes.Sum(h => h.Par);
+        var teeByPlayerId = await _teeResolver.ResolveDefaultsAsync(round, request.PlayerIds, cancellationToken);
 
         var added = new List<RoundParticipantDto>();
         foreach (var playerId in request.PlayerIds.Distinct())
@@ -68,24 +72,23 @@ public sealed class AddTournamentParticipantsCommandHandler : IRequestHandler<Ad
 
             var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
             var index = current?.HandicapIndex ?? 0.0;
-            var courseHcp = CourseHandicap(index, round.Course.SlopeRating, round.Course.CourseRating, coursePar, RoundType.Tournament);
-
             var participant = new RoundParticipant
             {
                 RoundId = round.Id,
                 PlayerId = playerId,
                 FlightId = null,
                 HandicapIndex = index,
-                CourseHandicap = courseHcp,
                 IsWithdrawn = false,
                 IsSubstitute = player.IsSubstitute,
             };
+            ParticipantTeeResolver.Apply(participant, teeByPlayerId[playerId], coursePar, RoundType.Tournament);
             await _roundRepository.AddParticipantAsync(participant, cancellationToken);
 
             added.Add(new RoundParticipantDto(
                 participant.Id, participant.RoundId, participant.PlayerId, player.FullName,
                 participant.FlightId, participant.HandicapIndex, participant.CourseHandicap,
-                participant.IsWithdrawn, participant.SkippedWeek));
+                participant.IsWithdrawn, participant.SkippedWeek,
+                participant.TeeBoxId, participant.CourseRating, participant.SlopeRating, participant.TeeBoxOverridden));
         }
 
         if (added.Count > 0)

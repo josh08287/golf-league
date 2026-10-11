@@ -1,4 +1,5 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.DTOs;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -26,7 +27,11 @@ public sealed record TeeTimePlayerScoreDto(
     int? TotalGrossStablefordPoints,
     int? TotalNetStablefordPoints,
     int? TournamentFlightId,
-    string? TournamentFlightName);
+    string? TournamentFlightName,
+    int TeeBoxId = 0,
+    double CourseRating = 0,
+    int SlopeRating = 0,
+    bool TeeBoxOverridden = false);
 
 /// <summary>
 /// Score for a single hole (if entered).
@@ -75,7 +80,8 @@ public sealed record TeeTimeGroupScorecardDto(
     List<TeeTimePlayerScoreDto> Players,
     List<TeeTimeCtpHoleDto> TournamentCtp,
     List<TeeTimeLongestDriveFlightDto> TournamentLongestDrive,
-    bool IsShotgun = false);
+    bool IsShotgun = false,
+    List<TeeBoxOptionDto>? TeeBoxes = null);
 
 /// <summary>
 /// Basic course hole information.
@@ -94,15 +100,18 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
     private readonly IRoundRepository _roundRepository;
     private readonly ITeeTimeRepository _teeTimeRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly IFeatureFlagRepository _featureFlags;
 
     public GetTeeTimeGroupScorecardQueryHandler(
         IRoundRepository roundRepository,
         ITeeTimeRepository teeTimeRepository,
-        ICourseRepository courseRepository)
+        ICourseRepository courseRepository,
+        IFeatureFlagRepository featureFlags)
     {
         _roundRepository = roundRepository;
         _teeTimeRepository = teeTimeRepository;
         _courseRepository = courseRepository;
+        _featureFlags = featureFlags;
     }
 
     public async Task<Result<TeeTimeGroupScorecardDto>> Handle(
@@ -185,7 +194,11 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
                 participant.TotalGrossStablefordPoints,
                 participant.TotalNetStablefordPoints,
                 participant.TournamentFlightId,
-                participant.TournamentFlight?.Name));
+                participant.TournamentFlight?.Name,
+                participant.TeeBoxId,
+                participant.CourseRating,
+                participant.SlopeRating,
+                participant.TeeBoxOverridden));
         }
 
         var ctpDtos = new List<TeeTimeCtpHoleDto>();
@@ -238,8 +251,17 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
             playerDtos,
             ctpDtos,
             ldDtos,
-            round.IsShotgun);
+            round.IsShotgun,
+            // Only offered when tee selection is on, so clients (mobile has no
+            // flag lookup of its own) show a tee picker exactly when it's usable.
+            await IsTeeSelectionEnabledAsync(cancellationToken) ? TeeBoxOptionMapper.Map(course.TeeBoxes) : null);
 
         return Result<TeeTimeGroupScorecardDto>.Ok(dto);
+    }
+
+    private async Task<bool> IsTeeSelectionEnabledAsync(CancellationToken cancellationToken)
+    {
+        var flag = await _featureFlags.GetAsync(Admin.KnownFeatureFlags.TeeBoxSelectionEnabled, cancellationToken);
+        return flag?.Enabled ?? Admin.KnownFeatureFlags.Defaults[Admin.KnownFeatureFlags.TeeBoxSelectionEnabled];
     }
 }

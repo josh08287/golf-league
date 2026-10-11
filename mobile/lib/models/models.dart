@@ -640,6 +640,8 @@ class TeeTimePlayerScore {
     this.totalNetStrokes,
     this.totalGrossStablefordPoints,
     this.totalNetStablefordPoints,
+    this.teeBoxId = 0,
+    this.teeBoxOverridden = false,
   });
 
   final int participantId;
@@ -657,6 +659,12 @@ class TeeTimePlayerScore {
   final int? totalNetStrokes;
   final int? totalGrossStablefordPoints;
   final int? totalNetStablefordPoints;
+
+  /// The tee this player is playing the round from.
+  final int teeBoxId;
+
+  /// True when the tee was changed for this round on a score-entry screen.
+  final bool teeBoxOverridden;
 
   factory TeeTimePlayerScore.fromJson(
     Map<String, dynamic> j,
@@ -679,8 +687,44 @@ class TeeTimePlayerScore {
     totalGrossStablefordPoints: (j['totalGrossStablefordPoints'] as num?)
         ?.toInt(),
     totalNetStablefordPoints: (j['totalNetStablefordPoints'] as num?)?.toInt(),
+    teeBoxId: (j['teeBoxId'] as num? ?? 0).toInt(),
+    teeBoxOverridden: j['teeBoxOverridden'] as bool? ?? false,
   );
 }
+
+/// A tee box as offered in a tee picker.
+class TeeBoxOption {
+  const TeeBoxOption({
+    required this.id,
+    required this.name,
+    required this.courseRating,
+    required this.slopeRating,
+    required this.isDefault,
+  });
+
+  final int id;
+  final String name;
+  final double courseRating;
+  final int slopeRating;
+  final bool isDefault;
+
+  /// "Blue (72.1 / 131)"
+  String get label =>
+      '$name (${courseRating.toStringAsFixed(1)} / $slopeRating)';
+
+  factory TeeBoxOption.fromJson(Map<String, dynamic> j) => TeeBoxOption(
+    id: (j['id'] as num).toInt(),
+    name: j['name'] as String? ?? '',
+    courseRating: (j['courseRating'] as num? ?? 0).toDouble(),
+    slopeRating: (j['slopeRating'] as num? ?? 0).toInt(),
+    isDefault: j['isDefault'] as bool? ?? false,
+  );
+}
+
+List<TeeBoxOption> _parseTeeBoxes(dynamic raw) =>
+    ((raw as List<dynamic>?) ?? [])
+        .map((t) => TeeBoxOption.fromJson(t as Map<String, dynamic>))
+        .toList();
 
 class TeeTimeGroupScorecard {
   const TeeTimeGroupScorecard({
@@ -695,6 +739,7 @@ class TeeTimeGroupScorecard {
     required this.teeTimeNumber,
     required this.holes,
     required this.players,
+    this.teeBoxes = const [],
   });
 
   final int roundId;
@@ -708,6 +753,10 @@ class TeeTimeGroupScorecard {
   final int teeTimeNumber;
   final List<TeeTimeHoleInfo> holes;
   final List<TeeTimePlayerScore> players;
+
+  /// The course's tees. Empty unless tee box selection is enabled, so a tee
+  /// picker is shown exactly when it can be used.
+  final List<TeeBoxOption> teeBoxes;
 
   factory TeeTimeGroupScorecard.fromJson(Map<String, dynamic> j) =>
       TeeTimeGroupScorecard(
@@ -726,6 +775,7 @@ class TeeTimeGroupScorecard {
         players: ((j['players'] as List<dynamic>?) ?? [])
             .map((p) => TeeTimePlayerScore.fromJson(p as Map<String, dynamic>))
             .toList(),
+        teeBoxes: _parseTeeBoxes(j['teeBoxes']),
       );
 }
 
@@ -1702,6 +1752,8 @@ class RoundParticipant {
     required this.courseHandicap,
     required this.isWithdrawn,
     required this.skippedWeek,
+    this.teeBoxId = 0,
+    this.teeBoxOverridden = false,
   });
 
   final int id;
@@ -1713,6 +1765,8 @@ class RoundParticipant {
   final int courseHandicap;
   final bool isWithdrawn;
   final bool skippedWeek;
+  final int teeBoxId;
+  final bool teeBoxOverridden;
 
   factory RoundParticipant.fromJson(Map<String, dynamic> j) =>
       RoundParticipant(
@@ -1725,6 +1779,8 @@ class RoundParticipant {
         courseHandicap: (j['courseHandicap'] as num? ?? 0).toInt(),
         isWithdrawn: j['isWithdrawn'] as bool? ?? false,
         skippedWeek: j['skippedWeek'] as bool? ?? false,
+        teeBoxId: (j['teeBoxId'] as num? ?? 0).toInt(),
+        teeBoxOverridden: j['teeBoxOverridden'] as bool? ?? false,
       );
 }
 
@@ -1761,11 +1817,13 @@ class CourseDetail {
     required this.id,
     required this.name,
     this.holeDetails = const [],
+    this.teeBoxes = const [],
   });
 
   final int id;
   final String name;
   final List<CourseHole> holeDetails;
+  final List<TeeBoxOption> teeBoxes;
 
   factory CourseDetail.fromJson(Map<String, dynamic> j) => CourseDetail(
     id: (j['id'] as num).toInt(),
@@ -1773,6 +1831,7 @@ class CourseDetail {
     holeDetails: ((j['holeDetails'] as List<dynamic>?) ?? [])
         .map((h) => CourseHole.fromJson(h as Map<String, dynamic>))
         .toList(),
+    teeBoxes: _parseTeeBoxes(j['teeBoxes']),
   );
 }
 

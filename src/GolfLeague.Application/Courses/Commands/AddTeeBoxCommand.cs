@@ -13,7 +13,8 @@ public sealed record AddTeeBoxCommand(
     int SlopeRating,
     int TotalYardage,
     int Par,
-    string UserId) : IRequest<Result<TeeBox>>, IAmAuditableCommand
+    string UserId,
+    bool IsDefault = false) : IRequest<Result<TeeBox>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Course";
     public string AuditEntityId => CourseId.ToString();
@@ -43,7 +44,9 @@ public sealed class AddTeeBoxCommandHandler : IRequestHandler<AddTeeBoxCommand, 
             CourseRating = request.CourseRating,
             SlopeRating = request.SlopeRating,
             TotalYardage = request.TotalYardage,
-            Par = request.Par
+            Par = request.Par,
+            // The course's first tee always becomes its default.
+            IsDefault = request.IsDefault || course.TeeBoxes.Count == 0,
         };
 
         await _courseRepository.AddTeeBoxAsync(teeBox, cancellationToken);

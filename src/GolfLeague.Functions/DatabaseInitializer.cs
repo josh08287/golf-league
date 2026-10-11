@@ -419,6 +419,7 @@ public static class DatabaseInitializer
             var course = await dbContext.Courses.FirstOrDefaultAsync();
             if (course is not null)
             {
+                var defaultTee = await dbContext.TeeBoxes.FirstAsync(t => t.CourseId == course.Id && t.IsDefault);
                 var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
                 // Past Round (Week 1) - Finalized
@@ -446,6 +447,9 @@ public static class DatabaseInitializer
                         PlayerId = player.Id,
                         HandicapIndex = 10.0,
                         CourseHandicap = 5,
+                        TeeBoxId = defaultTee.Id,
+                        CourseRating = defaultTee.CourseRating,
+                        SlopeRating = defaultTee.SlopeRating,
                         TotalGrossStrokes = 42,
                         TotalNetStrokes = 37,
                         TotalGrossStablefordPoints = 14,
@@ -494,6 +498,9 @@ public static class DatabaseInitializer
                         PlayerId = playerEntities[i].Id,
                         HandicapIndex = 10.0,
                         CourseHandicap = 5,
+                        TeeBoxId = defaultTee.Id,
+                        CourseRating = defaultTee.CourseRating,
+                        SlopeRating = defaultTee.SlopeRating,
                         TeeTimeId = i < 2 ? teeTime1.Id : null,
                     });
                 }
@@ -519,6 +526,8 @@ public static class DatabaseInitializer
         var players = await dbContext.Players.Where(p => p.LeagueId == leagueId && p.IsActive).Take(8).ToListAsync();
 
         if (season is null || course is null || players.Count < 2) return;
+
+        var defaultTee = await dbContext.TeeBoxes.FirstAsync(t => t.CourseId == course.Id && t.IsDefault);
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var tournamentRound = new Round
@@ -562,6 +571,9 @@ public static class DatabaseInitializer
                 PlayerId = players[i].Id,
                 HandicapIndex = 10.0,
                 CourseHandicap = 10,
+                TeeBoxId = defaultTee.Id,
+                CourseRating = defaultTee.CourseRating,
+                SlopeRating = defaultTee.SlopeRating,
                 TeeTimeId = i < 4 ? teeTime1.Id : teeTime2.Id,
             });
         }

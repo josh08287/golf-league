@@ -199,7 +199,35 @@ class ApiService {
     );
   }
 
+  /// Changes one player's tee for a round (admin/scorer). `teeBoxId: null`
+  /// reverts to their default tee.
+  Future<void> setRoundParticipantTeeBox(
+    int roundId,
+    int playerId,
+    int? teeBoxId,
+  ) async {
+    await _dio.put<dynamic>(
+      '/rounds/$roundId/participants/$playerId/tee-box',
+      data: {'teeBoxId': teeBoxId},
+      options: await _authOptions(),
+    );
+  }
+
   // ── Score Entry ─────────────────────────────────────────────────────────────
+
+  /// Changes a group member's tee for the round from the tee-time score entry
+  /// screen. `teeBoxId: null` reverts to their default tee.
+  Future<void> setTeeTimeParticipantTeeBox(
+    int teeTimeId,
+    int playerId,
+    int? teeBoxId,
+  ) async {
+    await _dio.put<dynamic>(
+      '/tee-times/$teeTimeId/participants/$playerId/tee-box',
+      data: {'teeBoxId': teeBoxId},
+      options: await _authOptions(),
+    );
+  }
 
   Future<Map<String, dynamic>?> submitTeeTimeScores(
     int teeTimeId,

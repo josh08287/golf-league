@@ -6,6 +6,8 @@ import { useRound, useRoundScorecards } from '../../hooks/useRounds';
 import { useSubmitHoleScores, useSetParticipantSkipped } from '../../hooks/admin/useRoundMutations';
 import { useRoundClosestToPin, useSetRoundClosestToPin } from '../../hooks/useClosestToPin';
 import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
+import { useSetRoundParticipantTeeBox } from '../../hooks/useTeeBoxes';
+import { TeeBoxSelect } from '../../components/scoring/TeeBoxSelect';
 import { useAuthStore } from '../../store/authStore';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { Button } from '../../components/ui/Button';
@@ -258,6 +260,21 @@ export function ScoreEntryPage() {
     (user?.isSuperAdmin ?? false) ||
     (user?.roles?.some((r) => r === 'scorer' || r === 'admin') ?? false);
   const showClosestToPin = ctpEnabled && isScorerOrAdmin;
+  const teeSelectionEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.teeBoxSelectionEnabled] ?? false;
+  const setTeeBox = useSetRoundParticipantTeeBox(roundId);
+  const [teeError, setTeeError] = useState<string | null>(null);
+
+  async function handleTeeChange(playerId: number, teeBoxId: number | null) {
+    setTeeError(null);
+    try {
+      await setTeeBox.mutateAsync({ playerId, teeBoxId });
+    } catch (err) {
+      setTeeError(
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+          'Failed to change tee. Please try again.',
+      );
+    }
+  }
 
   const [scores, setScores] = useState<ScoreGrid>({});
   // Optimistic skip overlay: maps playerId → true (skip) | false (unskip).
@@ -487,6 +504,12 @@ export function ScoreEntryPage() {
         </div>
       )}
 
+      {teeError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {teeError}
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white shadow-sm">
         <table className="min-w-full border-collapse text-sm">
           <thead>
@@ -542,6 +565,17 @@ export function ScoreEntryPage() {
                           <div className="text-xs text-gray-400" title={HANDICAP_PAIR_TOOLTIP}>
                             HCP {formatHandicapPair(participant.handicapAtTime)} · CH {courseHandicap}
                           </div>
+                          {teeSelectionEnabled && !skipped && (
+                            <TeeBoxSelect
+                              className="mt-1"
+                              teeBoxes={courseDetail?.teeBoxes ?? []}
+                              value={participant.teeBoxId}
+                              overridden={participant.teeBoxOverridden}
+                              disabled={isFinalized || setTeeBox.isPending}
+                              onChange={(teeBoxId) => handleTeeChange(participant.playerId, teeBoxId)}
+                              aria-label={`Tee box for ${participant.playerName}`}
+                            />
+                          )}
                         </div>
                         {!isFinalized && (
                           <label className="flex shrink-0 items-center gap-1 text-xs text-gray-500 cursor-pointer">

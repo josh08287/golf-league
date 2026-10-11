@@ -760,6 +760,40 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.ToTable("PlayerHalfSettings");
                 });
 
+            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerHalfTeeBox", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CourseId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("HalfId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TeeBoxId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CourseId");
+
+                    b.HasIndex("HalfId");
+
+                    b.HasIndex("TeeBoxId");
+
+                    b.HasIndex("PlayerId", "HalfId", "CourseId")
+                        .IsUnique();
+
+                    b.ToTable("PlayerHalfTeeBoxes");
+                });
+
             modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerInvite", b =>
                 {
                     b.Property<int>("Id")
@@ -995,6 +1029,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<int>("CourseHandicap")
                         .HasColumnType("int");
 
+                    b.Property<double>("CourseRating")
+                        .HasColumnType("float");
+
                     b.Property<int?>("FlightId")
                         .HasColumnType("int");
 
@@ -1016,8 +1053,17 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<bool>("SkippedWeek")
                         .HasColumnType("bit");
 
+                    b.Property<int>("SlopeRating")
+                        .HasColumnType("int");
+
                     b.Property<int?>("SubstituteForParticipantId")
                         .HasColumnType("int");
+
+                    b.Property<int>("TeeBoxId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("TeeBoxOverridden")
+                        .HasColumnType("bit");
 
                     b.Property<int?>("TeeTimeId")
                         .HasColumnType("int");
@@ -1044,6 +1090,8 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasIndex("PlayerId");
 
                     b.HasIndex("SubstituteForParticipantId");
+
+                    b.HasIndex("TeeBoxId");
 
                     b.HasIndex("TeeTimeId");
 
@@ -1182,6 +1230,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<double>("CourseRating")
                         .HasColumnType("float");
 
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1197,6 +1248,11 @@ namespace GolfLeague.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CourseId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_TeeBoxes_CourseId_Default")
+                        .HasFilter("[IsDefault] = 1");
 
                     b.HasIndex("CourseId", "Name");
 
@@ -1930,6 +1986,41 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Player");
                 });
 
+            modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerHalfTeeBox", b =>
+                {
+                    b.HasOne("GolfLeague.Domain.Entities.Course", "Course")
+                        .WithMany()
+                        .HasForeignKey("CourseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("GolfLeague.Domain.Entities.SeasonHalf", "Half")
+                        .WithMany()
+                        .HasForeignKey("HalfId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
+                        .WithMany("HalfTeeBoxes")
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("GolfLeague.Domain.Entities.TeeBox", "TeeBox")
+                        .WithMany()
+                        .HasForeignKey("TeeBoxId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Course");
+
+                    b.Navigation("Half");
+
+                    b.Navigation("Player");
+
+                    b.Navigation("TeeBox");
+                });
+
             modelBuilder.Entity("GolfLeague.Domain.Entities.PlayerInvite", b =>
                 {
                     b.HasOne("GolfLeague.Domain.Entities.League", "League")
@@ -2040,6 +2131,12 @@ namespace GolfLeague.Infrastructure.Migrations
                         .WithMany()
                         .HasForeignKey("SubstituteForParticipantId");
 
+                    b.HasOne("GolfLeague.Domain.Entities.TeeBox", "TeeBox")
+                        .WithMany()
+                        .HasForeignKey("TeeBoxId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("GolfLeague.Domain.Entities.RoundTeeTime", "TeeTime")
                         .WithMany("Participants")
                         .HasForeignKey("TeeTimeId")
@@ -2057,6 +2154,8 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Round");
 
                     b.Navigation("SubstituteForParticipant");
+
+                    b.Navigation("TeeBox");
 
                     b.Navigation("TeeTime");
 
@@ -2405,6 +2504,8 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("FlightMemberships");
 
                     b.Navigation("HalfSettings");
+
+                    b.Navigation("HalfTeeBoxes");
 
                     b.Navigation("Handicaps");
 

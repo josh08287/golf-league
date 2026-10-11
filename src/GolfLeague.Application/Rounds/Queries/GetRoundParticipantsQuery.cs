@@ -13,7 +13,11 @@ public sealed record RoundParticipantDto(
     double HandicapAtTime,
     int CourseHandicap,
     bool IsWithdrawn,
-    bool SkippedWeek);
+    bool SkippedWeek,
+    int TeeBoxId = 0,
+    double CourseRating = 0,
+    int SlopeRating = 0,
+    bool TeeBoxOverridden = false);
 
 public sealed record GetRoundParticipantsQuery(int RoundId, SortRequest? Sort = null)
     : IRequest<Result<List<RoundParticipantDto>>>;
@@ -61,7 +65,11 @@ public sealed class GetRoundParticipantsQueryHandler : IRequestHandler<GetRoundP
                 p.HandicapIndex,
                 p.CourseHandicap,
                 p.IsWithdrawn,
-                p.SkippedWeek))
+                p.SkippedWeek,
+                p.TeeBoxId,
+                p.CourseRating,
+                p.SlopeRating,
+                p.TeeBoxOverridden))
             .ToList();
 
         var sorted = SortMap.Apply(dtos, request.Sort);

@@ -9,6 +9,13 @@ public class TeeBox
     public int SlopeRating { get; set; }
     public int TotalYardage { get; set; }
     public int Par { get; set; }
+
+    /// <summary>
+    /// The course's default tee. Exactly one per course (enforced by a
+    /// filtered unique index). Players with no per-half default for the
+    /// course play from this tee.
+    /// </summary>
+    public bool IsDefault { get; set; }
     public ICollection<HoleTeeBox> HoleTeeBoxes { get; set; } = [];
     public Course Course { get; set; } = null!;
 }

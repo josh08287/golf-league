@@ -2,47 +2,84 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Plus, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, ChevronDown, ChevronUp, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../ui/Button';
+import { Badge } from '../ui/Badge';
 import { FormField, inputClass } from './FormField';
-import { useAddTeeBox, useUpdateHoleTeeBoxes } from '../../hooks/admin/useCourseMutations';
+import {
+  useAddTeeBox,
+  useDeleteTeeBox,
+  useUpdateHoleTeeBoxes,
+  useUpdateTeeBox,
+} from '../../hooks/admin/useCourseMutations';
 import type { TeeBox, CourseHole } from '../../types/api';
 
-// ── Add TeeBox Form ────────────────────────────────────────────────────────
+function apiError(err: unknown): string | null {
+  if (!err) return null;
+  return (
+    (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+    (err as Error).message ??
+    'Something went wrong.'
+  );
+}
 
-const addTeeBoxSchema = z.object({
+// ── Add / Edit TeeBox Form ─────────────────────────────────────────────────
+
+const teeBoxSchema = z.object({
   name: z.string().min(1, 'Name is required'),
-  courseRating: z.number({ invalid_type_error: 'Required' }).min(60).max(80),
+  courseRating: z.number({ invalid_type_error: 'Required' }).min(55).max(80),
   slopeRating: z.number({ invalid_type_error: 'Required' }).int().min(55).max(155),
-  totalYardage: z.number({ invalid_type_error: 'Required' }).int().min(1000).max(8000),
-  par: z.number({ invalid_type_error: 'Required' }).int().min(60).max(80),
+  // 0 is allowed so a migrated "Default" tee (no yardage/par on record) can be
+  // edited without having to fill those in first.
+  totalYardage: z.number({ invalid_type_error: 'Required' }).int().min(0).max(8000),
+  par: z.number({ invalid_type_error: 'Required' }).int().min(0).max(80),
+  isDefault: z.boolean(),
 });
 
-type AddTeeBoxFormValues = z.infer<typeof addTeeBoxSchema>;
+type TeeBoxFormValues = z.infer<typeof teeBoxSchema>;
 
-interface AddTeeBoxProps {
+interface TeeBoxFormProps {
   courseId: string;
+  /** The tee being edited; omitted when adding a new one. */
+  teeBox?: TeeBox;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-function AddTeeBoxForm({ courseId, onSuccess, onCancel }: AddTeeBoxProps) {
+function TeeBoxForm({ courseId, teeBox, onSuccess, onCancel }: TeeBoxFormProps) {
   const addTeeBox = useAddTeeBox(courseId);
+  const updateTeeBox = useUpdateTeeBox(courseId, teeBox?.id ?? 0);
+  const mutation = teeBox ? updateTeeBox : addTeeBox;
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<AddTeeBoxFormValues>({ resolver: zodResolver(addTeeBoxSchema) });
+  } = useForm<TeeBoxFormValues>({
+    resolver: zodResolver(teeBoxSchema),
+    defaultValues: teeBox
+      ? {
+          name: teeBox.name,
+          courseRating: teeBox.courseRating,
+          slopeRating: teeBox.slopeRating,
+          totalYardage: teeBox.totalYardage,
+          par: teeBox.par,
+          isDefault: teeBox.isDefault,
+        }
+      : { isDefault: false },
+  });
 
-  async function onSubmit(values: AddTeeBoxFormValues) {
-    await addTeeBox.mutateAsync(values);
+  async function onSubmit(values: TeeBoxFormValues) {
+    if (teeBox) await updateTeeBox.mutateAsync(values);
+    else await addTeeBox.mutateAsync(values);
     onSuccess();
   }
 
+  const error = apiError(mutation.error);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-      <h4 className="font-medium text-gray-900">Add New Tee Box</h4>
+      <h4 className="font-medium text-gray-900">{teeBox ? `Edit ${teeBox.name}` : 'Add New Tee Box'}</h4>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <FormField label="Name" error={errors.name} required>
           <input {...register('name')} className={inputClass} placeholder="Blue" />
@@ -60,12 +97,26 @@ function AddTeeBoxForm({ courseId, onSuccess, onCancel }: AddTeeBoxProps) {
           <input {...register('par', { valueAsNumber: true })} type="number" className={inputClass} placeholder="72" />
         </FormField>
       </div>
+      {/* The default can't be unset here — another tee has to be made the default instead. */}
+      {!teeBox?.isDefault && (
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" {...register('isDefault')} className="h-4 w-4 rounded border-gray-300" />
+          Make this the course&apos;s default tee
+        </label>
+      )}
+      {teeBox && (
+        <p className="text-xs text-gray-500">
+          Changing the rating or slope updates rounds that haven&apos;t been finalized yet. Finalized rounds keep the
+          rating they were played at.
+        </p>
+      )}
+      {error && <p className="text-sm text-red-600">{error}</p>}
       <div className="flex justify-end gap-3 pt-2">
         <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
           Cancel
         </Button>
-        <Button type="submit" variant="primary" size="sm" disabled={isSubmitting || addTeeBox.isPending}>
-          Add
+        <Button type="submit" variant="primary" size="sm" disabled={isSubmitting || mutation.isPending}>
+          {teeBox ? 'Save' : 'Add'}
         </Button>
       </div>
     </form>
@@ -182,7 +233,17 @@ function EditHoleTeeBoxes({ courseId, teeBox, courseHoles }: EditHoleTeeBoxesPro
 
 export function TeeBoxesEditor({ courseId, courseHoles, teeBoxes }: { courseId: string; courseHoles: CourseHole[]; teeBoxes: TeeBox[] }) {
   const [adding, setAdding] = useState(false);
+  const [editingTeeBox, setEditingTeeBox] = useState<number | null>(null);
   const [expandedTeeBox, setExpandedTeeBox] = useState<number | null>(null);
+  const deleteTeeBox = useDeleteTeeBox(courseId);
+  const deleteError = apiError(deleteTeeBox.error);
+
+  async function handleDelete(tb: TeeBox) {
+    if (!window.confirm(`Delete the ${tb.name} tee box?`)) return;
+    await deleteTeeBox.mutateAsync(tb.id).catch(() => undefined);
+  }
+
+  const sorted = [...teeBoxes].sort((a, b) => Number(b.isDefault) - Number(a.isDefault));
 
   return (
     <div className="space-y-4">
@@ -196,30 +257,77 @@ export function TeeBoxesEditor({ courseId, courseHoles, teeBoxes }: { courseId: 
         )}
       </div>
 
+      <p className="text-xs text-gray-500">
+        Players with no tee assigned play from the default tee. Each round records the rating and slope of the tee it
+        was played from.
+      </p>
+
       {adding && (
-        <AddTeeBoxForm courseId={courseId} onSuccess={() => setAdding(false)} onCancel={() => setAdding(false)} />
+        <TeeBoxForm courseId={courseId} onSuccess={() => setAdding(false)} onCancel={() => setAdding(false)} />
       )}
+
+      {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
 
       {teeBoxes.length === 0 && !adding && (
         <p className="text-sm text-gray-500">No tee boxes configured.</p>
       )}
 
       <div className="space-y-3">
-        {teeBoxes.map(tb => {
+        {sorted.map(tb => {
           const isExpanded = expandedTeeBox === tb.id;
+          if (editingTeeBox === tb.id) {
+            return (
+              <TeeBoxForm
+                key={tb.id}
+                courseId={courseId}
+                teeBox={tb}
+                onSuccess={() => setEditingTeeBox(null)}
+                onCancel={() => setEditingTeeBox(null)}
+              />
+            );
+          }
           return (
             <div key={tb.id} className="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
               <div
-                className="flex cursor-pointer items-center justify-between px-5 py-4 hover:bg-gray-50"
+                className="flex cursor-pointer items-center justify-between gap-3 px-5 py-4 hover:bg-gray-50"
                 onClick={() => setExpandedTeeBox(isExpanded ? null : tb.id)}
               >
                 <div>
-                  <h4 className="font-semibold text-gray-900">{tb.name}</h4>
+                  <h4 className="flex items-center gap-2 font-semibold text-gray-900">
+                    {tb.name}
+                    {tb.isDefault && <Badge variant="green">Default</Badge>}
+                  </h4>
                   <p className="text-xs text-gray-500">
                     Rating: {tb.courseRating} | Slope: {tb.slopeRating} | Yardage: {tb.totalYardage} | Par: {tb.par}
                   </p>
                 </div>
-                <div className="text-gray-400">
+                <div className="flex items-center gap-1 text-gray-400">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Edit ${tb.name}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingTeeBox(tb.id);
+                    }}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Delete ${tb.name}`}
+                    title={tb.isDefault ? "The default tee can't be deleted" : undefined}
+                    disabled={tb.isDefault || deleteTeeBox.isPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void handleDelete(tb);
+                    }}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                   {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </div>
               </div>

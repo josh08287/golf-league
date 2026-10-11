@@ -51,7 +51,7 @@ public class GetTeeTimeGroupScorecardTournamentTests
             .ReturnsAsync(new Course { Id = round.CourseId, Name = "Test Course" });
         courses.Setup(c => c.GetHolesAsync(round.CourseId, It.IsAny<CancellationToken>())).ReturnsAsync(holes);
 
-        return (new GetTeeTimeGroupScorecardQueryHandler(rounds.Object, teeTimes.Object, courses.Object), rounds);
+        return (new GetTeeTimeGroupScorecardQueryHandler(rounds.Object, teeTimes.Object, courses.Object, new Mock<IFeatureFlagRepository>().Object), rounds);
     }
 
     private static List<CourseHole> Make18Holes() =>

@@ -65,6 +65,7 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
     private readonly ISeasonRepository _seasonRepository;
     private readonly ILeagueContext _leagueContext;
     private readonly TournamentFoursomeService _foursomeService;
+    private readonly ParticipantTeeResolver _teeResolver;
 
     public CreateTournamentRoundCommandHandler(
         IRoundRepository roundRepository,
@@ -73,8 +74,10 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
         IHandicapRepository handicapRepository,
         ISeasonRepository seasonRepository,
         ILeagueContext leagueContext,
-        TournamentFoursomeService foursomeService)
+        TournamentFoursomeService foursomeService,
+        ParticipantTeeResolver teeResolver)
     {
+        _teeResolver = teeResolver;
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
         _playerRepository = playerRepository;
@@ -145,6 +148,8 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
         // Build participant records (use full 18-hole handicap; no flight grouping for tournament rounds)
         var participantHandicaps = new List<(int PlayerId, double HcpIndex, int CourseHcp, string FullName, bool IsSubstitute)>();
+        var teeByPlayerId = await _teeResolver.ResolveDefaultsAsync(round, request.PlayerIds, cancellationToken);
+        var coursePar = courseHoles.Sum(h => h.Par);
 
         foreach (var playerId in request.PlayerIds.Distinct())
         {
@@ -156,18 +161,18 @@ public sealed class CreateTournamentRoundCommandHandler : IRequestHandler<Create
 
             var current = await _handicapRepository.GetCurrentAsync(playerId, cancellationToken);
             var index = current?.HandicapIndex ?? 0.0;
-            var courseHcp = CourseHandicap(index, course.SlopeRating, course.CourseRating, courseHoles.Sum(h => h.Par), RoundType.Tournament);
-
-            await _roundRepository.AddParticipantAsync(new RoundParticipant
+            var participant = new RoundParticipant
             {
                 RoundId = round.Id,
                 PlayerId = playerId,
                 FlightId = null,
                 HandicapIndex = index,
-                CourseHandicap = courseHcp,
                 IsWithdrawn = false,
                 IsSubstitute = player.IsSubstitute,
-            }, cancellationToken);
+            };
+            ParticipantTeeResolver.Apply(participant, teeByPlayerId[playerId], coursePar, RoundType.Tournament);
+            var courseHcp = participant.CourseHandicap;
+            await _roundRepository.AddParticipantAsync(participant, cancellationToken);
 
             participantHandicaps.Add((playerId, index, courseHcp, player.FullName, player.IsSubstitute));
         }
