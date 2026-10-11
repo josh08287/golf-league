@@ -38,7 +38,7 @@ public class WolfScoringServiceTests
     }
 
     [Fact]
-    public void ScoreHole_LoneWolfLoses_OtherSideAwardedDoublePoints()
+    public void ScoreHole_LoneWolfLoses_OtherSideAwardedNormalPoints()
     {
         var pick = new WolfScoringService.HolePick(1, WolfParticipantId: 1, IsLoneWolf: true, IsBlindWolf: false, PartnerParticipantId: null);
         var strokes = new Dictionary<int, int> { [1] = 6, [2] = 5, [3] = 5, [4] = 6 };
@@ -46,7 +46,7 @@ public class WolfScoringServiceTests
         var outcome = WolfScoringService.ScoreHole(pick, strokes, FourPlayers);
 
         outcome.Winner.Should().Be(BestBallScoringService.HoleWinner.TeamB);
-        outcome.PointsAwarded.Should().Be(WolfScoringService.LoneWolfHolePoints);
+        outcome.PointsAwarded.Should().Be(WolfScoringService.NormalHolePoints);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class WolfScoringServiceTests
 
         outcome.Winner.Should().Be(BestBallScoringService.HoleWinner.TeamB);
         outcome.IsBlindWolf.Should().BeTrue();
-        // 1 point per opponent (3 opponents) = 3 total, not the pooled 2 a normal lone wolf loss would award.
+        // 1 point per opponent (3 opponents) = 3 total.
         outcome.PointsAwarded.Should().Be(WolfScoringService.BlindWolfLossPointsPerOpponent * 3);
     }
 
@@ -181,5 +181,21 @@ public class WolfScoringServiceTests
 
         tally.First(t => t.ParticipantId == 1).Points.Should().Be(3);
         tally.First(t => t.ParticipantId == 2).Points.Should().Be(1);
+    }
+
+    [Fact]
+    public void Tally_LoneWolfLoss_AwardsOnePointEachToOpponents()
+    {
+        var outcomes = new List<WolfScoringService.HoleOutcome>
+        {
+            new(1, BestBallScoringService.HoleWinner.TeamB, WolfSideParticipantIds: [1], OtherSideParticipantIds: [2, 3, 4], PointsAwarded: 1, IsBlindWolf: false),
+        };
+
+        var tally = WolfScoringService.Tally(outcomes);
+
+        tally.Should().Contain(t => t.ParticipantId == 2 && t.Points == 1);
+        tally.Should().Contain(t => t.ParticipantId == 3 && t.Points == 1);
+        tally.Should().Contain(t => t.ParticipantId == 4 && t.Points == 1);
+        tally.Should().NotContain(t => t.ParticipantId == 1);
     }
 }

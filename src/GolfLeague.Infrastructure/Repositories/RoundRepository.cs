@@ -322,12 +322,19 @@ public sealed class RoundRepository : IRoundRepository
 
     public async Task UpsertHoleScoresAsync(int holeNumber, IEnumerable<HoleScore> holeScores, CancellationToken cancellationToken = default)
     {
-        var participantIds = holeScores.Select(h => h.ParticipantId).ToList();
-        await _context.HoleScores
-            .Where(hs => participantIds.Contains(hs.ParticipantId) && hs.HoleNumber == holeNumber)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _context.HoleScores.AddRangeAsync(holeScores, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        var scoresList = holeScores.ToList();
+        var participantIds = scoresList.Select(h => h.ParticipantId).ToList();
+        var strategy = _context.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+            await _context.HoleScores
+                .Where(hs => participantIds.Contains(hs.ParticipantId) && hs.HoleNumber == holeNumber)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _context.HoleScores.AddRangeAsync(scoresList, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        });
     }
 
     public async Task<IReadOnlyList<RoundParticipant>> GetParticipantsAsyncByPlayer(int playerId, CancellationToken cancellationToken = default)
