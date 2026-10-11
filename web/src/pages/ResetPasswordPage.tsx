@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 import { clearAuth, confirmPasswordReset } from '@/lib/auth';
 
 const schema = z.object({
@@ -72,7 +73,7 @@ export function ResetPasswordPage() {
     <div className="flex min-h-[70vh] items-center justify-center">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
-          <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
+          <GolfLogo size="xl" className="mx-auto" />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Set a new password</h1>
           <p className="mt-2 text-sm text-gray-500">{email}</p>
         </div>

@@ -10,6 +10,7 @@ import { useActiveRoundLeaderboardPresence } from '@/hooks/useRounds';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import { Button } from '@/components/ui/Button';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api';
 import { useQueryClient } from '@tanstack/react-query';
@@ -119,9 +120,9 @@ export function NavBar() {
           <div className="relative flex items-center gap-2">
             <Link
               to="/"
-              className="flex items-center gap-2 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
+              className="flex items-center gap-2.5 text-primary-900 font-bold text-lg hover:opacity-80 transition-opacity"
             >
-              <span className="text-2xl" role="img" aria-label="golf flag">⛳</span>
+              <GolfLogo size="sm" />
               <span className="hidden sm:inline">{leagueName || 'Golf League'}</span>
             </Link>
             {showPicker && user && (

@@ -2,7 +2,6 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard,
   Users,
-  Flag,
   CalendarDays,
   MapPin,
   ClipboardList,
@@ -19,6 +18,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLeagueName } from '@/context/LeagueContext';
 import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 import { logout as logoutApi } from '@/lib/auth';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 
 interface NavItem {
   to: string;
@@ -60,7 +60,7 @@ export function AdminLayout() {
       <aside className="flex w-64 flex-shrink-0 flex-col bg-[#1B5E20] text-white">
         {/* Logo / Brand */}
         <div className="flex h-16 items-center gap-2 border-b border-green-700 px-6">
-          <Flag className="h-6 w-6 text-green-300" />
+          <GolfLogo size="sm" />
           <span className="text-lg font-bold tracking-tight">{leagueName || 'Admin'}</span>
         </div>
 

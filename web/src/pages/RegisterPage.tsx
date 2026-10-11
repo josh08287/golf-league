@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/Button';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 import { Spinner } from '@/components/ui/Spinner';
 import { useAuth } from '@/hooks/useAuth';
 import { useInviteByToken } from '@/hooks/useAcceptInvite';
@@ -88,7 +89,7 @@ export function RegisterPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
-          <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
+          <GolfLogo size="xl" className="mx-auto" />
           <h1 className="mt-4 text-2xl font-bold text-gray-900">Join {leagueName || 'the League'}</h1>
           <p className="mt-1 text-sm text-gray-500">Invite for <strong>{invite.email}</strong></p>
         </div>
