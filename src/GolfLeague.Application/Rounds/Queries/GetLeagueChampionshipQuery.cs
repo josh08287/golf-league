@@ -103,7 +103,7 @@ public sealed class GetLeagueChampionshipQueryHandler
 
         var seasonParticipants = await _roundRepository.GetParticipantsForRoundsAsync(finalizedRoundIds, cancellationToken);
         var eligibleSeasonParticipants = seasonParticipants
-            .Where(p => !p.IsWithdrawn && !p.IsSubstitute)
+            .Where(p => !p.IsWithdrawn && !p.IsSubstitute && (p.Player == null || p.Player.IsActive))
             .ToList();
 
         int PointsOf(Domain.Entities.RoundParticipant p) =>
@@ -143,7 +143,7 @@ public sealed class GetLeagueChampionshipQueryHandler
         // leaderboard, even if they have season points from other rounds.
         var roundParticipants = await _roundRepository.GetParticipantsAsync(request.RoundId, cancellationToken);
         var eligibleRoundParticipants = roundParticipants
-            .Where(p => !p.IsWithdrawn && !p.IsSubstitute)
+            .Where(p => !p.IsWithdrawn && !p.IsSubstitute && (p.Player == null || p.Player.IsActive))
             .ToList();
 
         if (eligibleRoundParticipants.Count == 0)

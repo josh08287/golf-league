@@ -125,4 +125,25 @@ public class GetMatchPlayStandingsQueryHandlerTests
         result.IsSuccess.Should().BeTrue();
         result.Value!.Select(s => s.PlayerId).Should().Equal(100, 200);
     }
+
+    [Fact]
+    public async Task Handle_InactivePlayer_IsExcludedFromStandings()
+    {
+        var m = new Mocks();
+        m.FlightMatchRepo.Setup(f => f.GetByFlightAsync(1, 1, It.IsAny<CancellationToken>())).ReturnsAsync(
+            (IReadOnlyList<FlightMatch>)[
+                MakeMatch(1, 1, 100, 200, p1Points: 8, p2Points: 4, p1HolesWon: 3, p2HolesWon: 1),
+            ]);
+
+        // Player 200 is inactive
+        m.PlayerRepo.Setup(p => p.GetByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<int> ids, CancellationToken _) =>
+                ids.Select(id => new Player { Id = id, FirstName = $"Player{id}", LastName = "P", IsActive = id != 200 }).ToList());
+
+        var result = await m.BuildSut().Handle(new GetMatchPlayStandingsQuery(1, 1), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Should().ContainSingle(s => s.PlayerId == 100);
+        result.Value!.Should().NotContain(s => s.PlayerId == 200);
+    }
 }

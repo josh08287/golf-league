@@ -92,7 +92,7 @@ public sealed class GetFlightStandingsQueryHandler : IRequestHandler<GetFlightSt
 
         foreach (var group in grouped)
         {
-            if (!playersById.TryGetValue(group.Key, out var player))
+            if (!playersById.TryGetValue(group.Key, out var player) || !player.IsActive)
                 continue;
 
             var roundsPlayed = group.Count();

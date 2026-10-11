@@ -104,7 +104,7 @@ public sealed class GetMatchPlayStandingsQueryHandler : IRequestHandler<GetMatch
         var dtos = new List<MatchPlayStandingDto>();
         foreach (var (playerId, results) in matchResultsByPlayer)
         {
-            if (!playersById.TryGetValue(playerId, out var player))
+            if (!playersById.TryGetValue(playerId, out var player) || !player.IsActive)
                 continue;
 
             var totalPoints = results.Sum(r => r.PlayerPoints);

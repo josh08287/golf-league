@@ -138,7 +138,7 @@ public sealed class GetMostImprovedPlayerQueryHandler
 
         foreach (var p in allParticipants)
         {
-            if (p.IsWithdrawn || p.SkippedWeek || p.IsSubstitute || !p.TotalGrossStrokes.HasValue)
+            if (p.IsWithdrawn || p.SkippedWeek || p.IsSubstitute || !p.TotalGrossStrokes.HasValue || (p.Player != null && !p.Player.IsActive))
                 continue;
 
             var round = roundsById[p.RoundId];

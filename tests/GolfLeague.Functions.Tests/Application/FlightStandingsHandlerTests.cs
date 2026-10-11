@@ -259,4 +259,29 @@ public class FlightStandingsHandlerTests
         byPlayer[3].Position.Should().Be(2);
         byPlayer[1].Position.Should().Be(3);
     }
+
+    [Fact]
+    public async Task Handle_InactivePlayer_IsExcludedFromStandings()
+    {
+        var m = new Mocks();
+        m.Settings.Setup(s => s.GetAsync(1, "standings_drop_count", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new LeagueSetting { LeagueId = 1, Key = "standings_drop_count", Value = "0" });
+
+        var results = new List<RoundParticipant>
+        {
+            MakeRoundResult(1, 1, netPoints: 10, grossPoints: 10),
+            MakeRoundResult(2, 1, netPoints: 50, grossPoints: 50),
+        };
+        m.FlightRepo.Setup(f => f.GetStandingsAsync(1, 1, It.IsAny<CancellationToken>())).ReturnsAsync(results);
+
+        // Player 2 is inactive
+        m.PlayerRepo.Setup(p => p.GetByIdsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IEnumerable<int> ids, CancellationToken _) =>
+                ids.Select(id => new Player { Id = id, FirstName = $"Player{id}", LastName = "P", IsActive = id != 2 }).ToList());
+
+        var result = await m.BuildSut().Handle(new GetFlightStandingsQuery(1, 1), CancellationToken.None);
+
+        result.Value!.Should().ContainSingle(s => s.PlayerId == 1);
+        result.Value!.Should().NotContain(s => s.PlayerId == 2);
+    }
 }

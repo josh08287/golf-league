@@ -284,4 +284,34 @@ public class LeagueChampionshipHandlerTests
         ordered.First().PlayerId.Should().Be(2); // has a score
         ordered.Last().PlayerId.Should().Be(1); // no score yet, sorts last despite higher seed
     }
+
+    [Fact]
+    public async Task Handle_InactivePlayer_IsExcludedFromChampionship()
+    {
+        var m = new Mocks();
+        var round = MakeTournamentRound();
+        m.RoundRepo.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        m.RoundRepo.Setup(r => r.GetBySeasonAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<Round>)[MakeFinalizedSeasonRound(10)]);
+
+        var activePlayer = MakePlayer(1, "Active");
+        var inactivePlayer = new Player { Id = 2, FirstName = "Inactive", LastName = "P", IsActive = false };
+
+        m.RoundRepo.Setup(r => r.GetParticipantsForRoundsAsync(It.IsAny<IEnumerable<int>>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<RoundParticipant>)[
+                new RoundParticipant { Id = 1010, PlayerId = 1, Player = activePlayer, RoundId = 10, TotalNetStablefordPoints = 30 },
+                new RoundParticipant { Id = 2010, PlayerId = 2, Player = inactivePlayer, RoundId = 10, TotalNetStablefordPoints = 50 },
+            ]);
+        m.RoundRepo.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync((IReadOnlyList<RoundParticipant>)[
+                new RoundParticipant { Id = 1001, PlayerId = 1, Player = activePlayer, RoundId = 1, TotalNetStrokes = 75 },
+                new RoundParticipant { Id = 2001, PlayerId = 2, Player = inactivePlayer, RoundId = 1, TotalNetStrokes = 70 },
+            ]);
+
+        var result = await m.BuildSut().Handle(new GetLeagueChampionshipQuery(1), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Standings.Should().ContainSingle(s => s.PlayerId == 1);
+        result.Value!.Standings.Should().NotContain(s => s.PlayerId == 2);
+    }
 }

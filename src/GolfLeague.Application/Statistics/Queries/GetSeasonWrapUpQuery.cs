@@ -79,16 +79,19 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
             .ToList();
         var seasonRoundIds = finalizedSeasonRounds.Select(r => r.Id).ToList();
         var seasonParticipants = await _roundRepository.GetParticipantsForRoundsAsync(seasonRoundIds, cancellationToken);
+        var activeSeasonParticipants = seasonParticipants
+            .Where(p => p.Player == null || p.Player.IsActive)
+            .ToList();
 
         // Season-wide low gross / low net — average across every finalized round
         // in the season, top 2 positions.
-        var seasonLowGross = AveragePositions(seasonParticipants, useGross: true).Take(2).ToList();
-        var seasonLowNet = AveragePositions(seasonParticipants, useGross: false).Take(2).ToList();
+        var seasonLowGross = AveragePositions(activeSeasonParticipants, useGross: true).Take(2).ToList();
+        var seasonLowNet = AveragePositions(activeSeasonParticipants, useGross: false).Take(2).ToList();
 
         // Season-wide high gross / net Stableford points — best single round.
         var roundsById = finalizedSeasonRounds.ToDictionary(r => r.Id);
-        var seasonHighGrossPoints = HighestSingleRoundPoints(seasonParticipants, roundsById, useGross: true);
-        var seasonHighNetPoints = HighestSingleRoundPoints(seasonParticipants, roundsById, useGross: false);
+        var seasonHighGrossPoints = HighestSingleRoundPoints(activeSeasonParticipants, roundsById, useGross: true);
+        var seasonHighNetPoints = HighestSingleRoundPoints(activeSeasonParticipants, roundsById, useGross: false);
 
         // Per-half breakdown.
         var halves = season.Halves.OrderBy(h => h.HalfNumber).ToList();
@@ -138,7 +141,7 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
         bool useGross)
     {
         return participants
-            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
+            .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && (p.Player == null || p.Player.IsActive))
             .Select(p => new
             {
                 Participant = p,
@@ -163,7 +166,7 @@ public sealed class GetSeasonWrapUpQueryHandler : IRequestHandler<GetSeasonWrapU
     private static IEnumerable<PlayerScoreDto> AveragePositions(
         IReadOnlyList<Domain.Entities.RoundParticipant> participants, bool useGross)
     {
-        var active = participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute);
+        var active = participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && (p.Player == null || p.Player.IsActive));
 
         return active
             .Where(p => useGross ? p.TotalGrossStrokes.HasValue : p.TotalNetStrokes.HasValue)

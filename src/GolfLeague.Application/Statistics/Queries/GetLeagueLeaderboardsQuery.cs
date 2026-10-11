@@ -131,7 +131,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
 
             participantsByRound.TryGetValue(round.Id, out var participants);
             var active = (participants ?? [])
-                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute)
+                .Where(p => !p.IsWithdrawn && !p.SkippedWeek && !p.IsSubstitute && (p.Player == null || p.Player.IsActive))
                 .ToList();
 
             // Hole scores are already eager-loaded on each participant via the batch fetch above.
@@ -209,6 +209,7 @@ public sealed class GetLeagueLeaderboardsQueryHandler
             ctpWinnersByRound.TryGetValue(round.Id, out var ctpWinners);
             foreach (var winner in ctpWinners ?? [])
             {
+                if (winner.Player != null && !winner.Player.IsActive) continue;
                 var name = winner.Player?.FullName ?? string.Empty;
                 if (!ctpByPlayer.TryGetValue(winner.PlayerId, out var cc))
                     ctpByPlayer[winner.PlayerId] = (name, 1);
