@@ -264,7 +264,7 @@ export function CourseHoleMapEditor({ courseId, courseName, courseHoles }: Cours
       </div>
       {searchError && <p className="text-sm text-amber-700">{searchError}</p>}
       {preview.isError && <p className="text-sm text-red-600">{errorMessage(preview.error)}</p>}
-      <p className="text-xs text-gray-500">The import looks for holes around the centre of the map, so centre it on the course first.</p>
+      <p className="text-xs text-gray-500">The import looks for holes around the center of the map, so center it on the course first.</p>
 
       <div className="relative h-[420px] overflow-hidden rounded-lg border border-gray-200">
         {/* maplibre-gl.css forces position:relative on the container, so size it explicitly. */}
@@ -272,7 +272,7 @@ export function CourseHoleMapEditor({ courseId, courseName, courseHoles }: Cours
         {placing && (
           <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 bg-black/70 px-3 py-2 text-sm text-white">
             <span>
-              Hole {placing.holeNumber}: tap the {placing.tee ? 'centre of the green' : 'tee'}
+              Hole {placing.holeNumber}: tap the {placing.tee ? 'center of the green' : 'tee'}
             </span>
             <button type="button" className="underline" onClick={() => setPlacing(null)}>
               Cancel

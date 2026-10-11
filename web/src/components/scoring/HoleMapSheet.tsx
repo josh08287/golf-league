@@ -21,7 +21,7 @@ export interface HoleMapSheetProps {
   onClose: () => void;
 }
 
-type Origin = { point: GeoPoint; label: 'you' | 'tee' | 'map centre' };
+type Origin = { point: GeoPoint; label: 'you' | 'tee' | 'map center' };
 
 function markerEl(className: string, html = ''): HTMLDivElement {
   const el = document.createElement('div');
@@ -62,7 +62,7 @@ export function HoleMapSheet({ holeNumber, par, geo, courseCentre, onPrevHole, o
   const origin: Origin = useMemo(() => {
     if (position && onHole) return { point: position, label: 'you' };
     if (geo) return { point: geo.tee, label: 'tee' };
-    return fallbackCentre ? { point: fallbackCentre, label: 'map centre' } : { point: position!, label: 'you' };
+    return fallbackCentre ? { point: fallbackCentre, label: 'map center' } : { point: position!, label: 'you' };
   }, [position, onHole, geo, fallbackCentre]);
 
   // New hole → clear the target.
@@ -230,7 +230,7 @@ export function HoleMapSheet({ holeNumber, par, geo, courseCentre, onPrevHole, o
         {geo ? (
           <div className="flex justify-center gap-6 text-center">
             {geo.greenFront && <Yardage label="Front" yards={yardsTo(geo.greenFront)} />}
-            <Yardage label="Centre" yards={yardsTo(geo.green)} big />
+            <Yardage label="Center" yards={yardsTo(geo.green)} big />
             {geo.greenBack && <Yardage label="Back" yards={yardsTo(geo.greenBack)} />}
           </div>
         ) : (
