@@ -1,6 +1,7 @@
 using GolfLeague.Application.Common;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
+using GolfLeague.Domain.Services;
 using MediatR;
 using static GolfLeague.Application.Common.FlightDisplayName;
 
@@ -37,6 +38,7 @@ public sealed record ActiveRoundLeaderboardDto(
     DateOnly ScheduledDate,
     string NineHoleSide,
     bool IsTournament,
+    RoundStatus Status,
     List<ActiveRoundLeaderboardFlightDto> Flights);
 
 public sealed record GetActiveRoundLeaderboardQuery : IRequest<Result<ActiveRoundLeaderboardDto?>>;
@@ -44,6 +46,12 @@ public sealed record GetActiveRoundLeaderboardQuery : IRequest<Result<ActiveRoun
 public sealed class GetActiveRoundLeaderboardQueryHandler
     : IRequestHandler<GetActiveRoundLeaderboardQuery, Result<ActiveRoundLeaderboardDto?>>
 {
+    /// <summary>
+    /// The leaderboard keeps showing the most recently played round until this many
+    /// days before the next scheduled round, then switches to the upcoming round.
+    /// </summary>
+    internal const int SwitchToNextRoundDaysBefore = 3;
+
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
     private readonly IFlightRepository _flightRepository;
@@ -60,7 +68,7 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
 
     public async Task<Result<ActiveRoundLeaderboardDto?>> Handle(GetActiveRoundLeaderboardQuery request, CancellationToken cancellationToken)
     {
-        var round = await _roundRepository.GetInProgressRoundAsync(cancellationToken);
+        var round = await SelectRoundAsync(cancellationToken);
         if (round is null)
             return Result<ActiveRoundLeaderboardDto?>.Ok(null);
 
@@ -74,6 +82,7 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
                 round.RoundDate,
                 round.NineHoleSide.ToString(),
                 true,
+                round.Status,
                 []));
         }
 
@@ -148,8 +157,28 @@ public sealed class GetActiveRoundLeaderboardQueryHandler
             round.RoundDate,
             round.NineHoleSide.ToString(),
             false,
+            round.Status,
             flightGroups);
 
         return Result<ActiveRoundLeaderboardDto?>.Ok(dto);
+    }
+
+    /// <summary>
+    /// A round being scored right now always wins. Otherwise show the next scheduled
+    /// round once it is within <see cref="SwitchToNextRoundDaysBefore"/> days, else the
+    /// most recently played round (falling back to the next round if none has been played).
+    /// </summary>
+    private async Task<Domain.Entities.Round?> SelectRoundAsync(CancellationToken cancellationToken)
+    {
+        var inProgress = await _roundRepository.GetInProgressRoundAsync(cancellationToken);
+        if (inProgress is not null)
+            return inProgress;
+
+        var today = DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, TeeTimeSchedule.EasternTimeZone));
+        var next = await _roundRepository.GetNextScheduledRoundAsync(today, cancellationToken);
+        if (next is not null && today >= next.RoundDate.AddDays(-SwitchToNextRoundDaysBefore))
+            return next;
+
+        return await _roundRepository.GetMostRecentPlayedRoundAsync(today, cancellationToken) ?? next;
     }
 }

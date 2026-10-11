@@ -336,6 +336,7 @@ export interface ActiveRoundLeaderboard {
   scheduledDate: string;
   nineHoleSide: string;
   isTournament: boolean;
+  status: RoundStatus;
   flights: ActiveRoundLeaderboardFlight[];
 }
 

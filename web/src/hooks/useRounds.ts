@@ -106,8 +106,9 @@ export function useRoundSkins(roundId: string) {
 }
 
 /**
- * For the leaderboard page itself: polls every 30s for live updates while a
- * round is in progress and the page is mounted.
+ * For the leaderboard page itself: polls every 30s for live updates, but only
+ * while the round shown is in progress and the page is mounted. Finished and
+ * upcoming rounds aren't polled.
  */
 export function useActiveRoundLeaderboard(enabled: boolean) {
   return useQuery({
@@ -117,7 +118,7 @@ export function useActiveRoundLeaderboard(enabled: boolean) {
       return response.data;
     },
     enabled,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => (query.state.data?.status === 'InProgress' ? 30_000 : false),
   });
 }
 

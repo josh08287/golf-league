@@ -11,6 +11,18 @@ public interface IRoundRepository
     Task<Round?> GetInProgressRoundAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// The latest non-cancelled round dated on or before <paramref name="onOrBefore"/> that has
+    /// started (InProgress, PendingFinalization or Finalized). Used by the leaderboard page.
+    /// </summary>
+    Task<Round?> GetMostRecentPlayedRoundAsync(DateOnly onOrBefore, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// The earliest still-<see cref="RoundStatus.Scheduled"/> round dated on or after
+    /// <paramref name="onOrAfter"/>. Used by the leaderboard page.
+    /// </summary>
+    Task<Round?> GetNextScheduledRoundAsync(DateOnly onOrAfter, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Scheduled, non-tournament rounds with <c>RoundDate</c> in [<paramref name="fromDate"/>,
     /// <paramref name="toDate"/>], across all leagues. Used by <c>TeeTimeAutofillTimer</c>, which
     /// runs hourly — filtered and pushed down to SQL (unlike <see cref="GetAllAsync"/>, which loads

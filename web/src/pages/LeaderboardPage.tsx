@@ -19,7 +19,7 @@ import { formatDate } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
-import type { ActiveRoundLeaderboardFlight, ActiveRoundLeaderboardEntry } from '@/types/api';
+import type { ActiveRoundLeaderboardFlight, ActiveRoundLeaderboardEntry, RoundStatus } from '@/types/api';
 import { formatNineHoleSide } from '@/lib/enumUtils';
 
 function holeNumbers(flight: ActiveRoundLeaderboardFlight): number[] {
@@ -36,7 +36,26 @@ function holeLookup(entry: ActiveRoundLeaderboardEntry) {
   return new Map(entry.holes.map((hole) => [hole.holeNumber, hole]));
 }
 
-function FlightLeaderboardTable({ flight }: { flight: ActiveRoundLeaderboardFlight }) {
+function statusBadge(status: RoundStatus) {
+  switch (status) {
+    case 'InProgress':
+      return <Badge variant="amber">Live</Badge>;
+    case 'Scheduled':
+      return <Badge variant="blue">Upcoming</Badge>;
+    case 'PendingFinalization':
+      return <Badge variant="neutral">Pending Final</Badge>;
+    default:
+      return <Badge variant="green">Final</Badge>;
+  }
+}
+
+function FlightLeaderboardTable({
+  flight,
+  isUpcoming,
+}: {
+  flight: ActiveRoundLeaderboardFlight;
+  isUpcoming: boolean;
+}) {
   const prefix = useLeaguePrefix();
   const holes = holeNumbers(flight);
   const parByHole = new Map<number, number>();
@@ -82,10 +101,10 @@ function FlightLeaderboardTable({ flight }: { flight: ActiveRoundLeaderboardFlig
               return (
                 <TableRow
                   key={entry.playerId}
-                  className={cn(entry.rank === 1 && 'bg-amber-50')}
+                  className={cn(!isUpcoming && entry.rank === 1 && 'bg-amber-50')}
                 >
                   <TableCell className="text-center font-semibold text-gray-700">
-                    {entry.rank}
+                    {isUpcoming ? '—' : entry.rank}
                   </TableCell>
                   <TableCell>
                     <Link
@@ -136,6 +155,7 @@ export function LeaderboardPage() {
   const data = leaderboard.data;
 
   const isTournament = data?.isTournament ?? false;
+  const isUpcoming = data?.status === 'Scheduled';
   const tournamentResults = useTournamentResults(isTournament ? String(data!.roundId) : '');
 
   if (featureFlags.isPending || (flagEnabled && leaderboard.isPending)) {
@@ -166,14 +186,14 @@ export function LeaderboardPage() {
               : `${formatDate(data.scheduledDate)} — ${formatNineHoleSide(data.nineHoleSide)}`
           }
         >
-          <Badge variant="amber">Live</Badge>
+          {statusBadge(data.status)}
         </PageHeader>
       ) : (
         <PageHeader title="Leaderboard" />
       )}
 
       {!data && (
-        <p className="text-gray-500 text-sm">No round is currently in progress.</p>
+        <p className="text-gray-500 text-sm">No rounds have been scheduled yet.</p>
       )}
 
       {data && isTournament && tournamentResults.isPending && <FullPageSpinner />}
@@ -187,13 +207,21 @@ export function LeaderboardPage() {
       )}
 
       {data && !isTournament && data.flights.length === 0 && (
-        <p className="text-gray-500 text-sm">No scores have been entered for this round yet.</p>
+        <p className="text-gray-500 text-sm">
+          {isUpcoming
+            ? 'No players have signed up for this round yet.'
+            : 'No scores have been entered for this round yet.'}
+        </p>
       )}
 
       {data && !isTournament && data.flights.length > 0 && (
         <div className="space-y-8">
           {data.flights.map((flight) => (
-            <FlightLeaderboardTable key={flight.flightId ?? 'none'} flight={flight} />
+            <FlightLeaderboardTable
+              key={flight.flightId ?? 'none'}
+              flight={flight}
+              isUpcoming={isUpcoming}
+            />
           ))}
         </div>
       )}

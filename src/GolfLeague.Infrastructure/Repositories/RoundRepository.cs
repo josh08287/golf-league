@@ -45,6 +45,23 @@ public sealed class RoundRepository : IRoundRepository
             .Include(r => r.Course)
             .FirstOrDefaultAsync(r => r.Status == RoundStatus.InProgress, cancellationToken);
 
+    public Task<Round?> GetMostRecentPlayedRoundAsync(DateOnly onOrBefore, CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .Where(r => r.RoundDate <= onOrBefore
+                     && (r.Status == RoundStatus.InProgress
+                         || r.Status == RoundStatus.PendingFinalization
+                         || r.Status == RoundStatus.Finalized))
+            .OrderByDescending(r => r.RoundDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+    public Task<Round?> GetNextScheduledRoundAsync(DateOnly onOrAfter, CancellationToken cancellationToken = default)
+        => _context.Rounds
+            .Include(r => r.Course)
+            .Where(r => r.Status == RoundStatus.Scheduled && r.RoundDate >= onOrAfter)
+            .OrderBy(r => r.RoundDate)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<Round>> GetAllAsync(CancellationToken cancellationToken = default)
         => await _context.Rounds
             .Include(r => r.Course)
