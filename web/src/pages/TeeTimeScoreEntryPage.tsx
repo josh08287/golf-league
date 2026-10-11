@@ -428,6 +428,7 @@ interface GroupSetupStepProps {
   roundId: number;
   teeTimeId: number;
   roundType: RoundType;
+  isShotgun?: boolean;
   startingHoleNumber: number | null;
   players: TeeTimePlayerScore[];
   skippedMap: Record<number, boolean>;
@@ -446,6 +447,7 @@ function GroupSetupStep({
   roundId,
   teeTimeId,
   roundType,
+  isShotgun,
   startingHoleNumber,
   players,
   skippedMap,
@@ -464,7 +466,7 @@ function GroupSetupStep({
   const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const [showScanModal, setShowScanModal] = useState(false);
 
-  const isShotgunTournament = roundType === 'Tournament';
+  const isShotgunTournament = roundType === 'Tournament' && !!isShotgun;
   const setStartingHole = useSetTeeTimeStartingHole(teeTimeId);
   const [selectedStartingHole, setSelectedStartingHole] = useState<number | ''>(startingHoleNumber ?? '');
   const startingHoleConfirmed = startingHoleNumber != null;
@@ -1207,7 +1209,7 @@ export function TeeTimeScoreEntryPage() {
   // The group's configured shotgun-start starting hole becomes the first hole
   // shown once "Start Entering Scores" is pressed, rather than always hole 1.
   const startingHoleIndex = (() => {
-    if (scorecard?.startingHoleNumber == null) return 0;
+    if (!scorecard?.isShotgun || scorecard?.startingHoleNumber == null) return 0;
     const idx = holes.findIndex((h) => h.holeNumber === scorecard.startingHoleNumber);
     return idx >= 0 ? idx : 0;
   })();
@@ -1643,6 +1645,7 @@ export function TeeTimeScoreEntryPage() {
           roundId={scorecard.roundId}
           teeTimeId={scorecard.teeTimeId}
           roundType={scorecard.roundType}
+          isShotgun={scorecard.isShotgun}
           startingHoleNumber={scorecard.startingHoleNumber}
           players={players}
           skippedMap={skippedOverrides}

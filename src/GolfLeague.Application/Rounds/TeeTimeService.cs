@@ -45,7 +45,7 @@ public sealed class TeeTimeService : ITeeTimeService
         var now = DateTime.UtcNow;
 
         bool NotYetPlayed(Domain.Entities.Round r) => now < TeeTimeSchedule.LastTeeTimeUtc(
-            r.RoundDate, r.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek), r.FirstTeeTime);
+            r.RoundDate, r.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek), r.FirstTeeTime, r.IsShotgun);
 
         // Prefer a round that is currently InProgress — but only if its last tee
         // time hasn't passed. A stale InProgress round from a finished half (e.g.
@@ -156,7 +156,7 @@ public sealed class TeeTimeService : ITeeTimeService
             if (previous is not null)
             {
                 var prevCount = previous.Participants.Count(p => !p.IsWithdrawn && !p.SkippedWeek);
-                var opensUtc = TeeTimeSchedule.LastTeeTimeUtc(previous.RoundDate, prevCount, previous.FirstTeeTime);
+                var opensUtc = TeeTimeSchedule.LastTeeTimeUtc(previous.RoundDate, prevCount, previous.FirstTeeTime, previous.IsShotgun);
                 if (utcNow < opensUtc)
                     return (false, "Tee-time sign-ups for this round haven't opened yet.", closesUtc);
             }

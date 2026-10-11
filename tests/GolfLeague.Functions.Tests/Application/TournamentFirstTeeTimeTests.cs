@@ -58,7 +58,7 @@ public class TournamentFirstTeeTimeTests
 
         result.IsSuccess.Should().BeTrue();
         rounds.Verify(r => r.UpdateAsync(It.Is<Round>(x => x.FirstTeeTime == start), It.IsAny<CancellationToken>()), Times.Once);
-        teeTimes.Verify(t => t.RetimeSlotsAsync(1, start, It.IsAny<CancellationToken>()), Times.Once);
+        teeTimes.Verify(t => t.RetimeSlotsAsync(1, start, false, It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class TournamentFirstTeeTimeTests
             .Handle(new SetTournamentFirstTeeTimeCommand(1, new TimeOnly(9, 0), "admin-1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        teeTimes.Verify(t => t.RetimeSlotsAsync(It.IsAny<int>(), It.IsAny<TimeOnly?>(), It.IsAny<CancellationToken>()), Times.Never);
+        teeTimes.Verify(t => t.RetimeSlotsAsync(It.IsAny<int>(), It.IsAny<TimeOnly?>(), It.IsAny<bool?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

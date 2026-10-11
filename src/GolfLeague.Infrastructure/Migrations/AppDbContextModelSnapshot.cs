@@ -855,6 +855,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<int?>("HalfId")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsShotgun")
+                        .HasColumnType("bit");
+
                     b.Property<int>("LeagueId")
                         .HasColumnType("int");
 

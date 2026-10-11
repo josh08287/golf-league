@@ -61,6 +61,14 @@ public class Round
     public TimeOnly? FirstTeeTime { get; set; }
 
     /// <summary>
+    /// Tournament rounds only: whether this round is configured as a shotgun
+    /// start where all groups tee off simultaneously at the round's configured
+    /// start time (or default start time) on different holes. When false, tee
+    /// times are spaced 8 minutes apart starting from hole 1.
+    /// </summary>
+    public bool IsShotgun { get; set; }
+
+    /// <summary>
     /// UTC instant the sign-up reminder email was sent for this round, or
     /// null if not yet sent. Guards against the hourly autofill timer
     /// re-sending the reminder on every run within its window.

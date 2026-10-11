@@ -18,11 +18,13 @@ public static class TeeTimeSchedule
     /// <summary>
     /// Compute the scheduled time for the Nth slot (1-based), starting from
     /// <paramref name="firstTeeTime"/> (a round's own start time) or the
-    /// default 3:28pm when null.
+    /// default 3:28pm when null. When <paramref name="isShotgun"/> is true,
+    /// all slots share the same start time.
     /// </summary>
-    public static TimeOnly TimeForSlot(int teeTimeNumber, TimeOnly? firstTeeTime = null)
+    public static TimeOnly TimeForSlot(int teeTimeNumber, TimeOnly? firstTeeTime = null, bool isShotgun = false)
     {
         if (teeTimeNumber < 1) throw new ArgumentOutOfRangeException(nameof(teeTimeNumber));
+        if (isShotgun) return firstTeeTime ?? FirstTeeTime;
         return (firstTeeTime ?? FirstTeeTime).AddMinutes((teeTimeNumber - 1) * IntervalMinutes);
     }
 
@@ -100,10 +102,10 @@ public static class TeeTimeSchedule
     /// week's tee times can open. With zero players we fall back to the first
     /// slot so the window still advances at the nominal start time.
     /// </summary>
-    public static DateTime LastTeeTimeUtc(DateOnly roundDate, int participantCount, TimeOnly? firstTeeTime = null)
+    public static DateTime LastTeeTimeUtc(DateOnly roundDate, int participantCount, TimeOnly? firstTeeTime = null, bool isShotgun = false)
     {
-        var slot = Math.Max(1, SlotsNeeded(participantCount));
-        var localTime = TimeForSlot(slot, firstTeeTime);
+        var slot = isShotgun ? 1 : Math.Max(1, SlotsNeeded(participantCount));
+        var localTime = TimeForSlot(slot, firstTeeTime, isShotgun);
         var local = new DateTime(
             roundDate.Year, roundDate.Month, roundDate.Day,
             localTime.Hour, localTime.Minute, 0, DateTimeKind.Unspecified);

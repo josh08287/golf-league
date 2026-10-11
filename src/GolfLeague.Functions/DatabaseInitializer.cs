@@ -35,6 +35,7 @@ public static class DatabaseInitializer
         await SeedActiveSeasonAsync(dbContext, defaultLeague.Id);
         await BootstrapAdminAsync(scope.ServiceProvider, logger);
         await BootstrapSuperAdminAsync(scope.ServiceProvider, logger);
+        await SeedFeatureFlagsAsync(dbContext, logger);
 
         if (config.GetValue<bool>("SEED_LOCAL_DEV_DATA"))
         {
@@ -323,6 +324,7 @@ public static class DatabaseInitializer
         var alreadySeeded = await dbContext.Players.AnyAsync(p => p.LeagueId == defaultLeagueId && p.Email == "player@golfleague.local");
         if (alreadySeeded)
         {
+            await EnsureTournamentRoundSeededAsync(dbContext, defaultLeagueId, logger);
             logger.LogInformation("DbInit: test players and rounds already seeded.");
             return;
         }
@@ -496,6 +498,8 @@ public static class DatabaseInitializer
                     });
                 }
                 await dbContext.SaveChangesAsync();
+
+                await EnsureTournamentRoundSeededAsync(dbContext, defaultLeagueId, logger);
             }
         }
 
@@ -503,5 +507,76 @@ public static class DatabaseInitializer
             "DbInit: Local development test data seeded successfully. " +
             "Test credentials: admin@golfleague.local / {Password}, scorer@golfleague.local / {Password}, player@golfleague.local / {Password}",
             defaultPassword, defaultPassword, defaultPassword);
+    }
+
+    private static async Task EnsureTournamentRoundSeededAsync(AppDbContext dbContext, int leagueId, ILogger logger)
+    {
+        var hasTournament = await dbContext.Rounds.AnyAsync(r => r.LeagueId == leagueId && r.RoundType == RoundType.Tournament);
+        if (hasTournament) return;
+
+        var season = await dbContext.Seasons.FirstOrDefaultAsync(s => s.LeagueId == leagueId && s.IsActive);
+        var course = await dbContext.Courses.FirstOrDefaultAsync();
+        var players = await dbContext.Players.Where(p => p.LeagueId == leagueId && p.IsActive).Take(8).ToListAsync();
+
+        if (season is null || course is null || players.Count < 2) return;
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var tournamentRound = new Round
+        {
+            LeagueId = leagueId,
+            SeasonId = season.Id,
+            HalfId = null,
+            CourseId = course.Id,
+            WeekNumber = 1,
+            RoundDate = today.AddDays(7),
+            Status = RoundStatus.Scheduled,
+            NineHoleSide = NineHoleSide.NotApplicable,
+            RoundType = RoundType.Tournament,
+            Notes = "Club Championship Tournament (Local Dev Seed)",
+            FirstTeeTime = new TimeOnly(8, 0),
+            IsShotgun = false,
+        };
+        dbContext.Rounds.Add(tournamentRound);
+        await dbContext.SaveChangesAsync();
+
+        var teeTime1 = new RoundTeeTime
+        {
+            RoundId = tournamentRound.Id,
+            TeeTimeNumber = 1,
+            ScheduledTime = new TimeOnly(8, 0),
+        };
+        var teeTime2 = new RoundTeeTime
+        {
+            RoundId = tournamentRound.Id,
+            TeeTimeNumber = 2,
+            ScheduledTime = new TimeOnly(8, 8),
+        };
+        dbContext.RoundTeeTimes.AddRange(teeTime1, teeTime2);
+        await dbContext.SaveChangesAsync();
+
+        for (int i = 0; i < players.Count; i++)
+        {
+            dbContext.RoundParticipants.Add(new RoundParticipant
+            {
+                RoundId = tournamentRound.Id,
+                PlayerId = players[i].Id,
+                HandicapIndex = 10.0,
+                CourseHandicap = 10,
+                TeeTimeId = i < 4 ? teeTime1.Id : teeTime2.Id,
+            });
+        }
+        await dbContext.SaveChangesAsync();
+        logger.LogInformation("DbInit: Seeded local development tournament round (Id: {RoundId}).", tournamentRound.Id);
+    }
+
+    private static async Task SeedFeatureFlagsAsync(AppDbContext dbContext, ILogger logger)
+    {
+        var flag = await dbContext.FeatureFlags.FirstOrDefaultAsync(f => f.Key == "tournament_start_time_enabled");
+        if (flag is null)
+        {
+            dbContext.FeatureFlags.Add(new FeatureFlag { Key = "tournament_start_time_enabled", Enabled = true });
+            await dbContext.SaveChangesAsync();
+            logger.LogInformation("DbInit: Seeded feature flag tournament_start_time_enabled = true.");
+        }
     }
 }

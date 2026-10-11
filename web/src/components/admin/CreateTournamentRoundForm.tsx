@@ -54,8 +54,10 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
   const [grossSkinsPool, setGrossSkinsPool] = useState('');
   const [netSkinsPool, setNetSkinsPool] = useState('');
   const [firstTeeTime, setFirstTeeTime] = useState('');
+  const [isShotgun, setIsShotgun] = useState(false);
   const { data: flagStates } = useFeatureFlagStates();
   const startTimeEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentStartTimeEnabled] ?? false;
+  const showStartTime = startTimeEnabled || isShotgun;
   const [selectedPlayers, setSelectedPlayers] = useState<SelectedPlayer[]>([]);
   const [matchups, setMatchups] = useState<MatchupInput[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +166,7 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
         grossSkinsPool: grossSkinsPool ? Number(grossSkinsPool) : undefined,
         netSkinsPool: netSkinsPool ? Number(netSkinsPool) : undefined,
         firstTeeTime: startTimeEnabled && firstTeeTime ? firstTeeTime : undefined,
+        isShotgun,
       });
       onSuccess(result.round?.id ?? 0);
     } catch {
@@ -246,8 +249,27 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
         </p>
       </FormField>
 
-      {startTimeEnabled && (
-        <FormField label="First Tee Time">
+      {/* Shotgun Start */}
+      <div className="flex items-start gap-3">
+        <input
+          id="isShotgun"
+          type="checkbox"
+          checked={isShotgun}
+          onChange={(e) => setIsShotgun(e.target.checked)}
+          className="mt-1 h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+        />
+        <div>
+          <label htmlFor="isShotgun" className="text-sm font-medium text-gray-700">
+            Shotgun start
+          </label>
+          <p className="text-xs text-gray-500">
+            All groups tee off simultaneously at the configured start time on different holes. When unchecked, groups tee off 8 minutes apart.
+          </p>
+        </div>
+      </div>
+
+      {showStartTime && (
+        <FormField label={isShotgun ? 'Shotgun Start Time' : 'First Tee Time'}>
           <input
             type="time"
             value={firstTeeTime}
@@ -255,7 +277,9 @@ export function CreateTournamentRoundForm({ onSuccess, onCancel }: CreateTournam
             className={inputClass}
           />
           <p className="mt-1 text-xs text-gray-500">
-            Optional. Leave blank for the default {formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start; groups follow every 8 minutes.
+            {isShotgun
+              ? `Shotgun start: all groups tee off at ${firstTeeTime ? formatTeeTime(firstTeeTime) : formatTeeTime(DEFAULT_FIRST_TEE_TIME)}.`
+              : `Optional. Leave blank for the default ${formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start; groups follow every 8 minutes.`}
           </p>
         </FormField>
       )}

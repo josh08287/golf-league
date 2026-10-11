@@ -127,6 +127,7 @@ export interface CreateTournamentRoundPayload {
   netSkinsPool?: number;
   /** "HH:mm", US/Eastern. Omit for the default start. */
   firstTeeTime?: string;
+  isShotgun?: boolean;
 }
 
 export function useCreateTournamentRound() {
@@ -257,6 +258,18 @@ export function useSetTournamentFirstTeeTime(roundId: string) {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
       // Tee times are re-timed server-side; refresh anything showing them.
+      qc.invalidateQueries();
+    },
+  });
+}
+
+export function useSetTournamentShotgun(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (isShotgun: boolean) =>
+      apiClient.put(`/tournament-rounds/${roundId}/shotgun`, { isShotgun }).then((r) => r.data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.detail(roundId) });
       qc.invalidateQueries();
     },
   });

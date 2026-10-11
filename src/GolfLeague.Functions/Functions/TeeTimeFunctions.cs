@@ -473,8 +473,8 @@ public sealed class TeeTimeFunctions
             return new ForbidResult();
 
         var round = await _rounds.GetByIdAsync(teeTime.RoundId, cancellationToken);
-        if (round?.RoundType != Domain.Enums.RoundType.Tournament)
-            return new BadRequestObjectResult(new { error = "Starting hole only applies to tournament rounds." });
+        if (round?.RoundType != Domain.Enums.RoundType.Tournament || !round.IsShotgun)
+            return new BadRequestObjectResult(new { error = "Starting hole only applies to shotgun tournament rounds." });
 
         await _teeTimes.SetStartingHoleAsync(id, body.StartingHoleNumber, cancellationToken);
 

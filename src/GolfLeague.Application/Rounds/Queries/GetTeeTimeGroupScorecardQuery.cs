@@ -74,7 +74,8 @@ public sealed record TeeTimeGroupScorecardDto(
     List<CourseHoleInfoDto> Holes,
     List<TeeTimePlayerScoreDto> Players,
     List<TeeTimeCtpHoleDto> TournamentCtp,
-    List<TeeTimeLongestDriveFlightDto> TournamentLongestDrive);
+    List<TeeTimeLongestDriveFlightDto> TournamentLongestDrive,
+    bool IsShotgun = false);
 
 /// <summary>
 /// Basic course hole information.
@@ -236,7 +237,8 @@ public sealed class GetTeeTimeGroupScorecardQueryHandler
             holeDtos,
             playerDtos,
             ctpDtos,
-            ldDtos);
+            ldDtos,
+            round.IsShotgun);
 
         return Result<TeeTimeGroupScorecardDto>.Ok(dto);
     }

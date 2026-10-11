@@ -49,10 +49,13 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
             .Where(t => t.RoundId == roundId)
             .ToListAsync(cancellationToken);
         var existingByNumber = existing.ToDictionary(t => t.TeeTimeNumber);
-        var firstTeeTime = await _context.Rounds
+        var round = await _context.Rounds
             .Where(r => r.Id == roundId)
-            .Select(r => r.FirstTeeTime)
+            .Select(r => new { r.FirstTeeTime, r.IsShotgun })
             .FirstOrDefaultAsync(cancellationToken);
+
+        var firstTeeTime = round?.FirstTeeTime;
+        var isShotgun = round?.IsShotgun ?? false;
 
         var toAdd = new List<RoundTeeTime>();
         for (var n = 1; n <= count; n++)
@@ -62,7 +65,7 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
             {
                 RoundId = roundId,
                 TeeTimeNumber = n,
-                ScheduledTime = Domain.Services.TeeTimeSchedule.TimeForSlot(n, firstTeeTime),
+                ScheduledTime = Domain.Services.TeeTimeSchedule.TimeForSlot(n, firstTeeTime, isShotgun),
             });
         }
 
@@ -75,14 +78,19 @@ public sealed class TeeTimeRepository : ITeeTimeRepository
         return existing.Concat(toAdd).OrderBy(t => t.TeeTimeNumber).ToList();
     }
 
-    public async Task RetimeSlotsAsync(int roundId, TimeOnly? firstTeeTime, CancellationToken cancellationToken = default)
+    public async Task RetimeSlotsAsync(int roundId, TimeOnly? firstTeeTime, bool? isShotgun = null, CancellationToken cancellationToken = default)
     {
+        var shotgun = isShotgun ?? await _context.Rounds
+            .Where(r => r.Id == roundId)
+            .Select(r => r.IsShotgun)
+            .FirstOrDefaultAsync(cancellationToken);
+
         var slots = await _context.RoundTeeTimes
             .AsTracking()
             .Where(t => t.RoundId == roundId)
             .ToListAsync(cancellationToken);
         foreach (var slot in slots)
-            slot.ScheduledTime = Domain.Services.TeeTimeSchedule.TimeForSlot(slot.TeeTimeNumber, firstTeeTime);
+            slot.ScheduledTime = Domain.Services.TeeTimeSchedule.TimeForSlot(slot.TeeTimeNumber, firstTeeTime, shotgun);
         await _context.SaveChangesAsync(cancellationToken);
     }
 

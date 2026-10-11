@@ -19,4 +19,5 @@ public sealed record RoundDto(
     decimal? NetSkinsPool,
     bool CountsTowardHandicap,
     bool SubstitutesCanWinSkins,
-    TimeOnly? FirstTeeTime);
+    TimeOnly? FirstTeeTime,
+    bool IsShotgun = false);

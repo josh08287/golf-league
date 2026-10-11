@@ -43,7 +43,7 @@ public sealed class SetTournamentFirstTeeTimeCommandHandler
 
         round.FirstTeeTime = request.FirstTeeTime;
         await _roundRepository.UpdateAsync(round, cancellationToken);
-        await _teeTimeRepository.RetimeSlotsAsync(round.Id, request.FirstTeeTime, cancellationToken);
+        await _teeTimeRepository.RetimeSlotsAsync(round.Id, request.FirstTeeTime, round.IsShotgun, cancellationToken);
 
         return Result<bool>.Ok(true);
     }

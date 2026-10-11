@@ -24,6 +24,7 @@ import {
   useSetTournamentCountsTowardHandicap,
   useSetTournamentSubstituteSkins,
   useSetTournamentFirstTeeTime,
+  useSetTournamentShotgun,
 } from '../../hooks/admin/useRoundMutations';
 import { useFeatureFlagStates } from '../../hooks/admin/useFeatureFlags';
 import { FEATURE_FLAG_KEYS } from '../../types/api';
@@ -73,7 +74,9 @@ export function ManageTournamentPage() {
   const substituteSkinsToggleEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentSubstituteSkinsToggleEnabled] ?? false;
   const setSubstituteSkins = useSetTournamentSubstituteSkins(roundId);
   const startTimeEnabled = flagStates?.[FEATURE_FLAG_KEYS.tournamentStartTimeEnabled] ?? false;
+  const showStartTime = startTimeEnabled || !!round?.isShotgun;
   const setFirstTeeTime = useSetTournamentFirstTeeTime(roundId);
+  const setShotgun = useSetTournamentShotgun(roundId);
   const [firstTeeTimeInput, setFirstTeeTimeInput] = useState<string | null>(null);
   const [grossSkinsPool, setGrossSkinsPoolInput] = useState('');
   const [netSkinsPool, setNetSkinsPoolInput] = useState('');
@@ -289,12 +292,37 @@ export function ManageTournamentPage() {
             </select>
           </FormField>
 
-          {startTimeEnabled && (() => {
+          {/* Shotgun Start toggle */}
+          <div className="flex items-start gap-3">
+            <input
+              id="isShotgun"
+              type="checkbox"
+              checked={round.isShotgun}
+              disabled={skinsPoolLocked || setShotgun.isPending}
+              onChange={(e) => setShotgun.mutate(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-gray-300 text-green-700 focus:ring-green-600"
+            />
+            <div>
+              <label htmlFor="isShotgun" className="text-sm font-medium text-gray-700">
+                Shotgun start
+              </label>
+              <p className="text-xs text-gray-500">
+                All groups tee off simultaneously at the configured start time on different holes. Changing it re-times every group's tee time.
+              </p>
+              {setShotgun.isError && (
+                <p className="mt-1 text-xs text-red-600">
+                  Failed to update shotgun start setting. Please try again.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {showStartTime && (() => {
             const savedTime = round.firstTeeTime?.slice(0, 5) ?? '';
             const timeValue = firstTeeTimeInput ?? savedTime;
             const timeDirty = timeValue !== savedTime;
             return (
-              <FormField label="First Tee Time">
+              <FormField label={round.isShotgun ? 'Shotgun Start Time' : 'First Tee Time'}>
                 <div className="flex items-center gap-2">
                   <input
                     type="time"
@@ -316,9 +344,13 @@ export function ManageTournamentPage() {
                   </Button>
                 </div>
                 <p className="mt-1 text-xs text-gray-500">
-                  {savedTime
-                    ? `Groups tee off from ${formatTeeTime(savedTime)}, every 8 minutes.`
-                    : `Using the default ${formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start.`}{' '}
+                  {round.isShotgun
+                    ? savedTime
+                      ? `Shotgun start: all groups tee off at ${formatTeeTime(savedTime)}.`
+                      : `Shotgun start: all groups tee off at the default ${formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start.`
+                    : savedTime
+                      ? `Groups tee off from ${formatTeeTime(savedTime)}, every 8 minutes.`
+                      : `Using the default ${formatTeeTime(DEFAULT_FIRST_TEE_TIME)} start.`}{' '}
                   Changing it re-times every group's tee time. Clear the field and save to go back to the default.
                 </p>
                 {setFirstTeeTime.isError && (

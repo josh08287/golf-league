@@ -211,6 +211,8 @@ export interface Round {
   substitutesCanWinSkins: boolean;
   /** Tournament rounds only: first tee time ("HH:mm:ss", US/Eastern); null = default start. */
   firstTeeTime: string | null;
+  /** Tournament rounds only: whether the round is a shotgun start where all groups tee off simultaneously. */
+  isShotgun: boolean;
 }
 
 export interface Participant {
@@ -619,6 +621,8 @@ export interface TeeTimeGroupScorecard {
   players: TeeTimePlayerScore[];
   tournamentCtp: TeeTimeCtpHole[];
   tournamentLongestDrive: TeeTimeLongestDriveFlight[];
+  /** Tournament rounds only: whether this round is a shotgun start. */
+  isShotgun?: boolean;
 }
 
 export interface TeeTimeGroupScoresResult {
