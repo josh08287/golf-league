@@ -1184,7 +1184,10 @@ export function TeeTimeScoreEntryPage() {
   const sideGamesEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.sideGamesEnabled] ?? false;
   const holeMapEnabled = featureFlags.data?.[FEATURE_FLAG_KEYS.holeMapEnabled] ?? false;
   const holeGeo = useCourseHoleGeo(scorecard?.courseId, holeMapEnabled);
-  const [showHoleMap, setShowHoleMap] = useState(false);
+  // Index of the hole shown on the map — separate from currentHoleIndex so
+  // browsing holes on the map never moves score entry (which refetches and
+  // overwrites the destination hole's unsaved scores). null = map closed.
+  const [mapHoleIndex, setMapHoleIndex] = useState<number | null>(null);
 
   // setup step state
   const [setupComplete, setSetupComplete] = useState(false);
@@ -1727,7 +1730,7 @@ export function TeeTimeScoreEntryPage() {
             {isRefetchingHole && <Spinner className="ml-2 inline-block h-3 w-3 align-middle" />}
           </p>
           {holeMapEnabled && (
-            <Button variant="outline" size="sm" onClick={() => setShowHoleMap(true)}>
+            <Button variant="outline" size="sm" onClick={() => setMapHoleIndex(currentHoleIndex)}>
               <MapIcon className="h-4 w-4 mr-1" />
               Hole map
             </Button>
@@ -1735,7 +1738,7 @@ export function TeeTimeScoreEntryPage() {
         </div>
       )}
 
-      {showHoleMap && currentHole && (
+      {mapHoleIndex !== null && holes[mapHoleIndex] && (
         <Suspense
           fallback={
             <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black">
@@ -1744,17 +1747,17 @@ export function TeeTimeScoreEntryPage() {
           }
         >
           <HoleMapSheet
-            holeNumber={currentHole.holeNumber}
-            par={currentHole.par}
-            geo={holeGeo.data?.holes.find((h) => h.holeNumber === currentHole.holeNumber)}
+            holeNumber={holes[mapHoleIndex].holeNumber}
+            par={holes[mapHoleIndex].par}
+            geo={holeGeo.data?.holes.find((h) => h.holeNumber === holes[mapHoleIndex].holeNumber)}
             courseCentre={
               holeGeo.data?.latitude != null && holeGeo.data?.longitude != null
                 ? { lat: holeGeo.data.latitude, lng: holeGeo.data.longitude }
                 : null
             }
-            onPrevHole={() => setCurrentHoleIndex((i) => (i - 1 + holes.length) % holes.length)}
-            onNextHole={() => setCurrentHoleIndex((i) => (i + 1) % holes.length)}
-            onClose={() => setShowHoleMap(false)}
+            onPrevHole={() => setMapHoleIndex((i) => ((i ?? 0) - 1 + holes.length) % holes.length)}
+            onNextHole={() => setMapHoleIndex((i) => ((i ?? 0) + 1) % holes.length)}
+            onClose={() => setMapHoleIndex(null)}
           />
         </Suspense>
       )}
