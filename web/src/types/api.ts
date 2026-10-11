@@ -1140,12 +1140,21 @@ export interface LeagueChampionship {
   standings: LeagueChampionshipEntry[];
 }
 
+export interface CommentReactionSummary {
+  emoji: string;
+  count: number;
+  playerIds: number[];
+}
+
 export interface TournamentComment {
   id: number;
   playerId: number;
   playerName: string;
   body: string;
   createdAt: string;
+  parentCommentId: number | null;
+  replies: TournamentComment[];
+  reactions: CommentReactionSummary[];
 }
 
 // ── League Settings ───────────────────────────────────────────────────────────

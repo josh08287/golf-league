@@ -46,6 +46,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
     public DbSet<FlightMatchHoleResult> FlightMatchHoleResults => Set<FlightMatchHoleResult>();
     public DbSet<TournamentHoleExtra> TournamentHoleExtras => Set<TournamentHoleExtra>();
     public DbSet<TournamentComment> TournamentComments => Set<TournamentComment>();
+    public DbSet<CommentReaction> CommentReactions => Set<CommentReaction>();
     public DbSet<TournamentLongestDriveWinner> TournamentLongestDriveWinners => Set<TournamentLongestDriveWinner>();
     public DbSet<RoundClosestToPin> RoundClosestToPins => Set<RoundClosestToPin>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
@@ -81,6 +82,7 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
         ConfigureFlightMatchHoleResults(modelBuilder);
         ConfigureTournamentHoleExtras(modelBuilder);
         ConfigureTournamentComments(modelBuilder);
+        ConfigureCommentReactions(modelBuilder);
         ConfigureTournamentLongestDriveWinners(modelBuilder);
         ConfigureRoundClosestToPins(modelBuilder);
         ConfigureRoundTeeTimes(modelBuilder);
@@ -582,7 +584,31 @@ public sealed class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>
                   .WithMany()
                   .HasForeignKey(e => e.PlayerId)
                   .OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(e => e.ParentComment)
+                  .WithMany(e => e.Replies)
+                  .HasForeignKey(e => e.ParentCommentId)
+                  .OnDelete(DeleteBehavior.NoAction);
             entity.HasIndex(e => new { e.RoundId, e.CreatedAt });
+            entity.HasIndex(e => e.ParentCommentId);
+        });
+    }
+
+    private static void ConfigureCommentReactions(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CommentReaction>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Emoji).IsRequired().HasMaxLength(8);
+            entity.HasOne(e => e.Comment)
+                  .WithMany(c => c.Reactions)
+                  .HasForeignKey(e => e.CommentId)
+                  .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(e => e.Player)
+                  .WithMany()
+                  .HasForeignKey(e => e.PlayerId)
+                  .OnDelete(DeleteBehavior.Restrict);
+            // Each player can only react once per emoji per comment.
+            entity.HasIndex(e => new { e.CommentId, e.PlayerId, e.Emoji }).IsUnique();
         });
     }
 

@@ -20,12 +20,7 @@ public sealed class GetTournamentCommentsQueryHandler : IRequestHandler<GetTourn
     {
         var comments = await _roundRepository.GetTournamentCommentsAsync(request.RoundId, cancellationToken);
 
-        var dtos = comments.Select(c => new TournamentCommentDto(
-            c.Id,
-            c.PlayerId,
-            c.Player.FullName,
-            c.Body,
-            c.CreatedAt)).ToList();
+        var dtos = comments.Select(PostTournamentCommentCommandHandler.MapToDto).ToList();
 
         return Result<List<TournamentCommentDto>>.Ok(dtos);
     }

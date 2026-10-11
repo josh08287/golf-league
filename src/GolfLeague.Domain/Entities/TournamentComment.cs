@@ -15,4 +15,9 @@ public class TournamentComment
 
     public Round Round { get; set; } = null!;
     public Player Player { get; set; } = null!;
+
+    public int? ParentCommentId { get; set; }
+    public TournamentComment? ParentComment { get; set; }
+    public ICollection<TournamentComment> Replies { get; set; } = new List<TournamentComment>();
+    public ICollection<CommentReaction> Reactions { get; set; } = new List<CommentReaction>();
 }

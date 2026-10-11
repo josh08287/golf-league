@@ -121,4 +121,8 @@ public interface IRoundRepository
     // Tournament comments
     Task<TournamentComment> AddTournamentCommentAsync(TournamentComment comment, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TournamentComment>> GetTournamentCommentsAsync(int roundId, CancellationToken cancellationToken = default);
+    Task<TournamentComment?> GetTournamentCommentByIdAsync(int commentId, CancellationToken cancellationToken = default);
+    Task<CommentReaction> AddCommentReactionAsync(CommentReaction reaction, CancellationToken cancellationToken = default);
+    Task RemoveCommentReactionAsync(int commentId, int playerId, string emoji, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<CommentReaction>> GetCommentReactionsAsync(int commentId, CancellationToken cancellationToken = default);
 }

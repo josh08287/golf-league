@@ -6,18 +6,27 @@ using MediatR;
 
 namespace GolfLeague.Application.Rounds.Commands;
 
+public sealed record CommentReactionSummary(
+    string Emoji,
+    int Count,
+    List<int> PlayerIds);
+
 public sealed record TournamentCommentDto(
     int Id,
     int PlayerId,
     string PlayerName,
     string Body,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    int? ParentCommentId,
+    List<TournamentCommentDto> Replies,
+    List<CommentReactionSummary> Reactions);
 
 public sealed record PostTournamentCommentCommand(
     int RoundId,
     int PlayerId,
     string Body,
-    string UserId) : IRequest<Result<TournamentCommentDto>>, IAmAuditableCommand
+    string UserId,
+    int? ParentCommentId = null) : IRequest<Result<TournamentCommentDto>>, IAmAuditableCommand
 {
     public string AuditEntityType => "Round";
     public string AuditEntityId => RoundId.ToString();
@@ -51,26 +60,64 @@ public sealed class PostTournamentCommentCommandHandler : IRequestHandler<PostTo
         if (round is null)
             return Result<TournamentCommentDto>.Fail($"Round {request.RoundId} not found.");
 
+        if (request.ParentCommentId is not null)
+        {
+            var parent = await _roundRepository.GetTournamentCommentByIdAsync(request.ParentCommentId.Value, cancellationToken);
+            if (parent is null)
+                return Result<TournamentCommentDto>.Fail("Parent comment not found.");
+            if (parent.RoundId != request.RoundId)
+                return Result<TournamentCommentDto>.Fail("Parent comment does not belong to this round.");
+            if (parent.ParentCommentId is not null)
+                return Result<TournamentCommentDto>.Fail("Cannot reply to a reply. Only top-level comments accept replies.");
+        }
+
         var comment = new TournamentComment
         {
             RoundId = request.RoundId,
             PlayerId = request.PlayerId,
             Body = body,
             CreatedAt = DateTime.UtcNow,
+            ParentCommentId = request.ParentCommentId,
         };
 
         var saved = await _roundRepository.AddTournamentCommentAsync(comment, cancellationToken);
 
-        // Re-fetch through the list query so Player is populated for the DTO
-        // without a second round trip to load just this one comment's player.
         var all = await _roundRepository.GetTournamentCommentsAsync(request.RoundId, cancellationToken);
-        var withPlayer = all.First(c => c.Id == saved.Id);
+        var withPlayer = FindComment(all, saved.Id);
 
-        return Result<TournamentCommentDto>.Ok(new TournamentCommentDto(
-            withPlayer.Id,
-            withPlayer.PlayerId,
-            withPlayer.Player.FullName,
-            withPlayer.Body,
-            withPlayer.CreatedAt));
+        return Result<TournamentCommentDto>.Ok(MapToDto(withPlayer!));
+    }
+
+    private static TournamentComment? FindComment(IReadOnlyList<TournamentComment> comments, int id)
+    {
+        foreach (var c in comments)
+        {
+            if (c.Id == id) return c;
+            foreach (var r in c.Replies)
+                if (r.Id == id) return r;
+        }
+        return null;
+    }
+
+    internal static TournamentCommentDto MapToDto(TournamentComment c) =>
+        new(
+            c.Id,
+            c.PlayerId,
+            c.Player.FullName,
+            c.Body,
+            c.CreatedAt,
+            c.ParentCommentId,
+            (c.Replies ?? []).OrderBy(r => r.CreatedAt).Select(MapToDto).ToList(),
+            MapReactions(c.Reactions));
+
+    internal static List<CommentReactionSummary> MapReactions(ICollection<CommentReaction>? reactions)
+    {
+        if (reactions is null || reactions.Count == 0)
+            return [];
+        return reactions
+            .GroupBy(r => r.Emoji)
+            .Select(g => new CommentReactionSummary(g.Key, g.Count(), g.Select(r => r.PlayerId).ToList()))
+            .OrderByDescending(s => s.Count)
+            .ToList();
     }
 }

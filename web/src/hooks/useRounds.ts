@@ -8,6 +8,7 @@ import type {
   RoundSkins,
   TournamentResults,
   TournamentComment,
+  CommentReactionSummary,
   LeagueChampionship,
   PagedResponse,
   ActiveRoundLeaderboard,
@@ -186,10 +187,27 @@ export function useTournamentComments(roundId: string) {
 export function usePostTournamentComment(roundId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (message: string) => {
+    mutationFn: async (input: string | { message: string; parentCommentId?: number }) => {
+      const payload = typeof input === 'string' ? { message: input } : input;
       const response = await apiClient.post<TournamentComment>(
         `/tournament-rounds/${roundId}/comments`,
-        { message },
+        payload,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: roundKeys.tournamentComments(roundId) });
+    },
+  });
+}
+
+export function useToggleCommentReaction(roundId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ commentId, emoji }: { commentId: number; emoji: string }) => {
+      const response = await apiClient.post<CommentReactionSummary>(
+        `/tournament-rounds/${roundId}/comments/${commentId}/reactions`,
+        { emoji },
       );
       return response.data;
     },

@@ -15,11 +15,16 @@ import {
   Send,
   Crown,
   Award,
+  ThumbsUp,
+  Smile,
+  Reply,
+  CornerDownRight,
 } from 'lucide-react';
 import {
   useTournamentResults,
   useTournamentComments,
   usePostTournamentComment,
+  useToggleCommentReaction,
   useLeagueChampionship,
 } from '@/hooks/useRounds';
 import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
@@ -39,6 +44,7 @@ import type {
   TournamentCourseHole,
   TournamentResults,
   LeagueChampionshipEntry,
+  TournamentComment,
 } from '@/types/api';
 import { FEATURE_FLAG_KEYS } from '@/types/api';
 
@@ -823,11 +829,226 @@ function RankingTable({
 
 // ── Comments ──────────────────────────────────────────────────────────────────
 
+const ALLOWED_EMOJIS = ['👍', '😂', '🔥', '⛳', '🎉', '👏'] as const;
+
+interface CommentCardProps {
+  comment: TournamentComment;
+  roundId: string;
+  userPlayerId: number | null;
+  canInteract: boolean;
+  isReply?: boolean;
+}
+
+function CommentCard({
+  comment,
+  roundId,
+  userPlayerId,
+  canInteract,
+  isReply = false,
+}: CommentCardProps) {
+  const [showPicker, setShowPicker] = useState(false);
+  const [isReplying, setIsReplying] = useState(false);
+  const [replyText, setReplyText] = useState('');
+
+  const toggleReaction = useToggleCommentReaction(roundId);
+  const postComment = usePostTournamentComment(roundId);
+
+  const thumbsUpReaction = comment.reactions?.find((r) => r.emoji === '👍');
+  const isLiked = userPlayerId !== null && !!thumbsUpReaction?.playerIds.includes(userPlayerId);
+
+  const handleToggleReaction = (emoji: string) => {
+    if (!canInteract || toggleReaction.isPending) return;
+    toggleReaction.mutate({ commentId: comment.id, emoji });
+    setShowPicker(false);
+  };
+
+  const handleReplySubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = replyText.trim();
+    if (!trimmed || postComment.isPending) return;
+    postComment.mutate(
+      { message: trimmed, parentCommentId: comment.id },
+      {
+        onSuccess: () => {
+          setReplyText('');
+          setIsReplying(false);
+        },
+      }
+    );
+  };
+
+  return (
+    <li className={`rounded-lg border border-gray-200 bg-white p-3 shadow-xs ${isReply ? 'bg-gray-50/70' : ''}`}>
+      <div className="mb-1 flex items-baseline justify-between gap-2">
+        <span className="text-sm font-semibold text-gray-800">{comment.playerName}</span>
+        <span className="text-xs text-gray-400">
+          {new Date(comment.createdAt).toLocaleString(undefined, {
+            dateStyle: 'medium',
+            timeStyle: 'short',
+          })}
+        </span>
+      </div>
+      <p className="whitespace-pre-wrap text-sm text-gray-700">{comment.body}</p>
+
+      {/* Reactions chips */}
+      {comment.reactions && comment.reactions.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {comment.reactions.map((r) => {
+            const hasReacted = userPlayerId !== null && r.playerIds.includes(userPlayerId);
+            return (
+              <button
+                key={r.emoji}
+                type="button"
+                disabled={!canInteract || toggleReaction.isPending}
+                onClick={() => handleToggleReaction(r.emoji)}
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs transition-colors ${
+                  hasReacted
+                    ? 'border-green-300 bg-green-50 font-medium text-green-800'
+                    : 'border-gray-200 bg-gray-50 text-gray-600 hover:bg-gray-100'
+                } disabled:cursor-not-allowed disabled:opacity-60`}
+                title={`${r.count} reaction${r.count !== 1 ? 's' : ''}`}
+              >
+                <span>{r.emoji}</span>
+                <span>{r.count}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Action buttons (Like, React, Reply) */}
+      <div className="mt-2.5 flex items-center gap-3 border-t border-gray-100 pt-2 text-xs">
+        {/* Quick Like */}
+        <button
+          type="button"
+          disabled={!canInteract || toggleReaction.isPending}
+          onClick={() => handleToggleReaction('👍')}
+          className={`inline-flex items-center gap-1 transition-colors hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50 ${
+            isLiked ? 'font-semibold text-green-700' : 'text-gray-500'
+          }`}
+          title={isLiked ? 'Unlike' : 'Like'}
+        >
+          <ThumbsUp className={`h-3.5 w-3.5 ${isLiked ? 'fill-green-700' : ''}`} />
+          <span>{isLiked ? 'Liked' : 'Like'}</span>
+        </button>
+
+        {/* Reaction picker trigger */}
+        <div className="relative">
+          <button
+            type="button"
+            disabled={!canInteract || toggleReaction.isPending}
+            onClick={() => setShowPicker((prev) => !prev)}
+            className="inline-flex items-center gap-1 text-gray-500 transition-colors hover:text-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+            title="Add reaction"
+          >
+            <Smile className="h-3.5 w-3.5" />
+            <span>React</span>
+          </button>
+
+          {showPicker && (
+            <>
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setShowPicker(false)}
+              />
+              <div className="absolute bottom-full left-0 z-20 mb-1.5 flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 shadow-lg">
+                {ALLOWED_EMOJIS.map((emoji) => {
+                  const hasReacted = comment.reactions?.some(
+                    (r) => r.emoji === emoji && userPlayerId !== null && r.playerIds.includes(userPlayerId)
+                  );
+                  return (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => handleToggleReaction(emoji)}
+                      className={`rounded-full p-1 text-base transition-transform hover:scale-125 ${
+                        hasReacted ? 'bg-green-100/70' : 'hover:bg-gray-100'
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Reply button (only top-level comments) */}
+        {!isReply && canInteract && (
+          <button
+            type="button"
+            onClick={() => setIsReplying((prev) => !prev)}
+            className="inline-flex items-center gap-1 text-gray-500 transition-colors hover:text-green-700"
+          >
+            <Reply className="h-3.5 w-3.5" />
+            <span>Reply</span>
+          </button>
+        )}
+      </div>
+
+      {/* Reply input form */}
+      {isReplying && (
+        <form onSubmit={handleReplySubmit} className="mt-3 flex items-start gap-2 border-t border-gray-100 pt-2.5">
+          <CornerDownRight className="mt-2 h-4 w-4 shrink-0 text-gray-400" />
+          <textarea
+            value={replyText}
+            onChange={(e) => setReplyText(e.target.value)}
+            maxLength={1000}
+            rows={2}
+            placeholder={`Reply to ${comment.playerName}…`}
+            className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-xs focus:border-green-500 focus:outline-none focus:ring-1 focus:ring-green-500"
+            autoFocus
+          />
+          <div className="flex flex-col gap-1">
+            <button
+              type="submit"
+              disabled={!replyText.trim() || postComment.isPending}
+              className="rounded-lg bg-green-700 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {postComment.isPending ? 'Replying…' : 'Reply'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsReplying(false);
+                setReplyText('');
+              }}
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Nested replies */}
+      {comment.replies && comment.replies.length > 0 && (
+        <ul className="mt-3 space-y-2 border-l-2 border-green-200 pl-3">
+          {comment.replies.map((reply) => (
+            <CommentCard
+              key={reply.id}
+              comment={reply}
+              roundId={roundId}
+              userPlayerId={userPlayerId}
+              canInteract={canInteract}
+              isReply={true}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
 function CommentsPanel({ roundId }: { roundId: string }) {
   const { user, isAuthenticated } = useAuth();
   const { data: comments, isLoading } = useTournamentComments(roundId);
   const postComment = usePostTournamentComment(roundId);
   const [message, setMessage] = useState('');
+
+  const userPlayerId = user?.playerId ? Number(user.playerId) : null;
+  const canInteract = isAuthenticated && userPlayerId !== null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -848,25 +1069,20 @@ function CommentsPanel({ roundId }: { roundId: string }) {
         ) : !comments || comments.length === 0 ? (
           <p className="text-sm text-gray-400 italic">No comments yet.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="space-y-3">
             {comments.map((c) => (
-              <li key={c.id} className="rounded-lg border border-gray-200 bg-white p-3">
-                <div className="mb-1 flex items-baseline justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-800">{c.playerName}</span>
-                  <span className="text-xs text-gray-400">
-                    {new Date(c.createdAt).toLocaleString(undefined, {
-                      dateStyle: 'medium',
-                      timeStyle: 'short',
-                    })}
-                  </span>
-                </div>
-                <p className="whitespace-pre-wrap text-sm text-gray-700">{c.body}</p>
-              </li>
+              <CommentCard
+                key={c.id}
+                comment={c}
+                roundId={roundId}
+                userPlayerId={userPlayerId}
+                canInteract={canInteract}
+              />
             ))}
           </ul>
         )}
 
-        {isAuthenticated && user?.playerId ? (
+        {canInteract ? (
           <form onSubmit={handleSubmit} className="flex items-start gap-2 pt-1">
             <textarea
               value={message}
@@ -887,11 +1103,11 @@ function CommentsPanel({ roundId }: { roundId: string }) {
           </form>
         ) : isAuthenticated ? (
           <p className="text-xs text-gray-400 italic">
-            Your account isn't linked to a player profile, so you can't post here.
+            Your account isn't linked to a player profile, so you can't post, react, or reply here.
           </p>
         ) : (
           <p className="text-xs text-gray-400 italic">
-            <Link to="/login" className="text-green-700 hover:underline">Log in</Link> to post a message.
+            <Link to="/login" className="text-green-700 hover:underline">Log in</Link> to post, react, or reply.
           </p>
         )}
 

@@ -460,8 +460,34 @@ public sealed class TournamentRoundFunctions
 
         var userId = req.GetUserId() ?? "unknown";
         var result = await _mediator.Send(
-            new PostTournamentCommentCommand(roundId, playerId.Value, body.Message, userId), cancellationToken);
+            new PostTournamentCommentCommand(roundId, playerId.Value, body.Message, userId, body.ParentCommentId), cancellationToken);
         return result.ToCreatedResult();
+    }
+
+    [Function("ToggleCommentReaction")]
+    public async Task<IActionResult> ToggleCommentReaction(
+        [HttpTrigger(AuthorizationLevel.Anonymous, "post", Route = "v1/tournament-rounds/{id}/comments/{commentId}/reactions")] HttpRequest req,
+        string id,
+        string commentId,
+        CancellationToken cancellationToken)
+    {
+        var authError = req.RequireAuthenticated();
+        if (authError is not null) return authError;
+
+        if (!int.TryParse(commentId, out var cid))
+            return new BadRequestObjectResult(new { error = "Invalid comment ID." });
+
+        var playerId = req.GetPlayerId();
+        if (playerId is null)
+            return new ConflictObjectResult(new { error = "Your account isn't linked to a player profile." });
+
+        var body = await req.TryDeserializeAsync<ToggleReactionRequest>(cancellationToken);
+        if (body is null || string.IsNullOrWhiteSpace(body.Emoji))
+            return new BadRequestObjectResult(new { error = "Emoji is required." });
+
+        var result = await _mediator.Send(
+            new ToggleCommentReactionCommand(cid, playerId.Value, body.Emoji), cancellationToken);
+        return result.ToOkResult();
     }
 
     // ── Private request DTOs ────────────────────────────────────────────────────
@@ -500,5 +526,6 @@ public sealed class TournamentRoundFunctions
     private sealed record SetSubstituteSkinsRequest(bool SubstitutesCanWinSkins);
     private sealed record SetFirstTeeTimeRequest(string? FirstTeeTime);
     private sealed record SetShotgunRequest(bool IsShotgun);
-    private sealed record PostCommentRequest(string Message);
+    private sealed record PostCommentRequest(string Message, int? ParentCommentId = null);
+    private sealed record ToggleReactionRequest(string Emoji);
 }

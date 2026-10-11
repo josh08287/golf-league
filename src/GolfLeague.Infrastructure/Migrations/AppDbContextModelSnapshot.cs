@@ -153,6 +153,38 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.ToTable("AuditLogs");
                 });
 
+            modelBuilder.Entity("GolfLeague.Domain.Entities.CommentReaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Emoji")
+                        .IsRequired()
+                        .HasMaxLength(8)
+                        .HasColumnType("nvarchar(8)");
+
+                    b.Property<int>("PlayerId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlayerId");
+
+                    b.HasIndex("CommentId", "PlayerId", "Emoji")
+                        .IsUnique();
+
+                    b.ToTable("CommentReactions");
+                });
+
             modelBuilder.Entity("GolfLeague.Domain.Entities.Course", b =>
                 {
                     b.Property<int>("Id")
@@ -1328,6 +1360,9 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<int?>("ParentCommentId")
+                        .HasColumnType("int");
+
                     b.Property<int>("PlayerId")
                         .HasColumnType("int");
 
@@ -1335,6 +1370,8 @@ namespace GolfLeague.Infrastructure.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentCommentId");
 
                     b.HasIndex("PlayerId");
 
@@ -1640,6 +1677,25 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("GolfLeague.Domain.Entities.CommentReaction", b =>
+                {
+                    b.HasOne("GolfLeague.Domain.Entities.TournamentComment", "Comment")
+                        .WithMany("Reactions")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
+                        .WithMany()
+                        .HasForeignKey("PlayerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Player");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.CourseHole", b =>
@@ -2127,6 +2183,11 @@ namespace GolfLeague.Infrastructure.Migrations
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.TournamentComment", b =>
                 {
+                    b.HasOne("GolfLeague.Domain.Entities.TournamentComment", "ParentComment")
+                        .WithMany("Replies")
+                        .HasForeignKey("ParentCommentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("GolfLeague.Domain.Entities.Player", "Player")
                         .WithMany()
                         .HasForeignKey("PlayerId")
@@ -2138,6 +2199,8 @@ namespace GolfLeague.Infrastructure.Migrations
                         .HasForeignKey("RoundId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ParentComment");
 
                     b.Navigation("Player");
 
@@ -2403,6 +2466,13 @@ namespace GolfLeague.Infrastructure.Migrations
                     b.Navigation("Teams");
 
                     b.Navigation("WolfPicks");
+                });
+
+            modelBuilder.Entity("GolfLeague.Domain.Entities.TournamentComment", b =>
+                {
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
                 });
 
             modelBuilder.Entity("GolfLeague.Domain.Entities.TournamentFlight", b =>

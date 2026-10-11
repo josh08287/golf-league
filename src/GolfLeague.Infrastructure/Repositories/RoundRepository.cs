@@ -563,7 +563,44 @@ public sealed class RoundRepository : IRoundRepository
     public async Task<IReadOnlyList<TournamentComment>> GetTournamentCommentsAsync(int roundId, CancellationToken cancellationToken = default)
         => await _context.TournamentComments
             .Include(c => c.Player)
-            .Where(c => c.RoundId == roundId)
+            .Include(c => c.Reactions)
+                .ThenInclude(r => r.Player)
+            .Include(c => c.Replies)
+                .ThenInclude(r => r.Player)
+            .Include(c => c.Replies)
+                .ThenInclude(r => r.Reactions)
+                    .ThenInclude(r => r.Player)
+            .Where(c => c.RoundId == roundId && c.ParentCommentId == null)
             .OrderBy(c => c.CreatedAt)
+            .ToListAsync(cancellationToken);
+
+    public async Task<TournamentComment?> GetTournamentCommentByIdAsync(int commentId, CancellationToken cancellationToken = default)
+        => await _context.TournamentComments
+            .Include(c => c.Player)
+            .FirstOrDefaultAsync(c => c.Id == commentId, cancellationToken);
+
+    public async Task<CommentReaction> AddCommentReactionAsync(CommentReaction reaction, CancellationToken cancellationToken = default)
+    {
+        await _context.Set<CommentReaction>().AddAsync(reaction, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+        return reaction;
+    }
+
+    public async Task RemoveCommentReactionAsync(int commentId, int playerId, string emoji, CancellationToken cancellationToken = default)
+    {
+        var reaction = await _context.Set<CommentReaction>()
+            .FirstOrDefaultAsync(r => r.CommentId == commentId && r.PlayerId == playerId && r.Emoji == emoji, cancellationToken);
+        if (reaction is not null)
+        {
+            _context.Set<CommentReaction>().Remove(reaction);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<IReadOnlyList<CommentReaction>> GetCommentReactionsAsync(int commentId, CancellationToken cancellationToken = default)
+        => await _context.Set<CommentReaction>()
+            .Include(r => r.Player)
+            .Where(r => r.CommentId == commentId)
+            .OrderBy(r => r.CreatedAt)
             .ToListAsync(cancellationToken);
 }
