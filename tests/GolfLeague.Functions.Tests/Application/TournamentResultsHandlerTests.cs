@@ -56,6 +56,8 @@ public class TournamentResultsHandlerTests
     {
         Id = 1,
         RoundType = type,
+        // Tournaments are created as full-course rounds (CreateTournamentRoundCommand).
+        NineHoleSide = type == RoundType.Tournament ? NineHoleSide.NotApplicable : NineHoleSide.Front,
         CourseId = 1,
         RoundDate = new DateOnly(2026, 6, 1),
     };
@@ -64,6 +66,7 @@ public class TournamentResultsHandlerTests
     {
         public Mock<IRoundRepository> Rounds { get; } = new();
         public Mock<ICourseRepository> Courses { get; } = new();
+        public Mock<ITeeTimeRepository> TeeTimes { get; } = new();
 
         public Mocks()
         {
@@ -79,9 +82,15 @@ public class TournamentResultsHandlerTests
                 .ReturnsAsync(new List<TournamentFlight>());
             Rounds.Setup(r => r.GetLongestDriveWinnersAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new List<TournamentLongestDriveWinner>());
+            TeeTimes.Setup(t => t.GetByRoundAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new List<RoundTeeTime>());
         }
 
-        public GetTournamentResultsQueryHandler BuildSut() => new(Rounds.Object, Courses.Object);
+        public GetTournamentResultsQueryHandler BuildSut() => new(Rounds.Object, Courses.Object, TeeTimes.Object);
+
+        public void WithCourseHoles(int count) =>
+            Courses.Setup(c => c.GetHolesAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(Enumerable.Range(1, count).Select(n => new CourseHole { HoleNumber = n, Par = 4, StrokeIndex = n }).ToList());
     }
 
     [Fact]
@@ -411,6 +420,7 @@ public class TournamentResultsHandlerTests
         var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = 2, Player1 = alice.Player, Player2 = bob.Player };
 
         var m = new Mocks();
+        m.WithCourseHoles(3);
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
         m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
@@ -508,6 +518,7 @@ public class TournamentResultsHandlerTests
         var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = 2, Player1 = alice.Player, Player2 = bob.Player };
 
         var m = new Mocks();
+        m.WithCourseHoles(4);
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
         m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
@@ -519,5 +530,84 @@ public class TournamentResultsHandlerTests
         holes[2].IsConceded.Should().BeFalse();
         holes[3].IsConceded.Should().BeTrue("the match was already decided before the last hole was played");
         holes[3].StatusAfterHole.Should().BeNull();
+    }
+
+    private static (RoundParticipant Alice, RoundParticipant Bob, TournamentMatchup Matchup) MakeMatch(
+        IEnumerable<int> aliceWinsHoles, IEnumerable<int> scoredHoles)
+    {
+        var wins = aliceWinsHoles.ToHashSet();
+        var holes = scoredHoles.ToList();
+        var alice = MakeParticipant(1, "Alice", holes: holes.Select(n => MakeHole(n, gross: wins.Contains(n) ? 3 : 4, net: wins.Contains(n) ? 3 : 4)).ToArray());
+        var bob = MakeParticipant(2, "Bob", holes: holes.Select(n => MakeHole(n, gross: 4, net: 4)).ToArray());
+        alice.TotalNetStrokes = alice.HoleScores.Sum(h => h.NetStrokes);
+        bob.TotalNetStrokes = bob.HoleScores.Sum(h => h.NetStrokes);
+        var matchup = new TournamentMatchup { MatchupNumber = 1, Player1Id = 1, Player2Id = 2, Player1 = alice.Player, Player2 = bob.Player };
+        return (alice, bob, matchup);
+    }
+
+    private static Mocks MockMatch(RoundParticipant alice, RoundParticipant bob, TournamentMatchup matchup, int courseHoles = 18)
+    {
+        var m = new Mocks();
+        m.WithCourseHoles(courseHoles);
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        m.Rounds.Setup(r => r.GetTournamentMatchupsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<TournamentMatchup> { matchup });
+        return m;
+    }
+
+    [Fact]
+    public async Task Handle_MatchupHoleByHole_SpansEveryRoundHole_EvenWhenOnlyNineAreScored()
+    {
+        // Alice wins holes 1-5 of the front nine: 5up with 9 still to play in an
+        // 18-hole round, so the match is NOT over (it was wrongly closed out when
+        // only the scored holes counted).
+        var (alice, bob, matchup) = MakeMatch(aliceWinsHoles: [1, 2, 3, 4, 5], scoredHoles: Enumerable.Range(1, 9));
+        var m = MockMatch(alice, bob, matchup);
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var mr = result.Value!.MatchupResults.Single();
+        mr.HoleByHole.Select(h => h.HoleNumber).Should().Equal(Enumerable.Range(1, 18));
+        mr.HoleByHole.Should().OnlyContain(h => !h.IsConceded);
+        mr.HoleByHole[8].StatusAfterHole.Should().Be(5);
+        mr.HoleByHole.Skip(9).Should().OnlyContain(h => h.StatusAfterHole == null, "back nine not played yet");
+        mr.WinnerPlayerId.Should().BeNull("the match is not decided until all 18 holes are in");
+        mr.IsHalved.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_MatchupHoleByHole_ClosesOutAgainstFullRoundLength()
+    {
+        // 10up through 10 with 8 to play in an 18-hole round: closed out 10&8.
+        var (alice, bob, matchup) = MakeMatch(aliceWinsHoles: Enumerable.Range(1, 10), scoredHoles: Enumerable.Range(1, 18));
+        var m = MockMatch(alice, bob, matchup);
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var holes = result.Value!.MatchupResults.Single().HoleByHole;
+        holes[8].IsConceded.Should().BeFalse("9up with 9 to play is dormie, not closed out");
+        holes[9].StatusAfterHole.Should().Be(10);
+        holes[9].IsConceded.Should().BeFalse();
+        holes.Skip(10).Should().OnlyContain(h => h.IsConceded);
+        result.Value.MatchupResults.Single().WinnerPlayerId.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_MatchupHoleByHole_FollowsShotgunPlayOrder()
+    {
+        // Group started on hole 10 and has played 10-14.
+        var (alice, bob, matchup) = MakeMatch(aliceWinsHoles: [10, 11], scoredHoles: Enumerable.Range(10, 5));
+        alice.TeeTimeId = 50;
+        bob.TeeTimeId = 50;
+        var m = MockMatch(alice, bob, matchup);
+        m.TeeTimes.Setup(t => t.GetByRoundAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundTeeTime> { new() { Id = 50, RoundId = 1, StartingHoleNumber = 10 } });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var holes = result.Value!.MatchupResults.Single().HoleByHole;
+        holes.Select(h => h.HoleNumber).Should().Equal(Enumerable.Range(10, 9).Concat(Enumerable.Range(1, 9)));
+        holes[4].StatusAfterHole.Should().Be(2, "2up through hole 14");
+        holes.Skip(5).Should().OnlyContain(h => h.StatusAfterHole == null && !h.IsConceded);
     }
 }

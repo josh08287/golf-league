@@ -140,13 +140,16 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
 {
     private readonly IRoundRepository _roundRepository;
     private readonly ICourseRepository _courseRepository;
+    private readonly ITeeTimeRepository _teeTimeRepository;
 
     public GetTournamentResultsQueryHandler(
         IRoundRepository roundRepository,
-        ICourseRepository courseRepository)
+        ICourseRepository courseRepository,
+        ITeeTimeRepository teeTimeRepository)
     {
         _roundRepository = roundRepository;
         _courseRepository = courseRepository;
+        _teeTimeRepository = teeTimeRepository;
     }
 
     public async Task<Result<TournamentResultsDto>> Handle(GetTournamentResultsQuery request, CancellationToken cancellationToken)
@@ -183,7 +186,27 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         // Course Handicap is known at tee-off regardless of scoring, so look matchup
         // players up in the full roster (not `active`, which requires a submitted
         // score) — otherwise CH shows as 0 for every matchup until scores start.
-        var matchupResults = CalculateMatchupResults(matchups, participants.ToList());
+        //
+        // Match play always spans every hole of the round, not just the holes
+        // scored so far, so status/closeout reflect the holes still to play.
+        var roundHoleNumbers = courseHoles
+            .Select(h => h.HoleNumber)
+            .Where(n => round.NineHoleSide switch
+            {
+                NineHoleSide.Front => n <= 9,
+                NineHoleSide.Back => n >= 10,
+                _ => true,
+            })
+            .OrderBy(n => n)
+            .ToList();
+        if (roundHoleNumbers.Count == 0)
+        {
+            // No hole layout on file for the course — fall back to whatever has been scored.
+            roundHoleNumbers = participants.SelectMany(p => p.HoleScores).Select(h => h.HoleNumber).Distinct().OrderBy(n => n).ToList();
+        }
+        var teeTimes = await _teeTimeRepository.GetByRoundAsync(request.RoundId, cancellationToken);
+        var startingHoleByTeeTime = teeTimes.ToDictionary(t => t.Id, t => t.StartingHoleNumber);
+        var matchupResults = CalculateMatchupResults(matchups, participants.ToList(), roundHoleNumbers, startingHoleByTeeTime);
         var extraDtos = holeExtras.Select(e => new TournamentHoleExtraDto(
             e.HoleNumber,
             e.ClosestToPinPlayerId,
@@ -345,7 +368,9 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
 
     private static List<TournamentMatchupResultDto> CalculateMatchupResults(
         IReadOnlyList<TournamentMatchup> matchups,
-        List<RoundParticipant> participants)
+        List<RoundParticipant> participants,
+        IReadOnlyList<int> roundHoleNumbers,
+        IReadOnlyDictionary<int, int?> startingHoleByTeeTime)
     {
         var participantLookup = participants.ToDictionary(p => p.PlayerId);
         var results = new List<TournamentMatchupResultDto>();
@@ -386,11 +411,16 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             var p1Points = p1?.TotalNetStablefordPoints;
             var p2Points = p2?.TotalNetStablefordPoints;
 
+            // The overall result is only decided once both cards cover every
+            // hole of the round — admin entry can save running totals from a
+            // partial card, which would otherwise crown a winner mid-round.
+            var bothComplete = IsCardComplete(p1, roundHoleNumbers) && IsCardComplete(p2, roundHoleNumbers);
+
             int? winnerId = null;
             string? winnerName = null;
             bool halved = false;
 
-            if (p1Net.HasValue && p2Net.HasValue)
+            if (bothComplete && p1Net.HasValue && p2Net.HasValue)
             {
                 if (p1Net < p2Net)
                 {
@@ -416,7 +446,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             string? winnerNameByPoints = null;
             bool halvedByPoints = false;
 
-            if (p1Points.HasValue && p2Points.HasValue)
+            if (bothComplete && p1Points.HasValue && p2Points.HasValue)
             {
                 if (p1Points > p2Points)
                 {
@@ -435,8 +465,12 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 }
             }
 
-            var holeByHole = BuildMatchPlayHoles(p1, p2, byPoints: false);
-            var holeByHolePoints = BuildMatchPlayHoles(p1, p2, byPoints: true);
+            // Matchup partners share a tee time, so either player's group
+            // start gives the play order (relevant for shotgun starts).
+            var startingHole = StartingHoleFor(p1, startingHoleByTeeTime) ?? StartingHoleFor(p2, startingHoleByTeeTime);
+            var playOrder = PlayOrder(roundHoleNumbers, startingHole);
+            var holeByHole = BuildMatchPlayHoles(p1, p2, playOrder, byPoints: false);
+            var holeByHolePoints = BuildMatchPlayHoles(p1, p2, playOrder, byPoints: true);
 
             results.Add(new TournamentMatchupResultDto(
                 matchup.MatchupNumber,
@@ -465,32 +499,48 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         return results;
     }
 
+    private static bool IsCardComplete(RoundParticipant? p, IReadOnlyList<int> roundHoleNumbers) =>
+        p is not null
+        && roundHoleNumbers.All(n => p.HoleScores.Any(h => h.HoleNumber == n));
+
+    private static int? StartingHoleFor(RoundParticipant? p, IReadOnlyDictionary<int, int?> startingHoleByTeeTime) =>
+        p?.TeeTimeId is int teeTimeId && startingHoleByTeeTime.TryGetValue(teeTimeId, out var start) ? start : (int?)null;
+
+    /// <summary>The round's holes rotated to begin at the group's starting hole (shotgun), else in hole order.</summary>
+    private static List<int> PlayOrder(IReadOnlyList<int> roundHoleNumbers, int? startingHole)
+    {
+        var startIdx = startingHole is int s ? roundHoleNumbers.ToList().IndexOf(s) : -1;
+        if (startIdx <= 0)
+            return roundHoleNumbers.ToList();
+        return roundHoleNumbers.Skip(startIdx).Concat(roundHoleNumbers.Take(startIdx)).ToList();
+    }
+
     /// <summary>
-    /// Hole-by-hole match-play status (1-up style) for a matchup: each hole where both
-    /// players have posted a net score contributes to a running tally from Player1's
-    /// perspective. Once a player is mathematically closed out (up by more holes than
-    /// remain), later holes stop updating status (IsConceded = true) even if both
-    /// players later post scores for them, matching the "3&2"-style stop convention.
+    /// Hole-by-hole match-play status (1-up style) for a matchup, always spanning
+    /// every hole of the round in play order — holes not yet scored by both players
+    /// are included with a null status. Each hole where both players have posted a
+    /// net score contributes to a running tally from Player1's perspective. Once a
+    /// player is mathematically closed out (up by more holes than remain unplayed in
+    /// the round), later holes stop updating status (IsConceded = true) even if both
+    /// players later post scores for them, matching the "3&amp;2"-style stop convention.
     /// Strokes mode (byPoints: false) awards the hole to whoever has fewer net strokes;
     /// Stableford points mode (byPoints: true) awards it to whoever has more net points.
     /// </summary>
-    private static List<MatchPlayHoleDto> BuildMatchPlayHoles(RoundParticipant? p1, RoundParticipant? p2, bool byPoints)
+    private static List<MatchPlayHoleDto> BuildMatchPlayHoles(
+        RoundParticipant? p1,
+        RoundParticipant? p2,
+        IReadOnlyList<int> playOrder,
+        bool byPoints)
     {
         if (p1 is null || p2 is null) return [];
 
-        var holeNumbers = p1.HoleScores.Select(h => h.HoleNumber)
-            .Union(p2.HoleScores.Select(h => h.HoleNumber))
-            .OrderBy(h => h)
-            .ToList();
-
         var result = new List<MatchPlayHoleDto>();
         int status = 0;
+        int holesCompleted = 0;
         bool closedOut = false;
-        int totalHoles = holeNumbers.Count;
 
-        for (int i = 0; i < holeNumbers.Count; i++)
+        foreach (var holeNumber in playOrder)
         {
-            var holeNumber = holeNumbers[i];
             var h1 = p1.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
             var h2 = p2.HoleScores.FirstOrDefault(h => h.HoleNumber == holeNumber);
             var h1Value = byPoints ? h1?.NetStablefordPoints : h1?.NetStrokes;
@@ -509,7 +559,8 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 if (p1WinsHole) status += 1;
                 else if (p2WinsHole) status -= 1;
 
-                var holesRemaining = totalHoles - (i + 1);
+                holesCompleted++;
+                var holesRemaining = playOrder.Count - holesCompleted;
                 if (Math.Abs(status) > holesRemaining)
                     closedOut = true;
             }

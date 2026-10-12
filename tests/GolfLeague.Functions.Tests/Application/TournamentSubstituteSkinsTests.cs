@@ -61,7 +61,7 @@ public class TournamentSubstituteSkinsTests
         courses.Setup(c => c.GetHolesAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<CourseHole> { new() { HoleNumber = 1, Par = 4, StrokeIndex = 1 } });
 
-        var result = await new GetTournamentResultsQueryHandler(rounds.Object, courses.Object)
+        var result = await new GetTournamentResultsQueryHandler(rounds.Object, courses.Object, new Mock<ITeeTimeRepository> { DefaultValue = DefaultValue.Mock }.Object)
             .Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
         result.IsSuccess.Should().BeTrue();
         return result.Value!;

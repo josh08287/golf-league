@@ -610,6 +610,17 @@ function MatchupCard({ m, mode }: { m: TournamentMatchupResult; mode: MatchPlayM
   const p1Wins = winnerPlayerId === m.player1Id;
   const p2Wins = !isBye && winnerPlayerId === m.player2Id;
   const pending = !isBye && winnerPlayerId === null && !halved;
+  // holeByHole always spans every hole of the round; holes not yet played by
+  // both players carry a null status.
+  const holesPlayed = holeByHole.filter((h) => h.statusAfterHole !== null).length;
+  const latestStatus = [...holeByHole].reverse().find((h) => h.statusAfterHole !== null)?.statusAfterHole ?? null;
+  const isClosedOut = holeByHole.some((h) => h.isConceded);
+  const liveStatusLabel =
+    pending && holesPlayed > 0 && !isClosedOut && latestStatus !== null
+      ? latestStatus === 0
+        ? `All square thru ${holesPlayed}`
+        : `${latestStatus > 0 ? m.player1Name : m.player2Name} ${Math.abs(latestStatus)} UP thru ${holesPlayed}`
+      : null;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -672,7 +683,8 @@ function MatchupCard({ m, mode }: { m: TournamentMatchupResult; mode: MatchPlayM
 
       <div className="mt-2 text-center text-sm">
         {halved && <span className="text-blue-600 font-medium">Halved (Tie)</span>}
-        {pending && holeByHole.length === 0 && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
+        {pending && holesPlayed === 0 && <span className="text-gray-400 italic text-xs">Awaiting scores</span>}
+        {liveStatusLabel && <span className="text-xs font-medium text-gray-600">{liveStatusLabel}</span>}
       </div>
 
       {holeByHole.length > 0 && <MatchPlayScorecard holeByHole={holeByHole} byPoints={byPoints} />}
