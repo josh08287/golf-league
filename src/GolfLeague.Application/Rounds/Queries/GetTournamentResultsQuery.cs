@@ -82,6 +82,8 @@ public sealed record MatchPlayHoleDto(
 /// Score is the player's current total over the holes entered so far (not
 /// just a finished card). HolesCompleted / IsFinished drive the leaderboard's
 /// "Thru" column (a hole count, or "F" once every hole of the round is in).
+/// ToPar is Score relative to par for the holes played (stroke rankings only;
+/// null for Stableford).
 /// </summary>
 public sealed record TournamentRankingEntryDto(
     int Rank,
@@ -92,7 +94,8 @@ public sealed record TournamentRankingEntryDto(
     int? Score,
     bool IsTied,
     int HolesCompleted,
-    bool IsFinished);
+    bool IsFinished,
+    int? ToPar);
 
 public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
 
@@ -671,7 +674,8 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 ordered[i].Score,
                 isTied,
                 ordered[i].Holes,
-                roundHoleCount > 0 && ordered[i].Holes >= roundHoleCount));
+                roundHoleCount > 0 && ordered[i].Holes >= roundHoleCount,
+                rankByPar ? ordered[i].SortKey : null));
         }
 
         return rankings;

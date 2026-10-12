@@ -414,9 +414,10 @@ public class TournamentResultsHandlerTests
 
         var ranking = result.Value!.NetStrokeRanking;
         ranking.Select(r => r.PlayerId).Should().Equal(2, 3, 1);
-        ranking[0].Should().BeEquivalentTo(new { Score = (int?)11, HolesCompleted = 3, IsFinished = false });
-        ranking[1].Should().BeEquivalentTo(new { Score = (int?)72, HolesCompleted = 18, IsFinished = true });
-        ranking[2].Should().BeEquivalentTo(new { Score = (int?)37, HolesCompleted = 9, IsFinished = false });
+        ranking[0].Should().BeEquivalentTo(new { Score = (int?)11, HolesCompleted = 3, IsFinished = false, ToPar = (int?)-1 });
+        ranking[1].Should().BeEquivalentTo(new { Score = (int?)72, HolesCompleted = 18, IsFinished = true, ToPar = (int?)0 });
+        ranking[2].Should().BeEquivalentTo(new { Score = (int?)37, HolesCompleted = 9, IsFinished = false, ToPar = (int?)1 });
+        result.Value.NetStablefordRanking.Should().OnlyContain(r => r.ToPar == null, "to-par only applies to stroke play");
     }
 
     [Fact]

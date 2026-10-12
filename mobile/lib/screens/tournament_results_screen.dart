@@ -545,7 +545,7 @@ class _RankingCard extends StatelessWidget {
   final List<TournamentRankingEntry> entries;
   final String scoreLabel;
 
-  /// Adds a "Thru" value (holes completed, or F when finished).
+  /// Stroke-play card: adds "To Par" and "Thru" (holes completed, or F when finished).
   final bool showThru;
 
   @override
@@ -624,7 +624,21 @@ class _RankingCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
                       if (showThru) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 30,
+                          child: Text(
+                            e.toParLabel,
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              color: (e.toPar ?? 0) < 0
+                                  ? const Color(0xFFDC2626)
+                                  : const Color(0xFF374151),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
                         SizedBox(
                           width: 44,
                           child: Text(

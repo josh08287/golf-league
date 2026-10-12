@@ -1062,6 +1062,8 @@ export interface TournamentRankingEntry {
   isTied: boolean;
   holesCompleted: number;
   isFinished: boolean;
+  /** Score relative to par for the holes played; stroke rankings only (null for Stableford). */
+  toPar: number | null;
 }
 
 export interface LongestDriveWinner {

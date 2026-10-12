@@ -31,6 +31,7 @@ import { useFeatureFlagStates } from '@/hooks/admin/useFeatureFlags';
 import { useAuth } from '@/hooks/useAuth';
 import { formatDate } from '@/lib/utils';
 import { HandicapDots } from '@/components/scoring/HandicapDots';
+import { ScoreBadge } from '@/components/scoring/ScoreBadge';
 import type {
   TournamentSkinsResult,
   TournamentSkinHole,
@@ -241,6 +242,18 @@ function HoleExtrasPanel({
 
 // ── Flights ───────────────────────────────────────────────────────────────────
 
+/** Leaderboard "To Par" cell: E for even, +N over, -N under. */
+function formatToPar(toPar: number | null): string {
+  if (toPar == null) return '—';
+  if (toPar === 0) return 'E';
+  return toPar > 0 ? `+${toPar}` : `${toPar}`;
+}
+
+function toParClass(toPar: number | null): string {
+  if (toPar == null || toPar === 0) return 'text-gray-700';
+  return toPar < 0 ? 'text-red-600' : 'text-gray-800';
+}
+
 /** Leaderboard "Thru" cell: holes completed so far, or F once the card is finished. */
 function formatThru(holesCompleted: number, isFinished: boolean): string {
   if (isFinished) return 'F';
@@ -306,6 +319,7 @@ function FlightScorecard({
               <th className="px-2 py-1 text-center font-semibold text-gray-600">
                 {useGrossPoints ? 'Gross' : 'Net'}
               </th>
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">To Par</th>
               <th className="px-2 py-1 text-center font-semibold text-gray-600">Thru</th>
             </tr>
             <tr className="text-gray-300">
@@ -316,6 +330,7 @@ function FlightScorecard({
                   {h.par}
                 </th>
               ))}
+              <th />
               <th />
               <th />
             </tr>
@@ -339,18 +354,27 @@ function FlightScorecard({
                     const value = useGrossPoints ? holeScore?.grossStrokes : holeScore?.netStrokes;
                     const dots = holeScore?.handicapStrokes ?? strokesOnHole(p.courseHandicap, h.strokeIndex);
                     return (
-                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
-                        {value ?? <span className="text-gray-300">—</span>}
-                        {!useGrossPoints && dots > 0 && (
-                          <span className="absolute inset-x-0 -bottom-0.5">
-                            <HandicapDots strokes={dots} />
-                          </span>
+                      <td key={h.holeNumber} className="relative px-1 py-1 text-center text-gray-700">
+                        {value != null ? (
+                          <ScoreBadge size="sm" strokes={value} par={h.par} handicapStrokes={useGrossPoints ? 0 : dots} />
+                        ) : (
+                          <>
+                            <span className="text-gray-300">—</span>
+                            {!useGrossPoints && dots > 0 && (
+                              <span className="absolute inset-x-0 -bottom-0.5">
+                                <HandicapDots strokes={dots} />
+                              </span>
+                            )}
+                          </>
                         )}
                       </td>
                     );
                   })}
                   <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
                     {score ?? <span className="text-gray-300">—</span>}
+                  </td>
+                  <td className={`px-2 py-1.5 text-center font-semibold ${toParClass(toParOf(p))}`}>
+                    {formatToPar(toParOf(p))}
                   </td>
                   <td className="px-2 py-1.5 text-center text-gray-500">{formatThru(p.holesCompleted, p.isFinished)}</td>
                 </tr>
@@ -523,14 +547,27 @@ function StablefordFlightLeaderboard({
                   {holes.map((h) => {
                     const holeScore = scoresByHole.get(h.holeNumber);
                     const value = useGrossPoints ? holeScore?.grossStablefordPoints : holeScore?.netStablefordPoints;
+                    const strokes = useGrossPoints ? holeScore?.grossStrokes : holeScore?.netStrokes;
                     const dots = holeScore?.handicapStrokes ?? strokesOnHole(p.courseHandicap, h.strokeIndex);
                     return (
-                      <td key={h.holeNumber} className="relative px-1.5 py-1.5 text-center text-gray-700">
-                        {value ?? <span className="text-gray-300">—</span>}
-                        {!useGrossPoints && dots > 0 && (
-                          <span className="absolute inset-x-0 -bottom-0.5">
-                            <HandicapDots strokes={dots} />
-                          </span>
+                      <td key={h.holeNumber} className="relative px-1 py-1 text-center text-gray-700">
+                        {value != null && strokes != null ? (
+                          <ScoreBadge
+                            size="sm"
+                            strokes={strokes}
+                            par={h.par}
+                            display={value}
+                            handicapStrokes={useGrossPoints ? 0 : dots}
+                          />
+                        ) : (
+                          <>
+                            <span className="text-gray-300">—</span>
+                            {!useGrossPoints && dots > 0 && (
+                              <span className="absolute inset-x-0 -bottom-0.5">
+                                <HandicapDots strokes={dots} />
+                              </span>
+                            )}
+                          </>
                         )}
                       </td>
                     );
@@ -801,7 +838,7 @@ function RankingTable({
   entries: TournamentRankingEntry[];
   scoreLabel: string;
   ascending: boolean;
-  /** Adds a "Thru" column (holes completed, or F when finished). */
+  /** Stroke-play table: adds "To Par" and "Thru" (holes completed, or F when finished) columns. */
   showThru?: boolean;
 }) {
   return (
@@ -818,6 +855,7 @@ function RankingTable({
                 <th className="px-3 py-2 text-left">Player</th>
                 <th className="px-3 py-2 text-center">HCP</th>
                 <th className="px-3 py-2 text-center">{scoreLabel}</th>
+                {showThru && <th className="px-3 py-2 text-center">To Par</th>}
                 {showThru && <th className="px-3 py-2 text-center">Thru</th>}
               </tr>
             </thead>
@@ -849,6 +887,9 @@ function RankingTable({
                         : `+${e.score}`
                       : '—'}
                   </td>
+                  {showThru && (
+                    <td className={`px-3 py-2 text-center font-semibold ${toParClass(e.toPar)}`}>{formatToPar(e.toPar)}</td>
+                  )}
                   {showThru && (
                     <td className="px-3 py-2 text-center text-gray-500">{formatThru(e.holesCompleted, e.isFinished)}</td>
                   )}
@@ -1428,12 +1469,18 @@ function LeagueChampionshipPanel({
                         const value = useGrossPoints ? score?.grossStrokes : score?.netStrokes;
                         const dots = score?.handicapStrokes ?? strokesOnHole(player?.courseHandicap ?? 0, h.strokeIndex);
                         return (
-                          <td key={h.holeNumber} className="relative px-1.5 py-2 text-center text-gray-700">
-                            {value ?? <span className="text-gray-300">—</span>}
-                            {!useGrossPoints && dots > 0 && (
-                              <span className="absolute inset-x-0 -bottom-0.5">
-                                <HandicapDots strokes={dots} />
-                              </span>
+                          <td key={h.holeNumber} className="relative px-1 py-1.5 text-center text-gray-700">
+                            {value != null ? (
+                              <ScoreBadge size="sm" strokes={value} par={h.par} handicapStrokes={useGrossPoints ? 0 : dots} />
+                            ) : (
+                              <>
+                                <span className="text-gray-300">—</span>
+                                {!useGrossPoints && dots > 0 && (
+                                  <span className="absolute inset-x-0 -bottom-0.5">
+                                    <HandicapDots strokes={dots} />
+                                  </span>
+                                )}
+                              </>
                             )}
                           </td>
                         );

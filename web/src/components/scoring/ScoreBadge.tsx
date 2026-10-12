@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 
 // Standard scorecard convention: circle the score for birdie or better
@@ -18,19 +19,29 @@ interface ScoreBadgeProps {
   handicapStrokes: number;
   /** Highlights the badge for a standout result (e.g. a skins winner). */
   highlight?: boolean;
+  /** Compact variant for dense leaderboard grids. */
+  size?: 'md' | 'sm';
+  /**
+   * What to print inside the shape — defaults to the strokes. The shape is
+   * always driven by strokes vs par (e.g. a Stableford grid shows points but
+   * still circles a birdie).
+   */
+  display?: ReactNode;
 }
 
-export function ScoreBadge({ strokes, par, handicapStrokes, highlight }: ScoreBadgeProps) {
+export function ScoreBadge({ strokes, par, handicapStrokes, highlight, size = 'md', display }: ScoreBadgeProps) {
+  const sm = size === 'sm';
   return (
-    <span className="relative inline-flex h-7 w-7 items-center justify-center">
+    <span className={cn('relative inline-flex items-center justify-center', sm ? 'h-6 w-6' : 'h-7 w-7')}>
       <span
         className={cn(
-          'flex h-6 w-6 items-center justify-center rounded text-sm leading-none',
+          'flex items-center justify-center rounded leading-none',
+          sm ? 'h-5 w-5 text-xs' : 'h-6 w-6 text-sm',
           highlight ? 'bg-amber-100 ring-offset-amber-100' : 'ring-offset-white',
           scoreShapeClass(strokes, par),
         )}
       >
-        {strokes}
+        {display ?? strokes}
       </span>
       {handicapStrokes > 0 && (
         <span

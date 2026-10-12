@@ -1340,6 +1340,7 @@ class TournamentRankingEntry {
     required this.isTied,
     this.holesCompleted = 0,
     this.isFinished = false,
+    this.toPar,
   });
 
   final int rank;
@@ -1352,6 +1353,17 @@ class TournamentRankingEntry {
   final bool isTied;
   final int holesCompleted;
   final bool isFinished;
+
+  /// Score relative to par for the holes played; stroke rankings only.
+  final int? toPar;
+
+  /// Leaderboard "To Par": E for even, +N over, -N under.
+  String get toParLabel {
+    final tp = toPar;
+    if (tp == null) return '—';
+    if (tp == 0) return 'E';
+    return tp > 0 ? '+$tp' : '$tp';
+  }
 
   /// Leaderboard "Thru": holes completed so far, or F once finished.
   String get thru => isFinished ? 'F' : (holesCompleted > 0 ? '$holesCompleted' : '—');
@@ -1366,6 +1378,7 @@ class TournamentRankingEntry {
         isTied: j['isTied'] as bool? ?? false,
         holesCompleted: (j['holesCompleted'] as num? ?? 0).toInt(),
         isFinished: j['isFinished'] as bool? ?? false,
+        toPar: (j['toPar'] as num?)?.toInt(),
       );
 }
 
