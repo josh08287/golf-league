@@ -60,6 +60,11 @@ export function isRoundFinalized(status: string | number | undefined): boolean {
   return normalizeRoundStatus(status) === 'Finalized';
 }
 
+// Helper to check if round is cancelled
+export function isRoundCancelled(status: string | number | undefined): boolean {
+  return normalizeRoundStatus(status) === 'Cancelled';
+}
+
 // Helper to check if round is in progress
 export function isRoundInProgress(status: string | number | undefined): boolean {
   return normalizeRoundStatus(status) === 'InProgress';

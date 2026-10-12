@@ -11,12 +11,14 @@ import {
   AlertCircle,
   Save,
   ClipboardList,
+  UserMinus,
 } from 'lucide-react';
 import { useTournamentResults, useRound } from '@/hooks/useRounds';
 import {
   useSaveTournamentExtras,
   useSubmitHoleScores,
   useSetTournamentLongestDriveWinner,
+  useRemoveTournamentParticipant,
 } from '@/hooks/admin/useRoundMutations';
 import { useCourseDetail } from '@/hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
@@ -311,6 +313,8 @@ function FlightScoreEntryTable({
   onScoreChange,
   readonly,
   cellRefs,
+  onRemovePlayer,
+  removingPlayerId,
 }: {
   flight: TournamentFlight;
   holes: TournamentCourseHole[];
@@ -318,6 +322,9 @@ function FlightScoreEntryTable({
   onScoreChange: (playerId: number, hole: number, value: number | '') => void;
   readonly: boolean;
   cellRefs: React.MutableRefObject<Record<number, Array<HTMLInputElement | null>>>;
+  /** Drops a player who didn't play from the round; omitted when read-only. */
+  onRemovePlayer?: (playerId: number, playerName: string) => void;
+  removingPlayerId?: number | null;
 }) {
   const pars: Record<number, number> = {};
   const strokeIndexes: Record<number, number> = {};
@@ -377,7 +384,24 @@ function FlightScoreEntryTable({
               <Fragment key={player.playerId}>
                 <tr className="hover:bg-gray-50/50">
                   <td className="sticky left-0 z-10 bg-white px-3 py-2">
-                    <div className="font-medium text-gray-900">{player.playerName}</div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-gray-900">{player.playerName}</span>
+                      {onRemovePlayer && (
+                        <button
+                          type="button"
+                          title="Remove from round (didn't play)"
+                          onClick={() => onRemovePlayer(player.playerId, player.playerName)}
+                          disabled={removingPlayerId != null}
+                          className="rounded p-0.5 text-gray-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-50"
+                        >
+                          {removingPlayerId === player.playerId ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <UserMinus className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400">CH {player.courseHandicap}</div>
                   </td>
                   {holes.map((h, hi) => (
@@ -518,6 +542,9 @@ function ScoreEntrySection({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const submitScores = useSubmitHoleScores(roundId);
+  const removeParticipant = useRemoveTournamentParticipant(roundId);
+  const [removingPlayerId, setRemovingPlayerId] = useState<number | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
   const cellRefs = useRef<Record<number, Array<HTMLInputElement | null>>>({});
 
   // Seed the grid from server-side flight data. Only fills blank cells so it
@@ -590,6 +617,36 @@ function ScoreEntrySection({
     }
   }
 
+  async function handleRemovePlayer(playerId: number, playerName: string) {
+    const ok = window.confirm(
+      `Remove ${playerName} from this round? Use this for a player who didn't play: any scores entered for them are deleted, ` +
+        `their opponent keeps their matchup as a bye, and tee-time groups stay as they are.`,
+    );
+    if (!ok) return;
+    setRemoveError(null);
+    setRemovingPlayerId(playerId);
+    try {
+      await removeParticipant.mutateAsync(playerId);
+      setScores((prev) => {
+        const next = { ...prev };
+        delete next[playerId];
+        return next;
+      });
+      setDirtyPlayerIds((prev) => {
+        const next = new Set(prev);
+        next.delete(playerId);
+        return next;
+      });
+    } catch (err) {
+      setRemoveError(
+        (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ??
+          `Failed to remove ${playerName}.`,
+      );
+    } finally {
+      setRemovingPlayerId(null);
+    }
+  }
+
   if (results.flights.length === 0) {
     return <p className="text-sm text-gray-400 italic">No players in this round yet.</p>;
   }
@@ -600,6 +657,9 @@ function ScoreEntrySection({
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600">
           This round is finalized — scores are locked and shown read-only below.
         </div>
+      )}
+      {removeError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{removeError}</div>
       )}
       {results.flights.map((flight) => (
         <div key={flight.id} className="space-y-2">
@@ -613,6 +673,8 @@ function ScoreEntrySection({
             onScoreChange={handleScoreChange}
             readonly={isFinalized}
             cellRefs={cellRefs}
+            onRemovePlayer={isFinalized ? undefined : (playerId, playerName) => void handleRemovePlayer(playerId, playerName)}
+            removingPlayerId={removingPlayerId}
           />
         </div>
       ))}

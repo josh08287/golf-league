@@ -123,6 +123,12 @@ public interface IRoundRepository
     Task<IReadOnlyList<TournamentHoleExtra>> GetTournamentHoleExtrasAsync(int roundId, CancellationToken cancellationToken = default);
 
     /// <summary>Sets (or clears, when playerId is null) the longest-drive winner for one tournament flight.</summary>
+    /// <summary>
+    /// Clears every closest-to-pin / longest-drive award the player holds in
+    /// a tournament round (hole extras are nulled, flight longest-drive
+    /// winners removed) — used when the player is removed from the round.
+    /// </summary>
+    Task ClearTournamentAwardsForPlayerAsync(int roundId, int playerId, CancellationToken cancellationToken = default);
     Task SetLongestDriveWinnerAsync(int roundId, int tournamentFlightId, int? playerId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<TournamentLongestDriveWinner>> GetLongestDriveWinnersAsync(int roundId, CancellationToken cancellationToken = default);
 

@@ -524,6 +524,19 @@ public sealed class RoundRepository : IRoundRepository
             .OrderBy(e => e.HoleNumber)
             .ToListAsync(cancellationToken);
 
+    public async Task ClearTournamentAwardsForPlayerAsync(int roundId, int playerId, CancellationToken cancellationToken = default)
+    {
+        await _context.TournamentHoleExtras
+            .Where(e => e.RoundId == roundId && e.ClosestToPinPlayerId == playerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.ClosestToPinPlayerId, (int?)null), cancellationToken);
+        await _context.TournamentHoleExtras
+            .Where(e => e.RoundId == roundId && e.LongestDrivePlayerId == playerId)
+            .ExecuteUpdateAsync(s => s.SetProperty(e => e.LongestDrivePlayerId, (int?)null), cancellationToken);
+        await _context.TournamentLongestDriveWinners
+            .Where(w => w.RoundId == roundId && w.PlayerId == playerId)
+            .ExecuteDeleteAsync(cancellationToken);
+    }
+
     public async Task SetLongestDriveWinnerAsync(int roundId, int tournamentFlightId, int? playerId, CancellationToken cancellationToken = default)
     {
         await _context.TournamentLongestDriveWinners

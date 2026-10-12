@@ -32,7 +32,7 @@ import type { MatchupInput } from '../../hooks/admin/useRoundMutations';
 import { useCourseDetail } from '../../hooks/admin/useCourseMutations';
 import { useLeaguePrefix } from '@/context/LeagueContext';
 import { formatDate } from '@/lib/utils';
-import { isRoundFinalized, isRoundScheduled, DEFAULT_FIRST_TEE_TIME, formatTeeTime } from '../../lib/enumUtils';
+import { isRoundCancelled, isRoundFinalized, isRoundScheduled, DEFAULT_FIRST_TEE_TIME, formatTeeTime } from '../../lib/enumUtils';
 import { Button } from '../../components/ui/Button';
 import { Spinner } from '../../components/ui/Spinner';
 import { FormField, inputClass, selectClass } from '../../components/admin/FormField';
@@ -132,6 +132,9 @@ export function ManageTournamentPage() {
   const currentPlayerIds = new Set((participants ?? []).map((p) => p.playerId));
   const availablePlayers = allPlayers.filter((p) => !currentPlayerIds.has(p.id));
   const currentParticipants = participants ?? [];
+  // Players can be dropped until the round is finalized — including mid-round,
+  // for a no-show who never teed off.
+  const canRemovePlayers = round != null && !isRoundFinalized(round.status) && !isRoundCancelled(round.status);
 
   function addMatchup() {
     if (currentParticipants.length < 2) return;
@@ -235,13 +238,19 @@ export function ManageTournamentPage() {
     }
   }
 
-  async function removePlayer(playerId: number) {
+  async function removePlayer(playerId: number, playerName: string) {
+    const message = isRoundScheduled(round?.status)
+      ? `Remove ${playerName} from this tournament? Foursomes will be regrouped.`
+      : `Remove ${playerName} from this round? Use this for a player who didn't play: any scores entered for them are deleted, their opponent keeps their matchup as a bye, and tee-time groups stay as they are.`;
+    if (!window.confirm(message)) return;
     setError(null);
     try {
       await removeParticipant.mutateAsync(playerId);
       qc.invalidateQueries({ queryKey: ['rounds', roundId, 'participants'] });
-    } catch {
-      setError('Failed to remove player.');
+    } catch (err) {
+      setError(
+        (err as { response?: { data?: { error?: string } } } | null)?.response?.data?.error ?? 'Failed to remove player.',
+      );
     }
   }
 
@@ -510,14 +519,17 @@ export function ManageTournamentPage() {
                     {p.playerName}{' '}
                     <span className="text-gray-500">(HCP {p.handicapAtTime.toFixed(1)})</span>
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => removePlayer(p.playerId)}
-                    disabled={removeParticipant.isPending}
-                    className="text-gray-400 hover:text-red-500 disabled:opacity-50"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
+                  {canRemovePlayers && (
+                    <button
+                      type="button"
+                      title="Remove from round"
+                      onClick={() => removePlayer(p.playerId, p.playerName)}
+                      disabled={removeParticipant.isPending}
+                      className="text-gray-400 hover:text-red-500 disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
                 </li>
               ))}
             {currentParticipants.length === 0 && (

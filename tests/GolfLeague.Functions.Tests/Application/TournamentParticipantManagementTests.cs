@@ -125,10 +125,12 @@ public class TournamentParticipantManagementTests
         teeTimes.Verify(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), 100, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
-    [Fact]
-    public async Task RemoveTournamentParticipant_Fails_WhenRoundInProgress()
+    [Theory]
+    [InlineData(RoundStatus.Finalized)]
+    [InlineData(RoundStatus.Cancelled)]
+    public async Task RemoveTournamentParticipant_Fails_WhenRoundClosed(RoundStatus status)
     {
-        var round = MakeTournamentRound(RoundStatus.InProgress, MakeParticipant(1, 10));
+        var round = MakeTournamentRound(status, MakeParticipant(1, 10));
         var rounds = new Mock<IRoundRepository>();
         rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
         var teeTimes = new Mock<ITeeTimeRepository>();
@@ -138,7 +140,47 @@ public class TournamentParticipantManagementTests
         var result = await handler.Handle(new RemoveTournamentParticipantCommand(round.Id, 1, "user1"), CancellationToken.None);
 
         result.IsSuccess.Should().BeFalse();
-        result.Error.Should().Contain("Scheduled");
+        rounds.Verify(r => r.DeleteParticipantAsync(It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Theory]
+    [InlineData(RoundStatus.InProgress)]
+    [InlineData(RoundStatus.PendingFinalization)]
+    public async Task RemoveTournamentParticipant_MidRound_KeepsGroups_AndLeavesOpponentWithBye(RoundStatus status)
+    {
+        var p1 = MakeParticipant(1, 5.0);
+        var p2 = MakeParticipant(2, 8.0);
+        var p3 = MakeParticipant(3, 9.0);
+        var p4 = MakeParticipant(4, 12.0);
+        var round = MakeTournamentRound(status, p1, p2, p3, p4);
+        var rounds = new Mock<IRoundRepository>();
+        rounds.Setup(r => r.GetByIdAsync(round.Id, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        rounds.Setup(r => r.GetTournamentMatchupsAsync(round.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<TournamentMatchup>
+            {
+                new() { Id = 1, RoundId = round.Id, MatchupNumber = 1, Player1Id = 1, Player2Id = 2 },
+                new() { Id = 2, RoundId = round.Id, MatchupNumber = 2, Player1Id = 3, Player2Id = 4 },
+            });
+        List<TournamentMatchup>? saved = null;
+        rounds.Setup(r => r.ReplaceTournamentMatchupsAsync(round.Id, It.IsAny<IEnumerable<TournamentMatchup>>(), It.IsAny<CancellationToken>()))
+            .Callback<int, IEnumerable<TournamentMatchup>, CancellationToken>((_, m, _) => saved = m.ToList())
+            .Returns(Task.CompletedTask);
+        var teeTimes = new Mock<ITeeTimeRepository>();
+
+        var handler = new RemoveTournamentParticipantCommandHandler(rounds.Object, MakeFoursomeService(teeTimes, round, rounds));
+
+        var result = await handler.Handle(new RemoveTournamentParticipantCommand(round.Id, 1, "user1"), CancellationToken.None);
+
+        result.IsSuccess.Should().BeTrue();
+        rounds.Verify(r => r.DeleteParticipantAsync(p1.Id, It.IsAny<CancellationToken>()), Times.Once);
+        rounds.Verify(r => r.ClearTournamentAwardsForPlayerAsync(round.Id, 1, It.IsAny<CancellationToken>()), Times.Once);
+        saved.Should().NotBeNull();
+        saved!.Should().HaveCount(2);
+        saved[0].Should().BeEquivalentTo(new { MatchupNumber = 1, Player1Id = 2, Player2Id = (int?)null });
+        saved[1].Should().BeEquivalentTo(new { MatchupNumber = 2, Player1Id = 3, Player2Id = (int?)4 });
+        // Groups are already on the course — no regrouping mid-round.
+        teeTimes.Verify(t => t.EnsureSlotsAsync(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()), Times.Never);
+        teeTimes.Verify(t => t.SetParticipantTeeTimeAsync(It.IsAny<int>(), It.IsAny<int?>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
