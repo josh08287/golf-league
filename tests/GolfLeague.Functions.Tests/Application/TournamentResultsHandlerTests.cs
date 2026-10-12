@@ -327,14 +327,27 @@ public class TournamentResultsHandlerTests
         result.Value!.MatchupResults.Select(r => r.MatchupNumber).Should().ContainInOrder(1, 2);
     }
 
+    /// <summary>A card of par-4 holes, one entry per hole, with the given net strokes (gross = net).</summary>
+    private static HoleScore[] Card(params int[] netByHole) =>
+        netByHole.Select((net, i) => new HoleScore
+        {
+            HoleNumber = i + 1,
+            Par = 4,
+            GrossStrokes = net,
+            NetStrokes = net,
+            NetStablefordPoints = Math.Max(0, 2 + 4 - net),
+            GrossStablefordPoints = Math.Max(0, 2 + 4 - net),
+        }).ToArray();
+
     [Fact]
     public async Task Handle_NetStrokeRanking_AscendingWithTieDetection()
     {
-        var alice = MakeParticipant(1, "Alice", totalNet: 70);
-        var bob = MakeParticipant(2, "Bob", totalNet: 70);
-        var carl = MakeParticipant(3, "Carl", totalNet: 75);
+        var alice = MakeParticipant(1, "Alice", holes: Card(4, 4, 3));   // 11
+        var bob = MakeParticipant(2, "Bob", holes: Card(3, 4, 4));       // 11
+        var carl = MakeParticipant(3, "Carl", holes: Card(5, 5, 4));     // 14
 
         var m = new Mocks();
+        m.WithCourseHoles(3);
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<RoundParticipant> { alice, bob, carl });
@@ -342,18 +355,19 @@ public class TournamentResultsHandlerTests
         var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
 
         var ranking = result.Value!.NetStrokeRanking;
-        ranking.Where(r => r.Score == 70).Should().OnlyContain(r => r.Rank == 1 && r.IsTied);
-        ranking.Single(r => r.Score == 75).Rank.Should().Be(3, "the two tied for rank 1 both occupy that rank, so the next distinct score is rank 3");
-        ranking.Single(r => r.Score == 75).IsTied.Should().BeFalse();
+        ranking.Where(r => r.Score == 11).Should().HaveCount(2).And.OnlyContain(r => r.Rank == 1 && r.IsTied);
+        ranking.Single(r => r.Score == 14).Rank.Should().Be(3, "the two tied for rank 1 both occupy that rank, so the next distinct score is rank 3");
+        ranking.Single(r => r.Score == 14).IsTied.Should().BeFalse();
     }
 
     [Fact]
     public async Task Handle_StablefordRankings_AreDescendingUnlikeStrokeRankings()
     {
-        var alice = MakeParticipant(1, "Alice", grossPoints: 30, netPoints: 32);
-        var bob = MakeParticipant(2, "Bob", grossPoints: 20, netPoints: 22);
+        var alice = MakeParticipant(1, "Alice", holes: Card(3, 3));  // 6 pts
+        var bob = MakeParticipant(2, "Bob", holes: Card(5, 5));      // 2 pts
 
         var m = new Mocks();
+        m.WithCourseHoles(2);
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
         m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
 
@@ -361,13 +375,14 @@ public class TournamentResultsHandlerTests
 
         result.Value!.GrossStablefordRanking.First().PlayerId.Should().Be(1, "higher Stableford points rank first");
         result.Value!.NetStablefordRanking.First().PlayerId.Should().Be(1);
+        result.Value!.NetStrokeRanking.First().PlayerId.Should().Be(1, "fewer strokes rank first");
     }
 
     [Fact]
-    public async Task Handle_RankingExcludesParticipantsWithNoScoreForThatMetric()
+    public async Task Handle_RankingExcludesParticipantsWithNoScoresYet()
     {
-        var scored = MakeParticipant(1, "Alice", totalNet: 70);
-        var notYetScored = MakeParticipant(2, "Bob", totalNet: null);
+        var scored = MakeParticipant(1, "Alice", holes: Card(4));
+        var notYetScored = MakeParticipant(2, "Bob");
 
         var m = new Mocks();
         m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
@@ -377,6 +392,31 @@ public class TournamentResultsHandlerTests
 
         result.Value!.NetStrokeRanking.Should().ContainSingle();
         result.Value!.NetStrokeRanking.Single().PlayerId.Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Handle_StrokeRankings_ShowRunningTotalAndThru_RankedAgainstParPlayed()
+    {
+        // Mid-round: Alice is +1 thru 9 (37), Bob is -1 thru 3 (11) and has no
+        // stored round total yet. Totals are the running sum of entered holes,
+        // and Bob leads on score vs par despite Alice having more holes in.
+        var alice = MakeParticipant(1, "Alice", holes: Card(4, 4, 4, 4, 4, 4, 4, 4, 5));
+        var bob = MakeParticipant(2, "Bob", holes: Card(4, 3, 4));
+        var carl = MakeParticipant(3, "Carl", holes: Card(Enumerable.Repeat(4, 18).ToArray()));
+
+        var m = new Mocks();
+        m.WithCourseHoles(18);
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(MakeRound());
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<RoundParticipant> { alice, bob, carl });
+
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+
+        var ranking = result.Value!.NetStrokeRanking;
+        ranking.Select(r => r.PlayerId).Should().Equal(2, 3, 1);
+        ranking[0].Should().BeEquivalentTo(new { Score = (int?)11, HolesCompleted = 3, IsFinished = false });
+        ranking[1].Should().BeEquivalentTo(new { Score = (int?)72, HolesCompleted = 18, IsFinished = true });
+        ranking[2].Should().BeEquivalentTo(new { Score = (int?)37, HolesCompleted = 9, IsFinished = false });
     }
 
     [Fact]
@@ -609,5 +649,86 @@ public class TournamentResultsHandlerTests
         holes.Select(h => h.HoleNumber).Should().Equal(Enumerable.Range(10, 9).Concat(Enumerable.Range(1, 9)));
         holes[4].StatusAfterHole.Should().Be(2, "2up through hole 14");
         holes.Skip(5).Should().OnlyContain(h => h.StatusAfterHole == null && !h.IsConceded);
+    }
+
+    /// <summary>
+    /// Builds a two-player field over holes 1..count where the given holes are won
+    /// outright (Alice or Bob, by gross) and every other hole is tied.
+    /// </summary>
+    private static (RoundParticipant Alice, RoundParticipant Bob) SkinsField(
+        int count, IEnumerable<int> aliceWins, IEnumerable<int> bobWins)
+    {
+        var a = aliceWins.ToHashSet();
+        var b = bobWins.ToHashSet();
+        var alice = MakeParticipant(1, "Alice", holes: Enumerable.Range(1, count)
+            .Select(n => MakeHole(n, gross: a.Contains(n) ? 3 : 4, net: a.Contains(n) ? 3 : 4)).ToArray());
+        var bob = MakeParticipant(2, "Bob", holes: Enumerable.Range(1, count)
+            .Select(n => MakeHole(n, gross: b.Contains(n) ? 3 : 4, net: b.Contains(n) ? 3 : 4)).ToArray());
+        return (alice, bob);
+    }
+
+    private static async Task<TournamentResultsDto> RunSkins(
+        RoundParticipant alice, RoundParticipant bob, int courseHoles, decimal? grossPool = null)
+    {
+        var round = MakeRound();
+        round.GrossSkinsPool = grossPool;
+        var m = new Mocks();
+        m.WithCourseHoles(courseHoles);
+        m.Rounds.Setup(r => r.GetByIdAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(round);
+        m.Rounds.Setup(r => r.GetParticipantsAsync(1, It.IsAny<CancellationToken>())).ReturnsAsync(new List<RoundParticipant> { alice, bob });
+        var result = await m.BuildSut().Handle(new GetTournamentResultsQuery(1), CancellationToken.None);
+        return result.Value!;
+    }
+
+    [Fact]
+    public async Task Handle_SkinsPool_PaysEachSkinPointEvenly_IncludingCarryover()
+    {
+        // Hole 1 tied, Alice wins hole 2 (1 + 1 carried = 2 points), Bob wins hole 3 (1 point).
+        // $30 pool / 3 points = $10 per point: Alice $20, Bob $10.
+        var (alice, bob) = SkinsField(3, aliceWins: [2], bobWins: [3]);
+
+        var results = await RunSkins(alice, bob, courseHoles: 3, grossPool: 30m);
+
+        var skins = results.GrossSkins;
+        skins.PerSkinPayout.Should().Be(10m);
+        skins.PlayerSummaries.Single(p => p.PlayerId == 1).Should().BeEquivalentTo(new { TotalSkinsWon = 1, TotalSkinValue = 2, PayoutAmount = (decimal?)20m });
+        skins.PlayerSummaries.Single(p => p.PlayerId == 2).Should().BeEquivalentTo(new { TotalSkinsWon = 1, TotalSkinValue = 1, PayoutAmount = (decimal?)10m });
+        skins.PlayerSummaries.Sum(p => p.PayoutAmount).Should().Be(30m, "the whole pool is paid out");
+    }
+
+    [Fact]
+    public async Task Handle_Skins_TrailingCarryoverWrapsFrom18ToFirstWonHole()
+    {
+        // Hole 1 tied, Bob wins hole 2, Alice wins hole 5, holes 17-18 tied.
+        // The 2 skins carried off 18 wrap around: hole 1 is a tie, so they land
+        // on hole 2 (Bob): 1 + 1 (from hole 1) + 2 (wrapped) = 4.
+        var (alice, bob) = SkinsField(18, aliceWins: [5], bobWins: [2]);
+        // Make holes 3-4 and 6-16 outright wins too so only 17-18 trail as ties.
+        foreach (var n in new[] { 3, 4 }.Concat(Enumerable.Range(6, 11)))
+            alice.HoleScores.First(h => h.HoleNumber == n).GrossStrokes = 3;
+
+        var results = await RunSkins(alice, bob, courseHoles: 18, grossPool: 180m);
+
+        var holes = results.GrossSkins.HoleResults;
+        holes.Single(h => h.HoleNumber == 2).Should().BeEquivalentTo(new { WinnerPlayerId = (int?)2, SkinValue = 4, WasCarryover = true });
+        holes.Where(h => h.HoleNumber is 17 or 18).Should().OnlyContain(h => h.IsTie);
+        var totalPoints = results.GrossSkins.PlayerSummaries.Sum(p => p.TotalSkinValue);
+        totalPoints.Should().Be(18, "every hole's skin is won by someone once carryover wraps");
+        results.GrossSkins.PerSkinPayout.Should().Be(10m);
+        results.GrossSkins.PlayerSummaries.Sum(p => p.PayoutAmount).Should().Be(180m);
+    }
+
+    [Fact]
+    public async Task Handle_Skins_TrailingCarryoverDoesNotWrapMidRound()
+    {
+        // Only 9 of 18 holes in, ending in a tie on 9: that carryover is still
+        // live for hole 10, so it must not wrap back to hole 1 yet.
+        var (alice, bob) = SkinsField(9, aliceWins: [1], bobWins: []);
+
+        var results = await RunSkins(alice, bob, courseHoles: 18);
+
+        var hole1 = results.GrossSkins.HoleResults.Single(h => h.HoleNumber == 1);
+        hole1.SkinValue.Should().Be(1);
+        hole1.WasCarryover.Should().BeFalse();
     }
 }

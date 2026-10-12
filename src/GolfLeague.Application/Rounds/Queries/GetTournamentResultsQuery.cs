@@ -32,6 +32,7 @@ public sealed record TournamentSkinsResultDto(
     List<TournamentSkinHoleDto> HoleResults,
     List<TournamentPlayerSkinDto> PlayerSummaries,
     decimal? PoolAmount,
+    /// <summary>Pool ÷ total skin points won — each point (a plain skin, or one unit of carryover) pays the same.</summary>
     decimal? PerSkinPayout);
 
 /// <summary>
@@ -77,6 +78,11 @@ public sealed record MatchPlayHoleDto(
     int? StatusAfterHole,
     bool IsConceded);
 
+/// <summary>
+/// Score is the player's current total over the holes entered so far (not
+/// just a finished card). HolesCompleted / IsFinished drive the leaderboard's
+/// "Thru" column (a hole count, or "F" once every hole of the round is in).
+/// </summary>
 public sealed record TournamentRankingEntryDto(
     int Rank,
     int PlayerId,
@@ -84,7 +90,9 @@ public sealed record TournamentRankingEntryDto(
     double HandicapIndex,
     int CourseHandicap,
     int? Score,
-    bool IsTied);
+    bool IsTied,
+    int HolesCompleted,
+    bool IsFinished);
 
 public sealed record LongestDriveWinnerDto(int TournamentFlightId, string FlightName, int? PlayerId, string? PlayerName);
 
@@ -100,6 +108,7 @@ public sealed record TournamentFlightHoleScoreDto(
     int? GrossStablefordPoints,
     int? NetStablefordPoints);
 
+/// <summary>Totals are running totals over the holes entered so far (null until a hole is scored).</summary>
 public sealed record TournamentFlightPlayerDto(
     int PlayerId,
     string PlayerName,
@@ -108,7 +117,9 @@ public sealed record TournamentFlightPlayerDto(
     int? TotalGrossStrokes,
     int? TotalNetStrokes,
     int? TotalGrossStablefordPoints,
-    int? TotalNetStablefordPoints);
+    int? TotalNetStablefordPoints,
+    int HolesCompleted,
+    bool IsFinished);
 
 public sealed record TournamentFlightDto(int Id, int FlightNumber, string Name, List<int> PlayerIds, List<TournamentFlightPlayerDto> Players);
 
@@ -181,8 +192,6 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         var skinsField = round.SubstitutesCanWinSkins
             ? participants.Where(p => !p.IsWithdrawn && !p.SkippedWeek && p.HoleScores.Any()).ToList()
             : active;
-        var grossSkins = CalculateSkins(skinsField, useNet: false, round.GrossSkinsPool);
-        var netSkins = CalculateSkins(skinsField, useNet: true, round.NetSkinsPool);
         // Course Handicap is known at tee-off regardless of scoring, so look matchup
         // players up in the full roster (not `active`, which requires a submitted
         // score) — otherwise CH shows as 0 for every matchup until scores start.
@@ -214,24 +223,36 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             e.LongestDrivePlayerId,
             e.LongestDrivePlayer?.FullName)).ToList();
 
-        var grossStrokeRanking = BuildRanking(active, p => p.TotalGrossStrokes, ascending: true);
-        var netStrokeRanking = BuildRanking(active, p => p.TotalNetStrokes, ascending: true);
-        var grossStablefordRanking = BuildRanking(active, p => p.TotalGrossStablefordPoints, ascending: false);
-        var netStablefordRanking = BuildRanking(active, p => p.TotalNetStablefordPoints, ascending: false);
+        var roundHoleCount = roundHoleNumbers.Count;
+        var grossSkins = CalculateSkins(skinsField, useNet: false, round.GrossSkinsPool, roundHoleNumbers);
+        var netSkins = CalculateSkins(skinsField, useNet: true, round.NetSkinsPool, roundHoleNumbers);
+        var grossStrokeRanking = BuildRanking(active, h => h.GrossStrokes, ascending: true, rankByPar: true, roundHoleCount);
+        var netStrokeRanking = BuildRanking(active, h => h.NetStrokes, ascending: true, rankByPar: true, roundHoleCount);
+        var grossStablefordRanking = BuildRanking(active, h => h.GrossStablefordPoints, ascending: false, rankByPar: false, roundHoleCount);
+        var netStablefordRanking = BuildRanking(active, h => h.NetStablefordPoints, ascending: false, rankByPar: false, roundHoleCount);
 
-        static TournamentFlightPlayerDto ToFlightPlayerDto(RoundParticipant p) => new(
-            p.PlayerId,
-            p.Player.FullName,
-            p.CourseHandicap,
-            p.HoleScores
-                .OrderBy(h => h.HoleNumber)
-                .Select(h => new TournamentFlightHoleScoreDto(
-                    h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes, h.GrossStablefordPoints, h.NetStablefordPoints))
-                .ToList(),
-            p.TotalGrossStrokes,
-            p.TotalNetStrokes,
-            p.TotalGrossStablefordPoints,
-            p.TotalNetStablefordPoints);
+        // Totals are summed from the hole scores rather than read from the
+        // participant's stored totals, which group score entry only fills in
+        // once a card is complete — the leaderboard shows the round as it stands.
+        TournamentFlightPlayerDto ToFlightPlayerDto(RoundParticipant p)
+        {
+            var hs = p.HoleScores;
+            var any = hs.Count > 0;
+            return new(
+                p.PlayerId,
+                p.Player.FullName,
+                p.CourseHandicap,
+                hs.OrderBy(h => h.HoleNumber)
+                    .Select(h => new TournamentFlightHoleScoreDto(
+                        h.HoleNumber, h.GrossStrokes, h.NetStrokes, h.HandicapStrokes, h.GrossStablefordPoints, h.NetStablefordPoints))
+                    .ToList(),
+                any ? hs.Sum(h => h.GrossStrokes) : null,
+                any ? hs.Sum(h => h.NetStrokes) : null,
+                any ? hs.Sum(h => h.GrossStablefordPoints) : null,
+                any ? hs.Sum(h => h.NetStablefordPoints) : null,
+                hs.Count,
+                roundHoleCount > 0 && hs.Count >= roundHoleCount);
+        }
 
         var flightDtos = flights
             .Select(f =>
@@ -291,7 +312,19 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         return Result<TournamentResultsDto>.Ok(result);
     }
 
-    private static TournamentSkinsResultDto CalculateSkins(List<RoundParticipant> participants, bool useNet, decimal? poolAmount)
+    /// <summary>
+    /// Skins over the field, hole by hole in hole-number order. A tie for the low
+    /// score carries the skin to the next hole. Once every hole of the round has
+    /// been scored, carryover still unclaimed after the last hole wraps around
+    /// (18 → 1 for an 18-hole round) and goes to the first hole that had an
+    /// outright winner. The pool is split evenly per skin point won, so a hole
+    /// worth 3 (1 + 2 carried) pays three times a plain skin.
+    /// </summary>
+    private static TournamentSkinsResultDto CalculateSkins(
+        List<RoundParticipant> participants,
+        bool useNet,
+        decimal? poolAmount,
+        IReadOnlyList<int> roundHoleNumbers)
     {
         var skinType = useNet ? "Net" : "Gross";
         var holeNumbers = participants
@@ -300,10 +333,6 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             .Distinct()
             .OrderBy(h => h)
             .ToList();
-
-        var playerAccumulators = participants.ToDictionary(
-            p => p.PlayerId,
-            p => new PlayerSkinAccumulator(p.PlayerId, p.Player.FullName));
 
         var holeResults = new List<TournamentSkinHoleDto>();
         int carryover = 0;
@@ -331,15 +360,12 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
 
             var minScore = scores.Min(s => s.Score);
             var lowest = scores.Where(s => s.Score == minScore).ToList();
-            int skinValue = 1 + carryover;
             var par = scores[0].Par;
 
             if (lowest.Count == 1)
             {
                 var winner = lowest[0];
-                var holeSkin = new TournamentSkinHoleDto(holeNumber, par, skinValue, winner.PlayerId, winner.FullName, minScore, carryover > 0, false);
-                holeResults.Add(holeSkin);
-                playerAccumulators[winner.PlayerId].Add(holeSkin);
+                holeResults.Add(new TournamentSkinHoleDto(holeNumber, par, 1 + carryover, winner.PlayerId, winner.FullName, minScore, carryover > 0, false));
                 carryover = 0;
             }
             else
@@ -349,9 +375,28 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             }
         }
 
-        var totalSkinsWon = playerAccumulators.Values.Sum(a => a.TotalSkinsWon);
-        var perSkinPayout = poolAmount is decimal pool && totalSkinsWon > 0
-            ? pool / totalSkinsWon
+        // Wrap a trailing carryover back to the start of the round, but only once
+        // the whole round is in — mid-round, the next hole may still decide it.
+        var roundComplete = roundHoleNumbers.Count > 0 && roundHoleNumbers.All(holeNumbers.Contains);
+        if (carryover > 0 && roundComplete)
+        {
+            var firstWonIndex = holeResults.FindIndex(h => !h.IsTie);
+            if (firstWonIndex >= 0)
+            {
+                var first = holeResults[firstWonIndex];
+                holeResults[firstWonIndex] = first with { SkinValue = first.SkinValue + carryover, WasCarryover = true };
+            }
+        }
+
+        var playerAccumulators = participants.ToDictionary(
+            p => p.PlayerId,
+            p => new PlayerSkinAccumulator(p.PlayerId, p.Player.FullName));
+        foreach (var hole in holeResults.Where(h => h.WinnerPlayerId is not null))
+            playerAccumulators[hole.WinnerPlayerId!.Value].Add(hole);
+
+        var totalSkinPoints = playerAccumulators.Values.Sum(a => a.TotalSkinValue);
+        var perSkinPayout = poolAmount is decimal pool && totalSkinPoints > 0
+            ? pool / totalSkinPoints
             : (decimal?)null;
 
         var playerSummaries = playerAccumulators.Values
@@ -360,7 +405,7 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
             .ThenByDescending(a => a.TotalSkinsWon)
             .Select(a => new TournamentPlayerSkinDto(
                 a.PlayerId, a.PlayerName, a.TotalSkinsWon, a.TotalSkinValue, a.HolesWon,
-                perSkinPayout is decimal perSkin ? perSkin * a.TotalSkinsWon : null))
+                perSkinPayout is decimal perPoint ? perPoint * a.TotalSkinValue : null))
             .ToList();
 
         return new TournamentSkinsResultDto(skinType, holeResults, playerSummaries, poolAmount, perSkinPayout);
@@ -576,35 +621,46 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
         return result;
     }
 
+    /// <summary>
+    /// Ranks players on their current total over the holes entered so far.
+    /// Stroke rankings (rankByPar) order by score relative to par for the holes
+    /// played, so a player thru 3 isn't ranked ahead of one thru 9 just for
+    /// having fewer strokes on the card; ties break toward more holes completed.
+    /// Stableford rankings order by points as-is (points are already relative to par).
+    /// </summary>
     private static List<TournamentRankingEntryDto> BuildRanking(
         List<RoundParticipant> participants,
-        Func<RoundParticipant, int?> scoreSelector,
-        bool ascending)
+        Func<HoleScore, int> holeValue,
+        bool ascending,
+        bool rankByPar,
+        int roundHoleCount)
     {
         var withScores = participants
-            .Where(p => scoreSelector(p).HasValue)
-            .Select(p => new { Participant = p, Score = scoreSelector(p)!.Value })
+            .Where(p => p.HoleScores.Count > 0)
+            .Select(p =>
+            {
+                var score = p.HoleScores.Sum(holeValue);
+                var sortKey = rankByPar ? score - p.HoleScores.Sum(h => h.Par) : score;
+                return new { Participant = p, Score = score, SortKey = sortKey, Holes = p.HoleScores.Count };
+            })
             .ToList();
 
-        var ordered = ascending
-            ? withScores.OrderBy(x => x.Score).ToList()
-            : withScores.OrderByDescending(x => x.Score).ToList();
+        var ordered = (ascending
+                ? withScores.OrderBy(x => x.SortKey)
+                : withScores.OrderByDescending(x => x.SortKey))
+            .ThenByDescending(x => x.Holes)
+            .ToList();
 
         var rankings = new List<TournamentRankingEntryDto>();
         int rank = 1;
         for (int i = 0; i < ordered.Count; i++)
         {
-            if (i > 0 && ordered[i].Score == ordered[i - 1].Score)
-            {
-                // Tied — use same rank as previous
-            }
-            else
-            {
+            // Tied entries share the previous rank.
+            if (i == 0 || ordered[i].SortKey != ordered[i - 1].SortKey)
                 rank = i + 1;
-            }
 
-            bool isTied = (i > 0 && ordered[i].Score == ordered[i - 1].Score)
-                       || (i < ordered.Count - 1 && ordered[i].Score == ordered[i + 1].Score);
+            bool isTied = (i > 0 && ordered[i].SortKey == ordered[i - 1].SortKey)
+                       || (i < ordered.Count - 1 && ordered[i].SortKey == ordered[i + 1].SortKey);
 
             rankings.Add(new TournamentRankingEntryDto(
                 rank,
@@ -613,7 +669,9 @@ public sealed class GetTournamentResultsQueryHandler : IRequestHandler<GetTourna
                 ordered[i].Participant.HandicapIndex,
                 ordered[i].Participant.CourseHandicap,
                 ordered[i].Score,
-                isTied));
+                isTied,
+                ordered[i].Holes,
+                roundHoleCount > 0 && ordered[i].Holes >= roundHoleCount));
         }
 
         return rankings;

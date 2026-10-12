@@ -1057,8 +1057,11 @@ export interface TournamentRankingEntry {
   playerName: string;
   handicapIndex: number;
   courseHandicap: number;
+  /** Current total over the holes entered so far. */
   score: number | null;
   isTied: boolean;
+  holesCompleted: number;
+  isFinished: boolean;
 }
 
 export interface LongestDriveWinner {
@@ -1087,6 +1090,8 @@ export interface TournamentFlightPlayer {
   totalNetStrokes: number | null;
   totalGrossStablefordPoints: number | null;
   totalNetStablefordPoints: number | null;
+  holesCompleted: number;
+  isFinished: boolean;
 }
 
 export interface TournamentFlight {

@@ -111,7 +111,7 @@ function SkinsPanel({ skins }: { skins: TournamentSkinsResult }) {
         {skins.poolAmount != null && (
           <span className="text-sm text-gray-500">
             Pool: ${skins.poolAmount.toFixed(2)}
-            {skins.perSkinPayout != null && ` ($${skins.perSkinPayout.toFixed(2)}/skin)`}
+            {skins.perSkinPayout != null && ` ($${skins.perSkinPayout.toFixed(2)}/pt)`}
           </span>
         )}
       </div>
@@ -241,6 +241,12 @@ function HoleExtrasPanel({
 
 // ── Flights ───────────────────────────────────────────────────────────────────
 
+/** Leaderboard "Thru" cell: holes completed so far, or F once the card is finished. */
+function formatThru(holesCompleted: number, isFinished: boolean): string {
+  if (isFinished) return 'F';
+  return holesCompleted > 0 ? String(holesCompleted) : '—';
+}
+
 function FlightScorecard({
   flight,
   holes,
@@ -250,17 +256,24 @@ function FlightScorecard({
   holes: TournamentCourseHole[];
   useGrossPoints: boolean;
 }) {
-  // Leaderboard order: lowest score at the top, same convention as a normal
-  // golf leaderboard. Players with no score yet (nothing posted) sort to the
-  // bottom rather than showing a meaningless 0.
+  // Leaderboard order: best score relative to par for the holes played so far
+  // at the top (so a player thru 3 isn't ranked ahead of one thru 9 just for
+  // having fewer strokes on the card), ties going to whoever has played more.
+  // Players with no score yet sort to the bottom rather than showing a 0.
+  const parByHole = new Map(holes.map((h) => [h.holeNumber, h.par]));
   const scoreOf = (p: TournamentFlightPlayer) => (useGrossPoints ? p.totalGrossStrokes : p.totalNetStrokes);
+  const toParOf = (p: TournamentFlightPlayer) => {
+    const score = scoreOf(p);
+    if (score == null) return null;
+    return score - p.holeScores.reduce((sum, h) => sum + (parByHole.get(h.holeNumber) ?? 0), 0);
+  };
   const sortedPlayers = [...flight.players].sort((a, b) => {
-    const scoreA = scoreOf(a);
-    const scoreB = scoreOf(b);
-    if (scoreA == null && scoreB == null) return a.courseHandicap - b.courseHandicap;
-    if (scoreA == null) return 1;
-    if (scoreB == null) return -1;
-    return scoreA - scoreB;
+    const toParA = toParOf(a);
+    const toParB = toParOf(b);
+    if (toParA == null && toParB == null) return a.courseHandicap - b.courseHandicap;
+    if (toParA == null) return 1;
+    if (toParB == null) return -1;
+    return toParA - toParB || b.holesCompleted - a.holesCompleted;
   });
 
   if (holes.length === 0) {
@@ -293,6 +306,7 @@ function FlightScorecard({
               <th className="px-2 py-1 text-center font-semibold text-gray-600">
                 {useGrossPoints ? 'Gross' : 'Net'}
               </th>
+              <th className="px-2 py-1 text-center font-semibold text-gray-600">Thru</th>
             </tr>
             <tr className="text-gray-300">
               <th />
@@ -302,6 +316,7 @@ function FlightScorecard({
                   {h.par}
                 </th>
               ))}
+              <th />
               <th />
             </tr>
           </thead>
@@ -337,6 +352,7 @@ function FlightScorecard({
                   <td className="px-2 py-1.5 text-center font-semibold text-gray-800">
                     {score ?? <span className="text-gray-300">—</span>}
                   </td>
+                  <td className="px-2 py-1.5 text-center text-gray-500">{formatThru(p.holesCompleted, p.isFinished)}</td>
                 </tr>
               );
             })}
@@ -779,11 +795,14 @@ function RankingTable({
   entries,
   scoreLabel,
   ascending,
+  showThru = false,
 }: {
   title: string;
   entries: TournamentRankingEntry[];
   scoreLabel: string;
   ascending: boolean;
+  /** Adds a "Thru" column (holes completed, or F when finished). */
+  showThru?: boolean;
 }) {
   return (
     <div>
@@ -799,6 +818,7 @@ function RankingTable({
                 <th className="px-3 py-2 text-left">Player</th>
                 <th className="px-3 py-2 text-center">HCP</th>
                 <th className="px-3 py-2 text-center">{scoreLabel}</th>
+                {showThru && <th className="px-3 py-2 text-center">Thru</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -829,6 +849,9 @@ function RankingTable({
                         : `+${e.score}`
                       : '—'}
                   </td>
+                  {showThru && (
+                    <td className="px-3 py-2 text-center text-gray-500">{formatThru(e.holesCompleted, e.isFinished)}</td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -1255,12 +1278,14 @@ export function TournamentResultsBody({ results }: { results: TournamentResults 
                 entries={results.grossStrokeRanking}
                 scoreLabel="Gross"
                 ascending={true}
+                showThru
               />
               <RankingTable
                 title="Net Stroke Play"
                 entries={results.netStrokeRanking}
                 scoreLabel="Net"
                 ascending={true}
+                showThru
               />
               <RankingTable
                 title="Gross Stableford"

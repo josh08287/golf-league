@@ -102,11 +102,13 @@ class TournamentResultsScreen extends ConsumerWidget {
                   title: 'Gross Stroke Play',
                   entries: results.grossStrokeRanking,
                   scoreLabel: 'Gross',
+                  showThru: true,
                 ),
                 _RankingCard(
                   title: 'Net Stroke Play',
                   entries: results.netStrokeRanking,
                   scoreLabel: 'Net',
+                  showThru: true,
                 ),
                 _RankingCard(
                   title: 'Gross Stableford',
@@ -536,11 +538,15 @@ class _RankingCard extends StatelessWidget {
     required this.title,
     required this.entries,
     required this.scoreLabel,
+    this.showThru = false,
   });
 
   final String title;
   final List<TournamentRankingEntry> entries;
   final String scoreLabel;
+
+  /// Adds a "Thru" value (holes completed, or F when finished).
+  final bool showThru;
 
   @override
   Widget build(BuildContext context) {
@@ -617,6 +623,20 @@ class _RankingCard extends StatelessWidget {
                         e.score != null ? '${e.score} $scoreLabel' : '—',
                         style: const TextStyle(fontWeight: FontWeight.w700),
                       ),
+                      if (showThru) ...[
+                        const SizedBox(width: 12),
+                        SizedBox(
+                          width: 44,
+                          child: Text(
+                            'Thru ${e.thru}',
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Color(0xFF6B7280),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),

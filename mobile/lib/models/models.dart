@@ -1338,14 +1338,23 @@ class TournamentRankingEntry {
     required this.handicapIndex,
     this.score,
     required this.isTied,
+    this.holesCompleted = 0,
+    this.isFinished = false,
   });
 
   final int rank;
   final int playerId;
   final String playerName;
   final double handicapIndex;
+
+  /// Current total over the holes entered so far.
   final int? score;
   final bool isTied;
+  final int holesCompleted;
+  final bool isFinished;
+
+  /// Leaderboard "Thru": holes completed so far, or F once finished.
+  String get thru => isFinished ? 'F' : (holesCompleted > 0 ? '$holesCompleted' : '—');
 
   factory TournamentRankingEntry.fromJson(Map<String, dynamic> j) =>
       TournamentRankingEntry(
@@ -1355,6 +1364,8 @@ class TournamentRankingEntry {
         handicapIndex: (j['handicapIndex'] as num? ?? 0).toDouble(),
         score: (j['score'] as num?)?.toInt(),
         isTied: j['isTied'] as bool? ?? false,
+        holesCompleted: (j['holesCompleted'] as num? ?? 0).toInt(),
+        isFinished: j['isFinished'] as bool? ?? false,
       );
 }
 
