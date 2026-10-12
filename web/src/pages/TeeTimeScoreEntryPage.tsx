@@ -817,9 +817,13 @@ interface ScoreSummaryProps {
   canEdit: boolean;
   /** Final side game standings, shown right under the Round Complete banner. */
   sideGameResults?: React.ReactNode;
+  /** Returns to hole-by-hole entry on the given hole so a score can be corrected. */
+  onEditHole: (holeNumber: number) => void;
+  /** Returns to hole-by-hole entry on the last hole viewed. */
+  onBack: () => void;
 }
 
-function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit, sideGameResults }: ScoreSummaryProps) {
+function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit, sideGameResults, onEditHole, onBack }: ScoreSummaryProps) {
   const playerSummaries = useMemo(() => {
     return players.map((player) => {
       let totalGross = 0;
@@ -868,8 +872,16 @@ function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit,
         </div>
         <p className="text-sm text-green-700">
           Review the scores below and submit for admin approval.
+          {canEdit && ' Tap a hole to go back and correct its scores.'}
         </p>
       </div>
+
+      {canEdit && (
+        <Button variant="outline" onClick={onBack} className="w-full">
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Back to Scorecard
+        </Button>
+      )}
 
       {sideGameResults}
 
@@ -918,9 +930,19 @@ function ScoreSummary({ players, holes, scores, onSubmit, isSubmitting, canEdit,
                           <td className="pr-2 text-left font-medium text-gray-700">Score</td>
                           {holes.map((hole) => {
                             const gross = scores[summary.player.playerId]?.[hole.holeNumber];
+                            const display = gross === '' || gross === undefined || gross === null ? '—' : gross;
                             return (
-                              <td key={hole.holeNumber} className="px-1 font-semibold text-gray-900">
-                                {gross === '' || gross === undefined || gross === null ? '—' : gross}
+                              <td key={hole.holeNumber} className="px-0.5 font-semibold text-gray-900">
+                                {canEdit ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditHole(hole.holeNumber)}
+                                    title={`Edit hole ${hole.holeNumber}`}
+                                    className="min-w-[1.5rem] rounded px-1 py-0.5 underline decoration-dotted underline-offset-2 hover:bg-green-50 hover:text-[#1B5E20]"
+                                  >
+                                    {display}
+                                  </button>
+                                ) : display}
                               </td>
                             );
                           })}
@@ -1236,6 +1258,11 @@ export function TeeTimeScoreEntryPage() {
   const allHolesComplete = holes.length > 0 && holes.every((h) => isHoleComplete(h.holeNumber));
 
   const seededOnceRef = useRef(false);
+  // Set when jumping back from the review screen to correct a hole: local
+  // state already holds what the user just reviewed (including scanned
+  // scores that aren't saved until Submit), so the per-hole refetch must not
+  // overwrite it. Concurrent edits are still caught by the save conflict check.
+  const skipNextHoleRefetchRef = useRef(false);
 
   const mergeHoleFromScorecard = useCallback((holeNumber: number, fresh: TeeTimeGroupScorecard) => {
     setScores((prev) => {
@@ -1332,6 +1359,10 @@ export function TeeTimeScoreEntryPage() {
   // when the bulk seed completes.
   useEffect(() => {
     if (!scorecard || !currentHole) return;
+    if (skipNextHoleRefetchRef.current) {
+      skipNextHoleRefetchRef.current = false;
+      return;
+    }
 
     let cancelled = false;
     setIsRefetchingHole(true);
@@ -1499,6 +1530,15 @@ export function TeeTimeScoreEntryPage() {
     } else {
       setCurrentHoleIndex((prev) => (prev - 1 + holes.length) % holes.length);
     }
+  };
+
+  const handleEditHoleFromSummary = (holeNumber: number) => {
+    const idx = holes.findIndex((h) => h.holeNumber === holeNumber);
+    if (idx >= 0 && idx !== currentHoleIndex) {
+      skipNextHoleRefetchRef.current = true;
+      setCurrentHoleIndex(idx);
+    }
+    setShowSummary(false);
   };
 
   const handleSubmit = async () => {
@@ -1778,6 +1818,8 @@ export function TeeTimeScoreEntryPage() {
           isSubmitting={submitScores.isPending}
           canEdit={canEdit}
           sideGameResults={<SideGamesStatusBar teeTimeId={teeTimeIdNum} enabled={sideGamesEnabled} final />}
+          onEditHole={handleEditHoleFromSummary}
+          onBack={() => setShowSummary(false)}
         />
       ) : currentHole ? (
         <>
