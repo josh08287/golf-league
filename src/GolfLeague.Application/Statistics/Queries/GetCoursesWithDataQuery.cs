@@ -1,4 +1,5 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.Statistics;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -12,21 +13,22 @@ public sealed class GetCoursesWithDataQueryHandler
     : IRequestHandler<GetCoursesWithDataQuery, Result<List<int>>>
 {
     private readonly IRoundRepository _roundRepository;
+    private readonly IFlightRepository _flightRepository;
 
-    public GetCoursesWithDataQueryHandler(IRoundRepository roundRepository)
+    public GetCoursesWithDataQueryHandler(IRoundRepository roundRepository, IFlightRepository flightRepository)
     {
         _roundRepository = roundRepository;
+        _flightRepository = flightRepository;
     }
 
     public async Task<Result<List<int>>> Handle(
         GetCoursesWithDataQuery request,
         CancellationToken cancellationToken)
     {
-        var rounds = request.HalfId is int halfId
-            ? await _roundRepository.GetByHalfAsync(halfId, cancellationToken)
-            : request.SeasonId is int seasonId
-                ? await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken)
-                : await _roundRepository.GetAllAsync(cancellationToken);
+        // Includes tournament rounds (which have no half), so a course that has
+        // only hosted tournaments still shows up.
+        var rounds = await StatisticsPeriodRounds.GetAsync(
+            _roundRepository, _flightRepository, request.SeasonId, request.HalfId, cancellationToken);
 
         var courseIds = rounds
             .Where(r => r.Status == RoundStatus.Finalized)

@@ -1,4 +1,5 @@
 using GolfLeague.Application.Common;
+using GolfLeague.Application.Statistics;
 using GolfLeague.Domain.Enums;
 using GolfLeague.Domain.Interfaces;
 using MediatR;
@@ -52,13 +53,16 @@ public sealed class GetCourseStatisticsQueryHandler
 {
     private readonly ICourseRepository _courseRepository;
     private readonly IRoundRepository _roundRepository;
+    private readonly IFlightRepository _flightRepository;
 
     public GetCourseStatisticsQueryHandler(
         ICourseRepository courseRepository,
-        IRoundRepository roundRepository)
+        IRoundRepository roundRepository,
+        IFlightRepository flightRepository)
     {
         _courseRepository = courseRepository;
         _roundRepository = roundRepository;
+        _flightRepository = flightRepository;
     }
 
     public async Task<Result<CourseStatisticsDto>> Handle(
@@ -70,11 +74,8 @@ public sealed class GetCourseStatisticsQueryHandler
             return Result<CourseStatisticsDto>.Fail($"Course with ID {request.CourseId} not found.");
 
         var holes = await _courseRepository.GetHolesAsync(request.CourseId, cancellationToken);
-        var allRounds = request.HalfId is int halfId
-            ? await _roundRepository.GetByHalfAsync(halfId, cancellationToken)
-            : request.SeasonId is int seasonId
-                ? await _roundRepository.GetBySeasonAsync(seasonId, cancellationToken)
-                : await _roundRepository.GetAllAsync(cancellationToken);
+        var allRounds = await StatisticsPeriodRounds.GetAsync(
+            _roundRepository, _flightRepository, request.SeasonId, request.HalfId, cancellationToken);
         var courseRounds = allRounds
             .Where(r => r.CourseId == request.CourseId && r.Status == RoundStatus.Finalized)
             .ToList();
@@ -185,10 +186,13 @@ public sealed class GetCourseStatisticsQueryHandler
         var backPar = holes.Where(h => h.HoleNumber > 9).Sum(h => h.Par);
         var fullPar = holes.Sum(h => h.Par);
 
-        int NineHolePar(Domain.Entities.Round r) => r.NineHoleSide switch
+        // Par for the holes a round covers: a nine for weekly rounds, the full
+        // course for 18-hole (NotApplicable) rounds such as tournaments.
+        int RoundPar(Domain.Entities.Round r) => r.NineHoleSide switch
         {
             NineHoleSide.Back => backPar,
-            _ => frontPar, // Front or NotApplicable defaults to front
+            NineHoleSide.Front => frontPar,
+            _ => fullPar,
         };
 
         var dto = new CourseStatisticsDto(
@@ -202,7 +206,7 @@ public sealed class GetCourseStatisticsQueryHandler
             validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalNetStrokes ?? 0), 1) : null,
             validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStablefordPoints ?? 0), 1) : null,
             validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalNetStablefordPoints ?? 0), 1) : null,
-            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStrokes!.Value - NineHolePar(e.Round)), 1) : null,
+            validEntries.Count > 0 ? Math.Round(validEntries.Average(e => e.Participant.TotalGrossStrokes!.Value - RoundPar(e.Round)), 1) : null,
             ranked);
 
         return Result<CourseStatisticsDto>.Ok(dto);
