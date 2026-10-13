@@ -12,5 +12,12 @@ public sealed class RefreshToken
     public DateTime ExpiresAt { get; set; }
     public DateTime? RevokedAt { get; set; }
 
+    /// <summary>
+    /// League the session was scoped to when this token was issued. A refresh
+    /// that doesn't name a league keeps this one, so a background refresh can't
+    /// silently drop league scope (which for a SuperAdmin means every league).
+    /// </summary>
+    public int? LeagueId { get; set; }
+
     public bool IsActive => RevokedAt is null && ExpiresAt > DateTime.UtcNow;
 }

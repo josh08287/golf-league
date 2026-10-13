@@ -166,7 +166,8 @@ public sealed class AuthService : IAuthService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         var user = stored.User!;
-        var (resolvedLeagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId, cancellationToken);
+        // Keep the session's league unless the client explicitly switches leagues.
+        var (resolvedLeagueId, leagueRole) = await ResolveLeagueAsync(user, leagueId ?? stored.LeagueId, cancellationToken);
         var response = await IssueTokensAsync(user, cancellationToken, resolvedLeagueId, leagueRole);
         return Result<AuthResponseDto>.Ok(response);
     }
@@ -559,6 +560,7 @@ public sealed class AuthService : IAuthService
             TokenHash = _tokenService.HashRefreshToken(refreshPlaintext),
             CreatedAt = DateTime.UtcNow,
             ExpiresAt = DateTime.UtcNow.Add(RefreshTokenLifetime),
+            LeagueId = leagueId,
         };
         _dbContext.RefreshTokens.Add(refresh);
         await _dbContext.SaveChangesAsync(cancellationToken);

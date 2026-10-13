@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useActiveLeagueStore } from '@/store/activeLeagueStore';
 
 const ACCESS_KEY = 'golf-league-access';
 const REFRESH_KEY = 'golf-league-refresh';
@@ -163,11 +164,18 @@ let pendingRefresh: Promise<string | null> | null = null;
 export async function refresh(leagueId?: number): Promise<string | null> {
   if (pendingRefresh) return pendingRefresh;
 
+  // Background refreshes (request interceptor, getCurrentUser) don't pass a
+  // league. Without one the server issues an unscoped token, which for a
+  // SuperAdmin means data from every league — so keep the selected league,
+  // falling back to the one on the current token.
+  const scopedLeagueId =
+    leagueId ?? useActiveLeagueStore.getState().activeLeague?.leagueId ?? getTokenLeagueId() ?? undefined;
+
   pendingRefresh = (async () => {
     const refreshToken = getRefreshToken();
     if (!refreshToken) return null;
     try {
-      const res = await authClient.post('/auth/refresh', { refreshToken, leagueId });
+      const res = await authClient.post('/auth/refresh', { refreshToken, leagueId: scopedLeagueId });
       const data = unwrap<AuthResponse>(res.data);
       storeAuthResponse(data);
       return data.accessToken;
