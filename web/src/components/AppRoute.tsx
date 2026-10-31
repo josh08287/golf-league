@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getTokenLeagueId, refresh, getCurrentUser, hasStoredSession, clearAuth } from '@/lib/auth';
 import { useAuthStore } from '@/store/authStore';
 import { Spinner } from '@/components/ui/Spinner';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 
 export function AppRoute() {
   const { user, bootstrapping, retry } = useAuth();
@@ -94,8 +95,8 @@ export function AppRoute() {
     if (hasStoredSession()) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-gray-50 px-4 text-center">
-          <span className="text-5xl" role="img" aria-label="golf flag">⛳</span>
-          <h1 className="text-xl font-bold text-gray-900">Connecting to server…</h1>
+          <GolfLogo variant="badge" size="xl" />
+          <h1 className="font-serif text-xl font-bold text-gray-900">Connecting to server…</h1>
           <p className="max-w-md text-sm text-gray-500">
             The application is resuming from standby. This can take a moment on cold start.
           </p>
@@ -125,8 +126,8 @@ export function AppRoute() {
   if (hasNoLeagues) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 text-center bg-gray-50 px-4">
-        <span className="text-5xl">⛳</span>
-        <h1 className="text-xl font-bold text-gray-900">You're in — welcome!</h1>
+        <GolfLogo variant="badge" size="xl" />
+        <h1 className="font-serif text-xl font-bold text-gray-900">You're in — welcome!</h1>
         <p className="text-sm text-gray-500 max-w-xs">
           Your account has been created. The league admin will add you to the roster shortly.
           Try refreshing in a moment.

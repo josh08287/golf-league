@@ -7,6 +7,7 @@ import { useInviteByToken, useAcceptInvite } from '@/hooks/useAcceptInvite';
 import { useAuth } from '@/hooks/useAuth';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
+import { GolfLogo } from '@/components/ui/GolfLogo';
 import { useQueryClient } from '@tanstack/react-query';
 import { myStatusKeys } from '@/hooks/useMyStatus';
 
@@ -77,8 +78,8 @@ export function AcceptInvitePage() {
     return (
       <div className="flex min-h-[70vh] items-center justify-center">
         <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md text-center">
-          <span className="text-5xl" role="img" aria-label="golf">⛳</span>
-          <h1 className="mt-4 text-xl font-bold text-gray-900">You've been invited!</h1>
+          <GolfLogo variant="badge" size="xl" className="mx-auto" />
+          <h1 className="mt-4 font-serif text-xl font-bold text-gray-900">You've been invited!</h1>
           <p className="mt-2 text-sm text-gray-500">Sign in or create an account to join the league.</p>
           <p className="mt-1 text-xs text-gray-400">Invite for: <strong>{invite.email}</strong></p>
           <Button className="mt-6 w-full" size="lg" onClick={() => navigate(`/login?next=${returnTo}`)}>
@@ -107,8 +108,8 @@ export function AcceptInvitePage() {
   return (
     <div className="flex min-h-[70vh] items-center justify-center">
       <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-8 shadow-md">
-        <span className="text-4xl" role="img" aria-label="golf">⛳</span>
-        <h1 className="mt-3 text-2xl font-bold text-gray-900">Join the League</h1>
+        <GolfLogo variant="badge" size="lg" />
+        <h1 className="mt-3 font-serif text-2xl font-bold text-gray-900">Join the League</h1>
         <p className="mt-1 text-sm text-gray-500">Confirm your details to complete your registration.</p>
 
         {invite?.preLinkedPlayerName && (

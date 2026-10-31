@@ -42,22 +42,28 @@ function RoundRow({ round, highlight = false }: { round: Round; highlight?: bool
   return (
     <Link
       to={isTournament ? `/rounds/${round.id}/tournament-results` : `/rounds/${round.id}`}
-      className={`flex items-center justify-between rounded-lg border bg-white px-5 py-4 hover:shadow-sm hover:border-primary-300 transition-all ${
-        highlight ? 'border-primary-300 ring-1 ring-primary-200' : 'border-gray-200'
+      className={`group flex items-center justify-between rounded-md border bg-white px-5 py-4 shadow-[0_1px_2px_rgba(20,34,24,0.04)] hover:border-primary-700 transition-colors ${
+        highlight ? 'border-l-4 border-l-[#C89B3C] border-gray-200 bg-[#FAF6EC]/35' : 'border-gray-200'
       }`}
     >
-      <div className="min-w-0">
-        <p className="font-semibold text-gray-900 truncate">
-          {round.courseName}
-        </p>
-        <p className="text-sm text-gray-500">
-          {isTournament ? 'Tournament' : formatNineHoleSide(round.nineHoleSide)} &middot; Week {round.weekNumber} &middot;{' '}
-          {formatShortDate(round.scheduledDate)}
-        </p>
+      <div className="flex items-center gap-4 min-w-0">
+        <div className="flex h-11 w-11 shrink-0 flex-col items-center justify-center rounded bg-primary-900 text-white font-mono">
+          <span className="text-[10px] uppercase tracking-wider text-[#E5B84B]">WK</span>
+          <span className="text-sm font-bold leading-none mt-0.5">{round.weekNumber}</span>
+        </div>
+        <div className="min-w-0">
+          <p className="font-sans text-lg font-bold tracking-tight text-gray-900 truncate group-hover:text-primary-900 transition-colors">
+            {round.courseName}
+          </p>
+          <p className="text-xs sm:text-sm text-gray-500 mt-0.5">
+            {isTournament ? 'Tournament' : formatNineHoleSide(round.nineHoleSide)} &middot;{' '}
+            <span className="font-mono">{formatShortDate(round.scheduledDate)}</span>
+          </p>
+        </div>
       </div>
       <div className="flex items-center gap-3 shrink-0 ml-4">
         <Badge variant={statusVariant(round.status)}>{round.status}</Badge>
-        <ArrowRight className="h-4 w-4 text-gray-400" />
+        <ArrowRight className="h-4 w-4 text-gray-400 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-900" />
       </div>
     </Link>
   );

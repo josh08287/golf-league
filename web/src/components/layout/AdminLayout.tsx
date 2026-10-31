@@ -55,18 +55,21 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="-mx-4 -my-8 flex min-h-[calc(100vh-8rem)] bg-gray-100">
+    <div className="flex min-h-[calc(100vh-9rem)] rounded-md overflow-hidden border border-gray-200 bg-white shadow-sm">
       {/* Sidebar */}
-      <aside className="flex w-64 flex-shrink-0 flex-col bg-[#1B5E20] text-white">
+      <aside className="flex w-64 flex-shrink-0 flex-col bg-[#133A25] text-white">
         {/* Logo / Brand */}
-        <div className="flex h-16 items-center gap-2 border-b border-green-700 px-6">
+        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-6">
           <GolfLogo size="sm" />
-          <span className="text-lg font-bold tracking-tight">{leagueName || 'Admin'}</span>
+          <div>
+            <span className="block font-sans text-base font-bold tracking-tight text-white">{leagueName || 'Admin'}</span>
+            <span className="block text-[10px] font-semibold uppercase tracking-widest text-[#E5B84B]">Commissioner Suite</span>
+          </div>
         </div>
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-4">
-          <ul className="space-y-1 px-3">
+          <ul className="space-y-0.5 px-3">
             {NAV_ITEMS.filter((item) => !item.superAdminOnly || user?.isSuperAdmin).map(({ to, label, icon: Icon }) => (
               <li key={to}>
                 <NavLink
@@ -74,14 +77,14 @@ export function AdminLayout() {
                   end={to === '/admin'}
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
+                      'flex items-center gap-3 rounded px-3 py-2 text-sm font-medium transition-colors',
                       isActive
-                        ? 'bg-green-700 text-white'
-                        : 'text-green-100 hover:bg-green-700/60 hover:text-white',
+                        ? 'bg-[#E5B84B] text-[#112A1B] font-bold'
+                        : 'text-emerald-100/80 hover:bg-white/10 hover:text-white',
                     )
                   }
                 >
-                  <Icon className="h-5 w-5" />
+                  <Icon className="h-4 w-4" />
                   {label}
                 </NavLink>
               </li>
@@ -90,13 +93,13 @@ export function AdminLayout() {
         </nav>
 
         {/* User info + logout */}
-        <div className="border-t border-green-700 p-4">
-          <div className="mb-3 truncate text-sm font-medium text-green-100">
+        <div className="border-t border-white/10 p-4">
+          <div className="mb-3 truncate text-xs font-medium text-emerald-100/80">
             {user?.name ?? user?.email ?? 'Admin'}
           </div>
           <button
             onClick={() => void handleLogout()}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-green-200 transition-colors hover:bg-green-700 hover:text-white"
+            className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-emerald-100/80 transition-colors hover:bg-white/10 hover:text-white"
           >
             <LogOut className="h-4 w-4" />
             Log out
@@ -105,8 +108,8 @@ export function AdminLayout() {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col">
-        <main className="flex-1 p-8">
+      <div className="flex flex-1 flex-col bg-[#FAF9F5]">
+        <main className="flex-1 p-6 sm:p-8">
           <Outlet />
         </main>
       </div>

@@ -53,14 +53,17 @@ export function LoginPage() {
   }
 
   const inputClass =
-    'mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-[#1B5E20] focus:outline-none focus:ring-1 focus:ring-[#1B5E20]';
+    'mt-1.5 block w-full rounded-md border border-gray-300 bg-white px-3.5 py-2 text-sm focus:border-primary-900 focus:outline-none focus:ring-1 focus:ring-primary-900';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F6F2] px-4">
+      <div className="w-full max-w-sm rounded-md border border-gray-200 border-t-4 border-t-primary-900 bg-white p-8 shadow-sm">
         <div className="text-center">
-          <GolfLogo size="xl" className="mx-auto" />
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Sign in</h1>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-primary-900">
+            <GolfLogo size="md" />
+          </div>
+          <h1 className="mt-4 font-sans text-2xl font-bold tracking-tight text-gray-900">Member Sign In</h1>
+          <p className="mt-1 text-xs text-gray-500">Enter the Capital Golf League Clubhouse</p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="mt-6 space-y-4">

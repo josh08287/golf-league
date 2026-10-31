@@ -48,7 +48,7 @@ export function PlayersPage() {
           placeholder="Search by name or flight…"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm shadow-sm focus:border-primary-500 focus:outline-none focus:ring-1 focus:ring-primary-500"
+          className="w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm focus:border-primary-900 focus:outline-none focus:ring-1 focus:ring-primary-900"
         />
       </div>
 
@@ -58,7 +58,7 @@ export function PlayersPage() {
       )}
 
       {players.data && (
-        <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+        <div className="rounded-md border border-gray-200 bg-white shadow-[0_1px_2px_rgba(20,34,24,0.04)] overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="bg-gray-50">
@@ -87,9 +87,11 @@ export function PlayersPage() {
                   onClick={() => navigate(`${prefix}/players/${p.id}`)}
                   className="cursor-pointer"
                 >
-                  <TableCell className="font-medium text-primary-900">{p.fullName}</TableCell>
+                  <TableCell className="font-semibold text-gray-900 hover:text-primary-900">
+                    {p.fullName}
+                  </TableCell>
                   <TableCell className="text-gray-600">{p.flightName ?? '—'}</TableCell>
-                  <TableCell className="text-right font-semibold tabular-nums" title={HANDICAP_PAIR_TOOLTIP}>
+                  <TableCell className="text-right font-semibold tabular-nums text-primary-900" title={HANDICAP_PAIR_TOOLTIP}>
                     {formatHandicapPair(p.currentHandicap)}
                   </TableCell>
                 </TableRow>

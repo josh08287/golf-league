@@ -73,8 +73,8 @@ export function ResetPasswordPage() {
     <div className="flex min-h-[70vh] items-center justify-center">
       <div className="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-8 shadow-md">
         <div className="text-center">
-          <GolfLogo size="xl" className="mx-auto" />
-          <h1 className="mt-4 text-2xl font-bold text-gray-900">Set a new password</h1>
+          <GolfLogo variant="badge" size="xl" className="mx-auto" />
+          <h1 className="mt-4 font-serif text-2xl font-bold text-gray-900">Set a new password</h1>
           <p className="mt-2 text-sm text-gray-500">{email}</p>
         </div>
 
